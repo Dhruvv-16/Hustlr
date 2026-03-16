@@ -1,0 +1,44 @@
+name: shieldgig
+description: ShieldGig – Parametric income insurance for Zomato delivery workers.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Local storage
+  shared_preferences: ^2.3.3
+
+  # Charts
+  fl_chart: ^0.69.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.2
+
+  # Firebase
+  firebase_core: ^3.9.0
+  firebase_messaging: ^15.1.6
+
+  # UI helpers
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.5+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/lottie/
