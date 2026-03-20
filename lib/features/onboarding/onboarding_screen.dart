@@ -292,7 +292,7 @@ class _TopBar extends StatelessWidget {
           ),
           const Expanded(
             child: Text(
-              'ShieldGig Onboarding',
+              'Hustlr Onboarding',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,

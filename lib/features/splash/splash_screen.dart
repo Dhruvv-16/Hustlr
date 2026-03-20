@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen>
                 // "ShieldGig" title
                 const SizedBox(height: 24),
                 const Text(
-                  'ShieldGig',
+                  'Hustlr',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,

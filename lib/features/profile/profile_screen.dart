@@ -138,7 +138,7 @@ class _WorkerIdentityCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'SHIELDGIG ID: ${worker.id}',
+                        'HUSTLR ID: ${worker.id}',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,

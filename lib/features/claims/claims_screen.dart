@@ -295,7 +295,7 @@ class _EducationBanner extends StatelessWidget {
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              'ShieldGig auto-detects disruptions and processes claims instantly for you.',
+              'Hustlr auto-detects disruptions and processes claims instantly for you.',
               style: TextStyle(
                 fontSize: 13,
                 color: _blueDark,

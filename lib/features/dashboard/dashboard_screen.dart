@@ -130,7 +130,7 @@ class _TopBar extends StatelessWidget {
               Icon(Icons.shield_rounded, color: _green, size: 28),
               SizedBox(width: 6),
               Text(
-                'ShieldGig',
+                'Hustlr',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -507,7 +507,7 @@ class _PolicyCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Row(children: [
-                        const Text('₹72/week',
+                        const Text('₹87/week',
                             style: TextStyle(fontSize: 13, color: _textSub)),
                         const SizedBox(width: 8),
                         _ActiveBadge(),
@@ -528,7 +528,7 @@ class _PolicyCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'ACTIVE UNTIL 24 OCT 2024',
+              'ACTIVE UNTIL 24 OCT 2026',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
