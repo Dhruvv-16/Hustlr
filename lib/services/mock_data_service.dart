@@ -89,11 +89,11 @@ class MockDataService extends ChangeNotifier {
     final platform = StorageService.getString('workerPlatform') ?? "Zepto";
 
     worker = WorkerModel(
-      id: "SG-9821",
+      id: "HS-9821",
       name: name,
       platform: platform,
       city: city,
-      zone: "$zone Zone",
+      zone: zone,
       issScore: 62,
       weeklyIncomeEstimate: 4200,
     );
@@ -102,7 +102,7 @@ class MockDataService extends ChangeNotifier {
 
   // WORKER
   WorkerModel worker = WorkerModel(
-    id: "SG-9821",
+    id: "HS-9821",
     name: "Karthik",
     platform: "Zepto",
     city: "Bengaluru",
@@ -132,7 +132,7 @@ class MockDataService extends ChangeNotifier {
     ClaimModel(
       id: "CLM001",
       type: "Rain Disruption",
-      date: "Oct 12, 2023",
+      date: "Mar 12, 2026",
       amount: 450,
       status: "APPROVED",
       zone: "Koramangala Dark Store Zone",
@@ -141,7 +141,7 @@ class MockDataService extends ChangeNotifier {
     ClaimModel(
       id: "CLM002",
       type: "Platform Downtime",
-      date: "Oct 08, 2023",
+      date: "Mar 08, 2026",
       amount: 200,
       status: "APPROVED",
       zone: "Koramangala Dark Store Zone",
@@ -179,29 +179,29 @@ class MockDataService extends ChangeNotifier {
       "type": "credit",
       "title": "Rain Disruption Payout",
       "subtitle": "Koramangala Dark Store Zone",
-      "amount": 595,
-      "date": "Oct 12, 2023",
+      "amount": 300,
+      "date": "Mar 12, 2026",
     },
     {
       "type": "debit",
       "title": "Standard Shield Premium",
-      "subtitle": "Week of Oct 10, 2023",
+      "subtitle": "Week of Mar 10, 2026",
       "amount": 72,
-      "date": "Oct 10, 2023",
+      "date": "Mar 10, 2026",
     },
     {
       "type": "credit",
       "title": "Claim-Free Cashback",
       "subtitle": "4 weeks bonus reward",
       "amount": 42,
-      "date": "Oct 08, 2023",
+      "date": "Mar 08, 2026",
     },
     {
       "type": "debit",
       "title": "App Downtime Rider",
-      "subtitle": "Week of Oct 10, 2023",
+      "subtitle": "Week of Mar 10, 2026",
       "amount": 12,
-      "date": "Oct 10, 2023",
+      "date": "Mar 10, 2026",
     },
   ];
 
@@ -214,7 +214,7 @@ class MockDataService extends ChangeNotifier {
     activeDisruption = ActiveDisruption(
       type: "Rain",
       message: "Rain disruption in your zone",
-      payoutExpected: 595,
+      payoutExpected: 300,
       creditDate: "Sunday night",
       isActive: true,
     );
@@ -224,7 +224,7 @@ class MockDataService extends ChangeNotifier {
       id: "CLM_DEMO_${DateTime.now().millisecondsSinceEpoch}",
       type: "Rain Disruption",
       date: "Just now",
-      amount: 595,
+      amount: 300,
       status: "PENDING",
       zone: "Koramangala Dark Store Zone",
       icon: "rain",
@@ -235,13 +235,13 @@ class MockDataService extends ChangeNotifier {
     // Step 3: After 3 seconds move to APPROVED
     Future.delayed(const Duration(seconds: 3), () {
       claims.first.status = "APPROVED";
-      walletBalance += 595;
-      monthlySavings += 595;
+      walletBalance += 300;
+      monthlySavings += 300;
       transactions.insert(0, {
         "type": "credit",
         "title": "Rain Disruption Payout",
         "subtitle": "Auto-triggered — Koramangala Dark Store Zone",
-        "amount": 595,
+        "amount": 300,
         "date": "Just now",
       });
       notifyListeners();
@@ -337,7 +337,7 @@ class MockDataService extends ChangeNotifier {
       ClaimModel(
         id: "CLM001",
         type: "Rain Disruption",
-        date: "Oct 12, 2023",
+        date: "Mar 12, 2026",
         amount: 450,
         status: "APPROVED",
         zone: "Koramangala Dark Store Zone",
@@ -346,7 +346,7 @@ class MockDataService extends ChangeNotifier {
       ClaimModel(
         id: "CLM002",
         type: "Platform Downtime",
-        date: "Oct 08, 2023",
+        date: "Mar 08, 2026",
         amount: 200,
         status: "APPROVED",
         zone: "Koramangala Dark Store Zone",
@@ -367,29 +367,29 @@ class MockDataService extends ChangeNotifier {
         "type": "credit",
         "title": "Rain Disruption Payout",
         "subtitle": "Koramangala Dark Store Zone",
-        "amount": 595,
-        "date": "Oct 12, 2023",
+        "amount": 300,
+        "date": "Mar 12, 2026",
       },
       {
         "type": "debit",
         "title": "Standard Shield Premium",
-        "subtitle": "Week of Oct 10, 2023",
+        "subtitle": "Week of Mar 10, 2026",
         "amount": 72,
-        "date": "Oct 10, 2023",
+        "date": "Mar 10, 2026",
       },
       {
         "type": "credit",
         "title": "Claim-Free Cashback",
         "subtitle": "4 weeks bonus reward",
         "amount": 42,
-        "date": "Oct 08, 2023",
+        "date": "Mar 08, 2026",
       },
       {
         "type": "debit",
         "title": "App Downtime Rider",
-        "subtitle": "Week of Oct 10, 2023",
+        "subtitle": "Week of Mar 10, 2026",
         "amount": 12,
-        "date": "Oct 10, 2023",
+        "date": "Mar 10, 2026",
       },
     ];
     notifyListeners();

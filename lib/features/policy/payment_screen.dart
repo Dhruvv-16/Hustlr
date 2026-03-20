@@ -167,7 +167,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   // Wallet row
                   _PaymentMethodRow(
                     icon: Icons.account_balance_wallet_rounded,
-                    title: 'ShieldGig Wallet',
+                    title: 'Hustlr Wallet',
                     subtitle: 'Balance: ₹2,340',
                     selected: _selectedMethod == 1,
                     onTap: () => setState(() => _selectedMethod = 1),

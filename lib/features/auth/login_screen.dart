@@ -134,7 +134,7 @@ class _MainCard extends StatelessWidget {
               ),
               const Expanded(
                 child: Text(
-                  'ShieldGig',
+                  'Hustlr',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -167,7 +167,7 @@ class _MainCard extends StatelessWidget {
           // ── Title ──────────────────────────────────────────────────────────
           const SizedBox(height: 20),
           const Text(
-            'Welcome to\nShieldGig',
+            'Welcome to\nHustlr',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 24,

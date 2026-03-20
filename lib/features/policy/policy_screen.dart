@@ -289,7 +289,7 @@ class _ActiveCoverageCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 4),
-        const Text('Policy #SG-98234-AX',
+        const Text('Policy #HS-98234-AX',
             style: TextStyle(fontSize: 12, color: Colors.white70)),
         const SizedBox(height: 12),
         const Text('VALIDITY',
@@ -299,7 +299,7 @@ class _ActiveCoverageCard extends StatelessWidget {
                 color: Colors.white60,
                 letterSpacing: 0.8)),
         const SizedBox(height: 4),
-        const Text('26 Oct 2022 - 25 Oct 2023',
+        const Text('26 Oct 2025 - 25 Oct 2026',
             style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,

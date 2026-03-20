@@ -145,7 +145,7 @@ class _OTPScreenState extends State<OTPScreen> {
                         ),
                         const Expanded(
                           child: Text(
-                            'ShieldGig',
+                            'Hustlr',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
