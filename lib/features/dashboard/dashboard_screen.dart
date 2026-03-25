@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'dart:async';
 import '../../services/mock_data_service.dart';
+import '../../data/mock_data.dart';
+import '../../core/router/app_router.dart';
 import '../shared/widgets/demo_control_panel.dart';
 import '../../shared/widgets/mobile_container.dart';
 
@@ -78,16 +81,18 @@ class DashboardScreen extends StatelessWidget {
                     const SizedBox(height: 20),
 
                     // ── Predictive nudge card ─────────────────────────────────
-                    if (mockData.showPredictiveNudge) ...[
-                      _NudgeCard(message: mockData.predictiveMessage, amount: mockData.protectAmount),
-                      const SizedBox(height: 16),
-                    ],
+                    const _NudgeCarousel(),
+                    const SizedBox(height: 16),
 
                     // ── ISS score card ────────────────────────────────────────
                     _ISSCard(score: mockData.worker.issScore),
                     const SizedBox(height: 16),
 
-                    // ── Alert card ────────────────────────────────────────────
+                    // ── Active disruption alert card ──────────────────────────
+                    _RainAlertCard(),
+                    const SizedBox(height: 16),
+
+                    // ── Dynamic alert card (from mock data) ───────────────────
                     if (mockData.activeDisruption != null) ...[
                       _AlertCard(disruption: mockData.activeDisruption!),
                       const SizedBox(height: 16),
@@ -97,13 +102,19 @@ class DashboardScreen extends StatelessWidget {
                     _PolicyCard(),
                     const SizedBox(height: 16),
 
+                    // ── Live Monitoring Widget (Feature 8) ────────────────────
+                    const _LiveStatusWidget(),
+                    const SizedBox(height: 16),
+
                     // ── Quick Actions ─────────────────────────────────────────
                     _QuickActions(),
                     const SizedBox(height: 16),
 
                     // ── Missed payouts card ───────────────────────────────────
-                    _MissedPayoutsCard(),
-                    const SizedBox(height: 100), // space above nav
+                    if (mockData.showShadowNudge) ...[
+                      _MissedPayoutsCard(amount: mockData.missedAmount),
+                      const SizedBox(height: 100), // space above nav
+                    ],
                   ],
                 ),
               ),
@@ -178,76 +189,116 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Nudge Card ───────────────────────────────────────────────────────────────
-class _NudgeCard extends StatelessWidget {
-  final String message;
-  final int amount;
+// ─── Nudge Carousel ────────────────────────────────────────────────────────
+class _NudgeCarousel extends StatefulWidget {
+  const _NudgeCarousel();
 
-  const _NudgeCard({required this.message, required this.amount});
+  @override
+  State<_NudgeCarousel> createState() => _NudgeCarouselState();
+}
+
+class _NudgeCarouselState extends State<_NudgeCarousel> {
+  int _currentIndex = 0;
+  Timer? _timer;
+  late List<Map<String, dynamic>> _displayNudges;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNudges = List.from(MockData.nudges);
+    if (DateTime.now().weekday == DateTime.wednesday) {
+      _displayNudges.insert(0, {
+        'type': 'forecast',
+        'emoji': '📅',
+        'title': '72-Hour Forecast',
+        'subtitle': '78% rain probability Friday 2–6 PM in Adyar zone\nActivate ₹49 Standard Shield now to protect ₹360 Friday earnings',
+        'cta': 'ACTIVATE NOW →',
+        'route': '/policy/plans',
+      });
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentIndex = (_currentIndex + 1) % _displayNudges.length;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _lightAmber,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: _textPrimary,
-                  ),
+    if (_displayNudges.isEmpty) return const SizedBox.shrink();
+    final nudge = _displayNudges[_currentIndex];
+    final bool isForecast = nudge['type'] == 'forecast';
+
+    return GestureDetector(
+      onTap: () {
+        if (nudge['route'] == 'plans') {
+          context.push('/policy/plans');
+        } else if (nudge['route'] == 'shadow') {
+          context.push('/policy/shadow');
+        } else {
+          context.push(nudge['route']);
+        }
+      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        child: Container(
+          key: ValueKey<int>(_currentIndex),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isForecast ? _amber.withOpacity(0.15) : _lightAmber,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _amber.withOpacity(0.3)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isForecast ? _amber.withOpacity(0.25) : _amber.withOpacity(0.15),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Activate coverage to protect ₹$amount+ earnings',
-                  style: const TextStyle(fontSize: 13, color: _textSub, height: 1.4),
-                ),
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: () => context.push('/policy/plans'),
-                  child: Row(
-                    children: const [
-                      Text(
-                        'ACTIVATE NOW',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: _amber,
-                          letterSpacing: 0.4,
+                child: Text(nudge['emoji'], style: const TextStyle(fontSize: 20)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nudge['title'].toUpperCase(),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _amber, letterSpacing: 0.8),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nudge['subtitle'],
+                      style: const TextStyle(fontSize: 14, color: _textPrimary, height: 1.3),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          nudge['cta'],
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _green, letterSpacing: 0.5),
                         ),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward, size: 14, color: _amber),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          // Storm cloud icon
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _amber.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.thunderstorm_rounded,
-                color: _amber, size: 28),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -261,15 +312,17 @@ class _ISSCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2)),
-        ],
-      ),
+    return GestureDetector(
+      onTap: () => context.push('/dashboard/iss'),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _cardWhite,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2)),
+          ],
+        ),
       child: Row(
         children: [
           // Circular ring
@@ -329,25 +382,26 @@ class _ISSCard extends StatelessWidget {
                   style: TextStyle(fontSize: 13, color: _textSub),
                 ),
                 const SizedBox(height: 8),
-                Row(children: const [
-                  Icon(Icons.trending_up_rounded, size: 16, color: _green),
-                  SizedBox(width: 4),
-                  Text(
+                Row(children: [
+                  const Icon(Icons.trending_up_rounded, size: 16, color: _green),
+                  const SizedBox(width: 4),
+                  const Text(
                     'Trending up +5',
                     style: TextStyle(
                         fontSize: 13,
                         color: _green,
                         fontWeight: FontWeight.w600),
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   // Bar chart mini
-                  _MiniBarChart(),
+                  const _MiniBarChart(),
                 ]),
               ],
             ),
           ),
           const Icon(Icons.chevron_right_rounded, color: _textHint, size: 22),
         ],
+      ),
       ),
     );
   }
@@ -418,6 +472,46 @@ class _RingPainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
+// ─── Static Rain Alert Card (Fix 6) ──────────────────────────────────────────
+class _RainAlertCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0F0),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error, color: _errorRed, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Rain disruption in your zone',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: _errorRed,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Claim auto-triggered — ₹105 credited · ₹45 releasing Sunday 11 PM',
+                  style: TextStyle(fontSize: 13, color: _errorRed),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Alert Card ───────────────────────────────────────────────────────────────
 class _AlertCard extends StatelessWidget {
   final ActiveDisruption disruption;
@@ -467,7 +561,7 @@ class _PolicyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go('/policy'),
+      onTap: () => context.push(AppRoutes.premiumBreakdown),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -507,7 +601,7 @@ class _PolicyCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Row(children: [
-                        const Text('₹87/week',
+                        const Text('₹49/week',
                             style: TextStyle(fontSize: 13, color: _textSub)),
                         const SizedBox(width: 8),
                         _ActiveBadge(),
@@ -635,41 +729,45 @@ class _QuickCard extends StatelessWidget {
 
 // ─── Missed Payouts Card ──────────────────────────────────────────────────────
 class _MissedPayoutsCard extends StatelessWidget {
+  final int amount;
+  
+  const _MissedPayoutsCard({required this.amount});
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _lightAmber,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _amber.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: () => context.push('/policy/shadow'),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _lightAmber,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _amber.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.savings_rounded, color: _amber, size: 26),
             ),
-            child: const Icon(Icons.savings_rounded, color: _amber, size: 26),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 2),
-                const Text(
-                  '₹680 could have been claimed',
-                  style: TextStyle(fontSize: 13, color: _textSub),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹$amount could have been claimed',
+                    style: const TextStyle(fontSize: 13, color: _textSub),
+                  ),
+                ],
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () {},
-            child: Container(
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: const Text(
                 'SEE WHY',
@@ -681,6 +779,104 @@ class _MissedPayoutsCard extends StatelessWidget {
                   decoration: TextDecoration.underline,
                   decorationColor: _amber,
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Live Monitoring Widget ────────────────────────────────────────────────────
+class _LiveStatusWidget extends StatelessWidget {
+  const _LiveStatusWidget();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8)],
+      ),
+      child: Column(
+        children: [
+          // Header row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4CAF50),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Live Zone Monitoring', style: TextStyle(fontWeight: FontWeight.bold, color: _textPrimary)),
+                ],
+              ),
+              const Text('Updated 2 min ago', style: TextStyle(fontSize: 11, color: _textSub)),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 5 trigger rows from MockData.liveStatus
+          ...MockData.liveStatus.map((trigger) => _buildTriggerRow(trigger)),
+          const SizedBox(height: 8),
+
+          // See all link
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.triggerStatus),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('See all triggers', style: TextStyle(color: _green, fontWeight: FontWeight.w600)),
+                Icon(Icons.chevron_right, color: _green, size: 18),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTriggerRow(Map<String, dynamic> trigger) {
+    final bool isElevated = trigger['status'] == 'ELEVATED';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(trigger['emoji'], style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(trigger['trigger'], style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: _textPrimary)),
+                Text('${trigger['reading']} · ${trigger['source']}', style: const TextStyle(fontSize: 11, color: _textHint)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isElevated ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              trigger['status'],
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isElevated ? const Color(0xFFE65100) : const Color(0xFF2D6A2D),
               ),
             ),
           ),

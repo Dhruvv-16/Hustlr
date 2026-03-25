@@ -11,16 +11,19 @@ class StorageService {
   // ─── Auth ──────────────────────────────────────────────────────────────────
   static const _keyIsLoggedIn   = 'isLoggedIn';
   static const _keyIsOnboarded  = 'isOnboarded';
+  static const _keyHasSeenCarousel = 'hasSeenCarousel';
   static const _keyPhone        = 'phone';
   static const _keyUserId       = 'userId';
 
   static bool   get isLoggedIn   => _prefs.getBool(_keyIsLoggedIn)   ?? false;
   static bool   get isOnboarded  => _prefs.getBool(_keyIsOnboarded)  ?? false;
+  static bool   get hasSeenCarousel => _prefs.getBool(_keyHasSeenCarousel) ?? false;
   static String get phone        => _prefs.getString(_keyPhone)      ?? '';
   static String get userId       => _prefs.getString(_keyUserId)     ?? '';
 
   static Future<void> setLoggedIn(bool v)  => _prefs.setBool(_keyIsLoggedIn,  v);
   static Future<void> setOnboarded(bool v) => _prefs.setBool(_keyIsOnboarded, v);
+  static Future<void> setHasSeenCarousel(bool v) => _prefs.setBool(_keyHasSeenCarousel, v);
   static Future<void> setPhone(String v)   => _prefs.setString(_keyPhone,     v);
   static Future<void> setUserId(String v)  => _prefs.setString(_keyUserId,    v);
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/services/storage_service.dart';
 import '../../services/mock_data_service.dart';
 
@@ -19,52 +20,13 @@ const _chipInactive = app_colors.textHint;
 
 const _cities = ['Chennai', 'Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad'];
 
-const _zonesByCity = <String, List<String>>{
-  'Chennai': [
-    'Adyar Dark Store Zone',
-    'Anna Nagar Dark Store Zone',
-    'T Nagar Dark Store Zone',
-    'OMR Dark Store Zone',
-    'Velachery Dark Store Zone',
-    'Porur Dark Store Zone',
-  ],
-  'Bengaluru': [
-    'Koramangala Dark Store Zone',
-    'Indiranagar Dark Store Zone',
-    'Whitefield Dark Store Zone',
-    'Marathahalli Dark Store Zone',
-    'HSR Layout Dark Store Zone',
-  ],
-  'Mumbai': [
-    'Andheri Dark Store Zone',
-    'Bandra Dark Store Zone',
-    'Kurla Dark Store Zone',
-    'Thane Dark Store Zone',
-    'Powai Dark Store Zone',
-  ],
-  'Delhi': [
-    'Connaught Place Dark Store Zone',
-    'Lajpat Nagar Dark Store Zone',
-    'Rohini Dark Store Zone',
-    'Saket Dark Store Zone',
-    'Dwarka Dark Store Zone',
-  ],
-  'Hyderabad': [
-    'Banjara Hills Dark Store Zone',
-    'Madhapur Dark Store Zone',
-    'HITEC City Dark Store Zone',
-    'Secunderabad Dark Store Zone',
-    'Jubilee Hills Dark Store Zone',
-  ],
-};
-
 // Platform data: name + brand colour
 const _platforms = [
   _Platform('Zepto', Color(0xFFE23744)),
-  _Platform('Swiggy', Color(0xFFFC8019)),
-  _Platform('Zomato', Color(0xFF1A1A5E)),
-  _Platform('Amazon Flex', Color(0xFFFF9900)),
+  _Platform('Blinkit', Color(0xFFF8D210)),
+  _Platform('Swiggy Instamart', Color(0xFFFC8019)),
   _Platform('Dunzo', Color(0xFF00A699)),
+  _Platform('BB Now', Color(0xFF00833E)),
 ];
 
 class _Platform {
@@ -93,8 +55,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _nameController.dispose();
     super.dispose();
   }
-
-  List<String> get _zones => _selectedCity != null ? _zonesByCity[_selectedCity] ?? [] : [];
 
   // Active step index for progress dots (simple scroll – all steps visible)
   int get _activeDot {
@@ -125,12 +85,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     setState(() => _saving = true);
     
-    await StorageService.setString('workerName', name);
-    await StorageService.setString('workerCity', _selectedCity!);
-    await StorageService.setString('workerZone', _selectedZone!);
-    await StorageService.setString('workerPlatform', _selectedPlatform!);
-    await StorageService.setOnboarded(true);
-    await StorageService.setLoggedIn(true);
+    final box = Hive.box('appData');
+    await box.put('userName', name);
+    await box.put('userCity', _selectedCity);
+    await box.put('userZone', _selectedZone);
+    await box.put('userPlatform', _selectedPlatform);
+    await box.put('onboardingComplete', true); // ← Mark onboarding done before leaving
 
     if (!mounted) return;
     
@@ -194,19 +154,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         _CityChips(
                           cities: _cities,
                           selected: _selectedCity,
-                          onSelect: (c) =>
-                              setState(() => _selectedCity = c),
+                          onSelect: (c) {
+                            if (_selectedCity != c) {
+                              setState(() {
+                                _selectedCity = c;
+                                _selectedZone = null;
+                              });
+                            }
+                          },
                         ),
 
                         const SizedBox(height: 28),
                         // ── STEP 3 ─────────────────────────────────────────
-                        const _StepTitle('Step 3: Select your zone'),
+                        const _StepTitle('Step 3: Your work area'),
                         const SizedBox(height: 12),
-                        _ZoneDropdown(
-                          zones: _zones,
-                          value: _selectedZone,
-                          onChanged: (v) =>
-                              setState(() => _selectedZone = v),
+                        _AreaSearchField(
+                          zones: context.watch<MockDataService>().autocompleteCities[_selectedCity] ?? [],
+                          city: _selectedCity ?? 'Chennai',
+                          selectedZone: _selectedZone,
+                          onSelect: (v) {
+                            setState(() => _selectedZone = v);
+                            if (v != null) FocusScope.of(context).unfocus();
+                          },
                         ),
 
                         const SizedBox(height: 28),
@@ -455,44 +424,141 @@ class _CityChips extends StatelessWidget {
   }
 }
 
-// ─── Step 3: Zone dropdown ────────────────────────────────────────────────────
-class _ZoneDropdown extends StatelessWidget {
+// ─── Step 3: Area Search Field ───────────────────────────────────────────────
+class _AreaSearchField extends StatefulWidget {
   final List<String> zones;
-  final String? value;
-  final ValueChanged<String?> onChanged;
+  final String city;
+  final String? selectedZone;
+  final ValueChanged<String?> onSelect;
 
-  const _ZoneDropdown(
-      {required this.zones, required this.value, required this.onChanged});
+  const _AreaSearchField({
+    required this.zones,
+    required this.city,
+    required this.selectedZone,
+    required this.onSelect,
+  });
+
+  @override
+  State<_AreaSearchField> createState() => _AreaSearchFieldState();
+}
+
+class _AreaSearchFieldState extends State<_AreaSearchField> {
+  String _searchQuery = '';
+  List<String> _filteredAreas = [];
+  final TextEditingController _controller = TextEditingController();
+
+  void _filterAreas(String query) {
+    setState(() {
+      _searchQuery = query;
+      _filteredAreas = query.isEmpty
+          ? []
+          : widget.zones
+              .where((area) =>
+                  area.toLowerCase().contains(query.toLowerCase()))
+              .toList();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AreaSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedZone == null && oldWidget.selectedZone != null) {
+      _controller.clear();
+      _searchQuery = '';
+      _filteredAreas = [];
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderLight),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          hint: const Text(
-            'Choose your delivery zone',
-            style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _controller,
+          onChanged: _filterAreas,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search_rounded, color: _green, size: 22),
+            hintText: 'Type your area or dark store location...',
+            hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _borderLight),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _borderLight),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _green, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: _textSub, size: 22),
-          isExpanded: true,
           style: const TextStyle(fontSize: 14, color: _textPrimary),
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          items: zones
-              .map((z) => DropdownMenuItem(value: z, child: Text(z)))
-              .toList(),
-          onChanged: onChanged,
         ),
-      ),
+        if (_filteredAreas.isNotEmpty && widget.selectedZone == null)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: _filteredAreas.length,
+              itemBuilder: (context, index) {
+                final area = _filteredAreas[index];
+                return ListTile(
+                  leading: const Icon(Icons.location_on_rounded, color: _green),
+                  title: Text(area, style: const TextStyle(fontSize: 14, color: _textPrimary)),
+                  subtitle: Text(widget.city, style: const TextStyle(fontSize: 12, color: _textSub)),
+                  onTap: () {
+                    setState(() {
+                      _filteredAreas = [];
+                      _searchQuery = area;
+                      _controller.text = area;
+                    });
+                    widget.onSelect(area);
+                    FocusScope.of(context).unfocus();
+                  },
+                );
+              },
+            ),
+          ),
+        if (widget.selectedZone != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Chip(
+              avatar: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+              label: Text(widget.selectedZone!,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              backgroundColor: _green,
+              deleteIcon: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+              onDeleted: () {
+                _controller.clear();
+                widget.onSelect(null);
+                setState(() {
+                  _filteredAreas = [];
+                  _searchQuery = '';
+                });
+              },
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              side: BorderSide.none,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -604,16 +670,16 @@ class _PlatformCard extends StatelessWidget {
 
   IconData _iconFor(String name) {
     switch (name) {
-      case 'Zomato':
-        return Icons.restaurant_rounded;
-      case 'Swiggy':
-        return Icons.delivery_dining_rounded;
       case 'Zepto':
         return Icons.electric_bolt_rounded;
-      case 'Amazon Flex':
-        return Icons.local_shipping_rounded;
+      case 'Blinkit':
+        return Icons.flash_on_rounded;
+      case 'Swiggy Instamart':
+        return Icons.shopping_basket_rounded;
       case 'Dunzo':
         return Icons.all_inclusive_rounded;
+      case 'BB Now':
+        return Icons.local_grocery_store_rounded;
       default:
         return Icons.storefront_rounded;
     }
@@ -690,13 +756,20 @@ class _ContinueButton extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Text(
-                'Continue',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+            : const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+                ],
               ),
       ),
     );

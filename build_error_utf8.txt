@@ -1,0 +1,228 @@
+﻿Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.67 available)
+  firebase_core 3.15.2 (4.5.0 available)
+  firebase_core_web 2.24.1 (3.5.0 available)
+  firebase_messaging 15.2.10 (16.1.2 available)
+  firebase_messaging_platform_interface 4.6.10 (4.7.7 available)
+  firebase_messaging_web 3.10.10 (4.1.3 available)
+  fl_chart 0.69.2 (1.2.0 available)
+  flutter_lints 4.0.0 (6.0.0 available)
+  geolocator 13.0.4 (14.0.2 available)
+  geolocator_android 4.6.2 (5.0.2 available)
+  go_router 14.8.1 (17.1.0 available)
+  google_maps_flutter 2.15.0 (2.16.0 available)
+  google_maps_flutter_android 2.19.2 (2.19.3 available)
+  google_maps_flutter_platform_interface 2.14.2 (2.15.0 available)
+  google_maps_flutter_web 0.6.1 (0.6.2 available)
+  lints 4.0.0 (6.1.0 available)
+  meta 1.17.0 (1.18.2 available)
+  test_api 0.7.10 (0.7.11 available)
+  vector_math 2.2.0 (2.3.0 available)
+Got dependencies!
+19 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Compiling lib\main.dart for the Web...                          
+flutter : Wasm dry run 
+succeeded. Consider 
+building and testing your 
+application with the 
+`--wasm` flag. See docs 
+for more info: https://doc
+s.flutter.dev/platform-int
+egration/web/wasm
+At line:1 char:1
++ flutter build web 
+--release > 
+build_error.txt 2>&1 ; 
+Get-Content buil ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (W  
+  asm dry run su...rati   
+ on/web/wasm:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Use --no-wasm-dry-run to 
+disable these warnings.
+Target dart2js failed: 
+ProcessException: Process 
+exited abnormally with 
+exit code 1:
+lib/features/profile/profi
+le_screen.dart:783:7:
+Error: '_ZoneRiskCard' is 
+already declared in this 
+scope.
+class _ZoneRiskCard 
+extends StatelessWidget {
+      ^^^^^^^^^^^^^
+lib/features/profile/profi
+le_screen.dart:403:7:
+Info: Previous 
+declaration of 
+'_ZoneRiskCard'.
+class _ZoneRiskCard 
+extends StatelessWidget {
+      ^^^^^^^^^^^^^
+Error: Compilation failed.
+  Command: C:\src\flutter\
+flutter\bin\cache\dart-sdk
+\bin\dart.exe compile js -
+-platform-binaries=C:\src\
+flutter\flutter\bin\cache\
+flutter_web_sdk\kernel 
+--invoker=flutter_tool 
+-Ddart.vm.product=true 
+-DFLUTTER_VERSION=3.41.4 
+-DFLUTTER_CHANNEL=stable -
+DFLUTTER_GIT_URL=https://g
+ithub.com/flutter/flutter.
+git -DFLUTTER_FRAMEWORK_RE
+VISION=ff37bef603 -DFLUTTE
+R_ENGINE_REVISION=e4b8dca3
+f1 -DFLUTTER_DART_VERSION=
+3.11.1 -DFLUTTER_WEB_USE_S
+KIA=true -DFLUTTER_WEB_USE
+_SKWASM=false -DFLUTTER_WE
+B_CANVASKIT_URL=https://ww
+w.gstatic.com/flutter-canv
+askit/e4b8dca3f1b4ede4c303
+71002441c88c12187ed6/ 
+--native-null-assertions 
+--no-source-maps -O4 
+--minify -o C:\Users\inesh
+\.gemini\antigravity\scrat
+ch\shieldgig\.dart_tool\fl
+utter_build\5415c2bf1b0ff7
+2c34efff3f5f85cae9\app.dil
+l --packages=C:\Users\ines
+h\.gemini\antigravity\scra
+tch\shieldgig\.dart_tool\p
+ackage_config.json 
+--cfe-only C:\Users\inesh\
+.gemini\antigravity\scratc
+h\shieldgig\.dart_tool\flu
+tter_build\5415c2bf1b0ff72
+c34efff3f5f85cae9\main.dar
+t
+#0      
+RunResult.throwException (
+package:flutter_tools/src/
+base/process.dart:153:5)
+#1      
+_DefaultProcessUtils.run (
+package:flutter_tools/src/
+base/process.dart:379:19)
+<asynchronous suspension>
+#2      
+Dart2JSTarget.build (packa
+ge:flutter_tools/src/build
+_system/targets/web.dart:2
+08:5)
+<asynchronous suspension>
+#3      _BuildInstance._in
+vokeInternal (package:flut
+ter_tools/src/build_system
+/build_system.dart:937:9)
+<asynchronous suspension>
+#4      
+Future.wait.<anonymous 
+closure> (dart:async/futur
+e.dart:546:21)
+<asynchronous suspension>
+#5      _BuildInstance.inv
+okeTarget (package:flutter
+_tools/src/build_system/bu
+ild_system.dart:875:32)
+<asynchronous suspension>
+#6      
+Future.wait.<anonymous 
+closure> (dart:async/futur
+e.dart:546:21)
+<asynchronous suspension>
+#7      _BuildInstance.inv
+okeTarget (package:flutter
+_tools/src/build_system/bu
+ild_system.dart:875:32)
+<asynchronous suspension>
+#8      
+FlutterBuildSystem.build (
+package:flutter_tools/src/
+build_system/build_system.
+dart:684:16)
+<asynchronous suspension>
+#9      
+WebBuilder.buildWeb (packa
+ge:flutter_tools/src/web/c
+ompile.dart:107:34)
+<asynchronous suspension>
+#10     BuildWebCommand.ru
+nCommand (package:flutter_
+tools/src/commands/build_w
+eb.dart:300:5)
+<asynchronous suspension>
+#11     FlutterCommand.run
+.<anonymous closure> (pack
+age:flutter_tools/src/runn
+er/flutter_command.dart:15
+90:27)
+<asynchronous suspension>
+#12     
+AppContext.run.<anonymous 
+closure> (package:flutter_
+tools/src/base/context.dar
+t:154:19)
+<asynchronous suspension>
+#13     
+CommandRunner.runCommand (
+package:args/command_runne
+r.dart:212:13)
+<asynchronous suspension>
+#14     FlutterCommandRunn
+er.runCommand.<anonymous 
+closure> (package:flutter_
+tools/src/runner/flutter_c
+ommand_runner.dart:496:9)
+<asynchronous suspension>
+#15     
+AppContext.run.<anonymous 
+closure> (package:flutter_
+tools/src/base/context.dar
+t:154:19)
+<asynchronous suspension>
+#16     FlutterCommandRunn
+er.runCommand (package:flu
+tter_tools/src/runner/flut
+ter_command_runner.dart:43
+1:5)
+<asynchronous suspension>
+#17     FlutterCommandRunn
+er.run.<anonymous 
+closure> (package:flutter_
+tools/src/runner/flutter_c
+ommand_runner.dart:307:33)
+<asynchronous suspension>
+#18     run.<anonymous 
+closure>.<anonymous 
+closure> (package:flutter_
+tools/runner.dart:104:11)
+<asynchronous suspension>
+#19     
+AppContext.run.<anonymous 
+closure> (package:flutter_
+tools/src/base/context.dar
+t:154:19)
+<asynchronous suspension>
+#20     main (package:flut
+ter_tools/executable.dart:
+103:3)
+<asynchronous suspension>
+
+Compiling lib\main.dart for the Web...                             21.0s
+Error: Failed to compile 
+application for the Web.

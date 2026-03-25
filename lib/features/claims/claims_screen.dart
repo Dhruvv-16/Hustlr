@@ -6,6 +6,7 @@ import '../../services/mock_data_service.dart';
 import '../../core/constants/colors.dart' as app_colors;
 import '../../core/constants/text_styles.dart';
 import '../../shared/widgets/mobile_container.dart';
+import 'package:go_router/go_router.dart';
 
 // ─── Color constants local to this screen (mapping to global tokens) ─────────
 const Color _bgScreen   = app_colors.background;
@@ -21,6 +22,7 @@ const Color _greenBg    = app_colors.lightGreen;
 const Color _divider    = Color(0xFFE5E7EB);
 const Color _primary    = app_colors.textPrimary;
 const Color _grey       = app_colors.textSecondary;
+const Color _errorRed   = app_colors.errorRed;
 
 class ClaimsScreen extends StatelessWidget {
   const ClaimsScreen({super.key});
@@ -39,6 +41,13 @@ class ClaimsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: _bgScreen,
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: app_colors.primaryGreen,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Report a Disruption', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        onPressed: () => _showDisruptionSheet(context),
+      ),
       body: MobileContainer(
         child: SafeArea(
           child: Column(
@@ -46,7 +55,7 @@ class ClaimsScreen extends StatelessWidget {
             _TopBar(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // extra padding for FAB
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -88,19 +97,22 @@ class ClaimsScreen extends StatelessWidget {
                           iconData = Icons.thermostat_rounded;
                           iconColor = _amber;
                         }
-                        
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _ClaimCard(
-                            iconBg: iconBg,
-                            icon: iconData,
-                            iconColor: iconColor,
-                            title: claim.type,
-                            date: claim.date,
-                            status: claim.status,
-                            statusBg: claim.status == 'APPROVED' ? _greenBg : const Color(0xFFFFF3E0),
-                            statusColor: claim.status == 'APPROVED' ? _greenText : _amber,
-                            amount: '₹${claim.amount}',
+                          child: InkWell(
+                            onTap: () => context.push('/claims/${claim.id}'),
+                            borderRadius: BorderRadius.circular(16),
+                            child: _ClaimCard(
+                              iconBg: iconBg,
+                              icon: iconData,
+                              iconColor: iconColor,
+                              title: claim.type,
+                              date: claim.date,
+                              status: claim.status,
+                              statusBg: claim.status == 'APPROVED' ? _greenBg : const Color(0xFFFFF3E0),
+                              statusColor: claim.status == 'APPROVED' ? _greenText : _amber,
+                              amount: '₹${claim.amount}',
+                            ),
                           ),
                         );
                       },
@@ -113,6 +125,71 @@ class ClaimsScreen extends StatelessWidget {
           ],
         ),
       ),
+      ),
+    );
+  }
+
+  void _showDisruptionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('What happened?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primary)),
+              ),
+              const Divider(height: 1),
+              _buildSheetItem(context, 'Road Blocked / Accident', '🚧', 'Manual claim · 4hr SLA · Photo required'),
+              _buildSheetItem(context, 'Dark Store / Hub Closed', '🏪', 'Manual claim · 4hr SLA · Photo + screenshot'),
+              _buildSheetItem(context, 'Internet Outage', '🌐', 'Auto-verified · No photo needed'),
+              _buildSheetItem(context, 'Heavy Traffic Congestion', '🚦', 'Manual claim · 4hr SLA · Photo + GPS'),
+              _buildSheetItem(context, 'Other Disruption', '📦', 'Manual claim · 4hr SLA · Photo + description'),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSheetItem(BuildContext context, String title, String emoji, String subtitle) {
+    return InkWell(
+      onTap: () {
+        context.pop(); // close sheet
+        context.push('/claims/evidence?type=$title');
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: _primary, fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: _grey, fontSize: 12)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: _grey),
+          ],
+        ),
       ),
     );
   }
@@ -295,7 +372,7 @@ class _EducationBanner extends StatelessWidget {
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Hustlr auto-detects disruptions and processes claims instantly for you.',
+              'Hustlr auto-detects disruptions and processes claims by Sunday 11 PM for you.',
               style: TextStyle(
                 fontSize: 13,
                 color: _blueDark,
@@ -411,21 +488,39 @@ class _ClaimCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                      letterSpacing: 0.8,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (status == 'DECLINED') ...[
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => context.push('/claims/explanation'),
+                        child: const Text(
+                          'See why →',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _errorRed,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

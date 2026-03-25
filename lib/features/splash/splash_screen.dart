@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,10 +34,18 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigate() async {
     if (!mounted) return;
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    // Use Hive (not SharedPreferences) to read auth state
+    final box = Hive.box('appData');
+    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
+    final onboardingComplete = box.get('onboardingComplete', defaultValue: false) as bool;
     if (!mounted) return;
-    context.go(isLoggedIn ? '/dashboard' : '/login');
+    if (!isLoggedIn) {
+      context.go('/login');
+    } else if (!onboardingComplete) {
+      context.go('/carousel');
+    } else {
+      context.go('/dashboard');
+    }
   }
 
   @override
@@ -72,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
 
-                // "ShieldGig" title
+                // "Hustlr" title
                 const SizedBox(height: 24),
                 const Text(
                   'Hustlr',
