@@ -19,6 +19,8 @@ const _grey       = app_colors.textSecondary;
 const _hint       = app_colors.textHint;
 const _divider    = Color(0xFFE5E7EB);
 const _cardWhite  = app_colors.cardWhite;
+const _amber      = app_colors.amber;
+const _errorRed   = app_colors.errorRed;
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -49,6 +51,12 @@ class ProfileScreen extends StatelessWidget {
             _WorkerIdentityCard(),
             const SizedBox(height: 16),
             _IssTrendCard(),
+            const SizedBox(height: 16),
+            const _ZoneDepthCard(),
+            const SizedBox(height: 16),
+            const _ZoneRiskCard(),
+            const SizedBox(height: 24),
+            const _FraudProtectionCard(),
             const SizedBox(height: 24),
             _SectionLabel('MY DOCUMENTS'),
             const SizedBox(height: 12),
@@ -164,7 +172,7 @@ class _WorkerIdentityCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${worker.city}, ${worker.zone}',
+                        '${worker.city} • ${worker.zone}',
                         style: const TextStyle(fontSize: 14, color: _grey),
                       ),
                       const SizedBox(height: 12),
@@ -395,6 +403,81 @@ class _ChartPainter extends CustomPainter {
 }
 
 // ─── Documents Section ────────────────────────────────────────────────────────
+// ─── Zone Risk Profile Card (Feature 5) ───────────────────────────────────────
+class _ZoneRiskCard extends StatelessWidget {
+  const _ZoneRiskCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final mockData = Provider.of<MockDataService>(context);
+    final riskData = mockData.zoneRisk;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Zone Risk Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primary)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: _amber.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                child: Text(riskData.riskTier, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _amber, letterSpacing: 0.5)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...riskData.factors.map((factor) => _buildRiskFactorRow(factor)),
+          const SizedBox(height: 12),
+          const Text('Top tier plans recommended for this zone.', style: TextStyle(fontSize: 12, color: _grey, fontStyle: FontStyle.italic)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiskFactorRow(ZoneRiskFactor factor) {
+    IconData icon = Icons.cloud_rounded;
+    if (factor.icon == "downtime") icon = Icons.apps_rounded;
+    if (factor.icon == "heat") icon = Icons.thermostat_rounded;
+
+    Color progressColor = _green;
+    if (factor.percentage > 40) progressColor = _amber;
+    if (factor.percentage > 70) progressColor = _errorRed;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: _grey),
+              const SizedBox(width: 8),
+              Expanded(child: Text(factor.label, style: const TextStyle(fontSize: 13, color: _primary, fontWeight: FontWeight.w500))),
+              Text('${factor.percentage}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: progressColor)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: factor.percentage / 100,
+            backgroundColor: const Color(0xFFF0F0F0),
+            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+            minHeight: 6,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DocumentsSection extends StatelessWidget {
   const _DocumentsSection();
 
@@ -696,6 +779,181 @@ class _LogoutRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Zone Depth Card ──────────────────────────────────────────────────────────
+class _ZoneDepthCard extends StatelessWidget {
+  const _ZoneDepthCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 8)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Your Zone Depth Profile',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _primary)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('HIGH FLOOD RISK',
+                    style: TextStyle(color: Colors.red.shade700,
+                        fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Chennai • Adyar Dark Store Zone',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 16),
+          Center(
+            child: SizedBox(
+              width: 120, height: 120,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 120, height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.red.shade200, width: 2),
+                      color: Colors.red.shade50,
+                    ),
+                  ),
+                  Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.orange.shade300, width: 2),
+                      color: Colors.orange.shade50,
+                    ),
+                  ),
+                  Container(
+                    width: 40, height: 40,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF2D6A2D),
+                    ),
+                    child: const Icon(Icons.person_pin, color: Colors.white, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text('You operate in the core zone',
+                style: TextStyle(color: Color(0xFF2D6A2D),
+                    fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+          const Center(
+            child: Text('Zone depth score: 0.84 \u2192 Full payout multiplier',
+                style: TextStyle(color: Colors.grey, fontSize: 11)),
+          ),
+          const SizedBox(height: 16),
+          _ringLegendRow(Colors.green.shade800, 'Core zone (0.81–1.00)', '100% payout multiplier'),
+          const SizedBox(height: 4),
+          _ringLegendRow(Colors.orange, 'Middle zone (0.41–0.80)', '60–85% payout'),
+          const SizedBox(height: 4),
+          _ringLegendRow(Colors.red, 'Outer zone (0.00–0.40)', '0–30% payout'),
+          const SizedBox(height: 16),
+          _riskBar(Icons.water_drop_rounded, 'Flood frequency', 0.85),
+          const SizedBox(height: 8),
+          _riskBar(Icons.smartphone_rounded, 'Platform outage rate', 0.45),
+          const SizedBox(height: 8),
+          _riskBar(Icons.traffic_rounded, 'Traffic congestion', 0.55),
+          const SizedBox(height: 12),
+          const Text(
+            'Based on 90-day IMD data + Zepto order logs for Adyar zone',
+            style: TextStyle(color: Colors.grey, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ringLegendRow(Color color, String label, String sublabel) {
+    return Row(children: [
+      Container(width: 12, height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 8),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _primary)),
+        Text(sublabel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ]),
+    ]);
+  }
+
+  Widget _riskBar(IconData icon, String label, double value) {
+    return Row(children: [
+      Icon(icon, size: 18, color: _primary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: _primary)),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: value,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF2D6A2D)),
+              minHeight: 8,
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(width: 8),
+      Text('${(value * 100).toInt()}%',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _primary)),
+    ]);
+  }
+}
+
+// ─── Fraud Protection Card ────────────────────────────────────────────────────
+class _FraudProtectionCard extends StatelessWidget {
+  const _FraudProtectionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Row(children: [
+        Icon(Icons.verified_user, color: Color(0xFF2D6A2D)),
+        SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('7-Layer Fraud Protection',
+                  style: TextStyle(fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D6A2D))),
+              Text('Play Integrity API · GPS jitter · Wi-Fi fingerprint · '
+                   'IP geolocation · Accelerometer · Behavioral baseline · '
+                   'News corroboration',
+                   style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+        ),
+      ]),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/router/app_router.dart';
 import '../../services/mock_data_service.dart';
 
@@ -55,9 +56,15 @@ class OnboardingCompleteScreen extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.directions_bike_rounded, size: 80, color: _green),
-                        SizedBox(height: 16),
-                        Text('Add assets/delivery_worker.png', style: TextStyle(color: _grey, fontSize: 12)),
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Color(0xFFE8F5E9),
+                          child: Icon(
+                            Icons.delivery_dining,
+                            size: 80,
+                            color: Color(0xFF2D6A2D),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -106,6 +113,51 @@ class OnboardingCompleteScreen extends StatelessWidget {
                         label: 'Coverage starts: ',
                         value: 'Monday',
                       ),
+                      const SizedBox(height: 16),
+                      // ISS Score reveal card
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                        ),
+                        child: Column(
+                          children: [
+                            const Text('Your Income Stability Score',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('62', style: TextStyle(
+                                    fontSize: 48, fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFF9800))),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFF9800),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Text('AMBER',
+                                          style: TextStyle(color: Colors.white,
+                                              fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text('Standard Shield recommended',
+                                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -129,8 +181,11 @@ class OnboardingCompleteScreen extends StatelessWidget {
                     height: 56,
                     child: ElevatedButton(
                       onPressed: () {
-                        // Navigate to /dashboard and clear back stack
-                context.go(AppRoutes.dashboard);
+                        final box = Hive.box('appData');
+                        box.put('onboardingComplete', true);
+                        
+                        // Navigate to /dashboard and clear back stack natively
+                        context.go(AppRoutes.dashboard);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _green,

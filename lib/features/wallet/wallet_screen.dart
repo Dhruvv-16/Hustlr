@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../../services/mock_data_service.dart';
 
 import '../../core/constants/colors.dart' as app_colors;
-import '../../core/constants/text_styles.dart';
-import '../../shared/widgets/mobile_container.dart';
+import '../../core/router/app_router.dart';
+import 'package:go_router/go_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 
 // ─── Local Palette (mapping to global tokens) ──────────────────────────────────
@@ -80,6 +80,8 @@ class WalletScreen extends StatelessWidget {
             _BalanceCard(),
             const SizedBox(height: 16),
             _SavingsInsightCard(),
+            const SizedBox(height: 16),
+            const _AnalyticsButton(),
             const SizedBox(height: 24),
             _WeeklySummarySection(),
             const SizedBox(height: 24),
@@ -160,7 +162,7 @@ class _BalanceCard extends StatelessWidget {
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => _showWithdrawBottomSheet(context, mockData),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: _green,
@@ -248,7 +250,7 @@ class _SavingsInsightCard extends StatelessWidget {
                 Text(
                   'You saved ₹$formattedSavings this month',
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: _primary,
                   ),
@@ -257,6 +259,39 @@ class _SavingsInsightCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Analytics Navigation ─────────────────────────────────────────────────────
+// ─── Analytics Navigation ─────────────────────────────────────────────────────
+class _AnalyticsButton extends StatelessWidget {
+  const _AnalyticsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.analytics),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF2D6A2D).withOpacity(0.3)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(children: [
+              Icon(Icons.bar_chart, color: Color(0xFF2D6A2D)),
+              SizedBox(width: 8),
+              Text('See Analytics', style: TextStyle(
+                  color: Color(0xFF2D6A2D), fontWeight: FontWeight.w600)),
+            ]),
+            Icon(Icons.chevron_right, color: Color(0xFF2D6A2D)),
+          ],
+        ),
       ),
     );
   }
@@ -302,7 +337,7 @@ class _WeeklySummarySection extends StatelessWidget {
           iconColor: _red,
           title: 'Policy Premium',
           date: 'Mar 10, 2026',
-          amount: '-₹72',
+          amount: '-₹49',
           amountColor: _red,
         ),
       ],
@@ -603,4 +638,204 @@ class _SupportCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── UPI Withdrawal Flow ──────────────────────────────────────────────────────
+void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
+  if (mockData.walletBalance <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No balance available to withdraw')),
+    );
+    return;
+  }
+
+  final upiController = TextEditingController(text: 'karthik.r@ybl');
+
+  final formattedBalance = mockData.walletBalance.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 24, right: 24, top: 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Withdraw to UPI',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primary)),
+            const SizedBox(height: 8),
+            Text('Enter your UPI ID to receive \u20b9$formattedBalance',
+                style: const TextStyle(fontSize: 14, color: _grey)),
+            const SizedBox(height: 32),
+            Container(
+              decoration: BoxDecoration(
+                color: _bgScreen, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _divider),
+              ),
+              child: TextField(
+                controller: upiController,
+                decoration: const InputDecoration(
+                  labelText: 'UPI ID',
+                  hintText: 'yourname@upi',
+                  prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: _green),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: _lightGreen, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _green.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('\u20b9$formattedBalance',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _green)),
+                  const SizedBox(height: 2),
+                  const Text('Full available balance',
+                      style: TextStyle(fontSize: 12, color: _green)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity, height: 56,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _processWithdrawal(context, mockData, upiController.text);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _green,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                ),
+                child: const Text('Initiate Transfer \u2192',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel',
+                    style: TextStyle(color: _grey, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _processWithdrawal(BuildContext context, MockDataService mockData, String upiId) {
+  final amount = mockData.walletBalance;
+
+  showDialog(
+    context: context,
+    barrierColor: Colors.white.withOpacity(0.98),
+    barrierDismissible: false,
+    builder: (context) => const Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(_green)),
+            SizedBox(height: 24),
+            Text('Initiating transfer...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primary)),
+            SizedBox(height: 8),
+            Text('Connecting to UPI network', style: TextStyle(fontSize: 14, color: _grey)),
+            SizedBox(height: 8),
+            Text('Powered by Razorpay', style: TextStyle(fontSize: 12, color: _grey)),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future.delayed(const Duration(seconds: 2), () {
+    if (!context.mounted) return;
+    Navigator.pop(context); // close processing
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final formattedBalance = amount.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+          
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 100, height: 100,
+                    decoration: const BoxDecoration(color: Color(0xFF2D6A2D), shape: BoxShape.circle),
+                    child: const Icon(Icons.check, color: Colors.white, size: 60),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('Transfer Initiated!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('₹$formattedBalance → $upiId', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  const Text('Funds will reflect within 2 hours', style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(12)),
+                    child: const Column(
+                      children: [
+                        Text('Reference Number', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text('UPI/REF/2603/HUSTLR847291', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        mockData.withdrawToUPI(amount, upiId); // zero out balance and add transaction
+                        while (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2D6A2D),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  });
 }

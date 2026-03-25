@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 // import 'package:firebase_core/firebase_core.dart'; // enable after adding google-services.json
 
 import 'core/router/app_router.dart';
@@ -10,6 +11,9 @@ import 'services/mock_data_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Hive.initFlutter();
+  await Hive.openBox('appData');
 
   // Local storage must be ready before the router reads auth state
   await StorageService.init();
@@ -23,13 +27,13 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => MockDataService()),
       ],
-      child: const ShieldGigApp(),
+      child: const HustlrApp(),
     ),
   );
 }
 
-class ShieldGigApp extends StatelessWidget {
-  const ShieldGigApp({super.key});
+class HustlrApp extends StatelessWidget {
+  const HustlrApp({super.key});
 
   @override
   Widget build(BuildContext context) {

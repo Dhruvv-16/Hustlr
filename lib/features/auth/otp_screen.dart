@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
@@ -75,14 +76,17 @@ class _OTPScreenState extends State<OTPScreen> {
 
     // Accept any 6-digit code for demo (or validate against _validOtp)
     if (otp.length == 6) {
-      await StorageService.setLoggedIn(true);
-      await StorageService.setPhone(widget.phone);
-      await StorageService.setUserId('user_${widget.phone}');
+      final box = Hive.box('appData');
+      await box.put('isLoggedIn', true);
 
       if (!mounted) return;
 
-      final isOnboarded = StorageService.isOnboarded;
-      context.go(isOnboarded ? AppRoutes.dashboard : AppRoutes.onboarding);
+      final onboardingComplete = box.get('onboardingComplete', defaultValue: false);
+      if (onboardingComplete) {
+        context.go(AppRoutes.dashboard);
+      } else {
+        context.go(AppRoutes.carousel);
+      }
     } else {
       setState(() {
         _loading = false;

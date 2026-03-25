@@ -80,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               child: const Icon(
-                Icons.help_outline_rounded,
+                Icons.headset_mic_rounded,
                 color: Colors.white,
                 size: 24,
               ),
@@ -121,7 +121,7 @@ class _MainCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Top bar: back ← | ShieldGig | spacer ──────────────────────────
+          // ── Top bar: back ← | Hustlr | spacer ──────────────────────────
           Row(
             children: [
               GestureDetector(
@@ -236,7 +236,7 @@ class _MainCard extends StatelessWidget {
           // ── For Zepto delivery partners ───────────────────────────────────
           const SizedBox(height: 16),
           const Text(
-            'For Zepto delivery partners',
+            'For Q-commerce delivery partners (Zepto / Blinkit)',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -272,6 +272,24 @@ class _MainCard extends StatelessWidget {
               color: Color(0xFF9CA3AF),
               height: 1.5,
             ),
+          ),
+          const SizedBox(height: 24),
+          // ── Invite Code / Waitlist logic ───────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () {},
+                child: const Text('Join Waitlist', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 8),
+              const Text('•', style: TextStyle(color: Color(0xFF9CA3AF))),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {},
+                child: const Text('Have Invite Code?', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
         ],
       ),

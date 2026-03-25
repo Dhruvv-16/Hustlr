@@ -44,7 +44,7 @@ const _plans = [
   _Plan(
     name: 'Basic Shield',
     subtitle: 'Rain + extreme heat cover',
-    price: '₹49/wk',
+    price: '₹29/wk',
     priceColor: _green,
     borderColor: _borderLight,
     accentLeft: true,
@@ -52,7 +52,7 @@ const _plans = [
   _Plan(
     name: 'Standard Shield',
     subtitle: 'Rain, heat, pollution, app downtime',
-    price: '₹87/wk',
+    price: '₹49/wk',
     priceColor: _green,
     borderColor: _green,
     badge: 'MOST POPULAR',
@@ -61,14 +61,14 @@ const _plans = [
   _Plan(
     name: 'Full Shield',
     subtitle: 'All disruption types covered',
-    price: '₹125/wk',
+    price: '₹79/wk',
     priceColor: _purple,
     borderColor: _borderLight,
   ),
   _Plan(
     name: 'Elite Shield',
     subtitle: 'All types + compound triggers',
-    price: '₹199/wk',
+    price: '₹109/wk',
     priceColor: Colors.white,
     borderColor: _orange,
     badge: '★ BEST VALUE',
@@ -215,7 +215,7 @@ class _CurrentPlanTab extends StatelessWidget {
         _coverageItem(Icons.wb_sunny_rounded, 'Extreme Heat',
             'Triggers above 42°C advisory'),
         _coverageItem(Icons.air_rounded, 'Pollution Alert',
-            'AQI > 300 in your zone'),
+            'AQI > 200 in your zone'),
         _coverageItem(Icons.phonelink_off_rounded, 'App Downtime',
             'Outages over 90 minutes'),
       ]),
@@ -391,10 +391,10 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   int get _totalCost {
     const planPrices = {
-      'Basic Shield': 49,
-      'Standard Shield': 87,
-      'Full Shield': 125,
-      'Elite Shield': 199,
+      'Basic Shield': 29,
+      'Standard Shield': 49,
+      'Full Shield': 79,
+      'Elite Shield': 109,
     };
     const riderPrices = {
       'Curfew & Strike': 15,
@@ -402,7 +402,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
       'App Downtime': 12,
       'Cyclone': 25,
     };
-    int total = planPrices[_selectedPlan] ?? 87;
+    int total = planPrices[_selectedPlan] ?? 49;
     for (final r in _riderToggles.entries) {
       if (r.value) total += riderPrices[r.key] ?? 0;
     }
@@ -454,6 +454,23 @@ class _UpgradeTabState extends State<_UpgradeTab> {
                 onChanged: (v) =>
                     setState(() => _riderToggles[r.name] = v),
               )),
+          const SizedBox(height: 20),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              title: const Text('Coverage Rules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _textPrimary)),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 16),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ruleText('45-minute minimum', 'disruption must last 45 continuous minutes'),
+                _ruleText('24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
+                _ruleText('Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
+                _ruleText('One event per week per type', 'Basic + Standard Shield only'),
+                _ruleText('Post-activation only', 'events before activation never covered'),
+              ],
+            ),
+          ),
         ]),
       ),
       Positioned(
@@ -466,6 +483,29 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         ),
       ),
     ]);
+  }
+
+  Widget _ruleText(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(fontSize: 14, color: _textHint)),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 12, color: _textSub, height: 1.4),
+                children: [
+                  TextSpan(text: '$title — ', style: const TextStyle(fontWeight: FontWeight.bold, color: _textPrimary)),
+                  TextSpan(text: desc),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -548,6 +588,18 @@ class _PlanCard extends StatelessWidget {
                                             fontWeight: FontWeight.w700,
                                             color: Colors.white,
                                             letterSpacing: 0.5)),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  GestureDetector(
+                                    onTap: () => context.push('/policy/compound'),
+                                    child: const Text('Learn about compound triggers \u2192',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: Colors.white,
+                                        )),
                                   ),
                                 ],
                               ],
@@ -739,8 +791,8 @@ class _HistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      ('Standard Shield', 'Mar 2024 – Mar 2025', '₹87/wk'),
-      ('Basic Shield', 'Sep 2023 – Mar 2024', '₹49/wk'),
+      ('Standard Shield', 'Mar 2025 – Mar 2026', '₹49/wk'),
+      ('Basic Shield', 'Sep 2024 – Mar 2025', '₹29/wk'),
     ];
     return ListView(padding: const EdgeInsets.all(16), children: [
       _sectionLabel('POLICY HISTORY'),

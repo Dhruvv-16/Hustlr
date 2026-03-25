@@ -32,10 +32,10 @@ class _PlansScreenState extends State<PlansScreen> {
   };
 
   static const _planPrices = {
-    'Basic Shield': 49,
-    'Standard Shield': 87,
-    'Full Shield': 125,
-    'Elite Shield': 199,
+    'Basic Shield': 29,
+    'Standard Shield': 49,
+    'Full Shield': 79,
+    'Elite Shield': 109,
   };
   static const _riderPrices = {
     'Curfew & Strike': 15,
@@ -44,7 +44,7 @@ class _PlansScreenState extends State<PlansScreen> {
   };
 
   int get _total {
-    int t = _planPrices[_selectedPlan] ?? 87;
+    int t = _planPrices[_selectedPlan] ?? 49;
     for (final r in _riders.entries) {
       if (r.value) t += _riderPrices[r.key] ?? 0;
     }
@@ -84,14 +84,14 @@ class _PlansScreenState extends State<PlansScreen> {
               _planCard(
                 name: 'Basic Shield',
                 subtitle: 'Rain + Extreme Heat coverage',
-                price: '₹49/wk',
+                price: '₹29/wk',
                 priceColor: _green,
                 selectBorder: _green,
               ),
               _planCard(
                 name: 'Standard Shield',
                 subtitle: 'Rain, heat, pollution, app downtime',
-                price: '₹87/wk',
+                price: '₹49/wk',
                 priceColor: _teal,
                 selectBorder: _teal,
                 badge: 'MOST POPULAR',
@@ -100,30 +100,47 @@ class _PlansScreenState extends State<PlansScreen> {
               _planCard(
                 name: 'Full Shield',
                 subtitle: 'All disruption types covered',
-                price: '₹125/wk',
+                price: '₹79/wk',
                 priceColor: _purple,
                 selectBorder: _purple,
               ),
               _planCard(
                 name: 'Elite Shield',
                 subtitle: 'All types + compound triggers',
-                price: '₹199/wk',
+                price: '₹109/wk',
                 priceColor: Colors.white,
                 selectBorder: _amber,
                 badge: '★ BEST VALUE',
                 badgeColor: _amber,
                 cardBg: _amber,
-                extra: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Text('10% CASHBACK',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)),
+                extra: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: const Text('10% CASHBACK',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                    ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () => context.push('/policy/compound'),
+                      child: const Text('Learn about compound triggers \u2192',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.white,
+                          )),
+                    ),
+                  ],
                 ),
               ),
 
@@ -157,6 +174,23 @@ class _PlansScreenState extends State<PlansScreen> {
                   'Reduced orders on polling days', '+₹20/wk', 'Election Day'),
               _riderRow(Icons.phonelink_off_rounded, 'App Downtime',
                   'Platform outages over 90 mins', '+₹12/wk', 'App Downtime'),
+              const SizedBox(height: 20),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  title: const Text('Coverage Rules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _textPrimary)),
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(bottom: 16),
+                  expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ruleText('45-minute minimum', 'disruption must last 45 continuous minutes'),
+                    _ruleText('24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
+                    _ruleText('Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
+                    _ruleText('One event per week per type', 'Basic + Standard Shield only'),
+                    _ruleText('Post-activation only', 'events before activation never covered'),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -366,6 +400,29 @@ class _PlansScreenState extends State<PlansScreen> {
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ]),
+    );
+  }
+
+  Widget _ruleText(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(fontSize: 14, color: _textHint)),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 12, color: _textSub, height: 1.4),
+                children: [
+                  TextSpan(text: '$title — ', style: const TextStyle(fontWeight: FontWeight.bold, color: _textPrimary)),
+                  TextSpan(text: desc),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,116 +1,164 @@
-Resolving dependencies...
-Downloading packages...
-  _flutterfire_internals 1.3.59 (1.3.67 available)
-  firebase_core 3.15.2 (4.5.0 available)
-  firebase_core_web 2.24.1 (3.5.0 available)
-  firebase_messaging 15.2.10 (16.1.2 available)
-  firebase_messaging_platform_interface 4.6.10 (4.7.7 available)
-  firebase_messaging_web 3.10.10 (4.1.3 available)
-  fl_chart 0.69.2 (1.2.0 available)
-  flutter_lints 4.0.0 (6.0.0 available)
-  geolocator 13.0.4 (14.0.2 available)
-  geolocator_android 4.6.2 (5.0.2 available)
-  go_router 14.8.1 (17.1.0 available)
-  lints 4.0.0 (6.1.0 available)
-  meta 1.17.0 (1.18.1 available)
-Got dependencies!
-13 packages have newer versions incompatible with dependency constraints.
-Try `flutter pub outdated` for more information.
-Analyzing shieldgig...                                          
+﻿Analyzing shieldgig...
 
-   info - The 'child' argument should be last in widget constructor invocations - lib\core\router\app_router.dart:74:27 - sort_child_properties_last
-warning - Unused import: '../../shared/widgets/mobile_container.dart' - lib\features\auth\login_screen.dart:5:8 - unused_import
-   info - Use 'const' with the constructor to improve performance - lib\features\auth\login_screen.dart:250:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\auth\login_screen.dart:300:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\auth\login_screen.dart:302:20 - prefer_const_constructors
-warning - The declaration '_hint' isn't referenced - lib\features\auth\otp_screen.dart:16:7 - unused_element
-   info - Statements in a for should be enclosed in a block - lib\features\auth\otp_screen.dart:43:35 - curly_braces_in_flow_control_structures
-   info - Statements in a for should be enclosed in a block - lib\features\auth\otp_screen.dart:44:34 - curly_braces_in_flow_control_structures
-   info - Statements in a for should be enclosed in a block - lib\features\auth\otp_screen.dart:95:35 - curly_braces_in_flow_control_structures
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claim_detail_screen.dart:343:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claim_detail_screen.dart:345:20 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\claims\claim_detail_screen.dart:347:25 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claim_detail_screen.dart:348:17 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\claims\claim_detail_screen.dart:351:29 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claim_detail_screen.dart:374:17 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claim_detail_screen.dart:541:14 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\claims\claim_detail_screen.dart:542:19 - prefer_const_literals_to_create_immutables
-warning - Unused import: '../../core/constants/text_styles.dart' - lib\features\claims\claims_screen.dart:7:8 - unused_import
-   info - Use 'const' with the constructor to improve performance - lib\features\claims\claims_screen.dart:46:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:128:18 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:219:26 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:282:17 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:284:28 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:297:21 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:299:30 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:313:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:314:20 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\dashboard\dashboard_screen.dart:316:25 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:332:17 - prefer_const_constructors
-   info - Use 'const' for final variables initialized to a constant value - lib\features\dashboard\dashboard_screen.dart:390:5 - prefer_const_declarations
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:658:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\dashboard\dashboard_screen.dart:659:20 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\dashboard\dashboard_screen.dart:661:25 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\policy\payment_screen.dart:108:19 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\policy\payment_screen.dart:110:19 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\policy\payment_screen.dart:114:19 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\policy\payment_screen.dart:116:31 - prefer_const_literals_to_create_immutables
-   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\policy\payment_screen.dart:366:15 - deprecated_member_use
-   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\policy\payment_screen.dart:367:15 - deprecated_member_use
-warning - The '!' will have no effect because the receiver can't be null - lib\features\policy\plans_screen.dart:305:34 - unnecessary_non_null_assertion
-   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\policy\plans_screen.dart:365:11 - deprecated_member_use
-warning - Unused import: '../../core/constants/text_styles.dart' - lib\features\policy\policy_screen.dart:2:8 - unused_import
-   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\policy\policy_screen.dart:645:11 - deprecated_member_use
-warning - Unused import: '../../core/router/app_router.dart' - lib\features\profile\profile_screen.dart:7:8 - unused_import
-warning - Unused import: '../../core/constants/text_styles.dart' - lib\features\profile\profile_screen.dart:9:8 - unused_import
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:43:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:44:16 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:46:18 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\profile\profile_screen.dart:48:21 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:49:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:51:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:53:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:55:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:57:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:59:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:61:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:63:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:65:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:67:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\profile\profile_screen.dart:69:13 - prefer_const_constructors
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\shared\widgets\demo_control_panel.dart:168:43 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\shared\widgets\demo_control_panel.dart:175:30 - deprecated_member_use
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:36:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:37:16 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:39:18 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\support\support_screen.dart:41:23 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:92:16 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\support\support_screen.dart:93:21 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:238:12 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:240:14 - prefer_const_constructors
-warning - The value of the field '_expanded' isn't used - lib\features\support\support_screen.dart:276:8 - unused_field
-   info - Use 'const' with the constructor to improve performance - lib\features\support\support_screen.dart:373:13 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\support\support_screen.dart:374:25 - prefer_const_literals_to_create_immutables
-warning - Unused import: '../../core/constants/text_styles.dart' - lib\features\wallet\wallet_screen.dart:7:8 - unused_import
-warning - Duplicate import - lib\features\wallet\wallet_screen.dart:9:8 - duplicate_import
-warning - The declaration '_hint' isn't referenced - lib\features\wallet\wallet_screen.dart:21:7 - unused_element
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:75:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:76:16 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:78:18 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\wallet\wallet_screen.dart:79:21 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:80:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:82:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:84:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:86:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:88:13 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:274:9 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\wallet\wallet_screen.dart:275:21 - prefer_const_literals_to_create_immutables
-   info - Use interpolation to compose strings and values - lib\features\wallet\wallet_screen.dart:468:41 - prefer_interpolation_to_compose_strings
-   info - Use interpolation to compose strings and values - lib\features\wallet\wallet_screen.dart:469:25 - prefer_interpolation_to_compose_strings
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:568:11 - prefer_const_constructors
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:569:20 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\wallet\wallet_screen.dart:571:25 - prefer_const_literals_to_create_immutables
-   info - Use 'const' with the constructor to improve performance - lib\features\wallet\wallet_screen.dart:581:17 - prefer_const_constructors
-   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\wallet\wallet_screen.dart:582:29 - prefer_const_literals_to_create_immutables
-warning - Unused import: 'package:shieldgig/main.dart' - test\widget_test.dart:11:8 - unused_import
+  error - lib\features\wallet\analytics_dashboard_screen.dart:361:45 - Undefined name 'AppRoutes'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+warning - lib\core\router\app_router.dart:1:8 - Unused import: 'package:flutter/material.dart'. Try removing the import directive. - unused_import
+warning - lib\core\router\app_router.dart:30:8 - Unused import: '../services/storage_service.dart'. Try removing the import directive. - unused_import
+warning - lib\features\auth\login_screen.dart:5:8 - Unused import: '../../shared/widgets/mobile_container.dart'. Try removing the import directive. - unused_import
+warning - lib\features\auth\otp_screen.dart:5:8 - Unused import: '../../core/services/storage_service.dart'. Try removing the import directive. - unused_import
+warning - lib\features\auth\otp_screen.dart:17:7 - The declaration '_hint' isn't referenced. Try removing the declaration of '_hint'. - unused_element
+warning - lib\features\claims\claims_screen.dart:7:8 - Unused import: '../../core/constants/text_styles.dart'. Try removing the import directive. - unused_import
+warning - lib\features\dashboard\iss_detail_screen.dart:3:8 - Unused import: 'package:go_router/go_router.dart'. Try removing the import directive. - unused_import
+warning - lib\features\dashboard\iss_detail_screen.dart:5:8 - Unused import: '../../core/router/app_router.dart'. Try removing the import directive. - unused_import
+warning - lib\features\onboarding\onboarding_screen.dart:5:8 - Unused import: '../../core/services/storage_service.dart'. Try removing the import directive. - unused_import
+warning - lib\features\onboarding\onboarding_screen.dart:446:10 - The value of the field '_searchQuery' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\features\policy\plans_screen.dart:305:34 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - lib\features\policy\policy_screen.dart:2:8 - Unused import: '../../core/constants/text_styles.dart'. Try removing the import directive. - unused_import
+warning - lib\features\policy\premium_breakdown_screen.dart:1:8 - Unused import: 'dart:math'. Try removing the import directive. - unused_import
+warning - lib\features\policy\premium_breakdown_screen.dart:4:8 - Unused import: 'package:provider/provider.dart'. Try removing the import directive. - unused_import
+warning - lib\features\policy\premium_breakdown_screen.dart:11:7 - The declaration '_lightGreen' isn't referenced. Try removing the declaration of '_lightGreen'. - unused_element
+warning - lib\features\policy\premium_breakdown_screen.dart:14:7 - The declaration '_errorRed' isn't referenced. Try removing the declaration of '_errorRed'. - unused_element
+warning - lib\features\profile\profile_screen.dart:7:8 - Unused import: '../../core/router/app_router.dart'. Try removing the import directive. - unused_import
+warning - lib\features\profile\profile_screen.dart:9:8 - Unused import: '../../core/constants/text_styles.dart'. Try removing the import directive. - unused_import
+warning - lib\features\support\support_screen.dart:276:8 - The value of the field '_expanded' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\features\wallet\wallet_screen.dart:21:7 - The declaration '_hint' isn't referenced. Try removing the declaration of '_hint'. - unused_element
+warning - test\widget_test.dart:11:8 - Unused import: 'package:shieldgig/main.dart'. Try removing the import directive. - unused_import
+   info - lib\core\router\app_router.dart:112:27 - The 'child' argument should be last in widget constructor invocations. Try moving the argument to the end of the argument list. - sort_child_properties_last
+   info - lib\features\auth\login_screen.dart:250:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\auth\login_screen.dart:318:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\auth\login_screen.dart:320:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\auth\otp_screen.dart:44:35 - Statements in a for should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib\features\auth\otp_screen.dart:45:34 - Statements in a for should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib\features\auth\otp_screen.dart:99:35 - Statements in a for should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib\features\claims\auto_explanation_screen.dart:70:36 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\auto_explanation_screen.dart:72:55 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\claim_detail_screen.dart:58:36 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\claim_detail_screen.dart:140:85 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\claim_detail_screen.dart:237:59 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\claim_detail_screen.dart:253:31 - Use interpolation to compose strings and values. Try using string interpolation to build the composite string. - prefer_interpolation_to_compose_strings
+   info - lib\features\claims\claims_screen.dart:55:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\claims\manual_evidence_screen.dart:86:61 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\claims\manual_evidence_screen.dart:154:41 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\dashboard_screen.dart:139:18 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:257:40 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\dashboard_screen.dart:259:46 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\dashboard_screen.dart:267:46 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\dashboard_screen.dart:267:73 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\dashboard_screen.dart:335:17 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:337:28 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:350:21 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:352:30 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:366:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:367:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:369:25 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\dashboard_screen.dart:385:17 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:385:31 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\dashboard_screen.dart:444:5 - Use 'const' for final variables initialized to a constant value. Try replacing 'final' with 'const'. - prefer_const_declarations
+   info - lib\features\dashboard\dashboard_screen.dart:485:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:486:19 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\dashboard_screen.dart:489:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:490:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\dashboard_screen.dart:492:25 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\dashboard_screen.dart:752:31 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\dashboard\iss_detail_screen.dart:108:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:110:23 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\iss_detail_screen.dart:112:15 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:181:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:183:19 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\iss_detail_screen.dart:192:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:195:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:196:24 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:225:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\iss_detail_screen.dart:226:23 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\dashboard\trigger_status_screen.dart:17:17 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\trigger_status_screen.dart:19:18 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\dashboard\trigger_status_screen.dart:21:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\onboarding\onboarding_carousel_screen.dart:72:39 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\onboarding\onboarding_carousel_screen.dart:118:107 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\payment_screen.dart:108:19 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\payment_screen.dart:110:19 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\payment_screen.dart:114:19 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\payment_screen.dart:116:31 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\policy\payment_screen.dart:366:15 - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\payment_screen.dart:367:15 - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\plans_screen.dart:365:11 - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\policy_screen.dart:645:11 - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\premium_breakdown_screen.dart:25:5 - Use 'const' for final variables initialized to a constant value. Try replacing 'final' with 'const'. - prefer_const_declarations
+   info - lib\features\policy\premium_breakdown_screen.dart:79:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\premium_breakdown_screen.dart:81:19 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\policy\premium_breakdown_screen.dart:82:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\premium_breakdown_screen.dart:84:23 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\policy\premium_breakdown_screen.dart:100:20 - Unnecessary 'const' keyword. Try removing the keyword. - unnecessary_const
+   info - lib\features\policy\premium_breakdown_screen.dart:127:20 - Unnecessary 'const' keyword. Try removing the keyword. - unnecessary_const
+   info - lib\features\policy\premium_breakdown_screen.dart:250:42 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\policy\premium_breakdown_screen.dart:252:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\premium_breakdown_screen.dart:254:19 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\policy\shadow_policy_screen.dart:36:19 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\policy\shadow_policy_screen.dart:59:83 - Unnecessary use of 'toList' in a spread. Try removing the invocation of 'toList'. - unnecessary_to_list_in_spreads
+   info - lib\features\policy\shadow_policy_screen.dart:114:29 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:45:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:46:16 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:48:18 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:50:21 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\profile\profile_screen.dart:51:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:53:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:55:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:57:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:59:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:61:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:63:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:65:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:67:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:69:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:71:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:73:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\profile\profile_screen.dart:427:57 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\shared\widgets\demo_control_panel.dart:168:43 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\shared\widgets\demo_control_panel.dart:175:30 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\support\support_screen.dart:36:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:37:16 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:39:18 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:41:23 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\support\support_screen.dart:92:16 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:93:21 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\support\support_screen.dart:238:12 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:240:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:373:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\support\support_screen.dart:374:25 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\analytics_dashboard_screen.dart:120:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:125:35 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\analytics_dashboard_screen.dart:307:14 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:309:19 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\analytics_dashboard_screen.dart:312:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:315:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:316:24 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:320:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\analytics_dashboard_screen.dart:322:23 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\analytics_dashboard_screen.dart:339:52 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\analytics_dashboard_screen.dart:346:63 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\analytics_dashboard_screen.dart:448:19 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib\features\wallet\analytics_dashboard_screen.dart:449:12 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib\features\wallet\wallet_screen.dart:75:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:76:16 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:78:18 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:79:21 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\wallet_screen.dart:80:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:82:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:86:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:88:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:90:13 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:281:61 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\wallet_screen.dart:309:9 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:310:21 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\wallet_screen.dart:503:41 - Use interpolation to compose strings and values. Try using string interpolation to build the composite string. - prefer_interpolation_to_compose_strings
+   info - lib\features\wallet\wallet_screen.dart:504:25 - Use interpolation to compose strings and values. Try using string interpolation to build the composite string. - prefer_interpolation_to_compose_strings
+   info - lib\features\wallet\wallet_screen.dart:603:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:604:20 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:606:25 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\wallet_screen.dart:616:17 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\features\wallet\wallet_screen.dart:617:29 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\features\wallet\wallet_screen.dart:701:50 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\wallet_screen.dart:751:32 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\features\wallet\wallet_screen.dart:773:19 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
+   info - lib\features\wallet\wallet_screen.dart:776:7 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
 
+160 issues found.
