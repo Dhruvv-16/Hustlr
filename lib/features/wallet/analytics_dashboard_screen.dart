@@ -228,8 +228,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               _buildLegendItem(context, 'Platform', const Color(0xFF2196F3)),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

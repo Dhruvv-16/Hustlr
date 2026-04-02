@@ -10,12 +10,6 @@ Future<void> _launch(String url) async {
   }
 }
 
-Future<void> _launch(String url) async {
-  final uri = Uri.parse(url);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-}
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -396,7 +390,7 @@ class _TicketCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Row(
+            Row(
               children: [
                 Icon(Icons.attach_file_rounded, color: green, size: 16),
                 const SizedBox(width: 4),
