@@ -1,0 +1,16 @@
+﻿[dotenv@17.3.1] injecting env (12) from .env -- tip: ΓÜÖ∩╕Å  load multiple .env files with { path: ['.env.local', '.env'] }
+
+≡ƒöì  Hustlr API Health Check
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  Γ£à  Supabase (Postgres): Connected Γ£ô ΓÇö users table accessible, HTTP 200
+  Γ£à  OpenWeatherMap: Park Town ΓÇö 28.19┬░C, scattered clouds
+  Γ£à  AQICN (AQI): AQI=41 at station: Royapuram, Chennai, Chennai, India
+  Γ£à  NewsAPI: Status: ok | Articles returned: 3
+  Γ£à  MaxMind GeoIP2: Resolved 8.8.8.8 ΓåÆ United States, United States
+  Γ¥î  Google Maps Directions: Status: REQUEST_DENIED ΓÇö You must enable Billing on the Google Cloud Project at https://console.cloud.google.com/project/_/billing/enable Learn more at https://developers.google.com/maps/gmp-get-started
+  ΓÜá∩╕Å   Unwired Labs (Cell Tower): Responded but: No matches found
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+≡ƒôè  Summary: Γ£à 5 passed  ΓÜá∩╕Å 1 warnings  Γ¥î 1 failed
+

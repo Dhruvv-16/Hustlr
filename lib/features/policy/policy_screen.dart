@@ -1,80 +1,33 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/text_styles.dart';
 import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
-
-// ─── Palette ──────────────────────────────────────────────────────────────────
-const _green       = Color(0xFF2E7D32);
-const _lightGreen  = Color(0xFFE8F5E9);
-const _purple      = Color(0xFF7C3AED);
-const _teal        = Color(0xFF00897B);
-const _orange      = Color(0xFFF57C00);
-const _cardWhite   = Color(0xFFFFFFFF);
-const _textPrimary = Color(0xFF1A1A2E);
-const _textSub     = Color(0xFF6B7280);
-const _textHint    = Color(0xFF9CA3AF);
-const _borderLight = Color(0xFFE5E7EB);
+import '../../shared/widgets/hustlr_bottom_nav.dart';
+import '../../core/utils/pdf_generator.dart';
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 class _Plan {
   final String name;
   final String subtitle;
   final String price;
-  final Color priceColor;
-  final Color? borderColor;
-  final String? badge;
-  final Color? badgeColor;
-  final Color? cardBg;
   final bool accentLeft;
+  final bool isElite;
+  final bool isMostPopular;
 
   const _Plan({
     required this.name,
     required this.subtitle,
     required this.price,
-    required this.priceColor,
-    this.borderColor,
-    this.badge,
-    this.badgeColor,
-    this.cardBg,
     this.accentLeft = false,
+    this.isElite = false,
+    this.isMostPopular = false,
   });
 }
 
 const _plans = [
-  _Plan(
-    name: 'Basic Shield',
-    subtitle: 'Rain + extreme heat cover',
-    price: '₹29/wk',
-    priceColor: _green,
-    borderColor: _borderLight,
-    accentLeft: true,
-  ),
-  _Plan(
-    name: 'Standard Shield',
-    subtitle: 'Rain, heat, pollution, app downtime',
-    price: '₹49/wk',
-    priceColor: _green,
-    borderColor: _green,
-    badge: 'MOST POPULAR',
-    badgeColor: _teal,
-  ),
-  _Plan(
-    name: 'Full Shield',
-    subtitle: 'All disruption types covered',
-    price: '₹79/wk',
-    priceColor: _purple,
-    borderColor: _borderLight,
-  ),
-  _Plan(
-    name: 'Elite Shield',
-    subtitle: 'All types + compound triggers',
-    price: '₹109/wk',
-    priceColor: Colors.white,
-    borderColor: _orange,
-    badge: '★ BEST VALUE',
-    badgeColor: Color(0xFFE65100),
-    cardBg: _orange,
-  ),
+  _Plan(name: 'Basic Shield',    subtitle: 'Rain + extreme heat cover',             price: '₹29/wk', accentLeft: true),
+  _Plan(name: 'Standard Shield', subtitle: 'Rain, heat, pollution, app downtime',   price: '₹49/wk', isMostPopular: true),
+  _Plan(name: 'Full Shield',     subtitle: 'All disruption types covered',          price: '₹79/wk'),
+  _Plan(name: 'Elite Shield',    subtitle: 'All types + compound triggers',         price: '₹109/wk', isElite: true),
 ];
 
 // ─── Rider Data ───────────────────────────────────────────────────────────────
@@ -84,39 +37,14 @@ class _Rider {
   final String price;
   final bool defaultOn;
 
-  const _Rider({
-    required this.icon,
-    required this.name,
-    required this.price,
-    required this.defaultOn,
-  });
+  const _Rider({required this.icon, required this.name, required this.price, required this.defaultOn});
 }
 
 const _riders = [
-  _Rider(
-    icon: Icons.groups_rounded,
-    name: 'Curfew & Strike',
-    price: '+₹15/week',
-    defaultOn: false,
-  ),
-  _Rider(
-    icon: Icons.how_to_vote_rounded,
-    name: 'Election Day',
-    price: '+₹20/week',
-    defaultOn: false,
-  ),
-  _Rider(
-    icon: Icons.phonelink_off_rounded,
-    name: 'App Downtime',
-    price: '+₹12/week',
-    defaultOn: true,
-  ),
-  _Rider(
-    icon: Icons.cyclone_rounded,
-    name: 'Cyclone',
-    price: '+₹25/week',
-    defaultOn: false,
-  ),
+  _Rider(icon: Icons.groups_rounded,       name: 'Curfew & Strike', price: '+₹15/week', defaultOn: false),
+  _Rider(icon: Icons.how_to_vote_rounded,  name: 'Election Day',    price: '+₹20/week', defaultOn: false),
+  _Rider(icon: Icons.phonelink_off_rounded,name: 'App Downtime',    price: '+₹12/week', defaultOn: true),
+  _Rider(icon: Icons.cyclone_rounded,      name: 'Cyclone',         price: '+₹25/week', defaultOn: false),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +64,6 @@ class _PolicyScreenState extends State<PolicyScreen>
   @override
   void initState() {
     super.initState();
-    // Default active tab = "Upgrade" (index 1)
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
   }
 
@@ -148,31 +75,40 @@ class _PolicyScreenState extends State<PolicyScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme      = Theme.of(context);
+    final isDark     = theme.brightness == Brightness.dark;
+    final bgColor    = theme.scaffoldBackgroundColor;
+    final appBarBg   = isDark ? const Color(0xFF141614) : Colors.white;
+    final green      = theme.colorScheme.primary;
+    final textSub    = theme.colorScheme.onSurface.withOpacity(0.5);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F0),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: appBarBg,
         elevation: 0,
-        leading: const BackButton(color: _textPrimary),
-        title: const Text(
+        leading: BackButton(color: theme.colorScheme.onSurface),
+        title: Text(
           'Policy & Plans',
           style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary),
+            fontSize: 16, fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
           child: Container(
-            color: Colors.white,
+            color: appBarBg,
             child: TabBar(
               controller: _tabController,
-              labelColor: _green,
-              unselectedLabelColor: _textSub,
-              labelStyle: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700),
-              unselectedLabelStyle: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w500),
-              indicatorColor: _green,
+              labelColor: green,
+              unselectedLabelColor: textSub,
+              labelStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              unselectedLabelStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              indicatorColor: green,
               indicatorWeight: 2,
               tabs: const [
                 Tab(text: 'Current Plan'),
@@ -183,15 +119,21 @@ class _PolicyScreenState extends State<PolicyScreen>
           ),
         ),
       ),
-      body: MobileContainer(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            _CurrentPlanTab(),
-            _UpgradeTab(onProceed: () => context.push('/policy/payment')),
-            _HistoryTab(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MobileContainer(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _CurrentPlanTab(),
+                  _UpgradeTab(onProceed: () => context.push('/policy/payment')),
+                  _HistoryTab(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -202,134 +144,141 @@ class _CurrentPlanTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionLabel('ACTIVE COVERAGE'),
+        _sectionLabel(context, 'ACTIVE COVERAGE'),
         const SizedBox(height: 12),
         _ActiveCoverageCard(),
         const SizedBox(height: 24),
-        _sectionLabel('COVERAGE DETAILS'),
+        _sectionLabel(context, 'COVERAGE DETAILS'),
         const SizedBox(height: 12),
-        _coverageItem(Icons.water_drop_rounded, 'Rain Disruption',
-            'Auto-triggers when rain > 3hrs'),
-        _coverageItem(Icons.wb_sunny_rounded, 'Extreme Heat',
-            'Triggers above 42°C advisory'),
-        _coverageItem(Icons.air_rounded, 'Pollution Alert',
-            'AQI > 200 in your zone'),
-        _coverageItem(Icons.phonelink_off_rounded, 'App Downtime',
-            'Outages over 90 minutes'),
+        _coverageItem(context, Icons.water_drop_rounded,    'Rain Disruption',  'Auto-triggers when rain > 3hrs'),
+        _coverageItem(context, Icons.wb_sunny_rounded,      'Extreme Heat',     'Triggers above 42°C advisory'),
+        _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
+        _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
       ]),
     );
   }
+}
 
-  Widget _coverageItem(IconData icon, String title, String subtitle) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: _cardWhite,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderLight)),
-      child: Row(children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-              color: _lightGreen, borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, color: _green, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _textPrimary)),
-            const SizedBox(height: 2),
-            Text(subtitle,
-                style: const TextStyle(fontSize: 12, color: _textHint)),
-          ]),
-        ),
-        const Icon(Icons.check_circle_rounded, color: _green, size: 20),
-      ]),
-    );
-  }
+// Standalone helper so context is always from a build method
+Widget _coverageItem(BuildContext context, IconData icon, String title, String subtitle) {
+  final theme     = Theme.of(context);
+  final isDark    = theme.brightness == Brightness.dark;
+  final cardBg    = theme.cardColor;
+  final borderCol = isDark
+      ? Colors.white.withOpacity(0.06)
+      : const Color(0xFFE5E7EB);
+  final iconBg    = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
+  final green     = theme.colorScheme.primary;
+  final subColor  = theme.colorScheme.onSurface.withOpacity(0.5);
+
+  return Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: cardBg,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: borderCol),
+    ),
+    child: Row(children: [
+      Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: green, size: 18),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(
+            fontSize: 14, fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurface)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: TextStyle(fontSize: 12, color: subColor)),
+        ]),
+      ),
+      Icon(Icons.check_circle_rounded, color: green, size: 20),
+    ]),
+  );
 }
 
 // ─── Active Coverage Card ─────────────────────────────────────────────────────
 class _ActiveCoverageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final theme  = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    // In dark mode use a tonal surface + mint; in light, solid green
+    final cardBg    = isDark ? const Color(0xFF004734) : const Color(0xFF1B5E20);
+    final textColor = isDark ? const Color(0xFF3FFF8B) : Colors.white;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _green,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Expanded(
-            child: Text('Standard Shield',
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white)),
+          Expanded(
+            child: Text('Standard Shield', style: TextStyle(
+              fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           ),
           Container(
-            width: 40,
-            height: 40,
+            width: 40, height: 40,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified_rounded,
-                color: Colors.white, size: 22),
+            child: Icon(Icons.verified_rounded, color: textColor, size: 22),
           ),
         ]),
         const SizedBox(height: 4),
-        const Text('Policy #HS-98234-AX',
-            style: TextStyle(fontSize: 12, color: Colors.white70)),
+        Text('Policy #HS-98234-AX',
+            style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7))),
         const SizedBox(height: 12),
-        const Text('VALIDITY',
-            style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Colors.white60,
-                letterSpacing: 0.8)),
+        Text('VALIDITY', style: TextStyle(
+          fontSize: 10, fontWeight: FontWeight.w700,
+          color: textColor.withOpacity(0.6), letterSpacing: 0.8)),
         const SizedBox(height: 4),
-        const Text('26 Oct 2025 - 25 Oct 2026',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
+        Text('26 Oct 2025 - 25 Oct 2026',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 16),
         Row(children: [
           Expanded(
             child: _GhostButton(
-              onPressed: () {},
-              child: const Row(
+              onPressed: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Generating official certificate...'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: theme.colorScheme.primary,
+                  ),
+                );
+                await PdfGenerator.generateAndPreviewCertificate();
+              },
+              textColor: textColor,
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.download_rounded, size: 15, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text('Download Certificate',
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600)),
+                   Icon(Icons.download_rounded, size: 15, color: textColor),
+                   const SizedBox(width: 6),
+                   Text('Download Certificate',
+                       style: TextStyle(fontSize: 13, color: textColor, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
           ),
           const SizedBox(width: 10),
           _GhostButton(
-            onPressed: () {},
-            width: 44,
-            height: 40,
-            child: const Icon(Icons.share_rounded,
-                color: Colors.white, size: 18),
+            onPressed: () async {
+              await PdfGenerator.generateAndPreviewCertificate();
+            },
+            textColor: textColor,
+            width: 44, height: 40,
+            child: Icon(Icons.share_rounded, color: textColor, size: 18),
           ),
         ]),
       ]),
@@ -340,12 +289,14 @@ class _ActiveCoverageCard extends StatelessWidget {
 class _GhostButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Widget child;
+  final Color textColor;
   final double? width;
   final double height;
 
   const _GhostButton({
     required this.onPressed,
     required this.child,
+    required this.textColor,
     this.width,
     this.height = 40,
   });
@@ -355,15 +306,14 @@ class _GhostButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: width,
-        height: height,
+        width: width, height: height,
         padding: width == null
             ? const EdgeInsets.symmetric(horizontal: 12)
             : EdgeInsets.zero,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
+          color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+          border: Border.all(color: textColor.withOpacity(0.5)),
         ),
         child: Center(child: child),
       ),
@@ -391,37 +341,42 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   int get _totalCost {
     const planPrices = {
-      'Basic Shield': 29,
-      'Standard Shield': 49,
-      'Full Shield': 79,
-      'Elite Shield': 109,
+      'Basic Shield': 29, 'Standard Shield': 49,
+      'Full Shield': 79,  'Elite Shield': 109,
     };
     const riderPrices = {
-      'Curfew & Strike': 15,
-      'Election Day': 20,
-      'App Downtime': 12,
-      'Cyclone': 25,
+      'Curfew & Strike': 15, 'Election Day': 20,
+      'App Downtime': 12,    'Cyclone': 25,
     };
     int total = planPrices[_selectedPlan] ?? 49;
-    for (final r in _riderToggles.entries) {
-      if (r.value) total += riderPrices[r.key] ?? 0;
+    
+    final bool allIncluded = _selectedPlan == 'Full Shield' || _selectedPlan == 'Elite Shield';
+
+    if (!allIncluded) {
+      for (final r in _riderToggles.entries) {
+        if (r.value) total += riderPrices[r.key] ?? 0;
+      }
     }
     return total;
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme  = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final green  = theme.colorScheme.primary;
+    final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
+    final textSub = theme.colorScheme.onSurface.withOpacity(0.5);
+
     return Stack(children: [
       SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 200),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // ACTIVE COVERAGE section
-          _sectionLabel('ACTIVE COVERAGE'),
+          _sectionLabel(context, 'ACTIVE COVERAGE'),
           const SizedBox(height: 12),
           _ActiveCoverageCard(),
           const SizedBox(height: 24),
-          // UPGRADE section
-          _sectionLabel('UPGRADE YOUR PROTECTION'),
+          _sectionLabel(context, 'UPGRADE YOUR PROTECTION'),
           const SizedBox(height: 12),
           ..._plans.map((p) => _PlanCard(
                 plan: p,
@@ -429,75 +384,76 @@ class _UpgradeTabState extends State<_UpgradeTab> {
                 onTap: () => setState(() => _selectedPlan = p.name),
               )),
           const SizedBox(height: 20),
-          // Add-ons header
           Row(children: [
-            _sectionLabel('INCOME ADD-ONS'),
+            _sectionLabel(context, 'INCOME ADD-ONS'),
             const Spacer(),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _lightGreen,
+                color: lightGreen,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('Protects Earnings',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _green)),
+              child: Text('Protects Earnings',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: green)),
             ),
           ]),
           const SizedBox(height: 12),
-          ..._riders.map((r) => _RiderRow(
-                rider: r,
-                value: _riderToggles[r.name] ?? r.defaultOn,
-                onChanged: (v) =>
-                    setState(() => _riderToggles[r.name] = v),
-              )),
+          ..._riders.map((r) {
+            final bool allIncluded = (_selectedPlan == 'Full Shield' || _selectedPlan == 'Elite Shield');
+            return _RiderRow(
+              rider: r,
+              value: _riderToggles[r.name] ?? r.defaultOn,
+              isIncluded: allIncluded,
+              onChanged: allIncluded ? null : (v) => setState(() => _riderToggles[r.name] = v),
+            );
+          }),
           const SizedBox(height: 20),
           Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              title: const Text('Coverage Rules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _textPrimary)),
+              title: Text('Coverage Rules',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14,
+                      color: theme.colorScheme.onSurface)),
               tilePadding: EdgeInsets.zero,
               childrenPadding: const EdgeInsets.only(bottom: 16),
               expandedCrossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ruleText('45-minute minimum', 'disruption must last 45 continuous minutes'),
-                _ruleText('24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
-                _ruleText('Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
-                _ruleText('One event per week per type', 'Basic + Standard Shield only'),
-                _ruleText('Post-activation only', 'events before activation never covered'),
+                _ruleText(context, '45-minute minimum', 'disruption must last 45 continuous minutes'),
+                _ruleText(context, '24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
+                _ruleText(context, 'Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
+                _ruleText(context, 'One event per week per type', 'Basic + Standard Shield only'),
+                _ruleText(context, 'Post-activation only', 'events before activation never covered'),
               ],
             ),
           ),
         ]),
       ),
       Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: _StickyBottomBar(
-          total: _totalCost,
-          onProceed: widget.onProceed,
-        ),
+        left: 0, right: 0, bottom: 96,
+        child: _StickyBottomBar(total: _totalCost, onProceed: widget.onProceed),
       ),
     ]);
   }
 
-  Widget _ruleText(String title, String desc) {
+  Widget _ruleText(BuildContext context, String title, String desc) {
+    final theme   = Theme.of(context);
+    final textSub = theme.colorScheme.onSurface.withOpacity(0.5);
+    final textHint = theme.colorScheme.onSurface.withOpacity(0.35);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(fontSize: 14, color: _textHint)),
+          Text('• ', style: TextStyle(fontSize: 14, color: textHint)),
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(fontSize: 12, color: _textSub, height: 1.4),
+                style: TextStyle(fontSize: 12, color: textSub, height: 1.4),
                 children: [
-                  TextSpan(text: '$title — ', style: const TextStyle(fontWeight: FontWeight.bold, color: _textPrimary)),
+                  TextSpan(text: '$title — ',
+                      style: TextStyle(fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface)),
                   TextSpan(text: desc),
                 ],
               ),
@@ -515,31 +471,37 @@ class _PlanCard extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _PlanCard(
-      {required this.plan, required this.isSelected, required this.onTap});
+  const _PlanCard({required this.plan, required this.isSelected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final hasBadge = plan.badge != null;
-    final isElite = plan.cardBg != null;
+    final theme  = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final green  = theme.colorScheme.primary;
+    final cardBg = plan.isElite
+        ? (isDark ? const Color(0xFF2D1A00) : const Color(0xFFF57C00))
+        : theme.cardColor;
+    final borderCol = isSelected
+        ? green
+        : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB));
+    final textColor  = plan.isElite ? Colors.white : theme.colorScheme.onSurface;
+    final subColor   = plan.isElite ? Colors.white70 : theme.colorScheme.onSurface.withOpacity(0.5);
+    final priceColor = plan.isElite
+        ? Colors.white
+        : (isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32));
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Container(
-            margin: EdgeInsets.only(
-                bottom: 10, top: hasBadge ? 10 : 0),
+            margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
             decoration: BoxDecoration(
-              color: plan.cardBg ?? _cardWhite,
+              color: cardBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? (plan.borderColor ?? _green)
-                    : (plan.borderColor ?? _borderLight),
-                width: isSelected ? 2 : 1,
-              ),
+              border: Border.all(color: borderCol, width: isSelected ? 2 : 1),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(11),
@@ -547,55 +509,40 @@ class _PlanCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Left accent line (Basic Shield only)
                     if (plan.accentLeft)
-                      Container(width: 3, color: _green),
+                      Container(width: 3, color: green),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         child: Row(children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(plan.name,
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isElite
-                                            ? Colors.white
-                                            : _textPrimary)),
+                                Text(plan.name, style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.bold,
+                                  color: textColor)),
                                 const SizedBox(height: 2),
-                                Text(plan.subtitle,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: isElite
-                                            ? Colors.white70
-                                            : _textSub)),
-                                if (isElite) ...[
+                                Text(plan.subtitle, style: TextStyle(
+                                  fontSize: 12, color: subColor)),
+                                if (plan.isElite) ...[
                                   const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.2),
+                                      color: Colors.black.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: const Text('10% CASHBACK',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                            letterSpacing: 0.5)),
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                                            color: Colors.white, letterSpacing: 0.5)),
                                   ),
                                   const SizedBox(height: 10),
                                   GestureDetector(
                                     onTap: () => context.push('/policy/compound'),
-                                    child: const Text('Learn about compound triggers \u2192',
+                                    child: const Text('Learn about compound triggers →',
                                         style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11, fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                           decoration: TextDecoration.underline,
                                           decorationColor: Colors.white,
@@ -606,11 +553,9 @@ class _PlanCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(plan.price,
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: plan.priceColor)),
+                          Text(plan.price, style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold,
+                            color: priceColor)),
                         ]),
                       ),
                     ),
@@ -619,24 +564,32 @@ class _PlanCard extends StatelessWidget {
               ),
             ),
           ),
-          // Floating badge top-right
-          if (hasBadge)
+          if (plan.isMostPopular)
             Positioned(
-              right: 12,
-              top: 2,
+              right: 12, top: 2,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: plan.badgeColor,
+                  color: const Color(0xFF00695C),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(plan.badge!,
-                    style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.3)),
+                child: const Text('MOST POPULAR',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                        color: Colors.white, letterSpacing: 0.3)),
+              ),
+            ),
+          if (plan.isElite)
+            Positioned(
+              right: 12, top: 2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE65100),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text('★ BEST VALUE',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                        color: Colors.white, letterSpacing: 0.3)),
               ),
             ),
         ],
@@ -649,56 +602,62 @@ class _PlanCard extends StatelessWidget {
 class _RiderRow extends StatelessWidget {
   final _Rider rider;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
+  final bool isIncluded;
 
-  const _RiderRow(
-      {required this.rider, required this.value, required this.onChanged});
+  const _RiderRow({required this.rider, required this.value, this.onChanged, this.isIncluded = false});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Row(children: [
+    final theme    = Theme.of(context);
+    final isDark   = theme.brightness == Brightness.dark;
+    final cardBg   = theme.cardColor;
+    final borderCol = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE5E7EB);
+    final iconBg   = isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6);
+    final subColor = theme.colorScheme.onSurface.withOpacity(0.4);
+
+    return GestureDetector(
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isIncluded ? theme.colorScheme.primary.withOpacity(0.3) : borderCol),
+        ),
+        child: Row(children: [
         Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F4F6),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(rider.icon, color: _textSub, size: 18),
+          width: 36, height: 36,
+          decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+          child: Icon(rider.icon, color: theme.colorScheme.onSurface.withOpacity(0.6), size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(rider.name,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _textPrimary)),
-              const SizedBox(height: 2),
-              Text(rider.price,
-                  style: const TextStyle(fontSize: 12, color: _textHint)),
-            ],
-          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(rider.name, style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600,
+              color: isIncluded ? theme.colorScheme.primary : theme.colorScheme.onSurface)),
+            const SizedBox(height: 2),
+            Text(isIncluded ? 'Included in Plan' : rider.price, style: TextStyle(
+              fontSize: 12, 
+              color: isIncluded ? theme.colorScheme.primary : subColor,
+              fontWeight: isIncluded ? FontWeight.w700 : FontWeight.normal,
+            )),
+          ]),
         ),
         const SizedBox(width: 10),
         Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: _green,
+          value: isIncluded ? true : value,
+          onChanged: isIncluded ? null : onChanged,
+          activeColor: theme.colorScheme.primary,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ]),
-    );
+    ));
   }
 }
 
@@ -711,39 +670,46 @@ class _StickyBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme    = Theme.of(context);
+    final isDark   = theme.brightness == Brightness.dark;
+    final barBg    = isDark ? const Color(0xFF141614) : Colors.white;
+    final borderCol = isDark
+        ? Colors.white.withOpacity(0.08)
+        : const Color(0xFFE5E7EB);
+    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+    final green     = theme.colorScheme.primary;
+    // dark-mode: mint text on dark bg; light-mode: white text on green bg
+    final btnTextColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: _borderLight)),
+      decoration: BoxDecoration(
+        color: barBg,
+        border: Border(top: BorderSide(color: borderCol)),
         boxShadow: [
           BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 16,
-              offset: Offset(0, -4))
+            color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
         ],
       ),
       child: Row(children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('TOTAL WEEKLY COST',
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: _textHint,
-                  letterSpacing: 0.5)),
+          Text('TOTAL WEEKLY COST',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                  color: hintColor, letterSpacing: 0.5)),
           const SizedBox(height: 2),
           RichText(
             text: TextSpan(children: [
               TextSpan(
                 text: '₹$total',
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: _textPrimary),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface),
               ),
-              const TextSpan(
+              TextSpan(
                 text: '/week',
-                style: TextStyle(fontSize: 13, color: _textSub),
+                style: TextStyle(fontSize: 13, color: hintColor),
               ),
             ]),
           ),
@@ -755,27 +721,23 @@ class _StickyBottomBar extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onProceed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _green,
+                backgroundColor: green,
+                foregroundColor: btnTextColor,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(28)),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'Proceed to\nPayment',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.3),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded,
-                      size: 18, color: Colors.white),
+                  Text('Proceed to\nPayment',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold,
+                          color: btnTextColor, height: 1.3)),
+                  const SizedBox(width: 8),
+                  Icon(Icons.arrow_forward_rounded, size: 18, color: btnTextColor),
                 ],
               ),
             ),
@@ -792,42 +754,44 @@ class _HistoryTab extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = [
       ('Standard Shield', 'Mar 2025 – Mar 2026', '₹49/wk'),
-      ('Basic Shield', 'Sep 2024 – Mar 2025', '₹29/wk'),
+      ('Basic Shield',    'Sep 2024 – Mar 2025', '₹29/wk'),
     ];
+    final theme    = Theme.of(context);
+    final isDark   = theme.brightness == Brightness.dark;
+    final cardBg   = theme.cardColor;
+    final borderCol = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE5E7EB);
+    final green    = theme.colorScheme.primary;
+    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+
     return ListView(padding: const EdgeInsets.all(16), children: [
-      _sectionLabel('POLICY HISTORY'),
+      _sectionLabel(context, 'POLICY HISTORY'),
       const SizedBox(height: 12),
       ...items.map((i) => Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _cardWhite,
+              color: cardBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _borderLight),
+              border: Border.all(color: borderCol),
             ),
             child: Row(children: [
-              const Icon(Icons.shield_rounded, color: _green, size: 28),
+              Icon(Icons.shield_rounded, color: green, size: 28),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(i.$1,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: _textPrimary)),
+                  Text(i.$1, style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface)),
                   const SizedBox(height: 2),
-                  Text(i.$2,
-                      style:
-                          const TextStyle(fontSize: 12, color: _textHint)),
+                  Text(i.$2, style: TextStyle(fontSize: 12, color: hintColor)),
                 ]),
               ),
-              Text(i.$3,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _green)),
+              Text(i.$3, style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: green)),
             ]),
           )),
     ]);
@@ -835,12 +799,13 @@ class _HistoryTab extends StatelessWidget {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-Widget _sectionLabel(String text) => Text(
-      text,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: _textHint,
-        letterSpacing: 1.0,
-      ),
-    );
+Widget _sectionLabel(BuildContext context, String text) {
+  final hintColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.4);
+  return Text(
+    text,
+    style: TextStyle(
+      fontSize: 11, fontWeight: FontWeight.w700,
+      color: hintColor, letterSpacing: 1.0,
+    ),
+  );
+}
