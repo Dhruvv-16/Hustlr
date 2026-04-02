@@ -85,8 +85,6 @@ class _SplashScreenState extends State<SplashScreen> {
                       color: green,
                     ),
                   ),
-                  alignment: Alignment.center,
-                  child: _iconContainer(),
                 ),
                 const SizedBox(height: 24),
                 Text(

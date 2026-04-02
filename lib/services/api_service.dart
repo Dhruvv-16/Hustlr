@@ -29,6 +29,44 @@ class ApiService {
     return data;
   }
 
+  /// Fetch a worker by ID. Used by [UserBloc] on login.
+  Future<Map<String, dynamic>> getWorkerById(String userId) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/workers/$userId'),
+      headers: headers,
+    );
+    final data = jsonDecode(res.body);
+    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+    if (res.statusCode == 200) {
+      // Backend may return { user: {...} } or the worker object directly.
+      return (data['user'] as Map<String, dynamic>?) ?? data;
+    }
+    throw Exception(data['error'] ?? 'Failed to fetch worker');
+  }
+
+  /// Cancel an active policy. Used by [PolicyBloc].
+  Future<Map<String, dynamic>> cancelPolicy(String userId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/policies/cancel'),
+      headers: headers,
+      body: jsonEncode({'user_id': userId}),
+    );
+    return _decodeMap(res);
+  }
+
+  /// Best-effort onboarding flag update on the worker record. Used by [UserBloc].
+  Future<void> updateWorkerOnboarding(String userId) async {
+    try {
+      await http.patch(
+        Uri.parse('$baseUrl/workers/$userId'),
+        headers: headers,
+        body: jsonEncode({'onboarding_complete': true}),
+      );
+    } on Exception {
+      // Best-effort — not critical.
+    }
+  }
+
   Future<Map<String, dynamic>> registerWorker({
     required String name,
     required String phone,

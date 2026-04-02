@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/services/storage_service.dart';
 import '../core/services/api_service.dart';
+import '../models/claim.dart' as domain;
 import 'package:hive_flutter/hive_flutter.dart';
 
 class WorkerModel {
@@ -258,6 +259,10 @@ String _planLabel(String tier) {
 }
 
 class MockDataService extends ChangeNotifier {
+  /// Demo bridge: set by main.dart so disruption triggers also flow through
+  /// ClaimsBloc. Receives an immutable [domain.Claim] when a claim is approved.
+  void Function(domain.Claim claim)? onClaimApproved;
+
   MockDataService() {
     syncWithStorage();
   }
@@ -682,6 +687,19 @@ class MockDataService extends ChangeNotifier {
           'amount': payout,
           'date': 'Just now',
         });
+        // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
+        onClaimApproved?.call(domain.Claim(
+          id: tempId,
+          userId: '',
+          triggerType: triggerType,
+          displayLabel: _triggerLabel(triggerType),
+          status: domain.ClaimStatus.approved,
+          grossPayout: payout,
+          tranche1: (payout * 0.7).round(),
+          tranche2: (payout * 0.3).round(),
+          zone: worker.zone,
+          createdAt: DateTime.now(),
+        ));
         notifyListeners();
       });
       return;
@@ -734,6 +752,19 @@ class MockDataService extends ChangeNotifier {
         creditDate: 'Credited instantly',
         isActive: true,
       );
+      // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
+      onClaimApproved?.call(domain.Claim(
+        id: claim['id'] as String,
+        userId: userId,
+        triggerType: triggerType,
+        displayLabel: _triggerLabel(triggerType),
+        status: domain.ClaimStatus.approved,
+        grossPayout: gross,
+        tranche1: t1,
+        tranche2: t2,
+        zone: worker.zone,
+        createdAt: DateTime.now(),
+      ));
       notifyListeners();
     }).catchError((e) {
       debugPrint('[MockDataService] createClaim error: $e');
