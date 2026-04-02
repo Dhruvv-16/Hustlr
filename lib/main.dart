@@ -11,7 +11,6 @@ import 'core/theme/theme_provider.dart';
 
 import 'package:provider/provider.dart';
 import 'services/mock_data_service.dart';
-import 'services/notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
@@ -81,7 +80,7 @@ class HustlrApp extends StatelessWidget {
       ],
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeProvider.themeMode,
       routerConfig: appRouter,
     );
   }

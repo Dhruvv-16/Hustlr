@@ -12,6 +12,23 @@ class ClaimDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mockData = Provider.of<MockDataService>(context);
+
+    // Safeguard against missing data / early hydration
+    if (mockData.claims.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).canvasColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: Theme.of(context).colorScheme.onSurface),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final claim = mockData.claims.firstWhere(
       (c) => c.id == claimId,
       orElse: () => mockData.claims.first,

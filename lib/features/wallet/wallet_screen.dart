@@ -3,26 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../services/mock_data_service.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
-
-import '../../core/constants/colors.dart' as app_colors;
 import '../../core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
 
-// ─── Local Palette (mapping to global tokens) ──────────────────────────────────
-const _bgScreen   = app_colors.background;
-const _green      = app_colors.primaryGreen;
-const _lightGreen = app_colors.lightGreen;
-const _red        = app_colors.errorRed;
-const _lightRed   = app_colors.lightRed;
-const _blue       = Color(0xFF1976D2);
-const _lightBlue  = Color(0xFFE3F2FD);
-const _primary    = app_colors.textPrimary;
-const _grey       = app_colors.textSecondary;
-const _hint       = app_colors.textHint;
-const _divider    = Color(0xFFE5E7EB);
-const _cardWhite  = app_colors.cardWhite;
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -735,6 +720,15 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
   }
 
   final upiController = TextEditingController(text: 'karthik.r@ybl');
+  final isDark     = Theme.of(context).brightness == Brightness.dark;
+  final sheetBg    = isDark ? const Color(0xFF1C1F1C) : Colors.white;
+  final inputBg    = isDark ? const Color(0xFF0A0B0A) : const Color(0xFFF4F6F4);
+  final green      = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+  final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
+  final primary    = isDark ? Colors.white : const Color(0xFF0D1B0F);
+  final grey       = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
+  final divider    = isDark ? Colors.white.withOpacity(0.10) : const Color(0xFFE5E7EB);
+  final btnTxt     = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
   final formattedBalance = mockData.walletBalance.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
@@ -742,7 +736,7 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: sheetBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -756,25 +750,28 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Withdraw to UPI',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primary)),
+            Text('Withdraw to UPI',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
             const SizedBox(height: 8),
             Text('Enter your UPI ID to receive \u20b9$formattedBalance',
-                style: const TextStyle(fontSize: 14, color: _grey)),
+                style: TextStyle(fontSize: 14, color: grey)),
             const SizedBox(height: 32),
             Container(
               decoration: BoxDecoration(
-                color: _bgScreen, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _divider),
+                color: inputBg, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: divider),
               ),
               child: TextField(
                 controller: upiController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: primary),
+                decoration: InputDecoration(
                   labelText: 'UPI ID',
+                  labelStyle: TextStyle(color: grey),
                   hintText: 'yourname@upi',
-                  prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: _green),
+                  hintStyle: TextStyle(color: grey),
+                  prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: green),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
             ),
@@ -783,17 +780,17 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               decoration: BoxDecoration(
-                color: _lightGreen, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _green.withOpacity(0.3)),
+                color: lightGreen, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: green.withOpacity(0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('\u20b9$formattedBalance',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _green)),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: green)),
                   const SizedBox(height: 2),
-                  const Text('Full available balance',
-                      style: TextStyle(fontSize: 12, color: _green)),
+                  Text('Full available balance',
+                      style: TextStyle(fontSize: 12, color: green)),
                 ],
               ),
             ),
@@ -806,19 +803,21 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
                   _processWithdrawal(context, mockData, upiController.text);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _green,
+                  backgroundColor: green,
+                  foregroundColor: btnTxt,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                 ),
-                child: const Text('Initiate Transfer \u2192',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Text('Initiate Transfer \u2192',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
               ),
             ),
             const SizedBox(height: 16),
             Center(
               child: TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel',
-                    style: TextStyle(color: _grey, fontWeight: FontWeight.bold, fontSize: 16)),
+                child: Text('Cancel',
+                    style: TextStyle(color: grey, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
             const SizedBox(height: 24),
@@ -831,24 +830,35 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
 
 void _processWithdrawal(BuildContext context, MockDataService mockData, String upiId) {
   final amount = mockData.walletBalance;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final barrierBg = isDark ? Colors.black.withOpacity(0.95) : Colors.white.withOpacity(0.98);
+  final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2D6A2D);
+  final primary = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
+  final grey = isDark ? const Color(0xFF91938D) : Colors.grey;
+  final successBg = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+  final refBg = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFE8F5E9);
+  final refText = isDark ? const Color(0xFFE1E3DE) : Colors.black87;
+  final btnTextColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
   showDialog(
     context: context,
-    barrierColor: Colors.white.withOpacity(0.98),
+    barrierColor: barrierBg,
     barrierDismissible: false,
-    builder: (context) => const Scaffold(
+    builder: (context) => Scaffold(
       backgroundColor: Colors.transparent,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(_green)),
-            SizedBox(height: 24),
-            Text('Initiating transfer...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primary)),
-            SizedBox(height: 8),
-            Text('Connecting to UPI network', style: TextStyle(fontSize: 14, color: _grey)),
-            SizedBox(height: 8),
-            Text('Powered by Razorpay', style: TextStyle(fontSize: 12, color: _grey)),
+            CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(green)),
+            const SizedBox(height: 24),
+            Text('Initiating transfer...',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
+            const SizedBox(height: 8),
+            Text('Connecting to UPI network', style: TextStyle(fontSize: 14, color: grey)),
+            const SizedBox(height: 8),
+            Text('Powered by Razorpay', style: TextStyle(fontSize: 12, color: grey)),
           ],
         ),
       ),
@@ -865,9 +875,9 @@ void _processWithdrawal(BuildContext context, MockDataService mockData, String u
       builder: (context) {
         final formattedBalance = amount.toString().replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-          
+
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: successBg,
           body: Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -876,24 +886,30 @@ void _processWithdrawal(BuildContext context, MockDataService mockData, String u
                 children: [
                   Container(
                     width: 100, height: 100,
-                    decoration: const BoxDecoration(color: Color(0xFF2D6A2D), shape: BoxShape.circle),
-                    child: const Icon(Icons.check, color: Colors.white, size: 60),
+                    decoration: BoxDecoration(color: green, shape: BoxShape.circle),
+                    child: Icon(Icons.check, color: btnTextColor, size: 60),
                   ),
                   const SizedBox(height: 24),
-                  const Text('Transfer Initiated!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  Text('Transfer Initiated!',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: primary)),
                   const SizedBox(height: 8),
-                  Text('₹$formattedBalance → $upiId', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                  Text('₹$formattedBalance → $upiId',
+                      style: TextStyle(fontSize: 16, color: grey)),
                   const SizedBox(height: 8),
-                  const Text('Funds will reflect within 2 hours', style: TextStyle(color: Colors.grey)),
+                  Text('Funds will reflect within 2 hours',
+                      style: TextStyle(color: grey)),
                   const SizedBox(height: 24),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(12)),
-                    child: const Column(
+                    decoration: BoxDecoration(
+                        color: refBg, borderRadius: BorderRadius.circular(12)),
+                    child: Column(
                       children: [
-                        Text('Reference Number', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        Text('UPI/REF/2603/HUSTLR847291', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Reference Number',
+                            style: TextStyle(color: grey, fontSize: 12)),
+                        Text('UPI/REF/2603/HUSTLR847291',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: refText)),
                       ],
                     ),
                   ),
@@ -902,17 +918,21 @@ void _processWithdrawal(BuildContext context, MockDataService mockData, String u
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        mockData.withdrawToUPI(amount, upiId); // zero out balance and add transaction
+                        mockData.withdrawToUPI(amount, upiId);
                         while (Navigator.of(context).canPop()) {
                           Navigator.of(context).pop();
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2D6A2D),
+                        backgroundColor: green,
+                        foregroundColor: btnTextColor,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                       ),
-                      child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      child: Text('Done',
+                          style: TextStyle(color: btnTextColor,
+                              fontWeight: FontWeight.bold, fontSize: 16)),
                     ),
                   ),
                 ],
