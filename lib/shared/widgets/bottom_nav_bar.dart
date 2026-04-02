@@ -28,6 +28,16 @@ class ScaffoldWithNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final idx = _selectedIndex(location);
     final isSupport = location.startsWith('/support');
+    
+    // Extracted path without query parameters
+    final path = location.split('?').first;
+    // Only show bottom nav bar on root tabs
+    final showNavBar = [
+      AppRoutes.dashboard,
+      AppRoutes.policy,
+      AppRoutes.claims,
+      AppRoutes.wallet,
+    ].contains(path);
 
     return Scaffold(
       extendBody: true,
@@ -37,14 +47,11 @@ class ScaffoldWithNav extends StatelessWidget {
           // The main screen content with bottom padding so content isn't
           // hidden behind the floating nav.
           Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 120),
-              child: child,
-            ),
+            child: child,
           ),
 
           // The floating Help Button — hidden on /support itself
-          if (!isSupport)
+          if (!isSupport && showNavBar)
             Positioned(
               right: 20,
               bottom: 100,
@@ -52,23 +59,24 @@ class ScaffoldWithNav extends StatelessWidget {
             ),
 
           // The entirely floating Capsule Nav Bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: HustlrBottomNav(
-              currentIndex: idx,
-              onTap: (i) {
-                final routes = [
-                  AppRoutes.dashboard,
-                  AppRoutes.policy,
-                  AppRoutes.claims,
-                  AppRoutes.wallet,
-                ];
-                context.go(routes[i]);
-              },
+          if (showNavBar)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: HustlrBottomNav(
+                currentIndex: idx,
+                onTap: (i) {
+                  final routes = [
+                    AppRoutes.dashboard,
+                    AppRoutes.policy,
+                    AppRoutes.claims,
+                    AppRoutes.wallet,
+                  ];
+                  context.go(routes[i]);
+                },
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -79,25 +87,32 @@ class ScaffoldWithNav extends StatelessWidget {
 class _FloatingHelpButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor   = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
+    final iconColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+    final glowColor = isDark
+        ? const Color(0xFF3FFF8B).withOpacity(0.25)
+        : const Color(0xFF1B5E20).withOpacity(0.40);
+
     return GestureDetector(
       onTap: () => context.push(AppRoutes.support),
       child: Container(
         width: 52,
         height: 52,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1B5E20),
+        decoration: BoxDecoration(
+          color: bgColor,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Color(0x661B5E20),
-              blurRadius: 16,
-              offset: Offset(0, 4),
+              color: glowColor,
+              blurRadius: isDark ? 20 : 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(
+        child: Icon(
           Icons.headset_mic_rounded,
-          color: Colors.white,
+          color: iconColor,
           size: 24,
         ),
       ),
@@ -118,17 +133,22 @@ class AppBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The redesign is dark mode only (Ethereal Night Atelier)
+    final isDark      = Theme.of(context).brightness == Brightness.dark;
+    final bgColor     = isDark ? const Color(0xFF141614) : Colors.white;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.6)
+        : Colors.black.withOpacity(0.1);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Container(
         height: 68,
         decoration: BoxDecoration(
-          color: const Color(0xFF1a1c19),
+          color: bgColor,
           borderRadius: BorderRadius.circular(40),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: shadowColor,
               blurRadius: 32,
               offset: const Offset(0, 8),
             ),
@@ -137,10 +157,10 @@ class AppBottomNavBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _NavItem(icon: Icons.shield_outlined, label: 'HOME', index: 0, current: currentIndex, onTap: onTap),
-            _NavItem(icon: Icons.article_outlined, label: 'POLICY', index: 1, current: currentIndex, onTap: onTap),
-            _NavItem(icon: Icons.verified_user_outlined, label: 'CLAIMS', index: 2, current: currentIndex, onTap: onTap),
-            _NavItem(icon: Icons.grid_view_rounded, label: 'WALLET', index: 3, current: currentIndex, onTap: onTap),
+            _NavItem(icon: Icons.shield_outlined,         label: 'HOME',   index: 0, current: currentIndex, onTap: onTap),
+            _NavItem(icon: Icons.article_outlined,        label: 'POLICY', index: 1, current: currentIndex, onTap: onTap),
+            _NavItem(icon: Icons.verified_user_outlined,  label: 'CLAIMS', index: 2, current: currentIndex, onTap: onTap),
+            _NavItem(icon: Icons.grid_view_rounded,       label: 'WALLET', index: 3, current: currentIndex, onTap: onTap),
           ],
         ),
       ),
@@ -165,7 +185,11 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = index == current;
+    final isActive      = index == current;
+    final isDark        = Theme.of(context).brightness == Brightness.dark;
+    final activeColor   = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
+    final inactiveColor = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
+    final activeIconFg  = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
     return GestureDetector(
       onTap: () => onTap(index),
@@ -178,16 +202,12 @@ class _NavItem extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: isActive
-                  ? const Color(0xFF3fff8b)
-                  : Colors.transparent,
+              color: isActive ? activeColor : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: isActive
-                  ? const Color(0xFF0a0b0a)
-                  : const Color(0xFF91938d),
+              color: isActive ? activeIconFg : inactiveColor,
               size: 22,
             ),
           ),
@@ -197,9 +217,7 @@ class _NavItem extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w600,
-              color: isActive
-                  ? const Color(0xFF3fff8b)
-                  : const Color(0xFF91938d),
+              color: isActive ? activeColor : inactiveColor,
               letterSpacing: 0.5,
             ),
           ),

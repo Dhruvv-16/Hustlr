@@ -11,6 +11,7 @@ import '../../widgets/income_tip_card.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
 import '../../services/notification_service.dart';
 import '../../l10n/app_localizations.dart';
+import '../../core/utils/pdf_generator.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -190,20 +191,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       _buildHeader(context),
                       const SizedBox(height: 32),
                       _buildTitleSection(),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 20),
+                      _buildRainAlertCard(),
+                      const SizedBox(height: 20),
                       _buildActivePolicyCard(planName, premium),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF111311),
+                          color: isDark ? const Color(0xFF111311) : const Color(0xFFF0F4F0),
                           borderRadius: BorderRadius.circular(32),
                         ),
                         child: Column(
                           children: [
-                            _buildRainAlertCard(),
-                            const SizedBox(height: 16),
                             _buildActionCards(context),
                             if (policyData != null) ...[
                               const SizedBox(height: 16),
@@ -473,6 +474,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
     final textColor = Theme.of(context).colorScheme.onSurface;
 
+    String locality = userZone ?? 'your area';
+    locality = locality.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '');
+    locality = locality.replaceAll(RegExp(r' zone', caseSensitive: false), '');
+    locality = locality.trim();
+    if (locality.isEmpty) locality = 'your area';
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -508,7 +515,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'High risk in Indiranagar.\nSecure coverage now.',
+                  'High risk in $locality.\nSecure coverage now.',
                   style: TextStyle(
                     color: textColor,
                     fontSize: 13,
@@ -567,7 +574,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Icons.article_outlined,
             'LEGAL',
             'View\nCertificate',
-            () => context.push(AppRoutes.policy),
+            () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Generating your certificate...'),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              );
+              await PdfGenerator.generateAndPreviewCertificate();
+            },
           ),
         ),
       ],

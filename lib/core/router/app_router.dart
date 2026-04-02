@@ -142,13 +142,7 @@ final GoRouter appRouter = GoRouter(
           path: AppRoutes.claims,
           builder: (_, __) => const ClaimsScreen(),
         ),
-        GoRoute(
-          path: '/claims/:id',
-          builder: (context, state) {
-            final id = state.pathParameters['id'] ?? '';
-            return ClaimDetailScreen(claimId: id);
-          },
-        ),
+
         GoRoute(
           path: AppRoutes.triggerStatus,
           builder: (_, __) => const TriggerStatusScreen(),
@@ -179,6 +173,13 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.autoExplanation,
           builder: (_, __) => const AutoExplanationScreen(),
+        ),
+        GoRoute(
+          path: '/claims/:id',
+          builder: (context, state) {
+            final id = state.pathParameters['id'] ?? '';
+            return ClaimDetailScreen(claimId: id);
+          },
         ),
         GoRoute(
           path: AppRoutes.wallet,

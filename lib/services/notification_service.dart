@@ -1,31 +1,8 @@
 import '../models/notification_model.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 class NotificationService {
   static final NotificationService instance = NotificationService._internal();
   NotificationService._internal();
-
-  static void initialize() {
-    // Foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("Foreground Notification: ${message.notification?.title}");
-    });
-
-    // When notification is clicked
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      final route = message.data['route'];
-
-      print("Clicked Notification -> Route: $route");
-
-      if (route == "dashboard") {
-        // Navigator.pushNamed(context, '/dashboard');
-      } else if (route == "wallet") {
-        // Navigator.pushNamed(context, '/wallet');
-      } else if (route == "claims") {
-        // Navigator.pushNamed(context, '/claims');
-      }
-    });
-  }
 
   final List<HustlrNotification> _notifications = [];
 

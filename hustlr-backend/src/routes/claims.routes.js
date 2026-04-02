@@ -2,7 +2,6 @@ const express = require('express');
 const { supabase } = require('../config/supabase');
 const { checkIpLocation } = require('../services/maxmind_service');
 const { sendDisruptionAlert, sendPayoutCredited } = require('../services/notification_service');
-const { initiateUpiPayout } = require('../services/instamojo_payout');
 const router = express.Router();
 
 const HOURLY_RATES = {
@@ -107,42 +106,20 @@ router.post('/create', async (req, res) => {
 
     if (walletError) throw walletError;
 
-    // Auto-approve after 5 seconds, process payout, & send notification
+    // Auto-approve after 5 seconds & send payout credited notification
     setTimeout(async () => {
+      await supabase
+        .from('claims')
+        .update({ status: 'APPROVED' })
+        .eq('id', claim.id);
+
+      // Fetch device token and send FCM notification
       try {
         const { data: userProfile } = await supabase
           .from('users')
-          .select('phone, fcm_token, zone')
+          .select('fcm_token, zone')
           .eq('id', user_id)
           .maybeSingle();
-
-        // Initiate physical payout through Instamojo
-        if (userProfile?.phone) {
-          const workerUpi = `${userProfile.phone}@ybl`;
-          const amountPaise = tranche1 * 100;
-          
-          console.log(`[Claims] Initiating physical payout of INR ${tranche1} to ${workerUpi}`);
-          const payoutResult = await initiateUpiPayout(
-            workerUpi, 
-            amountPaise, 
-            `Payout for ${DISPLAY_NAMES[trigger_type] || trigger_type}`, 
-            `CLM-${claim.id.substring(0, 8).toUpperCase()}`
-          );
-          
-          // Log API id in reference column
-          await supabase
-            .from('wallet_transactions')
-            .update({ reference: `payout_id:${payoutResult.payout_id}` })
-            .eq('user_id', user_id)
-            .eq('description', `Advance payout for ${DISPLAY_NAMES[trigger_type] || trigger_type}`)
-            .order('created_at', { ascending: false })
-            .limit(1);
-        }
-
-        await supabase
-          .from('claims')
-          .update({ status: 'APPROVED' })
-          .eq('id', claim.id);
 
         if (userProfile?.fcm_token) {
           await sendPayoutCredited({
@@ -153,8 +130,8 @@ router.post('/create', async (req, res) => {
         } else {
           console.log(`[FCM] No device token for user ${user_id} — skipping notification`);
         }
-      } catch (err) {
-        console.error('[Claims] async payout error:', err.message);
+      } catch (notifErr) {
+        console.warn('[FCM] Notification error (non-fatal):', notifErr.message);
       }
     }, 5000);
 
