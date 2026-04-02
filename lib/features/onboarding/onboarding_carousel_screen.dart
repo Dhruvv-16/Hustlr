@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/colors.dart' as app_colors;
+import '../../core/router/app_router.dart';
+import '../../shared/widgets/primary_button.dart';
 
 class OnboardingCarouselScreen extends StatefulWidget {
   const OnboardingCarouselScreen({super.key});
@@ -16,127 +17,187 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
   final List<Map<String, dynamic>> _slides = [
     {
       'icon': Icons.shield_rounded,
-      'title': 'Income protection built for gig workers',
-      'subtitle': 'Secure your daily earnings against unexpected disruptions, all directly from your phone.',
+      'title': 'Honest workers always get paid.',
+      'subtitle': '7-layer fraud check runs in 2 seconds.',
+      'chip': '14/100 Clean Score',
     },
     {
-      'icon': Icons.bolt_rounded,
-      'title': 'Get paid when you can’t work',
-      'subtitle': 'Automatic payouts triggered by rain, excessive heat, platform downtime, or internet blackouts.',
+      'icon': Icons.thunderstorm_rounded,
+      'title': 'No forms.\nNo calls.',
+      'subtitle': 'Rain hits your zone — automatic instant payout before you notice.',
+      'chip': 'Instant Release',
     },
     {
-      'icon': Icons.check_circle_outline_rounded,
-      'title': 'Zero hassle. Zero paperwork.',
-      'subtitle': 'Our systems verify disruptions automatically. The money lands directly in your UPI wallet.',
+      'icon': Icons.savings_rounded,
+      'title': 'Starts at ₹29/week.',
+      'subtitle': 'Less than a cup of chai. Cancel anytime.',
+      'chip': 'Pricing',
     },
     {
       'icon': Icons.trending_up_rounded,
-      'title': 'Keep your ISS high',
-      'subtitle': 'The fewer non-verified claims you submit, the higher your ISS stays—giving you access to cheaper plans.',
+      'title': 'Keep your Core Score high',
+      'subtitle': 'The fewer non-verified claims you submit, the higher your score stays.',
+      'chip': 'Rewards',
     },
   ];
 
-  void _onNext() async {
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onNext() {
     if (_currentPage == _slides.length - 1) {
-      // Last slide → go to registration form, not back to login
-      if (mounted) context.go('/onboarding');
+      if (mounted) context.go(AppRoutes.onboarding);
     } else {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeIn,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.fastOutSlowIn,
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: app_colors.background,
+      backgroundColor: theme.canvasColor,
       body: SafeArea(
         child: Column(
           children: [
-            Expanded(
+            // Floating Top Indicator / Chip
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Container(
+                    key: ValueKey(_currentPage),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? theme.colorScheme.surface : theme.colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+                    ),
+                    child: Text(
+                      _slides[_currentPage]['chip'].toString().toUpperCase(),
+                      style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            
+            // Headline Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: Column(
+                    key: ValueKey(_currentPage),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _slides[_currentPage]['title'],
+                        style: theme.textTheme.displayMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _slides[_currentPage]['subtitle'],
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const Spacer(),
+
+            // Static Central Graphic
+            SizedBox(
+              height: 300,
               child: PageView.builder(
                 controller: _pageController,
+                physics: const BouncingScrollPhysics(),
                 onPageChanged: (idx) => setState(() => _currentPage = idx),
                 itemCount: _slides.length,
                 itemBuilder: (context, index) {
                   final slide = _slides[index];
-                  return Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: app_colors.lightGreen,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(slide['icon'], size: 80, color: app_colors.primaryGreen),
-                        ),
-                        const SizedBox(height: 48),
-                        Text(
-                          slide['title'],
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: app_colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          slide['subtitle'],
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: app_colors.textSecondary,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
+                  final isActive = _currentPage == index;
+
+                  return AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: isActive ? 1.0 : 0.0,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        shape: BoxShape.circle,
+                        boxShadow: isDark ? [
+                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 40, offset: const Offset(0, 20)),
+                        ] : [
+                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.1), blurRadius: 40, offset: const Offset(0, 20)),
+                        ],
+                        border: isDark ? null : Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+                      ),
+                      child: Icon(
+                        slide['icon'],
+                        size: 120,
+                        color: theme.colorScheme.primary.withOpacity(isDark ? 0.8 : 1.0),
+                      ),
                     ),
                   );
                 },
               ),
             ),
-            
+
+            const Spacer(),
+
+            // Footer (Progress + Button)
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // Progress Dots
                   Row(
-                    children: List.generate(
-                      _slides.length,
-                      (idx) => Container(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_slides.length, (idx) {
+                      final isActive = _currentPage == idx;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
                         margin: const EdgeInsets.only(right: 8),
                         height: 8,
-                        width: _currentPage == idx ? 24 : 8,
+                        width: isActive ? 32 : 8,
                         decoration: BoxDecoration(
-                          color: _currentPage == idx ? app_colors.primaryGreen : app_colors.textSecondary.withOpacity(0.3),
+                          color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(4),
+                          boxShadow: isActive && isDark ? [
+                            BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 8),
+                          ] : [],
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
-                  const SizedBox(width: 32),
-                  Expanded(
-                    child: ElevatedButton(
+
+                  // Asymmetric CTA
+                  SizedBox(
+                    width: 140, // Not full width to match asymmetric style
+                    child: PrimaryButton(
+                      text: _currentPage == _slides.length - 1 ? 'Start' : 'Next',
                       onPressed: _onNext,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: app_colors.primaryGreen,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        _currentPage == _slides.length - 1 ? 'Get Started' : 'Next',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
                     ),
-                  ),
+                  )
                 ],
               ),
             ),

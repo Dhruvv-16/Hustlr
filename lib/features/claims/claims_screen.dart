@@ -2,27 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/mock_data_service.dart';
+import '../../widgets/hustlr_bottom_nav.dart';
 
 import '../../core/constants/colors.dart' as app_colors;
 import '../../core/constants/text_styles.dart';
 import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
 
-// ─── Color constants local to this screen (mapping to global tokens) ─────────
-const Color _bgScreen   = app_colors.background;
-const Color _blueLight  = Color(0xFFE3F2FD);
-const Color _blueDark   = Color(0xFF1565C0);
-const Color _blue       = Color(0xFF1976D2);
-const Color _tealLight  = Color(0xFFE0F2F1);
-const Color _teal       = Color(0xFF00897B);
-const Color _amberLight = app_colors.lightAmber;
-const Color _amber      = app_colors.amber;
-const Color _greenText  = app_colors.primaryGreen;
-const Color _greenBg    = app_colors.lightGreen;
-const Color _divider    = Color(0xFFE5E7EB);
-const Color _primary    = app_colors.textPrimary;
-const Color _grey       = app_colors.textSecondary;
-const Color _errorRed   = app_colors.errorRed;
+// ─── Color constants local to this screen (dark theme matching dashboard) ─────────
+const Color _bgScreen   = Color(0xFF0a0b0a);
+const Color _cardBg     = Color(0xFF1c1f1c);
+const Color _blueLight  = Color(0xFF003D2A);
+const Color _blueDark   = Color(0xFF3fff8b);
+const Color _blue       = Color(0xFF3fff8b);
+const Color _tealLight  = Color(0xFF1c1f1c);
+const Color _teal       = Color(0xFF3fff8b);
+const Color _amberLight = Color(0xFF1c1f1c);
+const Color _amber      = Color(0xFFFFA726);
+const Color _greenText  = Color(0xFF3fff8b);
+const Color _greenBg    = Color(0xFF003D2A);
+const Color _divider    = Color(0xFF2a2d2a);
+const Color _primary    = Colors.white;
+const Color _grey       = Color(0xFF91938d);
+const Color _errorRed   = Color(0xFFFF5252);
 
 class ClaimsScreen extends StatelessWidget {
   const ClaimsScreen({super.key});
@@ -30,6 +32,7 @@ class ClaimsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mockData = Provider.of<MockDataService>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     int totalClaimed = mockData.claims.fold(0, (sum, c) => sum + c.amount);
     int totalReceived = mockData.claims
@@ -39,94 +42,136 @@ class ClaimsScreen extends StatelessWidget {
         .where((c) => c.status == "PENDING")
         .length;
 
+    final bgScreen = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF4F6F4);
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final blueLight = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
+    final blueDark = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1976D2);
+    final blue = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1976D2);
+    final tealLight = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
+    final teal = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final amberLight = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFFFF3E0);
+    final amber = isDark ? const Color(0xFFFFA726) : const Color(0xFFE65100);
+    final greenText = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final greenBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    final divider = isDark ? const Color(0xFF2a2d2a) : const Color(0xFFE0E0E0);
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    final errorRed = isDark ? const Color(0xFFFF5252) : const Color(0xFFB71C1C);
+    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+
     return Scaffold(
-      backgroundColor: _bgScreen,
+      backgroundColor: bgScreen,
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: app_colors.primaryGreen,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Report a Disruption', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: mintColor,
+        icon: Icon(Icons.add, color: isDark ? const Color(0xFF0a0b0a) : Colors.white),
+        label: Text('Report a Disruption', 
+          style: TextStyle(color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
+          fontWeight: FontWeight.bold)),
         onPressed: () => _showDisruptionSheet(context),
       ),
-      body: MobileContainer(
-        child: SafeArea(
-          child: Column(
-            children: [
-            _TopBar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // extra padding for FAB
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MobileContainer(
+              child: SafeArea(
+                bottom: false,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _SummaryRow(
-                      totalClaimed: totalClaimed,
-                      totalReceived: totalReceived,
-                      pendingCount: pendingCount,
-                    ),
-                    const SizedBox(height: 16),
-                    const _EducationBanner(),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'RECENT HISTORY',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: _primary,
-                        letterSpacing: 0.3,
+                    _TopBar(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SummaryRow(
+                              totalClaimed: totalClaimed,
+                              totalReceived: totalReceived,
+                              pendingCount: pendingCount,
+                            ),
+                            const SizedBox(height: 16),
+                            const _EducationBanner(),
+                            const SizedBox(height: 20),
+                            Text(
+                              'RECENT HISTORY',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: primary,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: mockData.claims.length,
+                              itemBuilder: (context, index) {
+                                final claim = mockData.claims[index];
+                                
+                                Color iconBg = blueLight;
+                                IconData iconData = Icons.cloud_rounded;
+                                Color iconColor = blue;
+                                
+                                if (claim.icon == "downtime") {
+                                  iconBg = tealLight;
+                                  iconData = Icons.cloud_off_rounded;
+                                  iconColor = teal;
+                                } else if (claim.icon == "heat") {
+                                  iconBg = amberLight;
+                                  iconData = Icons.thermostat_rounded;
+                                  iconColor = amber;
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: InkWell(
+                                    onTap: () => context.push('/claims/${claim.id}'),
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: _ClaimCard(
+                                      iconBg: iconBg,
+                                      icon: iconData,
+                                      iconColor: iconColor,
+                                      title: claim.type,
+                                      date: claim.date,
+                                      status: claim.status,
+                                      statusBg: claim.status == 'APPROVED' ? greenBg : const Color(0xFFFFF3E0),
+                                      statusColor: claim.status == 'APPROVED' ? greenText : amber,
+                                      amount: '₹${claim.amount}',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 80),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: mockData.claims.length,
-                      itemBuilder: (context, index) {
-                        final claim = mockData.claims[index];
-                        
-                        Color iconBg = _blueLight;
-                        IconData iconData = Icons.cloud_rounded;
-                        Color iconColor = _blue;
-                        
-                        if (claim.icon == "downtime") {
-                          iconBg = _tealLight;
-                          iconData = Icons.cloud_off_rounded;
-                          iconColor = _teal;
-                        } else if (claim.icon == "heat") {
-                          iconBg = _amberLight;
-                          iconData = Icons.thermostat_rounded;
-                          iconColor = _amber;
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: InkWell(
-                            onTap: () => context.push('/claims/${claim.id}'),
-                            borderRadius: BorderRadius.circular(16),
-                            child: _ClaimCard(
-                              iconBg: iconBg,
-                              icon: iconData,
-                              iconColor: iconColor,
-                              title: claim.type,
-                              date: claim.date,
-                              status: claim.status,
-                              statusBg: claim.status == 'APPROVED' ? _greenBg : const Color(0xFFFFF3E0),
-                              statusColor: claim.status == 'APPROVED' ? _greenText : _amber,
-                              amount: '₹${claim.amount}',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 80),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _handleNavTap(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/dashboard');
+        break;
+      case 1:
+        context.go('/policy');
+        break;
+      case 2:
+        break;
+      case 3:
+        context.go('/wallet');
+        break;
+    }
   }
 
   void _showDisruptionSheet(BuildContext context) {
@@ -201,24 +246,28 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgScreen = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF4F6F4);
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+
     return Container(
-      color: _bgScreen,
+      color: bgScreen,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: const Row(
+      child: Row(
         children: [
-          Expanded(child: SizedBox()),
+          const Expanded(child: SizedBox()),
           Text(
             'Claims',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: _primary,
+              color: primary,
             ),
           ),
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: Icon(Icons.notifications_outlined, color: _primary, size: 24),
+              child: Icon(Icons.notifications_outlined, color: primary, size: 24),
             ),
           ),
         ],
@@ -241,14 +290,20 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final greenText = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final amber = isDark ? const Color(0xFFFFA726) : const Color(0xFFE65100);
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -261,7 +316,7 @@ class _SummaryRow extends StatelessWidget {
               child: _SummarySection(
                 label: 'CLAIMED',
                 value: '₹$totalClaimed',
-                valueColor: _primary,
+                valueColor: primary,
               ),
             ),
             const _VerticalDivider(),
@@ -269,8 +324,8 @@ class _SummaryRow extends StatelessWidget {
               child: _SummarySection(
                 label: 'RECEIVED',
                 value: '₹$totalReceived',
-                valueColor: _greenText,
-                trailing: const Icon(Icons.check_circle, color: _greenText, size: 16),
+                valueColor: greenText,
+                trailing: Icon(Icons.check_circle, color: greenText, size: 16),
               ),
             ),
             const _VerticalDivider(),
@@ -278,7 +333,7 @@ class _SummaryRow extends StatelessWidget {
               child: _SummarySection(
                 label: 'PENDING',
                 value: '$pendingCount',
-                valueColor: _amber,
+                valueColor: amber,
               ),
             ),
           ],
@@ -303,15 +358,18 @@ class _SummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: _grey,
+            color: grey,
             letterSpacing: 1.0,
           ),
         ),
@@ -344,10 +402,13 @@ class _VerticalDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final divider = isDark ? const Color(0xFF2a2d2a) : const Color(0xFFE0E0E0);
+
     return Container(
       width: 1,
       height: 40,
-      color: _divider,
+      color: divider,
       margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
@@ -359,23 +420,28 @@ class _EducationBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final blueLight = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
+    final blueDark = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1976D2);
+    final blue = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1976D2);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _blueLight,
+        color: blueLight,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InfoCircle(),
-          SizedBox(width: 12),
+          _InfoCircle(color: blue),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Hustlr auto-detects disruptions and processes claims by Sunday 11 PM for you.',
               style: TextStyle(
                 fontSize: 13,
-                color: _blueDark,
+                color: blueDark,
                 height: 1.5,
               ),
             ),
@@ -387,15 +453,16 @@ class _EducationBanner extends StatelessWidget {
 }
 
 class _InfoCircle extends StatelessWidget {
-  const _InfoCircle();
+  final Color color;
+  const _InfoCircle({required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 32,
       height: 32,
-      decoration: const BoxDecoration(
-        color: _blue,
+      decoration: BoxDecoration(
+        color: color,
         shape: BoxShape.circle,
       ),
       child: const Center(
@@ -439,14 +506,20 @@ class _ClaimCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    final errorRed = isDark ? const Color(0xFFFF5252) : const Color(0xFFB71C1C);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -473,18 +546,18 @@ class _ClaimCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: _primary,
+                    color: primary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   date,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: _grey,
+                    color: grey,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -510,12 +583,12 @@ class _ClaimCard extends StatelessWidget {
                       const SizedBox(width: 12),
                       GestureDetector(
                         onTap: () => context.push('/claims/explanation'),
-                        child: const Text(
+                        child: Text(
                           'See why →',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: _errorRed,
+                            color: errorRed,
                           ),
                         ),
                       ),
@@ -529,10 +602,10 @@ class _ClaimCard extends StatelessWidget {
           // Amount — top aligned
           Text(
             amount,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: _primary,
+              color: primary,
             ),
           ),
         ],

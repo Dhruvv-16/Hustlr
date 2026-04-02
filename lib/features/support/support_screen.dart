@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/widgets/mobile_container.dart';
 
-// ─── Local Palette ────────────────────────────────────────────────────────────
-const _bgScreen   = Color(0xFFF8F9FA); // White-ish background
+const _bgScreen   = Color(0xFFF8F9FA);
 const _green      = Color(0xFF2E7D32);
 const _lightGreen = Color(0xFFE8F5E9);
 const _primary    = Color(0xFF1A1A2E);
@@ -11,6 +11,13 @@ const _grey       = Color(0xFF6B7280);
 const _hint       = Color(0xFF9CA3AF);
 const _divider    = Color(0xFFE5E7EB);
 const _cardWhite  = Colors.white;
+
+Future<void> _launch(String url) async {
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -25,11 +32,7 @@ class SupportScreen extends StatelessWidget {
         leading: BackButton(color: _primary, onPressed: () => context.pop()),
         title: const Text(
           'Help & Support',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: _primary,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primary),
         ),
         centerTitle: true,
       ),
@@ -48,11 +51,7 @@ class SupportScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'Frequently Asked Questions',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _primary,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primary),
                 ),
               ),
               const SizedBox(height: 16),
@@ -81,21 +80,15 @@ class _SearchBar extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cardWhite,
           borderRadius: BorderRadius.circular(28),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x05000000),
-              blurRadius: 10,
-              offset: Offset(0, 2),
-            ),
-          ],
+          boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 2))],
         ),
         child: Row(
-          children: [
-            const Padding(
+          children: const [
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 14),
               child: Icon(Icons.search_rounded, color: _hint, size: 20),
             ),
-            const Expanded(
+            Expanded(
               child: TextField(
                 decoration: InputDecoration(
                   hintText: 'Search for help...',
@@ -125,7 +118,7 @@ class _QuickHelpGrid extends StatelessWidget {
       mainAxisSpacing: 12,
       childAspectRatio: 1.2,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: const [
+      children: [
         _GridCard(
           icon: Icons.chat_bubble_outline_rounded,
           iconColor: _green,
@@ -133,13 +126,31 @@ class _QuickHelpGrid extends StatelessWidget {
           title: 'Live Chat',
           subtitle: 'AVG REPLY: 2 MIN',
           isGreenCaps: true,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 16),
+                    SizedBox(width: 10),
+                    Text('Connecting you to support...', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                  ],
+                ),
+                backgroundColor: _green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+          },
         ),
         _GridCard(
           icon: Icons.phone_outlined,
-          iconColor: Color(0xFF1976D2),
-          iconBg: Color(0xFFE3F2FD),
+          iconColor: const Color(0xFF1976D2),
+          iconBg: const Color(0xFFE3F2FD),
           title: 'Call Us',
           subtitle: 'Available 24/7',
+          onTap: () => _launch('tel:+918001234567'),
         ),
         _GridCard(
           icon: Icons.message_rounded,
@@ -147,13 +158,15 @@ class _QuickHelpGrid extends StatelessWidget {
           iconBg: _lightGreen,
           title: 'WhatsApp',
           subtitle: 'Instant support',
+          onTap: () => _launch('https://wa.me/918001234567'),
         ),
         _GridCard(
           icon: Icons.email_outlined,
-          iconColor: Color(0xFF7B1FA2),
-          iconBg: Color(0xFFF3E5F5),
+          iconColor: const Color(0xFF7B1FA2),
+          iconBg: const Color(0xFFF3E5F5),
           title: 'Email',
           subtitle: 'Send a message',
+          onTap: () => _launch('mailto:support@hustlr.in'),
         ),
       ],
     );
@@ -167,6 +180,7 @@ class _GridCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool isGreenCaps;
+  final VoidCallback? onTap;
 
   const _GridCard({
     required this.icon,
@@ -175,55 +189,45 @@ class _GridCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.isGreenCaps = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _cardWhite,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 2))],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: _primary,
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _primary),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: isGreenCaps ? 10 : 12,
-              fontWeight: isGreenCaps ? FontWeight.bold : FontWeight.normal,
-              color: isGreenCaps ? _green : _grey,
-              letterSpacing: isGreenCaps ? 0.5 : 0,
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: isGreenCaps ? 10 : 12,
+                fontWeight: isGreenCaps ? FontWeight.bold : FontWeight.normal,
+                color: isGreenCaps ? _green : _grey,
+                letterSpacing: isGreenCaps ? 0.5 : 0,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -235,26 +239,23 @@ class _FaqAccordion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16),
       child: Column(
-        children: const [
+        children: [
           _FaqItem(
             question: 'How are claims triggered?',
-            answer:
-                'Our system automatically detects disruptions using weather and platform APIs. When a threshold is breached in your zone and you were active, a claim is generated automatically.',
+            answer: 'Our system automatically detects disruptions using weather and platform APIs. When a threshold is breached in your zone and you were active, a claim is generated automatically.',
           ),
           SizedBox(height: 12),
           _FaqItem(
             question: 'When will I receive payout?',
-            answer:
-                'Payouts process every Sunday night. 70% credits immediately and 30% releases within 48 hours.',
+            answer: 'Payouts process every Sunday night. 70% credits immediately and 30% releases within 48 hours.',
           ),
           SizedBox(height: 12),
           _FaqItem(
             question: 'Can I update my coverage?',
-            answer:
-                'Yes. Go to Policy → Upgrade. Changes apply from the following Monday.',
+            answer: 'Yes. Go to Policy → Upgrade. Changes apply from the following Monday.',
           ),
         ],
       ),
@@ -265,7 +266,6 @@ class _FaqAccordion extends StatelessWidget {
 class _FaqItem extends StatefulWidget {
   final String question;
   final String answer;
-
   const _FaqItem({required this.question, required this.answer});
 
   @override
@@ -281,38 +281,19 @@ class _FaqItemState extends State<_FaqItem> {
       decoration: BoxDecoration(
         color: _cardWhite,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
+        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 2))],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          title: Text(
-            widget.question,
-            style: const TextStyle(
-              fontSize: 14,
-              color: _primary,
-            ),
-          ),
+          title: Text(widget.question, style: const TextStyle(fontSize: 14, color: _primary)),
           iconColor: _hint,
           collapsedIconColor: _hint,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           onExpansionChanged: (val) => setState(() => _expanded = val),
           children: [
-            Text(
-              widget.answer,
-              style: const TextStyle(
-                fontSize: 13,
-                color: _grey,
-                height: 1.5,
-              ),
-            ),
+            Text(widget.answer, style: const TextStyle(fontSize: 13, color: _grey, height: 1.5)),
           ],
         ),
       ),
@@ -333,24 +314,14 @@ class _TicketCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cardWhite,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x05000000),
-              blurRadius: 10,
-              offset: Offset(0, 2),
-            ),
-          ],
+          boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 2))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Raise a Ticket',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _primary,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primary),
             ),
             const SizedBox(height: 16),
             Container(
@@ -370,18 +341,11 @@ class _TicketCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.attach_file_rounded, color: _green, size: 16),
-                const SizedBox(width: 4),
-                const Text(
-                  'Attach screenshot',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _green,
-                  ),
-                ),
+                Icon(Icons.attach_file_rounded, color: _green, size: 16),
+                SizedBox(width: 4),
+                Text('Attach screenshot', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _green)),
               ],
             ),
             const SizedBox(height: 16),
@@ -389,22 +353,24 @@ class _TicketCard extends StatelessWidget {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Ticket submitted! We\'ll get back to you shortly.', style: TextStyle(fontWeight: FontWeight.w700)),
+                      backgroundColor: _green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      margin: const EdgeInsets.all(16),
+                    ),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                 ),
-                child: const Text(
-                  'Submit Ticket',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: const Text('Submit Ticket', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],

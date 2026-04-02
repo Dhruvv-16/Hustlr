@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/text_styles.dart';
 import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/hustlr_bottom_nav.dart';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const _green       = Color(0xFF2E7D32);
@@ -14,6 +15,14 @@ const _textPrimary = Color(0xFF1A1A2E);
 const _textSub     = Color(0xFF6B7280);
 const _textHint    = Color(0xFF9CA3AF);
 const _borderLight = Color(0xFFE5E7EB);
+
+// Dark mode palette
+const _darkGreen       = Color(0xFF3FFF8B);
+const _darkLightGreen  = Color(0xFF003D2A);
+const _darkCardBg      = Color(0xFF1c1f1c);
+const _darkTextPrimary = Colors.white;
+const _darkTextSub     = Color(0xFF91938d);
+const _darkBorder      = Color(0xFF2a2d2a);
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 class _Plan {
@@ -148,31 +157,38 @@ class _PolicyScreenState extends State<PolicyScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF0F4F0);
+    final appBarColor = isDark ? const Color(0xFF141614) : Colors.white;
+    final textPrimary = isDark ? Colors.white : const Color(0xFF1A1A2E);
+    final textSub = isDark ? const Color(0xFF91938d) : const Color(0xFF6B7280);
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F0),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: appBarColor,
         elevation: 0,
-        leading: const BackButton(color: _textPrimary),
-        title: const Text(
+        leading: BackButton(color: textPrimary),
+        title: Text(
           'Policy & Plans',
           style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary),
+              fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
         ),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
           child: Container(
-            color: Colors.white,
+            color: appBarColor,
             child: TabBar(
               controller: _tabController,
-              labelColor: _green,
-              unselectedLabelColor: _textSub,
+              labelColor: green,
+              unselectedLabelColor: textSub,
               labelStyle: const TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w700),
               unselectedLabelStyle: const TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w500),
-              indicatorColor: _green,
+              indicatorColor: green,
               indicatorWeight: 2,
               tabs: const [
                 Tab(text: 'Current Plan'),
@@ -183,17 +199,39 @@ class _PolicyScreenState extends State<PolicyScreen>
           ),
         ),
       ),
-      body: MobileContainer(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            _CurrentPlanTab(),
-            _UpgradeTab(onProceed: () => context.push('/policy/payment')),
-            _HistoryTab(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MobileContainer(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _CurrentPlanTab(),
+                  _UpgradeTab(onProceed: () => context.push('/policy/payment')),
+                  _HistoryTab(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _handleNavTap(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/dashboard');
+        break;
+      case 1:
+        break;
+      case 2:
+        context.go('/claims');
+        break;
+      case 3:
+        context.go('/wallet');
+        break;
+    }
   }
 }
 
@@ -202,7 +240,7 @@ class _CurrentPlanTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel('ACTIVE COVERAGE'),
         const SizedBox(height: 12),
@@ -210,48 +248,56 @@ class _CurrentPlanTab extends StatelessWidget {
         const SizedBox(height: 24),
         _sectionLabel('COVERAGE DETAILS'),
         const SizedBox(height: 12),
-        _coverageItem(Icons.water_drop_rounded, 'Rain Disruption',
+        _coverageItem(context, Icons.water_drop_rounded, 'Rain Disruption',
             'Auto-triggers when rain > 3hrs'),
-        _coverageItem(Icons.wb_sunny_rounded, 'Extreme Heat',
+        _coverageItem(context, Icons.wb_sunny_rounded, 'Extreme Heat',
             'Triggers above 42°C advisory'),
-        _coverageItem(Icons.air_rounded, 'Pollution Alert',
+        _coverageItem(context, Icons.air_rounded, 'Pollution Alert',
             'AQI > 200 in your zone'),
-        _coverageItem(Icons.phonelink_off_rounded, 'App Downtime',
+        _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',
             'Outages over 90 minutes'),
       ]),
     );
   }
 
-  Widget _coverageItem(IconData icon, String title, String subtitle) {
+  Widget _coverageItem(BuildContext context, IconData icon, String title, String subtitle) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final borderLight = isDark ? const Color(0xFF2a2d2a) : const Color(0xFFE5E7EB);
+    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF1A1A2E);
+    final textHint = isDark ? const Color(0xFF91938d) : const Color(0xFF9CA3AF);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: _cardWhite,
+          color: cardWhite,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderLight)),
+          border: Border.all(color: borderLight)),
       child: Row(children: [
         Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-              color: _lightGreen, borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, color: _green, size: 18),
+              color: lightGreen, borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: green, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: _textPrimary)),
+                    color: textPrimary)),
             const SizedBox(height: 2),
             Text(subtitle,
-                style: const TextStyle(fontSize: 12, color: _textHint)),
+                style: TextStyle(fontSize: 12, color: textHint)),
           ]),
         ),
-        const Icon(Icons.check_circle_rounded, color: _green, size: 20),
+        Icon(Icons.check_circle_rounded, color: green, size: 20),
       ]),
     );
   }

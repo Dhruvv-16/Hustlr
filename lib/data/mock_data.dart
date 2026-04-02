@@ -13,8 +13,6 @@ class MockData {
   static const int weeklyEarnings = 4200;
   static const int hourlyRate = 60;
   static const String shiftWindow = '8 AM – 10 PM';
-  static const int issScore = 62;
-  static const String issTier = 'AMBER';
   static const String activePlan = 'Standard Shield';
   static const int weeklyPremium = 49;
   static const String policyNumber = 'HS-98234-AX';

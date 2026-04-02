@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../core/services/storage_service.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -9,24 +11,10 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _glowController;
-  late Animation<double> _glowAnim;
-
+class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Subtle pulsing glow animation
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-
-    _glowAnim = Tween<double>(begin: 0.18, end: 0.32).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
 
     // Navigate after 2.5 seconds
     Future.delayed(const Duration(milliseconds: 2500), _navigate);
@@ -34,14 +22,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigate() async {
     if (!mounted) return;
-    // Use Hive (not SharedPreferences) to read auth state
     final box = Hive.box('appData');
     final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-    final onboardingComplete = box.get('onboardingComplete', defaultValue: false) as bool;
+    final isComplete = await StorageService.instance.isOnboardingComplete();
+    final userId = await StorageService.instance.getUserId();
     if (!mounted) return;
     if (!isLoggedIn) {
       context.go('/login');
-    } else if (!onboardingComplete) {
+    } else if (!isComplete || userId == null) {
       context.go('/carousel');
     } else {
       context.go('/dashboard');
@@ -50,7 +38,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _glowController.dispose();
     super.dispose();
   }
 
@@ -66,18 +53,15 @@ class _SplashScreenState extends State<SplashScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Outer glow + icon container
-                AnimatedBuilder(
-                  animation: _glowAnim,
-                  builder: (_, __) => Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF2E7D32).withValues(alpha: _glowAnim.value),
-                    ),
-                    alignment: Alignment.center,
-                    child: _iconContainer(),
+                Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF2E7D32).withValues(alpha: 0.15),
                   ),
+                  alignment: Alignment.center,
+                  child: _iconContainer(),
                 ),
 
                 // "Hustlr" title
