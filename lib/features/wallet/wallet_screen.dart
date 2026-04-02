@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/mock_data_service.dart';
+import '../../widgets/hustlr_bottom_nav.dart';
 
 import '../../core/constants/colors.dart' as app_colors;
 import '../../core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/mobile_container.dart';
+import '../../widgets/hustlr_bottom_nav.dart';
 
 // ─── Local Palette (mapping to global tokens) ──────────────────────────────────
 const _bgScreen   = app_colors.background;
@@ -25,23 +27,49 @@ const _cardWhite  = app_colors.cardWhite;
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
 
+  void _handleNavTap(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/dashboard');
+        break;
+      case 1:
+        context.go('/policy');
+        break;
+      case 2:
+        context.go('/claims');
+        break;
+      case 3:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgScreen = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF4F6F4);
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    final red = isDark ? const Color(0xFFFF5252) : const Color(0xFFB71C1C);
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final hint = isDark ? const Color(0xFF91938d) : const Color(0xFF9CA3AF);
+
     return Scaffold(
-      backgroundColor: _bgScreen,
+      backgroundColor: bgScreen,
       appBar: AppBar(
-        backgroundColor: _bgScreen,
+        backgroundColor: bgScreen,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: _primary),
+          icon: Icon(Icons.menu_rounded, color: primary),
           onPressed: () {},
         ),
-        title: const Text(
+        title: Text(
           'Wallet',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: _primary,
+            color: primary,
           ),
         ),
         centerTitle: true,
@@ -52,7 +80,7 @@ class WalletScreen extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_rounded, color: _primary),
+                  icon: Icon(Icons.notifications_rounded, color: primary),
                   onPressed: () {},
                 ),
                 Positioned(
@@ -61,8 +89,8 @@ class WalletScreen extends StatelessWidget {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
-                      color: _red,
+                    decoration: BoxDecoration(
+                      color: red,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -72,25 +100,31 @@ class WalletScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: MobileContainer(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-          child: Column(
-          children: [
-            _BalanceCard(),
-            const SizedBox(height: 16),
-            _SavingsInsightCard(),
-            const SizedBox(height: 16),
-            const _AnalyticsButton(),
-            const SizedBox(height: 24),
-            _WeeklySummarySection(),
-            const SizedBox(height: 24),
-            _InsuranceTransactionsSection(),
-            const SizedBox(height: 24),
-            _SupportCard(),
-          ],
-        ),
-      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MobileContainer(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                child: Column(
+                  children: [
+                    _BalanceCard(),
+                    const SizedBox(height: 16),
+                    _SavingsInsightCard(),
+                    const SizedBox(height: 16),
+                    const _AnalyticsButton(),
+                    const SizedBox(height: 24),
+                    _WeeklySummarySection(),
+                    const SizedBox(height: 24),
+                    _InsuranceTransactionsSection(),
+                    const SizedBox(height: 24),
+                    _SupportCard(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -103,6 +137,8 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mockData = Provider.of<MockDataService>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final formattedBalance = mockData.walletBalance.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
       (m) => '${m[1]},'
@@ -112,7 +148,7 @@ class _BalanceCard extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _green,
+        color: green,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Stack(
@@ -165,13 +201,13 @@ class _BalanceCard extends StatelessWidget {
                     onPressed: () => _showWithdrawBottomSheet(context, mockData),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: _green,
+                      foregroundColor: green,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
@@ -179,11 +215,11 @@ class _BalanceCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: _green,
+                            color: green,
                           ),
                         ),
-                        SizedBox(width: 4),
-                        Icon(Icons.arrow_forward_rounded, size: 16, color: _green),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_rounded, size: 16, color: green),
                       ],
                     ),
                   ),
@@ -204,19 +240,25 @@ class _SavingsInsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mockData = Provider.of<MockDataService>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
     final formattedSavings = mockData.monthlySavings.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _cardWhite,
+        color: cardWhite,
         borderRadius: BorderRadius.circular(16),
-        border: const Border(left: BorderSide(color: _green, width: 3)),
-        boxShadow: const [
+        border: Border(left: BorderSide(color: green, width: 3)),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -226,33 +268,33 @@ class _SavingsInsightCard extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(
-              color: _lightGreen,
+            decoration: BoxDecoration(
+              color: lightGreen,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.savings_rounded, color: _green, size: 24),
+            child: Icon(Icons.savings_rounded, color: green, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'SAVINGS INSIGHT',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: _grey,
+                    color: grey,
                     letterSpacing: 1.0,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'You saved ₹$formattedSavings this month',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: _primary,
+                    color: primary,
                   ),
                 ),
               ],
@@ -271,25 +313,31 @@ class _AnalyticsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final borderColor = isDark ? green.withOpacity(0.3) : const Color(0xFF2D6A2D).withOpacity(0.3);
+    final iconColor = isDark ? green : const Color(0xFF2D6A2D);
+
     return GestureDetector(
       onTap: () => context.push(AppRoutes.analytics),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2D6A2D).withOpacity(0.3)),
+          border: Border.all(color: borderColor),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(children: [
-              Icon(Icons.bar_chart, color: Color(0xFF2D6A2D)),
-              SizedBox(width: 8),
+              Icon(Icons.bar_chart, color: iconColor),
+              const SizedBox(width: 8),
               Text('See Analytics', style: TextStyle(
-                  color: Color(0xFF2D6A2D), fontWeight: FontWeight.w600)),
+                  color: iconColor, fontWeight: FontWeight.w600)),
             ]),
-            Icon(Icons.chevron_right, color: Color(0xFF2D6A2D)),
+            Icon(Icons.chevron_right, color: iconColor),
           ],
         ),
       ),
@@ -303,19 +351,28 @@ class _WeeklySummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    final lightRed = isDark ? const Color(0xFF4A0000) : const Color(0xFFFFEBEE);
+    final red = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const _BarIcon(),
+            _BarIcon(color: green),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Weekly Summary',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: _primary,
+                color: primary,
               ),
             ),
           ],
@@ -323,22 +380,28 @@ class _WeeklySummarySection extends StatelessWidget {
         const SizedBox(height: 16),
         _buildCard(
           icon: Icons.account_balance_wallet_rounded,
-          iconBg: _lightGreen,
-          iconColor: _green,
+          iconBg: lightGreen,
+          iconColor: green,
           title: 'Insurance Payout',
           date: 'Mar 12, 2026',
           amount: '+₹300',
-          amountColor: _green,
+          amountColor: green,
+          cardBg: cardWhite,
+          primary: primary,
+          grey: grey,
         ),
         const SizedBox(height: 12),
         _buildCard(
           icon: Icons.shield_rounded,
-          iconBg: _lightRed,
-          iconColor: _red,
+          iconBg: lightRed,
+          iconColor: red,
           title: 'Policy Premium',
           date: 'Mar 10, 2026',
           amount: '-₹49',
-          amountColor: _red,
+          amountColor: red,
+          cardBg: cardWhite,
+          primary: primary,
+          grey: grey,
         ),
       ],
     );
@@ -352,11 +415,14 @@ class _WeeklySummarySection extends StatelessWidget {
     required String date,
     required String amount,
     required Color amountColor,
+    required Color cardBg,
+    required Color primary,
+    required Color grey,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _cardWhite,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -377,16 +443,16 @@ class _WeeklySummarySection extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: _primary,
+                    color: primary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   date,
-                  style: const TextStyle(fontSize: 12, color: _grey),
+                  style: TextStyle(fontSize: 12, color: grey),
                 ),
               ],
             ),
@@ -407,7 +473,8 @@ class _WeeklySummarySection extends StatelessWidget {
 
 // A custom icon consisting of 4 vertical green bars of varying heights
 class _BarIcon extends StatelessWidget {
-  const _BarIcon();
+  final Color color;
+  const _BarIcon({required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -416,24 +483,24 @@ class _BarIcon extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _bar(10),
+          _bar(10, color),
           const SizedBox(width: 2),
-          _bar(16),
+          _bar(16, color),
           const SizedBox(width: 2),
-          _bar(8),
+          _bar(8, color),
           const SizedBox(width: 2),
-          _bar(12),
+          _bar(12, color),
         ],
       ),
     );
   }
 
-  Widget _bar(double height) {
+  Widget _bar(double height, Color color) {
     return Container(
       width: 3,
       height: height,
       decoration: BoxDecoration(
-        color: _green,
+        color: color,
         borderRadius: BorderRadius.circular(2),
       ),
     );
@@ -447,32 +514,41 @@ class _InsuranceTransactionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mockData = Provider.of<MockDataService>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final red = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    final divider = isDark ? const Color(0xFF2a2d2a) : const Color(0xFFE0E0E0);
+    final blue = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1976D2);
+    final lightBlue = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(Icons.history_rounded, size: 20, color: _green),
+            Icon(Icons.history_rounded, size: 20, color: green),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Insurance Transactions',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: _primary,
+                  color: primary,
                 ),
               ),
             ),
             GestureDetector(
               onTap: () {},
-              child: const Text(
+              child: Text(
                 'See All',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: _green,
+                  color: green,
                 ),
               ),
             ),
@@ -482,27 +558,29 @@ class _InsuranceTransactionsSection extends StatelessWidget {
         
         Container(
           decoration: BoxDecoration(
-            color: _cardWhite,
+            color: cardWhite,
             borderRadius: BorderRadius.circular(16),
           ),
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: mockData.transactions.length,
-            separatorBuilder: (context, index) => const Padding(
-              padding: EdgeInsets.only(left: 64),
-              child: Divider(color: _divider, height: 1),
+            separatorBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.only(left: 64),
+              child: Divider(color: divider, height: 1),
             ),
             itemBuilder: (context, index) {
               final tx = mockData.transactions[index];
               return _buildTransactionRow(
                 icon: tx['type'] == 'credit' ? Icons.card_giftcard_rounded : Icons.shield_rounded,
-                iconColor: tx['type'] == 'credit' ? _blue : const Color(0xFF607D8B),
-                iconBg: tx['type'] == 'credit' ? _lightBlue : const Color(0xFFECEFF1),
+                iconColor: tx['type'] == 'credit' ? blue : const Color(0xFF607D8B),
+                iconBg: tx['type'] == 'credit' ? lightBlue : const Color(0xFFECEFF1),
                 title: tx['title'],
                 subtitle: tx['date']! + ' • ' + tx['subtitle']!,
                 amount: (tx['type'] == 'credit' ? '+' : '-') + '₹${tx['amount']}',
-                amountColor: tx['type'] == 'credit' ? _green : _red,
+                amountColor: tx['type'] == 'credit' ? green : red,
+                primary: primary,
+                grey: grey,
               );
             },
           ),
@@ -519,6 +597,8 @@ class _InsuranceTransactionsSection extends StatelessWidget {
     required String subtitle,
     required String amount,
     required Color amountColor,
+    required Color primary,
+    required Color grey,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -540,16 +620,16 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: _primary,
+                    color: primary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 12, color: _grey),
+                  style: TextStyle(fontSize: 12, color: grey),
                 ),
               ],
             ),
@@ -574,16 +654,21 @@ class _SupportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardWhite,
+        color: cardWhite,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -593,7 +678,7 @@ class _SupportCard extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _green,
+              color: green,
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
@@ -604,30 +689,30 @@ class _SupportCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Questions about a payout?',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: _primary,
+                    color: primary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       'Chat with us',
                       style: TextStyle(
                         fontSize: 13,
-                        color: _green,
+                        color: green,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
+                    Icon(
                       Icons.arrow_forward_rounded,
                       size: 14,
-                      color: _green,
+                      color: green,
                     ),
                   ],
                 ),

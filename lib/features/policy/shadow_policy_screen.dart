@@ -64,7 +64,7 @@ class ShadowPolicyScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => context.push('/policy/plans'),
+                onPressed: () => context.push('/policy'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: app_colors.primaryGreen,
                   padding: const EdgeInsets.symmetric(vertical: 16),

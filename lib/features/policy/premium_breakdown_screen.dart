@@ -1,80 +1,128 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../../core/constants/colors.dart' as app_colors;
-import '../../core/router/app_router.dart';
 import '../../data/mock_data.dart';
+import '../../core/services/api_service.dart';
+import '../../core/services/storage_service.dart';
 
-const _bg = app_colors.background;
-const _green = app_colors.primaryGreen;
-const _lightGreen = app_colors.lightGreen;
-const _amber = app_colors.amber;
-const _lightAmber = app_colors.lightAmber;
-const _errorRed = app_colors.errorRed;
-const _textPrimary = app_colors.textPrimary;
-const _textSub = app_colors.textSecondary;
-const _borderLight = Color(0xFFE5E7EB);
-const _cardWhite = Colors.white;
-
-class PremiumBreakdownScreen extends StatelessWidget {
+class PremiumBreakdownScreen extends StatefulWidget {
   const PremiumBreakdownScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final breakdown = MockData.premiumBreakdown;
+  State<PremiumBreakdownScreen> createState() => _PremiumBreakdownScreenState();
+}
+
+class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
+  Map<String, dynamic>? policyData;
+  String? userId;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPolicyData();
+  }
+
+  Future<void> _loadPolicyData() async {
+    userId = await StorageService.instance.getUserId();
+    if (userId == null) {
+      if (mounted) setState(() => isLoading = false);
+      return;
+    }
     
+    try {
+      final data = await ApiService.instance.getPolicyInstance(userId!);
+      if (mounted) {
+        setState(() {
+          policyData = data;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: theme.canvasColor,
+        body: Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)),
+      );
+    }
+
+    // Safely extract breakdown
+    final pb = policyData?['premium_breakdown'] as Map<String, dynamic>?;
+    final int basePremium = (pb?['base'] as num?)?.toInt() ?? 39;
+    final int zoneAdj = (pb?['zone_adj'] as num?)?.toInt() ?? 5;
+    final int riskAdj = (pb?['risk_adj'] as num?)?.toInt() ?? 5;
+
+    final breakdown = <String, dynamic>{
+      'base_rate': basePremium,
+      'zone_adjustment': zoneAdj,
+      'behavioral_adjustment': riskAdj,
+      'platform_discount': -3,
+      'clean_history_discount': 0,
+      'final_rate': policyData?['weekly_premium'] ?? 49,
+      'min_bound': (basePremium * 0.7).round(),
+      'max_bound': (basePremium * 2.0).round(),
+      'zone_comparison': [
+        {'zone': 'Adyar', 'rate': zoneAdj, 'risk': 'HIGH'},
+        {'zone': 'T Nagar', 'rate': zoneAdj - 2, 'risk': 'MODERATE'},
+        {'zone': 'OMR', 'rate': zoneAdj + 3, 'risk': 'EXTREME'},
+      ],
+    };
+    final activePlan = policyData?['plan_name'] ?? 'Standard Shield';
+    final weeklyPremium = policyData?['weekly_premium'] ?? 49;
+    final userZone = 'Adyar Dark Store Zone'; // Ideally from StorageService, mocking for UI
+    final userPlatform = 'Platform';
+
+
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: theme.canvasColor,
       appBar: AppBar(
-        title: const Text('Your Premium Breakdown'),
-        backgroundColor: _green,
-        foregroundColor: Colors.white,
+        title: Text('Premium Breakdown', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.transparent,
+        foregroundColor: theme.colorScheme.onSurface,
         elevation: 0,
+        centerTitle: false,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Current plan card (green)
-            _buildCurrentPlanCard(),
+            _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium),
             const SizedBox(height: 16),
-
-            // 2. How it was calculated
-            _buildCalculationCard(breakdown),
+            _buildCalculationCard(breakdown, theme, isDark, userZone, userPlatform),
             const SizedBox(height: 16),
-
-            // 3. Zone comparison
-            _buildZoneComparisonCard(breakdown),
+            _buildZoneComparisonCard(breakdown, theme, isDark),
             const SizedBox(height: 16),
-
-            // 4. High-risk week scenario
-            _buildHighRiskScenarioCard(),
+            _buildHighRiskScenarioCard(theme, isDark),
             const SizedBox(height: 16),
-
-            // 5. Premium bounds
-            _buildPremiumBoundsCard(breakdown),
-            const SizedBox(height: 16),
-
-            // 6. ISS impact + improve link
-            _buildISSImpactCard(context, MockData.issScore),
-            const SizedBox(height: 24),
+            _buildPremiumBoundsCard(breakdown, theme, isDark),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCurrentPlanCard() {
+  Widget _buildCurrentPlanCard(ThemeData theme, bool isDark, String activePlan, int weeklyPremium) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _green,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Color(0x332D6A2D), blurRadius: 12, offset: Offset(0, 4)),
+        color: isDark ? const Color(0xFF0C1D11) : theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(isDark ? 32 : 24),
+        boxShadow: isDark ? [] : [
+          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8)),
         ],
+        border: isDark ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3), width: 1.5) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,328 +130,337 @@ class PremiumBreakdownScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                MockData.activePlan,
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                activePlan,
+                style: TextStyle(color: isDark ? theme.colorScheme.primary : theme.colorScheme.onPrimary, fontSize: 18, fontWeight: FontWeight.w900),
               ),
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 24),
+              Icon(Icons.check_circle_rounded, color: isDark ? theme.colorScheme.primary : theme.colorScheme.onPrimary, size: 24),
             ],
           ),
-          const SizedBox(height: 4),
-          const Text('Policy #${MockData.policyNumber}', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const Text('VALIDITY: ${MockData.policyValidity}', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          const Text('Your personalised weekly rate:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 4),
-          const Text(
-            '₹${MockData.weeklyPremium} / week',
-            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+          const SizedBox(height: 6),
+          Text(
+            'Policy #${MockData.policyNumber}',
+            style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white24, height: 1),
-          const SizedBox(height: 16),
-          const Text('Fixed for 6 months · Next review: Oct 2026', style: TextStyle(color: Colors.white70, fontSize: 12)),
-          const Text('Backed by ICICI Lombard', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalculationCard(Map<String, dynamic> breakdown) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('ISS-Based Dynamic Pricing', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
-          const SizedBox(height: 8),
-          const Text(
-            'Your premium is calculated from your Income Stability Score (${MockData.issScore}), zone risk data, platform reliability, and claim history.',
-            style: const TextStyle(fontSize: 13, color: _textSub),
+          const SizedBox(height: 2),
+          Text(
+            'VALID UNTIL: ${MockData.policyValidity}',
+            style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.8) : theme.colorScheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
           ),
-          const SizedBox(height: 20),
-          
-          // Header Row
-          const Row(
+          const SizedBox(height: 32),
+          Text(
+            'Personalised Weekly Rate',
+            style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(flex: 3, child: Text('Factor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _textSub))),
-              Expanded(flex: 2, child: Text('Adjustment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _textSub))),
-              Expanded(flex: 3, child: Text('Why', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _textSub))),
+              Text(
+                '₹$weeklyPremium',
+                style: TextStyle(color: isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary, fontSize: 40, fontWeight: FontWeight.w900, height: 1.1),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6.0, left: 4.0),
+                child: Text(
+                  '/ week',
+                  style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ),
             ],
           ),
-          const Divider(height: 24),
-          
-          _buildCalcRow('Base rate (Standard Shield)', '₹${breakdown['base_rate']}/wk', '—'),
-          _buildCalcRow('Zone flood risk (${MockData.userZone}, ${MockData.zoneFloodRisk})', '₹${breakdown['zone_adjustment']}/wk', 'Moderate — no surcharge ✅'),
-          _buildCalcRow('Regional behavior index (${MockData.behavioralIndex})', '₹${breakdown['behavioral_adjustment']}/wk', 'Within normal range ✅'),
-          _buildCalcRow('Platform outage rate', '${breakdown['platform_discount'] < 0 ? '' : '+'}₹${breakdown['platform_discount']}/wk', '${MockData.userPlatform} uptime > 97% ✅', isDiscount: breakdown['platform_discount'] < 0),
-          _buildCalcRow('Clean claim history (${MockData.cleanWeeks} weeks)', '${breakdown['clean_history_discount'] < 0 ? '' : '+'}₹${breakdown['clean_history_discount']}/wk', 'No claims this season ✅', isDiscount: breakdown['clean_history_discount'] < 0),
-          
-          const Divider(height: 24, color: _textPrimary),
-          
+          const SizedBox(height: 24),
+          Divider(color: (isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary).withOpacity(0.15), height: 1),
+          const SizedBox(height: 16),
           Row(
             children: [
-              const Expanded(flex: 3, child: Text('Your personalised rate', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimary))),
-              Expanded(flex: 5, child: Text('₹${breakdown['final_rate']}/wk', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _green))),
+              Icon(Icons.event_available_rounded, size: 16, color: isDark ? theme.colorScheme.onSurface.withOpacity(0.5) : theme.colorScheme.onPrimary.withOpacity(0.7)),
+              const SizedBox(width: 8),
+              Text('Fixed for 6 months · Next review: Oct 2026', style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
-          
-          const SizedBox(height: 20),
-          const Text(
-            'Sourced from IMD historical data, Zepto order logs,\nand PLFS Gig Worker Earnings Survey 2025.',
-            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _textSub),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildCalcRow(String factor, String adjustment, String why, {bool isDiscount = false}) {
-    final bool isZero = adjustment == '₹0/wk';
-    final Color adjColor = isDiscount ? _green : (isZero ? _textSub : _textPrimary);
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(flex: 3, child: Text(factor, style: const TextStyle(fontSize: 12, color: _textPrimary))),
-          Expanded(flex: 2, child: Text(adjustment, style: TextStyle(fontSize: 12, fontWeight: isDiscount ? FontWeight.bold : FontWeight.normal, color: adjColor))),
-          Expanded(flex: 3, child: Text(why, style: const TextStyle(fontSize: 11, color: _textPrimary))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildZoneComparisonCard(Map<String, dynamic> breakdown) {
-    final List<Map<String, dynamic>> zones = List<Map<String, dynamic>>.from(breakdown['zone_comparison']);
-    // Ensure descending order by rate for correct bar lengths
-    zones.sort((a, b) => (b['rate'] as int).compareTo(a['rate'] as int));
-    
-    final int maxRate = zones.isNotEmpty ? zones.first['rate'] as int : 100;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F7FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFCCE4FF)),
-      ),
+  Widget _buildCalculationCard(Map<String, dynamic> breakdown, ThemeData theme, bool isDark, String userZone, String userPlatform) {
+    return _SurfaceCard(
+      theme: theme, isDark: isDark,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How your zone compares', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
+          Row(
+            children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.security_rounded, size: 16, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Text('Standard Shield', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '₹49 per week · Fixed price',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 16),
+          
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              _CoverageTag(label: 'Rain', theme: theme),
+              _CoverageTag(label: 'Heat', theme: theme),
+              _CoverageTag(label: 'Pollution', theme: theme),
+              _CoverageTag(label: 'App Downtime', theme: theme),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          Text(
+            'Price is the same for all workers on this plan. No hidden fees.',
+            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w500),
+          ),
+          
           const SizedBox(height: 20),
+          Text(
+            'Sourced from IMD historical data, Zepto order logs, and PLFS Gig Worker Earnings Survey 2025.',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _CoverageTag({required String label, required ThemeData theme}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildZoneComparisonCard(Map<String, dynamic> breakdown, ThemeData theme, bool isDark) {
+    final List<Map<String, dynamic>> zones = List<Map<String, dynamic>>.from(breakdown['zone_comparison']);
+    zones.sort((a, b) => (b['rate'] as int).compareTo(a['rate'] as int));
+    final int maxRate = zones.isNotEmpty ? zones.first['rate'] as int : 100;
+
+    return _SurfaceCard(
+      theme: theme, isDark: isDark,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.public_rounded, size: 16, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Text('How Your Zone Compares', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+            ],
+          ),
+          const SizedBox(height: 24),
           ...zones.map((z) {
             final double ratio = (z['rate'] as int) / maxRate;
             final bool isAdyar = z['zone'] == 'Adyar';
             final String note = isAdyar ? 'YOUR ZONE' : '${z['risk']} RISK';
-            if (isAdyar && z['risk'] == 'HIGH') {} // Wait, Adyar's risk in DB is MODERATE, prompt says Adyar YOUR ZONE
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: isAdyar ? const BoxDecoration(border: Border(left: BorderSide(color: _green, width: 4))) : null,
-              padding: isAdyar ? const EdgeInsets.only(left: 8) : const EdgeInsets.only(left: 12),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(width: 80, child: Text(z['zone'], style: TextStyle(fontSize: 13, fontWeight: isAdyar ? FontWeight.bold : FontWeight.normal, color: _textPrimary))),
-                  SizedBox(width: 50, child: Text('₹${z['rate']}/wk', style: TextStyle(fontSize: 13, fontWeight: isAdyar ? FontWeight.bold : FontWeight.normal, color: _textPrimary))),
-                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 76,
+                    child: Text(z['zone'], style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 46,
+                    child: Text('₹${z['rate']}/wk', style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Stack(
+                      alignment: Alignment.centerLeft,
                       children: [
-                        Container(height: 8, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                        Container(height: 8, decoration: BoxDecoration(color: theme.colorScheme.onSurface.withOpacity(0.06), borderRadius: BorderRadius.circular(4))),
                         FractionallySizedBox(
                           widthFactor: ratio,
-                          child: Container(height: 8, decoration: BoxDecoration(color: isAdyar ? _green : _textSub, borderRadius: BorderRadius.circular(4))),
+                          child: Container(height: 10, decoration: BoxDecoration(color: isAdyar ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(4))),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  SizedBox(width: 70, child: Text(note, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isAdyar ? _green : _textSub))),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 60,
+                    child: Text(note, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isAdyar ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.4), letterSpacing: 0.5)),
+                  ),
                 ],
               ),
             );
           }),
-          const SizedBox(height: 12),
-          const Text(
-            'Workers in Velachery pay ₹6 more per week due to higher\nflood exposure near Pallikaranai marshland.',
-            style: TextStyle(fontSize: 11, color: _textSub),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.onSurface.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Workers in Velachery pay ₹6 more per week due to higher flood exposure near Pallikaranai marshland.', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.4))),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHighRiskScenarioCard() {
+  Widget _buildHighRiskScenarioCard(ThemeData theme, bool isDark) {
+    const errorColor = Color(0xFFE57373);
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _lightAmber,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _amber.withOpacity(0.3)),
+        color: isDark ? const Color(0xFF231414) : const Color(0xFFFFF6F6),
+        borderRadius: BorderRadius.circular(isDark ? 32 : 24),
+        border: Border.all(color: errorColor.withOpacity(0.3), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('During high-risk weeks', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
-          const SizedBox(height: 8),
-          const Text(
-            'When your zone records 2+ disruption events in a week, Hustlr automatically lowers trigger thresholds by 10%:',
-            style: TextStyle(fontSize: 13, color: _textPrimary),
-          ),
-          const SizedBox(height: 16),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Normal week:', style: TextStyle(fontSize: 13, color: _textSub)),
-              Text('Rain threshold → 64.5mm/hr', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('High-risk week:', style: TextStyle(fontSize: 13, color: _amber, fontWeight: FontWeight.bold)),
-              Text('Rain threshold → 58.1mm/hr  (-10%)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _amber)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('Easier to trigger during your worst weeks — when you need it most.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _textPrimary)),
-          const SizedBox(height: 4),
-          const Text('Your premium stays fixed. Only the threshold changes.', style: TextStyle(fontSize: 12, color: _textSub)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumBoundsCard(Map<String, dynamic> breakdown) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Pricing Guardrails', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
-          const SizedBox(height: 8),
-          const Text(
-            'Hustlr never charges you more than 2× or less than 0.7× of your base plan rate:',
-            style: TextStyle(fontSize: 13, color: _textPrimary),
-          ),
-          const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Maximum this season:', style: TextStyle(fontSize: 13, color: _textSub)),
-              Text('₹${breakdown['max_bound']}/week', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimary)),
-            ],
-          ),
-          const Text('(2.0× Standard Shield base)', style: TextStyle(fontSize: 11, color: _textSub)),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Minimum this season:', style: TextStyle(fontSize: 13, color: _textSub)),
-              Text('₹${breakdown['min_bound']}/week', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimary)),
-            ],
-          ),
-          const Text('(0.7× Standard Shield base)', style: TextStyle(fontSize: 11, color: _textSub)),
-          const SizedBox(height: 16),
-          const Text('Your rate is fixed regardless of weather forecasts or upcoming disruption risk. You always know what you pay.', style: TextStyle(fontSize: 12, color: _textSub)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildISSImpactCard(BuildContext context, int score) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Your ISS Score Impact', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
-          const SizedBox(height: 20),
-          Center(
-            child: SizedBox(
-              width: 80,
-              height: 80,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CircularProgressIndicator(
-                    value: score / 100,
-                    strokeWidth: 8,
-                    backgroundColor: const Color(0xFFF0F0F0),
-                    color: _amber,
-                  ),
-                  Center(
-                    child: Text(
-                      score.toString(),
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _amber),
-                    ),
-                  ),
-                ],
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: errorColor.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.warning_amber_rounded, size: 16, color: errorColor),
               ),
-            ),
+              const SizedBox(width: 12),
+              const Text('During High-Risk Weeks', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: errorColor)),
+            ],
           ),
-          const SizedBox(height: 24),
-          _buildScoreTierRow('50–69', 'Standard Shield ₹49/wk', isRecommended: true),
-          _buildScoreTierRow('70–100', 'Basic Shield ₹29/wk'),
-          _buildScoreTierRow('30–49', 'Full Shield ₹79/wk', isRecommended: true),
-          _buildScoreTierRow('0–29', 'Elite Shield ₹109/wk', isRecommended: true),
-          const SizedBox(height: 24),
-          const Text('Improve your score to unlock lower-risk pricing tier.', style: TextStyle(fontSize: 12, color: _textSub)),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => context.push(AppRoutes.issDetail),
-            child: const Text(
-              'See how to improve →',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _green),
-            ),
+          const SizedBox(height: 16),
+          Text(
+            'When your zone records 2+ disruption events in a week, Hustlr automatically lowers trigger thresholds by 10%:',
+            style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(isDark ? 0.8 : 0.9), height: 1.5, fontWeight: FontWeight.w600),
           ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Normal week:', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600)),
+              Text('Rain threshold → 64.5mm/hr', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface.withOpacity(0.8))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('High-risk week:', style: TextStyle(fontSize: 13, color: errorColor, fontWeight: FontWeight.w800)),
+              const Text('Rain threshold → 58.1mm/hr  (-10%)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: errorColor)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text('Easier to trigger during your worst weeks — when you need it most.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface.withOpacity(isDark ? 0.9 : 1.0))),
+          const SizedBox(height: 4),
+          Text('Your premium stays fixed. Only the threshold changes.', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 
-  Widget _buildScoreTierRow(String range, String planText, {bool isRecommended = false}) {
-    // Current tier is 50-69
-    final isCurrent = range == '50–69';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
+  Widget _buildPremiumBoundsCard(Map<String, dynamic> breakdown, ThemeData theme, bool isDark) {
+    return _SurfaceCard(
+      theme: theme, isDark: isDark,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 80,
-            child: Text('Score $range', style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? _textPrimary : _textSub)),
+          Row(
+            children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.shield_rounded, size: 16, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Text('Pricing Guardrails', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+            ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(Icons.arrow_right_alt_rounded, size: 16, color: _textSub),
+          const SizedBox(height: 12),
+          Text(
+            'Hustlr never charges you more than 2× or less than 0.7× of your base plan rate:',
+            style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5, fontWeight: FontWeight.w600),
           ),
-          Expanded(
-            child: Text(
-              '$planText ${isCurrent ? 'recommended' : (isRecommended ? 'recommended' : 'available')}',
-              style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? _green : _textPrimary),
-            ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Maximum this season:', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.7), fontWeight: FontWeight.w700)),
+              Text('₹${breakdown["max_bound"]}/week', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+            ],
           ),
+          Text('(2.0× Standard Shield base)', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.4), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Minimum this season:', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.7), fontWeight: FontWeight.w700)),
+              Text('₹${breakdown["min_bound"]}/week', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+            ],
+          ),
+          Text('(0.7× Standard Shield base)', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.4), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 20),
+          Text('Your rate is fixed regardless of weather forecasts or upcoming disruption risk. You always know what you pay.', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.4, fontWeight: FontWeight.w600)),
         ],
       ),
+    );
+  }
+}
+
+// Reusable dynamic surface wrapper
+class _SurfaceCard extends StatelessWidget {
+  final Widget child;
+  final ThemeData theme;
+  final bool isDark;
+
+  const _SurfaceCard({required this.child, required this.theme, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(isDark ? 32 : 24),
+        boxShadow: isDark ? [] : [
+          const BoxShadow(color: Color(0x05000000), blurRadius: 12, offset: Offset(0, 4)),
+        ],
+        border: isDark ? Border.all(color: Colors.white.withOpacity(0.08), width: 1.5) : Border.all(color: Colors.black.withOpacity(0.04), width: 1.5),
+      ),
+      child: child,
     );
   }
 }

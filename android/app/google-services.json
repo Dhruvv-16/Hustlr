@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "998645800995",
+    "project_id": "hustlr-8e903",
+    "storage_bucket": "hustlr-8e903.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:998645800995:android:f383a22367d57c433e1196",
+        "android_client_info": {
+          "package_name": "com.hustlr.husltrapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUohyDPAPBvuZyYG2CY8vmNXFieNvW4PQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:998645800995:android:a435a0deb6b335c23e1196",
+        "android_client_info": {
+          "package_name": "com.hustlr.hustlr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUohyDPAPBvuZyYG2CY8vmNXFieNvW4PQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
