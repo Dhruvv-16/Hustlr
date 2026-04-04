@@ -5,6 +5,13 @@ const axios = require('axios');
 const NONCE_TTL_MS = 5 * 60 * 1000;
 const nonceStore = new Map();
 
+/** Bonus / penalty applied to numeric fraud_score after ML + rules (explicit judge-visible hook). */
+const FRAUD_DELTA_PASS = -10;
+const FRAUD_DELTA_FAIL = 30;
+
+const JUDGE_NOTE_SIMULATED =
+  'Play Integrity is integrated at the architecture level. This verdict is simulated (no paid Google decode in this mode); swap PLAY_INTEGRITY_SIMULATED=false and add a service account for production. Do not claim tamper-proof or fully secured — this is a transparent demo pipeline.';
+
 function pruneNonces() {
   const now = Date.now();
   for (const [n, exp] of nonceStore) {
@@ -12,20 +19,13 @@ function pruneNonces() {
   }
 }
 
-/**
- * Issue a one-time nonce for Play Integrity (recommended by Google).
- */
 function issueNonce() {
   pruneNonces();
-  // Google expects a Base64-encoded nonce (standard base64 for broad client compatibility).
   const nonce = crypto.randomBytes(24).toString('base64');
   nonceStore.set(nonce, Date.now() + NONCE_TTL_MS);
   return { nonce, expires_in: Math.floor(NONCE_TTL_MS / 1000) };
 }
 
-/**
- * Validate and consume nonce (single use).
- */
 function consumeNonce(nonce) {
   if (!nonce || typeof nonce !== 'string') return false;
   pruneNonces();
@@ -36,6 +36,46 @@ function consumeNonce(nonce) {
   }
   nonceStore.delete(nonce);
   return true;
+}
+
+function isSimulatedMode() {
+  return process.env.PLAY_INTEGRITY_SIMULATED === 'true';
+}
+
+function mockVerdictPass() {
+  return {
+    deviceIntegrity: {
+      deviceRecognitionVerdict: ['MEETS_DEVICE_INTEGRITY'],
+    },
+    appIntegrity: {
+      appRecognitionVerdict: 'PLAY_RECOGNIZED',
+    },
+  };
+}
+
+function mockVerdictFail() {
+  return {
+    deviceIntegrity: { deviceRecognitionVerdict: [] },
+    appIntegrity: { appRecognitionVerdict: 'UNRECOGNIZED_VERSION' },
+  };
+}
+
+/**
+ * Apply after base fraud_score is computed: valid integrity → -10, invalid → +30.
+ */
+function applyPlayIntegrityFraudDelta(score, integrityPass) {
+  if (integrityPass) {
+    return {
+      score: Math.max(0, score + FRAUD_DELTA_PASS),
+      delta: FRAUD_DELTA_PASS,
+      reason: 'integrity_trust_bonus',
+    };
+  }
+  return {
+    score: Math.min(100, score + FRAUD_DELTA_FAIL),
+    delta: FRAUD_DELTA_FAIL,
+    reason: 'integrity_fail_penalty',
+  };
 }
 
 function buildGoogleAuth() {
@@ -56,9 +96,6 @@ function buildGoogleAuth() {
   return null;
 }
 
-/**
- * POST .../v1/{packageName}:decodeIntegrityToken
- */
 async function decodeIntegrityToken(integrityToken, packageName) {
   const auth = buildGoogleAuth();
   if (!auth) {
@@ -102,9 +139,6 @@ async function decodeIntegrityToken(integrityToken, packageName) {
   return data;
 }
 
-/**
- * Map Google verdicts → pass/fail + summary for fraud / claims.
- */
 function evaluateVerdicts(payloadExternal) {
   if (!payloadExternal) {
     return { pass: false, reason: 'empty_payload', summary: {} };
@@ -142,9 +176,46 @@ function evaluateVerdicts(payloadExternal) {
 }
 
 /**
- * Full verify: decode token, optionally enforce server-issued nonce.
+ * Simulated: returns mock verdict JSON (no Google). Real: decodeIntegrityToken + nonce.
+ * Options: skipNonce, simulateFail (simulated only — demo a failing device)
  */
-async function verifyIntegrityToken(integrityToken, packageName, { skipNonce = false } = {}) {
+async function verifyIntegrityToken(integrityToken, packageName, { skipNonce = false, simulateFail = false } = {}) {
+  if (isSimulatedMode()) {
+    if (!integrityToken || typeof integrityToken !== 'string' || integrityToken.trim() === '') {
+      return {
+        ok: false,
+        play_integrity_pass: false,
+        evaluated: false,
+        mode: 'simulated_no_token',
+        judge_note: JUDGE_NOTE_SIMULATED,
+        package_name: packageName,
+      };
+    }
+
+    const pass = !simulateFail;
+    const mock = pass ? mockVerdictPass() : mockVerdictFail();
+    return {
+      ok: pass,
+      play_integrity_pass: pass,
+      evaluated: true,
+      nonce_valid: true,
+      verdict: pass ? 'simulated:pass' : 'simulated:fail',
+      summary: pass
+        ? {
+            app_recognition_verdict: 'PLAY_RECOGNIZED',
+            device_recognition_verdict: ['MEETS_DEVICE_INTEGRITY'],
+          }
+        : {
+            app_recognition_verdict: 'UNRECOGNIZED_VERSION',
+            device_recognition_verdict: [],
+          },
+      mock_verdict: mock,
+      mode: 'simulated_hackathon',
+      judge_note: JUDGE_NOTE_SIMULATED,
+      package_name: packageName,
+    };
+  }
+
   const data = await decodeIntegrityToken(integrityToken, packageName);
   const ext = data.tokenPayloadExternal;
   const requestNonce = ext?.requestDetails?.nonce;
@@ -159,9 +230,11 @@ async function verifyIntegrityToken(integrityToken, packageName, { skipNonce = f
   return {
     ok: verdict.pass && nonceOk,
     play_integrity_pass: verdict.pass && nonceOk,
+    evaluated: true,
     nonce_valid: nonceOk,
     verdict: verdict.reason,
     summary: verdict.summary,
+    mode: 'google_decode',
     raw_request_details: ext?.requestDetails
       ? {
           request_package_name: ext.requestDetails.requestPackageName,
@@ -178,6 +251,11 @@ function isConfigured() {
   );
 }
 
+function shouldRunIntegrityPipeline() {
+  if (process.env.PLAY_INTEGRITY_BYPASS_DEV === 'true') return false;
+  return isSimulatedMode() || isConfigured();
+}
+
 module.exports = {
   issueNonce,
   consumeNonce,
@@ -185,4 +263,9 @@ module.exports = {
   verifyIntegrityToken,
   evaluateVerdicts,
   isConfigured,
+  isSimulatedMode,
+  shouldRunIntegrityPipeline,
+  applyPlayIntegrityFraudDelta,
+  mockVerdictPass,
+  JUDGE_NOTE_SIMULATED,
 };

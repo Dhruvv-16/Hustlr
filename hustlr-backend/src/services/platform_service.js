@@ -78,9 +78,17 @@ function getCoordsForZone(zone) {
   return ZONE_COORDS['default'];
 }
 
+/**
+ * Zone internet / connectivity signal.
+ * Default: inferred model (no third-party cost). Ookla Enterprise Network Intelligence is optional
+ * and paid — enable only with OOKLA_API_KEY + USE_OOKLA_INTERNET=true.
+ */
 async function getInternetStatus(zone) {
-  const OOKLA_KEY = process.env.OOKLA_API_KEY;
-  if (!OOKLA_KEY) {
+  const ooklaKey = (process.env.OOKLA_API_KEY || '').trim();
+  const useOokla =
+    process.env.USE_OOKLA_INTERNET === 'true' && ooklaKey.length > 0;
+
+  if (!useOokla) {
     return getInferredInternetStatus(zone);
   }
 
@@ -89,8 +97,7 @@ async function getInternetStatus(zone) {
   return withFallback(
     'internet',
     async () => {
-
-      // Hit the Ookla Enterprise Intelligence API
+      // Ookla for Enterprise — contract / billing required; not a free public API
       const url = 'https://api.ookla.com/v1/network-health';
       const res = await axios.get(url, {
         timeout: 5000,
@@ -98,7 +105,7 @@ async function getInternetStatus(zone) {
           lat: coords.lat,
           lon: coords.lon,
           radius: 5000, // 5km zone radius
-          token: OOKLA_KEY,
+          token: ooklaKey,
         },
       });
 

@@ -1,9 +1,37 @@
 const axios = require('axios');
 
-const MAXMIND_ACCOUNT = process.env.MAXMIND_ACCOUNT_ID;
-const MAXMIND_LICENSE = process.env.MAXMIND_LICENSE_KEY;
+/**
+ * GeoIP2 Precision / GeoLite2 City web service — both credentials required.
+ * @see https://dev.maxmind.com/geoip/docs/web-services
+ */
+function isMaxMindConfigured() {
+  const account = (process.env.MAXMIND_ACCOUNT_ID || '').trim();
+  const license = (process.env.MAXMIND_LICENSE_KEY || '').trim();
+  return account.length > 0 && license.length > 0;
+}
 
 async function checkIpLocation(ipAddress, claimedZone) {
+  if (!isMaxMindConfigured()) {
+    console.warn(
+      '[MaxMind] MAXMIND_ACCOUNT_ID + MAXMIND_LICENSE_KEY both required — using mock fraud check'
+    );
+    return {
+      source:               'mock',
+      reason:               'maxmind_credentials_incomplete',
+      ip_city:              'Chennai',
+      ip_lat:               13.0067,
+      ip_lon:               80.2574,
+      isp:                  'unknown',
+      is_home_broadband:    false,
+      city_matches_zone:    true,
+      fraud_signal:         false,
+      timestamp:            new Date().toISOString(),
+    };
+  }
+
+  const MAXMIND_ACCOUNT = process.env.MAXMIND_ACCOUNT_ID.trim();
+  const MAXMIND_LICENSE = process.env.MAXMIND_LICENSE_KEY.trim();
+
   try {
     const auth = Buffer.from(`${MAXMIND_ACCOUNT}:${MAXMIND_LICENSE}`).toString('base64');
     
@@ -55,4 +83,4 @@ async function checkIpLocation(ipAddress, claimedZone) {
   }
 }
 
-module.exports = { checkIpLocation };
+module.exports = { checkIpLocation, isMaxMindConfigured };

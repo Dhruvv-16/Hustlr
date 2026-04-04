@@ -46,6 +46,7 @@ dependencies:
   image_picker: ^1.2.1
   # Android Play Integrity token (server verifies via Google API)
   flutter_play_integrity_wrapper: ^0.0.2
+  environment_sensors: ^0.3.0
 
 dev_dependencies:
   flutter_test:

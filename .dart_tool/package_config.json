@@ -206,6 +206,12 @@
       "languageVersion": "2.17"
     },
     {
+      "name": "environment_sensors",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/environment_sensors-0.3.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.18"
+    },
+    {
       "name": "equatable",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/equatable-2.0.8",
       "packageUri": "lib/",

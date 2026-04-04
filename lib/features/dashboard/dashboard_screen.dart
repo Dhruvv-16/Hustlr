@@ -702,28 +702,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: mintColor,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  l10n.dashboard_activate,
-                  style: TextStyle(
-                    color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Manrope',
+          GestureDetector(
+            onTap: () => context.push('/policy'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: mintColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    l10n.dashboard_activate,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Manrope',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Icon(Icons.arrow_forward_rounded, 
-                  color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
-                  size: 14),
-              ],
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_rounded, 
+                    color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
+                    size: 14),
+                ],
+              ),
             ),
           ),
         ],

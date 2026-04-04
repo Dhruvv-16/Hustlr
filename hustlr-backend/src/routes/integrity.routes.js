@@ -3,6 +3,7 @@ const {
   issueNonce,
   verifyIntegrityToken,
   isConfigured,
+  isSimulatedMode,
 } = require('../services/play_integrity_service');
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.get('/play/nonce', (req, res) => {
     ...out,
     package_name: defaultPackage(),
     play_integrity_configured: isConfigured(),
+    play_integrity_simulated: isSimulatedMode(),
   });
 });
 
@@ -29,6 +31,8 @@ router.get('/play/nonce', (req, res) => {
  *
  * - PLAY_INTEGRITY_BYPASS_DEV=true → accepts any non-empty token (local dev).
  * - Else uses service account + Google decodeIntegrityToken (needs Play Console link + API enabled).
+ * - PLAY_INTEGRITY_SIMULATED=true → mock verdict JSON (no Google); for judge demos without billing.
+ * - Body simulate_integrity_fail=true → mock failing device (for fraud +30 demo).
  * - PLAY_INTEGRITY_SKIP_NONCE_CHECK=true → do not require prior GET /play/nonce (less secure).
  */
 router.post('/play/verify', async (req, res) => {
@@ -55,13 +59,41 @@ router.post('/play/verify', async (req, res) => {
     });
   }
 
+  if (isSimulatedMode()) {
+    try {
+      const result = await verifyIntegrityToken(token, packageName, {
+        skipNonce: true,
+        simulateFail: req.body?.simulate_integrity_fail === true,
+      });
+      return res.json({
+        ok: result.ok,
+        play_integrity_pass: result.play_integrity_pass,
+        mode: result.mode,
+        evaluated: result.evaluated,
+        mock_verdict: result.mock_verdict,
+        judge_note: result.judge_note,
+        package_name: packageName,
+        nonce_valid: result.nonce_valid,
+        verdict: result.verdict,
+        summary: result.summary,
+      });
+    } catch (e) {
+      return res.status(502).json({
+        ok: false,
+        play_integrity_pass: false,
+        mode: 'simulated_error',
+        reason: e.message,
+      });
+    }
+  }
+
   if (!isConfigured()) {
     return res.status(503).json({
       ok: false,
       play_integrity_pass: false,
       mode: 'server_not_configured',
       detail:
-        'Set PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON (Render) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON). Enable Play Integrity API and link Cloud project in Play Console.',
+        'Set PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON (Render) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON). Or use PLAY_INTEGRITY_SIMULATED=true for a mock verdict (demo only).',
     });
   }
 
@@ -71,7 +103,7 @@ router.post('/play/verify', async (req, res) => {
     return res.json({
       ok: result.ok,
       play_integrity_pass: result.play_integrity_pass,
-      mode: 'google_decode',
+      mode: result.mode || 'google_decode',
       package_name: packageName,
       nonce_valid: result.nonce_valid,
       verdict: result.verdict,

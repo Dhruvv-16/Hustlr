@@ -1,6 +1,11 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
-const { computeZoneDepth, computeZoneDepthAsync } = require('../services/zone_depth_service');
+const { computeZoneDepthAsync } = require('../services/zone_depth_service');
+const { estimateLocation } = require('../services/cell_tower_service');
+const {
+  recordFingerprint,
+  getFingerprintStats,
+} = require('../services/device_fingerprint_service');
 const router = express.Router();
 
 // GET /workers/phone/:phone
@@ -64,6 +69,50 @@ router.post('/register', async (req, res) => {
 
   } catch (e) {
     console.error('[Workers] Register error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /workers/cell-locate — OpenCelliD and/or Unwired Labs (see .env.example)
+router.post('/cell-locate', async (req, res) => {
+  try {
+    const result = await estimateLocation(req.body || {});
+    if (result.error) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /workers/fingerprint — record device hash for cluster / fraud (Phase 2)
+router.post('/fingerprint', async (req, res) => {
+  try {
+    const { user_id, fingerprint_hash, zone } = req.body || {};
+    const out = await recordFingerprint(user_id, fingerprint_hash, zone);
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    return res.status(201).json(out);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /workers/fingerprint/stats — shared-hash clusters (judge / admin)
+router.get('/fingerprint/stats', async (req, res) => {
+  try {
+    const zone = req.query.zone || null;
+    const days = req.query.days != null ? parseInt(String(req.query.days), 10) : 7;
+    const limit = req.query.limit != null ? parseInt(String(req.query.limit), 10) : 30;
+    const stats = await getFingerprintStats({
+      zone: zone || null,
+      days: Number.isFinite(days) ? days : 7,
+      limit: Number.isFinite(limit) ? limit : 30,
+    });
+    return res.json(stats);
+  } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 });

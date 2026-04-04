@@ -75,9 +75,32 @@ app.get('/health/services', async (req, res) => {
     return process.env[key] ? 'ok' : 'missing_key';
   }
 
-  const { isConfigured: playIntegrityConfigured } = require('./services/play_integrity_service');
+  const { isMaxMindConfigured } = require('./services/maxmind_service');
+
+  function maxmindEnvStatus() {
+    if (isMaxMindConfigured()) return 'ok';
+    const a = !!(process.env.MAXMIND_ACCOUNT_ID || '').trim();
+    const b = !!(process.env.MAXMIND_LICENSE_KEY || '').trim();
+    if (!a && !b) return 'missing_key';
+    return 'partial_key';
+  }
+
+  const ooklaKey = (process.env.OOKLA_API_KEY || '').trim();
+  const ooklaEnabled =
+    process.env.USE_OOKLA_INTERNET === 'true' && ooklaKey.length > 0;
+  let ooklaInternetStatus = 'inferred_only';
+  if (ooklaEnabled) ooklaInternetStatus = 'enterprise_live';
+  else if (ooklaKey.length > 0) {
+    ooklaInternetStatus = 'key_present_opt_in_disabled';
+  }
+
+  const {
+    isConfigured: playIntegrityConfigured,
+    isSimulatedMode,
+  } = require('./services/play_integrity_service');
   let playIntegrityStatus = 'not_configured';
   if (process.env.PLAY_INTEGRITY_BYPASS_DEV === 'true') playIntegrityStatus = 'dev_bypass';
+  else if (isSimulatedMode()) playIntegrityStatus = 'simulated';
   else if (playIntegrityConfigured()) playIntegrityStatus = 'configured';
 
   res.json({
@@ -90,7 +113,9 @@ app.get('/health/services', async (req, res) => {
     // Intelligence
     news:       toStatus('news'),
     cell_tower: toStatus('cell_tower'),
-    maxmind:    envPresent('MAXMIND_LICENSE_KEY'),
+    opencellid: envPresent('OPENCELLID_API_KEY'),
+    maxmind:    maxmindEnvStatus(),
+    ookla_internet: ooklaInternetStatus,
     // Payments & Notifications
     instamojo:  envPresent('INSTAMOJO_API_KEY'),
     razorpay:   envPresent('RAZORPAY_KEY_ID'),
