@@ -9,6 +9,7 @@ const claimsRoutes = require('./routes/claims.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const disruptionRoutes = require('./routes/disruption.routes');
 const guidewireRoutes = require('./routes/guidewire.routes');
+const mlRoutes = require('./routes/ml.routes');
 const mlService = require('./services/ml_service');
 const { startDisruptionCron, getDisruptionCronStatus } = require('./services/disruption_cron');
 
@@ -25,6 +26,7 @@ app.use('/claims', claimsRoutes);
 app.use('/wallet', walletRoutes);
 app.use('/disruptions', disruptionRoutes);
 app.use('/guidewire', guidewireRoutes);
+app.use('/ml', mlRoutes);
 
 // Health check (root)
 app.get('/', (req, res) => {
