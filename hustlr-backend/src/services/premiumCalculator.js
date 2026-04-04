@@ -1,10 +1,11 @@
-const { BASE_PREMIUMS, TIER_FACTORS, WEEKLY_INCOME_ESTIMATE, PREMIUM_CAP_PERCENT, ZONE_RISK } = require('../config/constants');
+const { PLAN_CONFIG, TIER_FACTORS, WEEKLY_INCOME_ESTIMATE, PREMIUM_CAP_PERCENT, ZONE_RISK } = require('../config/constants');
 
 function calculatePremium(plan_tier, iss_score, zone, risk_score = 0.5) {
-  const base = BASE_PREMIUMS[plan_tier];
-  if (typeof base === 'undefined') {
+  const plan = PLAN_CONFIG[plan_tier];
+  if (!plan) {
     throw new Error(`Invalid plan tier: ${plan_tier}`);
   }
+  const base = plan.base;
   
   const tier_factor = TIER_FACTORS[plan_tier];
   const zone_risk = ZONE_RISK[(zone || '').toLowerCase()] || 0.5;

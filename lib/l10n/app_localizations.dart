@@ -394,6 +394,78 @@ abstract class AppLocalizations {
   /// **'Activate Full Shield →'**
   String get dashboard_activate_shield;
 
+  /// No description provided for @dashboard_current_active.
+  ///
+  /// In en, this message translates to:
+  /// **'CURRENT ACTIVE POLICY'**
+  String get dashboard_current_active;
+
+  /// No description provided for @dashboard_high_risk_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'High risk in'**
+  String get dashboard_high_risk_prefix;
+
+  /// No description provided for @dashboard_secure_coverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure coverage now.'**
+  String get dashboard_secure_coverage;
+
+  /// No description provided for @dashboard_activate.
+  ///
+  /// In en, this message translates to:
+  /// **'ACTIVATE'**
+  String get dashboard_activate;
+
+  /// No description provided for @dashboard_modular.
+  ///
+  /// In en, this message translates to:
+  /// **'MODULAR'**
+  String get dashboard_modular;
+
+  /// No description provided for @dashboard_add_coverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Add New\nCoverage'**
+  String get dashboard_add_coverage;
+
+  /// No description provided for @dashboard_legal.
+  ///
+  /// In en, this message translates to:
+  /// **'LEGAL'**
+  String get dashboard_legal;
+
+  /// No description provided for @dashboard_view_cert.
+  ///
+  /// In en, this message translates to:
+  /// **'View\nCertificate'**
+  String get dashboard_view_cert;
+
+  /// No description provided for @dashboard_generating_cert.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating your certificate...'**
+  String get dashboard_generating_cert;
+
+  /// No description provided for @dashboard_see_why.
+  ///
+  /// In en, this message translates to:
+  /// **'SEE WHY'**
+  String get dashboard_see_why;
+
+  /// No description provided for @dashboard_missed_payouts.
+  ///
+  /// In en, this message translates to:
+  /// **'missed\npayouts'**
+  String get dashboard_missed_payouts;
+
+  /// No description provided for @dashboard_potential_loss.
+  ///
+  /// In en, this message translates to:
+  /// **'Potential earnings lost this month'**
+  String get dashboard_potential_loss;
+
   /// No description provided for @policy_title.
   ///
   /// In en, this message translates to:
@@ -433,7 +505,7 @@ abstract class AppLocalizations {
   /// No description provided for @policy_elite.
   ///
   /// In en, this message translates to:
-  /// **'Elite Shield'**
+  /// **'Full Shield'**
   String get policy_elite;
 
   /// No description provided for @policy_covers.
@@ -778,6 +850,66 @@ abstract class AppLocalizations {
   /// **'Profile'**
   String get profile_title;
 
+  /// No description provided for @profile_personal_info.
+  ///
+  /// In en, this message translates to:
+  /// **'PERSONAL INFO'**
+  String get profile_personal_info;
+
+  /// No description provided for @profile_name.
+  ///
+  /// In en, this message translates to:
+  /// **'NAME'**
+  String get profile_name;
+
+  /// No description provided for @profile_zone.
+  ///
+  /// In en, this message translates to:
+  /// **'ZONE'**
+  String get profile_zone;
+
+  /// No description provided for @profile_mobile.
+  ///
+  /// In en, this message translates to:
+  /// **'MOBILE'**
+  String get profile_mobile;
+
+  /// No description provided for @profile_upi_id.
+  ///
+  /// In en, this message translates to:
+  /// **'UPI ID'**
+  String get profile_upi_id;
+
+  /// No description provided for @profile_account_info.
+  ///
+  /// In en, this message translates to:
+  /// **'ACCOUNT INFO'**
+  String get profile_account_info;
+
+  /// No description provided for @profile_hustlr_id.
+  ///
+  /// In en, this message translates to:
+  /// **'HUSTLR ID'**
+  String get profile_hustlr_id;
+
+  /// No description provided for @profile_active_plan.
+  ///
+  /// In en, this message translates to:
+  /// **'ACTIVE PLAN'**
+  String get profile_active_plan;
+
+  /// No description provided for @profile_validity.
+  ///
+  /// In en, this message translates to:
+  /// **'VALIDITY'**
+  String get profile_validity;
+
+  /// No description provided for @profile_partner.
+  ///
+  /// In en, this message translates to:
+  /// **'PARTNER'**
+  String get profile_partner;
+
   /// No description provided for @profile_delivery_partner.
   ///
   /// In en, this message translates to:
@@ -1033,13 +1165,13 @@ abstract class AppLocalizations {
   /// No description provided for @tip_cashback_title.
   ///
   /// In en, this message translates to:
-  /// **'Earn cashback with Elite Shield'**
+  /// **'Earn cashback with Full Shield'**
   String get tip_cashback_title;
 
   /// No description provided for @tip_cashback_body.
   ///
   /// In en, this message translates to:
-  /// **'Complete 4 consecutive claim-free weeks on Elite Shield and receive 10% of your premiums back as wallet credit.'**
+  /// **'Complete 4 consecutive claim-free weeks on Full Shield and receive 10% of your premiums back as wallet credit.'**
   String get tip_cashback_body;
 
   /// No description provided for @error_network.
@@ -1089,6 +1221,252 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back'**
   String get back;
+
+  /// No description provided for @manual_claim_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a Disruption'**
+  String get manual_claim_title;
+
+  /// No description provided for @manual_claim_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the issue affecting your zone'**
+  String get manual_claim_subtitle;
+
+  /// No description provided for @manual_claim_road_blocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Road Blocked / Accident'**
+  String get manual_claim_road_blocked;
+
+  /// No description provided for @manual_claim_road_desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to pass through main active route'**
+  String get manual_claim_road_desc;
+
+  /// No description provided for @manual_claim_dark_store.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark Store / Hub Closed'**
+  String get manual_claim_dark_store;
+
+  /// No description provided for @manual_claim_dark_desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Zepto pickup location is inaccessible'**
+  String get manual_claim_dark_desc;
+
+  /// No description provided for @manual_claim_internet_outage.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet Outage'**
+  String get manual_claim_internet_outage;
+
+  /// No description provided for @manual_claim_internet_desc.
+  ///
+  /// In en, this message translates to:
+  /// **'No signal / Complete provider blackout'**
+  String get manual_claim_internet_desc;
+
+  /// No description provided for @manual_claim_other.
+  ///
+  /// In en, this message translates to:
+  /// **'Other Delivery Blockage'**
+  String get manual_claim_other;
+
+  /// No description provided for @manual_claim_other_desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Specify unexpected physical issue'**
+  String get manual_claim_other_desc;
+
+  /// No description provided for @manual_claim_continue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get manual_claim_continue;
+
+  /// No description provided for @manual_claim_need_help.
+  ///
+  /// In en, this message translates to:
+  /// **'Need help?'**
+  String get manual_claim_need_help;
+
+  /// No description provided for @camera_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture Evidence\nFor AI Assessment'**
+  String get camera_title;
+
+  /// No description provided for @camera_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use live camera only — gallery uploads not accepted'**
+  String get camera_subtitle;
+
+  /// No description provided for @camera_scanning.
+  ///
+  /// In en, this message translates to:
+  /// **'AI scanning...'**
+  String get camera_scanning;
+
+  /// No description provided for @camera_internet_auto.
+  ///
+  /// In en, this message translates to:
+  /// **'Signal strength: 1 bar detected automatically'**
+  String get camera_internet_auto;
+
+  /// No description provided for @camera_no_photo.
+  ///
+  /// In en, this message translates to:
+  /// **'No photo needed'**
+  String get camera_no_photo;
+
+  /// No description provided for @review_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence Captured'**
+  String get review_title;
+
+  /// No description provided for @review_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review your photos before submitting'**
+  String get review_subtitle;
+
+  /// No description provided for @review_network_failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Network Failure Verified'**
+  String get review_network_failure;
+
+  /// No description provided for @review_network_desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Your device signal strength was strictly verified by OS sensors. No physical photos required.'**
+  String get review_network_desc;
+
+  /// No description provided for @review_recapture.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-capture'**
+  String get review_recapture;
+
+  /// No description provided for @review_submit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit Evidence →'**
+  String get review_submit;
+
+  /// No description provided for @review_add_more.
+  ///
+  /// In en, this message translates to:
+  /// **'Add More Photos'**
+  String get review_add_more;
+
+  /// No description provided for @review_label.
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence'**
+  String get review_label;
+
+  /// No description provided for @submitted_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted'**
+  String get submitted_title;
+
+  /// No description provided for @submitted_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your evidence is under review'**
+  String get submitted_subtitle;
+
+  /// No description provided for @submitted_next.
+  ///
+  /// In en, this message translates to:
+  /// **'What happens next?'**
+  String get submitted_next;
+
+  /// No description provided for @submitted_next_1.
+  ///
+  /// In en, this message translates to:
+  /// **'Review within 4 hours'**
+  String get submitted_next_1;
+
+  /// No description provided for @submitted_next_2.
+  ///
+  /// In en, this message translates to:
+  /// **'You will be notified when resolved'**
+  String get submitted_next_2;
+
+  /// No description provided for @submitted_next_3.
+  ///
+  /// In en, this message translates to:
+  /// **'Provisional credit may be issued immediately'**
+  String get submitted_next_3;
+
+  /// No description provided for @submitted_demo.
+  ///
+  /// In en, this message translates to:
+  /// **'Demo mode — Offline fallback shown'**
+  String get submitted_demo;
+
+  /// No description provided for @submitted_back.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Claims'**
+  String get submitted_back;
+
+  /// No description provided for @chat_live_support.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Support'**
+  String get chat_live_support;
+
+  /// No description provided for @chat_agent.
+  ///
+  /// In en, this message translates to:
+  /// **'Support Agent'**
+  String get chat_agent;
+
+  /// No description provided for @chat_typing.
+  ///
+  /// In en, this message translates to:
+  /// **'Typing...'**
+  String get chat_typing;
+
+  /// No description provided for @chat_hint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a message...'**
+  String get chat_hint;
+
+  /// No description provided for @chat_bot_greeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Hi, I am a Hustlr claims agent. How can I help you regarding your manual claim?'**
+  String get chat_bot_greeting;
+
+  /// No description provided for @chat_attach_id.
+  ///
+  /// In en, this message translates to:
+  /// **'ID Card'**
+  String get chat_attach_id;
+
+  /// No description provided for @chat_attach_weather.
+  ///
+  /// In en, this message translates to:
+  /// **'Weather Proof'**
+  String get chat_attach_weather;
+
+  /// No description provided for @chat_attach_receipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Medical Receipt'**
+  String get chat_attach_receipt;
 }
 
 class _AppLocalizationsDelegate

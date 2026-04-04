@@ -158,6 +158,43 @@ class AppLocalizationsHi extends AppLocalizations {
   String get dashboard_activate_shield => 'Full Shield सक्रिय करें →';
 
   @override
+  String get dashboard_current_active => 'वर्तमान सक्रिय पॉलिसी';
+
+  @override
+  String get dashboard_high_risk_prefix => 'उच्च जोखिम';
+
+  @override
+  String get dashboard_secure_coverage => 'अभी कवरेज सुरक्षित करें।';
+
+  @override
+  String get dashboard_activate => 'सक्रिय करें';
+
+  @override
+  String get dashboard_modular => 'मॉड्यूलर';
+
+  @override
+  String get dashboard_add_coverage => 'नया कवरेज\nजोड़ें';
+
+  @override
+  String get dashboard_legal => 'कानूनी';
+
+  @override
+  String get dashboard_view_cert => 'प्रमाण पत्र\nदेखें';
+
+  @override
+  String get dashboard_generating_cert =>
+      'आपका प्रमाण पत्र उत्पन्न हो रहा है...';
+
+  @override
+  String get dashboard_see_why => 'देखें क्यों';
+
+  @override
+  String get dashboard_missed_payouts => 'छूटे हुए\nपेआउट';
+
+  @override
+  String get dashboard_potential_loss => 'इस महीने खोई गई संभावित आय';
+
+  @override
   String get policy_title => 'मेरी पॉलिसी';
 
   @override
@@ -176,7 +213,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get policy_full => 'फुल शील्ड';
 
   @override
-  String get policy_elite => 'एलीट शील्ड';
+  String get policy_elite => 'फुल शील्ड';
 
   @override
   String get policy_covers => 'कवर करता है';
@@ -354,6 +391,36 @@ class AppLocalizationsHi extends AppLocalizations {
   String get profile_title => 'प्रोफाइल';
 
   @override
+  String get profile_personal_info => 'व्यक्तिगत जानकारी';
+
+  @override
+  String get profile_name => 'नाम';
+
+  @override
+  String get profile_zone => 'ज़ोन';
+
+  @override
+  String get profile_mobile => 'मोबाइल';
+
+  @override
+  String get profile_upi_id => 'यूपीआई आईडी (UPI ID)';
+
+  @override
+  String get profile_account_info => 'खाता जानकारी';
+
+  @override
+  String get profile_hustlr_id => 'HUSTLR आईडी';
+
+  @override
+  String get profile_active_plan => 'सक्रिय प्लान';
+
+  @override
+  String get profile_validity => 'वैधता';
+
+  @override
+  String get profile_partner => 'पार्टनर';
+
+  @override
   String get profile_delivery_partner => 'डिलीवरी पार्टनर';
 
   @override
@@ -487,11 +554,11 @@ class AppLocalizationsHi extends AppLocalizations {
       'कवरेज सोमवार को सक्रिय होती है और रविवार तक व्यवधानों को कवर करती है।';
 
   @override
-  String get tip_cashback_title => 'Elite Shield पर कैशबैक कमाएं';
+  String get tip_cashback_title => 'Full Shield पर कैशबैक कमाएं';
 
   @override
   String get tip_cashback_body =>
-      'Elite Shield पर 4 लगातार क्लेम-फ्री सप्ताह पूरे करें और अपने प्रीमियम का 10% वापस पाएं।';
+      'Full Shield पर 4 लगातार क्लेम-फ्री सप्ताह पूरे करें और अपने प्रीमियम का 10% वापस पाएं।';
 
   @override
   String get error_network => 'कनेक्शन त्रुटि। अपना इंटरनेट जांचें।';
@@ -516,4 +583,136 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get back => 'वापस';
+
+  @override
+  String get manual_claim_title => 'व्यवधान की रिपोर्ट करें';
+
+  @override
+  String get manual_claim_subtitle =>
+      'अपने क्षेत्र को प्रभावित करने वाली समस्या चुनें';
+
+  @override
+  String get manual_claim_road_blocked => 'रास्ता बंद / दुर्घटना';
+
+  @override
+  String get manual_claim_road_desc => 'मुख्य मार्ग से गुजरने में असमर्थ';
+
+  @override
+  String get manual_claim_dark_store => 'डार्क स्टोर / हब बंद';
+
+  @override
+  String get manual_claim_dark_desc =>
+      'Zepto पिकअप स्थान पर नहीं पहुंचा जा सकता';
+
+  @override
+  String get manual_claim_internet_outage => 'इन्टरनेट आउटेज';
+
+  @override
+  String get manual_claim_internet_desc =>
+      'कोई सिग्नल नहीं / प्रदाता का ब्लैकआउट';
+
+  @override
+  String get manual_claim_other => 'अन्य डिलीवरी रुकावट';
+
+  @override
+  String get manual_claim_other_desc =>
+      'अप्रत्याशित भौतिक समस्या निर्दिष्ट करें';
+
+  @override
+  String get manual_claim_continue => 'जारी रखें';
+
+  @override
+  String get manual_claim_need_help => 'मदद चाहिए?';
+
+  @override
+  String get camera_title => 'एआई मूल्यांकन के लिए\nप्रमाण कैप्चर करें';
+
+  @override
+  String get camera_subtitle =>
+      'केवल लाइव कैमरे का उपयोग करें — गैलरी अपलोड स्वीकार नहीं किए जाते';
+
+  @override
+  String get camera_scanning => 'एआई स्कैन कर रहा है...';
+
+  @override
+  String get camera_internet_auto =>
+      'सिग्नल स्ट्रेंथ: 1 बार स्वतः डिटेक्ट किया गया';
+
+  @override
+  String get camera_no_photo => 'फोटो की आवश्यकता नहीं';
+
+  @override
+  String get review_title => 'प्रमाण कैप्चर किया गया';
+
+  @override
+  String get review_subtitle =>
+      'सबमिट करने से पहले अपनी तस्वीरों की समीक्षा करें';
+
+  @override
+  String get review_network_failure => 'नेटवर्क विफलता सत्यापित';
+
+  @override
+  String get review_network_desc =>
+      'आपके डिवाइस सिग्नल स्ट्रेंथ को OS सेंसर द्वारा सख्ती से सत्यापित किया गया था। भौतिक तस्वीरों की आवश्यकता नहीं है।';
+
+  @override
+  String get review_recapture => 'पुनः कैप्चर करें';
+
+  @override
+  String get review_submit => 'प्रमाण सबमिट करें →';
+
+  @override
+  String get review_add_more => 'और तस्वीरें जोड़ें';
+
+  @override
+  String get review_label => 'प्रमाण';
+
+  @override
+  String get submitted_title => 'जमा कर दिया गया';
+
+  @override
+  String get submitted_subtitle => 'आपके प्रमाण की समीक्षा की जा रही है';
+
+  @override
+  String get submitted_next => 'आगे क्या होगा?';
+
+  @override
+  String get submitted_next_1 => '4 घंटे के भीतर समीक्षा';
+
+  @override
+  String get submitted_next_2 => 'समाधान होने पर आपको सूचित किया जाएगा';
+
+  @override
+  String get submitted_next_3 => 'प्रोविजनल क्रेडिट तुरंत जारी किया जा सकता है';
+
+  @override
+  String get submitted_demo => 'डेमो मोड — ऑफ़लाइन फ़ॉलबैक दिखाया गया';
+
+  @override
+  String get submitted_back => 'दावों पर वापस जाएँ';
+
+  @override
+  String get chat_live_support => 'लाइव सपोर्ट';
+
+  @override
+  String get chat_agent => 'सपोर्ट एजेंट';
+
+  @override
+  String get chat_typing => 'टाइप कर रहा है...';
+
+  @override
+  String get chat_hint => 'संदेश टाइप करें...';
+
+  @override
+  String get chat_bot_greeting =>
+      'नमस्ते, मैं एक Hustlr दावा एजेंट हूं। मैं आपके मैनुअल दावे के संबंध में आपकी कैसे मदद कर सकता हूं?';
+
+  @override
+  String get chat_attach_id => 'आईडी कार्ड';
+
+  @override
+  String get chat_attach_weather => 'मौसम का प्रमाण';
+
+  @override
+  String get chat_attach_receipt => 'चिकित्सा रसीद';
 }

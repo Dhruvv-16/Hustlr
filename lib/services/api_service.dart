@@ -1,10 +1,33 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Use 127.0.0.1 to bypass Windows IPv6 routing bug in Chrome, or 10.0.2.2 for Android emulators
-  static String get baseUrl => kIsWeb ? 'http://127.0.0.1:3000' : 'http://10.0.2.2:3000';
+  /// **Production (like Swiggy / Facebook):** users install one app; it talks to **your cloud API**
+  /// (Node on AWS/GCP/Azure, ML as an internal service — never on the phone). You bake the prod URL
+  /// into the release binary with `--dart-define=HUSTLR_API_PROD=https://api.yourdomain.com`.
+  ///
+  /// **Local dev:** `--dart-define=HUSTLR_API_BASE=...` or repo [scripts/start-dev.ps1].
+  static String get baseUrl {
+    if (kIsWeb) return 'http://127.0.0.1:3000';
+
+    const prod = String.fromEnvironment('HUSTLR_API_PROD');
+    const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
+
+    if (kReleaseMode) {
+      if (prod.isNotEmpty) return prod;
+      throw StateError(
+        'Release build needs --dart-define=HUSTLR_API_PROD=https://api.yourdomain.com',
+      );
+    }
+
+    if (devOverride.isNotEmpty) return devOverride;
+    return 'http://192.168.1.10:3000';
+  }
+
+  static const _timeout = Duration(seconds: 5); // 5s — real network may be slower
+
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
 
@@ -31,17 +54,21 @@ class ApiService {
 
   /// Fetch a worker by ID. Used by [UserBloc] on login.
   Future<Map<String, dynamic>> getWorkerById(String userId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/workers/$userId'),
-      headers: headers,
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 200) {
-      // Backend may return { user: {...} } or the worker object directly.
-      return (data['user'] as Map<String, dynamic>?) ?? data;
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/workers/$userId'),
+        headers: headers,
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 200) {
+        return (data['user'] as Map<String, dynamic>?) ?? data;
+      }
+      throw Exception(data['error'] ?? 'Failed to fetch worker');
+    } catch (_) {
+      // Backend unreachable — return empty so MockDataService takes over
+      return {};
     }
-    throw Exception(data['error'] ?? 'Failed to fetch worker');
   }
 
   /// Cancel an active policy. Used by [PolicyBloc].
@@ -74,50 +101,88 @@ class ApiService {
     required String city,
     required String platform,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/workers/register'),
-      headers: headers,
-      body: jsonEncode({
-        'name': name,
-        'phone': phone,
-        'zone': zone,
-        'city': city,
-        'platform': platform,
-      }),
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 201 || res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Registration failed');
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/workers/register'),
+        headers: headers,
+        body: jsonEncode({
+          'name': name,
+          'phone': phone,
+          'zone': zone,
+          'city': city,
+          'platform': platform,
+        }),
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 201 || res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Registration failed');
+    } catch (_) {
+      // Backend unreachable on real device — return a mock worker so onboarding completes
+      // Backend unreachable on real device — return a mock worker so onboarding completes
+      return {
+        'user': {
+          'id': 'mock-${phone.replaceAll(RegExp(r'\D'), '')}-001',
+          'name': name,
+          'phone': phone,
+          'zone': zone,
+          'city': city,
+          'platform': platform,
+          'onboarding_complete': false,
+        }
+      };
+    }
   }
 
   Future<Map<String, dynamic>> createPolicy({
     required String userId,
     required String planTier,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/policies/create'),
-      headers: headers,
-      body: jsonEncode({
-        'user_id': userId,
-        'plan_tier': planTier,
-      }),
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 201 || res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Policy creation failed');
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/policies/create'),
+        headers: headers,
+        body: jsonEncode({'user_id': userId, 'plan_tier': planTier}),
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 201 || res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Policy creation failed');
+    } catch (_) {
+      SharedPreferences.getInstance().then((prefs) => prefs.setString('mockPlanTier', planTier));
+      return {
+        'policy': {
+          'id': 'mock-policy-${DateTime.now().millisecondsSinceEpoch}',
+          'plan_tier': planTier,
+        }
+      };
+    }
   }
 
   Future<Map<String, dynamic>> getPolicy(String userId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/policies/$userId'),
-      headers: headers,
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Failed to fetch policy');
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/policies/$userId'),
+        headers: headers,
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Failed to fetch policy');
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      final tier = prefs.getString('mockPlanTier') ?? 'Standard Shield';
+      return {
+        'policy': {
+          'id': 'mock-policy',
+          'plan_tier': tier,
+          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
+          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
+          'zone_adjustment': 0,
+          'status': 'active',
+        }
+      };
+    }
   }
 
   Future<Map<String, dynamic>> createClaim({
@@ -126,54 +191,113 @@ class ApiService {
     required double severity,
     required double durationHours,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/claims/create'),
-      headers: headers,
-      body: jsonEncode({
-        'user_id': userId,
-        'trigger_type': triggerType,
-        'severity': severity,
-        'duration_hours': durationHours,
-      }),
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 201 || res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Claim creation failed');
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/claims/create'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'trigger_type': triggerType,
+          'severity': severity,
+          'duration_hours': durationHours,
+        }),
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 201 || res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Claim creation failed');
+    } catch (_) {
+      return {'claim': null};
+    }
   }
 
   Future<Map<String, dynamic>> getClaims(String userId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/claims/$userId'),
-      headers: headers,
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Failed to fetch claims');
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/claims/$userId'),
+        headers: headers,
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Failed to fetch claims');
+    } catch (_) {
+      return {'claims': []};
+    }
   }
 
   Future<Map<String, dynamic>> getWallet(String userId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/wallet/$userId'),
-      headers: headers,
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Failed to fetch wallet');
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/wallet/$userId'),
+        headers: headers,
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Failed to fetch wallet');
+    } catch (_) {
+      return {'balance': 0, 'transactions': []};
+    }
   }
 
-  Future<Map<String, dynamic>> getDisruptions(String zone) async {
-    final encoded = Uri.encodeComponent(zone);
-    final res = await http.get(
-      Uri.parse('$baseUrl/disruptions/$encoded'),
-      headers: headers,
-    );
-    final data = jsonDecode(res.body);
-    if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-    if (res.statusCode == 200) return data;
-    throw Exception(data['error'] ?? 'Failed to fetch disruptions');
+  /// Haversine zone depth vs configured dark-store hub (no auth).
+  Future<Map<String, dynamic>> computeZoneDepth({
+    required double lat,
+    required double lon,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/workers/zone-depth/compute'),
+            headers: headers,
+            body: jsonEncode({'lat': lat, 'lon': lon}),
+          )
+          .timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Persists [users.zone_depth_score] for underwriting.
+  Future<Map<String, dynamic>> updateWorkerZoneDepth({
+    required String userId,
+    required double lat,
+    required double lon,
+  }) async {
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('$baseUrl/workers/$userId/zone-depth'),
+            headers: headers,
+            body: jsonEncode({'lat': lat, 'lon': lon}),
+          )
+          .timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> getDisruptions(
+    String zone, {
+    int? issScore,
+  }) async {
+    try {
+      final encoded = Uri.encodeComponent(zone);
+      final q = issScore != null ? '?iss=$issScore' : '';
+      final res = await http.get(
+        Uri.parse('$baseUrl/disruptions/$encoded$q'),
+        headers: headers,
+      ).timeout(_timeout);
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Failed to fetch disruptions');
+    } catch (_) {
+      return {'disruptions': [], 'active': false};
+    }
   }
 
   // ── Instance helpers used by screens ──────────────────────────────────────
@@ -219,7 +343,8 @@ class ApiService {
   /// Shape expected by older UI: `{ 'disruptions': List }`.
   Future<Map<String, dynamic>> getDisruptionsInstance(String zone) async {
     final body = await getDisruptions(zone);
-    final events = body['disruption_events'] as List<dynamic>? ?? [];
+    final raw = body['disruptions'] ?? body['disruption_events'];
+    final events = raw is List<dynamic> ? raw : <dynamic>[];
     return {'disruptions': events};
   }
 
@@ -231,7 +356,7 @@ class ApiService {
       final res = await http.get(
         Uri.parse('$baseUrl/workers/phone/$encoded'),
         headers: instance.headers,
-      );
+      ).timeout(_timeout);
       if (res.statusCode == 404) return null;
       final data = instance._decodeMap(res);
       return data['user'] as Map<String, dynamic>?;
@@ -260,7 +385,8 @@ class ApiService {
 
   static Future<List<dynamic>> getDisruptionEvents(String zone) async {
     final data = await instance.getDisruptions(zone);
-    return data['disruption_events'] as List<dynamic>? ?? [];
+    final raw = data['disruptions'] ?? data['disruption_events'];
+    return raw is List<dynamic> ? raw : <dynamic>[];
   }
 
   static Future<Map<String, dynamic>> submitClaim({
@@ -337,5 +463,56 @@ class ApiService {
       }),
     );
     return instance._decodeMap(res);
+  }
+
+  Future<Map<String, dynamic>> submitManualClaim({
+    required String userId,
+    required String disruptionType,
+    String? description,
+    List<String>? evidenceUrls,
+    int? deviceSignalStrength,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/claims/manual'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id':                userId,
+          'disruption_type':        disruptionType,
+          'description':            description,
+          'evidence_urls':          evidenceUrls ?? [],
+          'device_signal_strength': deviceSignalStrength,
+        }),
+      );
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 201) return data;
+      
+      // Fallback to mock on API error
+      return {
+        'claim': {
+          'id': 'CLM_MOCK_${DateTime.now().millisecondsSinceEpoch}',
+          'display_name': 'Manual Report',
+          'status': 'PENDING',
+          'gross_payout': 100,
+          'tranche1_amount': 70,
+          'tranche2_amount': 30,
+          'provisional_note': 'Claim logged — review within 4 hours',
+          '_mock': true,
+        }
+      };
+    } catch (e) {
+      return {
+        'claim': {
+          'id': 'CLM_MOCK_ERR',
+          'display_name': 'Manual Report',
+          'status': 'PENDING',
+          'gross_payout': 100,
+          'tranche1_amount': 70,
+          'tranche2_amount': 30,
+          'provisional_note': 'Offline mode — will sync when connected',
+          '_mock': true,
+        }
+      };
+    }
   }
 }

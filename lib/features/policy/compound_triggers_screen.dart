@@ -10,6 +10,7 @@ class CompoundTriggersScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: app_colors.background,
       appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white), onPressed: () => context.pop()),
         title: const Text('Elite Shield — Compound Protection'),
         backgroundColor: const Color(0xFFE87722),
         foregroundColor: Colors.white,

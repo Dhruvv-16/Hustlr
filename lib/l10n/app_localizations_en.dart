@@ -158,6 +158,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dashboard_activate_shield => 'Activate Full Shield →';
 
   @override
+  String get dashboard_current_active => 'CURRENT ACTIVE POLICY';
+
+  @override
+  String get dashboard_high_risk_prefix => 'High risk in';
+
+  @override
+  String get dashboard_secure_coverage => 'Secure coverage now.';
+
+  @override
+  String get dashboard_activate => 'ACTIVATE';
+
+  @override
+  String get dashboard_modular => 'MODULAR';
+
+  @override
+  String get dashboard_add_coverage => 'Add New\nCoverage';
+
+  @override
+  String get dashboard_legal => 'LEGAL';
+
+  @override
+  String get dashboard_view_cert => 'View\nCertificate';
+
+  @override
+  String get dashboard_generating_cert => 'Generating your certificate...';
+
+  @override
+  String get dashboard_see_why => 'SEE WHY';
+
+  @override
+  String get dashboard_missed_payouts => 'missed\npayouts';
+
+  @override
+  String get dashboard_potential_loss => 'Potential earnings lost this month';
+
+  @override
   String get policy_title => 'My Policy';
 
   @override
@@ -176,7 +212,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get policy_full => 'Full Shield';
 
   @override
-  String get policy_elite => 'Elite Shield';
+  String get policy_elite => 'Full Shield';
 
   @override
   String get policy_covers => 'Covers';
@@ -353,6 +389,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_title => 'Profile';
 
   @override
+  String get profile_personal_info => 'PERSONAL INFO';
+
+  @override
+  String get profile_name => 'NAME';
+
+  @override
+  String get profile_zone => 'ZONE';
+
+  @override
+  String get profile_mobile => 'MOBILE';
+
+  @override
+  String get profile_upi_id => 'UPI ID';
+
+  @override
+  String get profile_account_info => 'ACCOUNT INFO';
+
+  @override
+  String get profile_hustlr_id => 'HUSTLR ID';
+
+  @override
+  String get profile_active_plan => 'ACTIVE PLAN';
+
+  @override
+  String get profile_validity => 'VALIDITY';
+
+  @override
+  String get profile_partner => 'PARTNER';
+
+  @override
   String get profile_delivery_partner => 'Delivery Partner';
 
   @override
@@ -486,11 +552,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Coverage activates on Monday and covers disruptions through Sunday. Activate Monday morning for full weekly protection.';
 
   @override
-  String get tip_cashback_title => 'Earn cashback with Elite Shield';
+  String get tip_cashback_title => 'Earn cashback with Full Shield';
 
   @override
   String get tip_cashback_body =>
-      'Complete 4 consecutive claim-free weeks on Elite Shield and receive 10% of your premiums back as wallet credit.';
+      'Complete 4 consecutive claim-free weeks on Full Shield and receive 10% of your premiums back as wallet credit.';
 
   @override
   String get error_network => 'Connection error. Please check your internet.';
@@ -516,4 +582,133 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get back => 'Back';
+
+  @override
+  String get manual_claim_title => 'Report a Disruption';
+
+  @override
+  String get manual_claim_subtitle => 'Select the issue affecting your zone';
+
+  @override
+  String get manual_claim_road_blocked => 'Road Blocked / Accident';
+
+  @override
+  String get manual_claim_road_desc =>
+      'Unable to pass through main active route';
+
+  @override
+  String get manual_claim_dark_store => 'Dark Store / Hub Closed';
+
+  @override
+  String get manual_claim_dark_desc => 'Zepto pickup location is inaccessible';
+
+  @override
+  String get manual_claim_internet_outage => 'Internet Outage';
+
+  @override
+  String get manual_claim_internet_desc =>
+      'No signal / Complete provider blackout';
+
+  @override
+  String get manual_claim_other => 'Other Delivery Blockage';
+
+  @override
+  String get manual_claim_other_desc => 'Specify unexpected physical issue';
+
+  @override
+  String get manual_claim_continue => 'Continue';
+
+  @override
+  String get manual_claim_need_help => 'Need help?';
+
+  @override
+  String get camera_title => 'Capture Evidence\nFor AI Assessment';
+
+  @override
+  String get camera_subtitle =>
+      'Use live camera only — gallery uploads not accepted';
+
+  @override
+  String get camera_scanning => 'AI scanning...';
+
+  @override
+  String get camera_internet_auto =>
+      'Signal strength: 1 bar detected automatically';
+
+  @override
+  String get camera_no_photo => 'No photo needed';
+
+  @override
+  String get review_title => 'Evidence Captured';
+
+  @override
+  String get review_subtitle => 'Review your photos before submitting';
+
+  @override
+  String get review_network_failure => 'Network Failure Verified';
+
+  @override
+  String get review_network_desc =>
+      'Your device signal strength was strictly verified by OS sensors. No physical photos required.';
+
+  @override
+  String get review_recapture => 'Re-capture';
+
+  @override
+  String get review_submit => 'Submit Evidence →';
+
+  @override
+  String get review_add_more => 'Add More Photos';
+
+  @override
+  String get review_label => 'Evidence';
+
+  @override
+  String get submitted_title => 'Submitted';
+
+  @override
+  String get submitted_subtitle => 'Your evidence is under review';
+
+  @override
+  String get submitted_next => 'What happens next?';
+
+  @override
+  String get submitted_next_1 => 'Review within 4 hours';
+
+  @override
+  String get submitted_next_2 => 'You will be notified when resolved';
+
+  @override
+  String get submitted_next_3 => 'Provisional credit may be issued immediately';
+
+  @override
+  String get submitted_demo => 'Demo mode — Offline fallback shown';
+
+  @override
+  String get submitted_back => 'Back to Claims';
+
+  @override
+  String get chat_live_support => 'Live Support';
+
+  @override
+  String get chat_agent => 'Support Agent';
+
+  @override
+  String get chat_typing => 'Typing...';
+
+  @override
+  String get chat_hint => 'Type a message...';
+
+  @override
+  String get chat_bot_greeting =>
+      'Hi, I am a Hustlr claims agent. How can I help you regarding your manual claim?';
+
+  @override
+  String get chat_attach_id => 'ID Card';
+
+  @override
+  String get chat_attach_weather => 'Weather Proof';
+
+  @override
+  String get chat_attach_receipt => 'Medical Receipt';
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/hustlr_bottom_nav.dart';
 import '../../core/utils/pdf_generator.dart';
+import '../../l10n/app_localizations.dart';
 
 // Dark mode palette
 const _darkGreen       = Color(0xFF3FFF8B);
@@ -31,12 +33,14 @@ class _Plan {
   });
 }
 
-const _plans = [
-  _Plan(name: 'Basic Shield',    subtitle: 'Rain + extreme heat cover',             price: '₹29/wk', accentLeft: true),
-  _Plan(name: 'Standard Shield', subtitle: 'Rain, heat, pollution, app downtime',   price: '₹49/wk', isMostPopular: true),
-  _Plan(name: 'Full Shield',     subtitle: 'All disruption types covered',          price: '₹79/wk'),
-  _Plan(name: 'Elite Shield',    subtitle: 'All types + compound triggers',         price: '₹109/wk', isElite: true),
-];
+List<_Plan> _getPlans(BuildContext context) {
+  final l10n = AppLocalizations.of(context)!;
+  return [
+    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
+    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹59/wk', isMostPopular: true),
+    _Plan(name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
+  ];
+}
 
 // ─── Rider Data ───────────────────────────────────────────────────────────────
 class _Rider {
@@ -49,10 +53,10 @@ class _Rider {
 }
 
 const _riders = [
-  _Rider(icon: Icons.groups_rounded,       name: 'Curfew & Strike', price: '+₹15/week', defaultOn: false),
-  _Rider(icon: Icons.how_to_vote_rounded,  name: 'Election Day',    price: '+₹20/week', defaultOn: false),
-  _Rider(icon: Icons.phonelink_off_rounded,name: 'App Downtime',    price: '+₹12/week', defaultOn: true),
-  _Rider(icon: Icons.cyclone_rounded,      name: 'Cyclone',         price: '+₹25/week', defaultOn: false),
+  _Rider(icon: Icons.cyclone_rounded,      name: 'Cyclone',         price: '+₹20/wk', defaultOn: false),
+  _Rider(icon: Icons.groups_rounded,       name: 'Curfew & Strike', price: '+₹12/wk', defaultOn: false),
+  _Rider(icon: Icons.how_to_vote_rounded,  name: 'Election Day',    price: '+₹8/wk', defaultOn: false),
+  _Rider(icon: Icons.phonelink_off_rounded,name: 'App Downtime',    price: '+₹10/wk', defaultOn: true),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,6 +87,7 @@ class _PolicyScreenState extends State<PolicyScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n       = AppLocalizations.of(context)!;
     final theme      = Theme.of(context);
     final isDark     = theme.brightness == Brightness.dark;
     final bgColor    = theme.scaffoldBackgroundColor;
@@ -95,9 +100,12 @@ class _PolicyScreenState extends State<PolicyScreen>
       appBar: AppBar(
         backgroundColor: appBarBg,
         elevation: 0,
-        leading: BackButton(color: theme.colorScheme.onSurface),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRoutes.dashboard),
+        ),
         title: Text(
-          'Policy & Plans',
+          l10n.policy_title,
           style: TextStyle(
             fontSize: 16, fontWeight: FontWeight.bold,
             color: theme.colorScheme.onSurface,
@@ -118,9 +126,9 @@ class _PolicyScreenState extends State<PolicyScreen>
                   const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               indicatorColor: green,
               indicatorWeight: 2,
-              tabs: const [
+              tabs: [
                 Tab(text: 'Current Plan'),
-                Tab(text: 'Upgrade'),
+                Tab(text: l10n.policy_upgrade),
                 Tab(text: 'History'),
               ],
             ),
@@ -180,6 +188,7 @@ class _CurrentPlanTab extends StatelessWidget {
         _coverageItem(context, Icons.wb_sunny_rounded,      'Extreme Heat',     'Triggers above 42°C advisory'),
         _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
         _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
+        _coverageItem(context, Icons.edit_document,         'Manual Disruption Filing', 'Report untracked disruptions manually'),
       ]),
     );
   }
@@ -230,6 +239,7 @@ Widget _coverageItem(BuildContext context, IconData icon, String title, String s
 class _ActiveCoverageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final l10n   = AppLocalizations.of(context)!;
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     // In dark mode use a tonal surface + mint; in light, solid green
@@ -246,7 +256,7 @@ class _ActiveCoverageCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Text('Standard Shield', style: TextStyle(
+            child: Text(l10n.policy_standard, style: TextStyle(
               fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           ),
           Container(
@@ -355,7 +365,7 @@ class _UpgradeTab extends StatefulWidget {
 }
 
 class _UpgradeTabState extends State<_UpgradeTab> {
-  String _selectedPlan = 'Standard Shield';
+  String? _selectedPlan;
   final Map<String, bool> _riderToggles = {
     'Curfew & Strike': false,
     'Election Day': false,
@@ -365,19 +375,21 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   int get _totalCost {
     const planPrices = {
-      'Basic Shield': 29, 'Standard Shield': 49,
-      'Full Shield': 79,  'Elite Shield': 109,
+      'Basic Shield': 35, 'Standard Shield': 59,
+      'Full Shield': 79,
     };
+    int total = planPrices[_selectedPlan ?? 'Standard Shield'] ?? 59;
+
     const riderPrices = {
-      'Curfew & Strike': 15, 'Election Day': 20,
-      'App Downtime': 12,    'Cyclone': 25,
+      'Cyclone': 20, 'Curfew & Strike': 12,
+      'Election Day': 8, 'App Downtime': 10,
     };
-    int total = planPrices[_selectedPlan] ?? 49;
     
-    final bool allIncluded = _selectedPlan == 'Full Shield' || _selectedPlan == 'Elite Shield';
+    final bool allIncluded = _selectedPlan == 'Full Shield';
 
     if (!allIncluded) {
       for (final r in _riderToggles.entries) {
+        if (r.key == 'App Downtime' && _selectedPlan == 'Standard Shield') continue;
         if (r.value) total += riderPrices[r.key] ?? 0;
       }
     }
@@ -391,6 +403,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     final green  = theme.colorScheme.primary;
     final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
     final textSub = theme.colorScheme.onSurface.withOpacity(0.5);
+    _selectedPlan ??= AppLocalizations.of(context)!.policy_standard;
 
     return Stack(children: [
       SingleChildScrollView(
@@ -402,33 +415,31 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           const SizedBox(height: 24),
           _sectionLabel(context, 'UPGRADE YOUR PROTECTION'),
           const SizedBox(height: 12),
-          ..._plans.map((p) => _PlanCard(
+          ..._getPlans(context).map((p) => _PlanCard(
                 plan: p,
                 isSelected: _selectedPlan == p.name,
-                onTap: () => setState(() => _selectedPlan = p.name),
+                onTap: () => setState(() {
+                  _selectedPlan = p.name;
+                  if (_selectedPlan == AppLocalizations.of(context)!.policy_basic) {
+                    _riderToggles['App Downtime'] = false;
+                  } else if (_selectedPlan == AppLocalizations.of(context)!.policy_standard) {
+                    _riderToggles['App Downtime'] = true;
+                  }
+                }),
               )),
           const SizedBox(height: 20),
           Row(children: [
             _sectionLabel(context, 'INCOME ADD-ONS'),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: lightGreen,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text('Protects Earnings',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: green)),
-            ),
           ]),
           const SizedBox(height: 12),
           ..._riders.map((r) {
-            final bool allIncluded = (_selectedPlan == 'Full Shield' || _selectedPlan == 'Elite Shield');
+            final bool allIncluded = (_selectedPlan == AppLocalizations.of(context)!.policy_full);
+            final bool thisIncluded = allIncluded || (_selectedPlan == AppLocalizations.of(context)!.policy_standard && r.name == 'App Downtime');
             return _RiderRow(
               rider: r,
               value: _riderToggles[r.name] ?? r.defaultOn,
-              isIncluded: allIncluded,
-              onChanged: allIncluded ? null : (v) => setState(() => _riderToggles[r.name] = v),
+              isIncluded: thisIncluded,
+              onChanged: thisIncluded ? null : (v) => setState(() => _riderToggles[r.name] = v),
             );
           }),
           const SizedBox(height: 20),
@@ -447,6 +458,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
                 _ruleText(context, 'Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
                 _ruleText(context, 'One event per week per type', 'Basic + Standard Shield only'),
                 _ruleText(context, 'Post-activation only', 'events before activation never covered'),
+                _ruleText(context, 'Manual Disruption Filing', 'For disruptions not covered by automated triggers, you can manually report it within 24 hours via the Claims screen. Subject to evidence review.'),
               ],
             ),
           ),
@@ -719,25 +731,27 @@ class _StickyBottomBar extends StatelessWidget {
         ],
       ),
       child: Row(children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('TOTAL WEEKLY COST',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                  color: hintColor, letterSpacing: 0.5)),
-          const SizedBox(height: 2),
-          RichText(
-            text: TextSpan(children: [
-              TextSpan(
-                text: '₹$total',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface),
-              ),
-              TextSpan(
-                text: '/week',
-                style: TextStyle(fontSize: 13, color: hintColor),
-              ),
-            ]),
-          ),
-        ]),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('WEEKLY PREMIUM',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                    color: hintColor, letterSpacing: 0.5)),
+            const SizedBox(height: 2),
+            RichText(
+              text: TextSpan(children: [
+                TextSpan(
+                  text: '₹$total',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface),
+                ),
+                TextSpan(
+                  text: '/week',
+                  style: TextStyle(fontSize: 13, color: hintColor),
+                ),
+              ]),
+            ),
+          ]),
+        ),
         const SizedBox(width: 16),
         Expanded(
           child: SizedBox(

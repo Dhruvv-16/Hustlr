@@ -17,6 +17,7 @@ class ShadowPolicyScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface), onPressed: () => context.pop()),
         title: Text('What You Missed',
             style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w700)),
         backgroundColor: Colors.transparent,

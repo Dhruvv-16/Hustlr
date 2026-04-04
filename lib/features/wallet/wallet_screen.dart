@@ -9,6 +9,8 @@ import '../../shared/widgets/mobile_container.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
 
 
+import '../../l10n/app_localizations.dart';
+
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
 
@@ -39,6 +41,7 @@ class WalletScreen extends StatelessWidget {
     final red = isDark ? const Color(0xFFFF5252) : const Color(0xFFB71C1C);
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final hint = isDark ? const Color(0xFF91938d) : const Color(0xFF9CA3AF);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: bgScreen,
@@ -50,7 +53,7 @@ class WalletScreen extends StatelessWidget {
           onPressed: () {},
         ),
         title: Text(
-          'Wallet',
+          l10n.wallet_title,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -121,6 +124,7 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final mockData = Provider.of<MockDataService>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
@@ -157,8 +161,8 @@ class _BalanceCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Available Balance',
+                    Text(
+                      l10n.wallet_balance,
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
                     Icon(
@@ -196,7 +200,7 @@ class _BalanceCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Withdraw to UPI',
+                          l10n.wallet_withdraw,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -224,6 +228,7 @@ class _SavingsInsightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final mockData = Provider.of<MockDataService>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
@@ -265,7 +270,7 @@ class _SavingsInsightCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SAVINGS INSIGHT',
+                  l10n.wallet_smart_savings.toUpperCase(),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -275,7 +280,7 @@ class _SavingsInsightCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'You saved ₹$formattedSavings this month',
+                  '${l10n.wallet_you_saved} ₹$formattedSavings',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -298,6 +303,7 @@ class _AnalyticsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
@@ -319,7 +325,7 @@ class _AnalyticsButton extends StatelessWidget {
             Row(children: [
               Icon(Icons.bar_chart, color: iconColor),
               const SizedBox(width: 8),
-              Text('See Analytics', style: TextStyle(
+              Text(l10n.wallet_see_analytics, style: TextStyle(
                   color: iconColor, fontWeight: FontWeight.w600)),
             ]),
             Icon(Icons.chevron_right, color: iconColor),
@@ -336,6 +342,7 @@ class _WeeklySummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
@@ -344,6 +351,7 @@ class _WeeklySummarySection extends StatelessWidget {
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    final mockData = Provider.of<MockDataService>(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,7 +361,7 @@ class _WeeklySummarySection extends StatelessWidget {
             _BarIcon(color: green),
             const SizedBox(width: 8),
             Text(
-              'Weekly Summary',
+              l10n.wallet_recent_activity,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -363,31 +371,24 @@ class _WeeklySummarySection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        _buildCard(
-          icon: Icons.account_balance_wallet_rounded,
-          iconBg: lightGreen,
-          iconColor: green,
-          title: 'Insurance Payout',
-          date: 'Mar 12, 2026',
-          amount: '+₹300',
-          amountColor: green,
-          cardBg: cardWhite,
-          primary: primary,
-          grey: grey,
-        ),
-        const SizedBox(height: 12),
-        _buildCard(
-          icon: Icons.shield_rounded,
-          iconBg: lightRed,
-          iconColor: red,
-          title: 'Policy Premium',
-          date: 'Mar 10, 2026',
-          amount: '-₹49',
-          amountColor: red,
-          cardBg: cardWhite,
-          primary: primary,
-          grey: grey,
-        ),
+        ...mockData.transactions.take(2).map((tx) {
+          final isCredit = tx['type'] == 'credit';
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildCard(
+              icon: isCredit ? Icons.account_balance_wallet_rounded : Icons.shield_rounded,
+              iconBg: isCredit ? lightGreen : lightRed,
+              iconColor: isCredit ? green : red,
+              title: tx['title'] ?? '',
+              date: tx['date'] ?? '',
+              amount: (isCredit ? '+' : '-') + '₹${tx['amount']}',
+              amountColor: isCredit ? green : red,
+              cardBg: cardWhite,
+              primary: primary,
+              grey: grey,
+            ),
+          );
+        }),
       ],
     );
   }
@@ -498,6 +499,7 @@ class _InsuranceTransactionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final mockData = Provider.of<MockDataService>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
@@ -518,7 +520,7 @@ class _InsuranceTransactionsSection extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Insurance Transactions',
+                l10n.wallet_recent_transactions,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -527,9 +529,9 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {},
+              onTap: () => context.push('/wallet/analytics'),
               child: Text(
-                'See All',
+                l10n.wallet_see_all,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -639,26 +641,29 @@ class _SupportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
+    return GestureDetector(
+      onTap: () => context.push('/support'),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardWhite,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
           Container(
             width: 40,
             height: 40,
@@ -675,7 +680,7 @@ class _SupportCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Questions about a payout?',
+                  l10n.wallet_help_title,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -686,7 +691,7 @@ class _SupportCard extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'Chat with us',
+                      l10n.wallet_chat,
                       style: TextStyle(
                         fontSize: 13,
                         color: green,
@@ -706,7 +711,8 @@ class _SupportCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ),
+   );
   }
 }
 
@@ -750,7 +756,7 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Withdraw to UPI',
+            Text(AppLocalizations.of(context)!.wallet_withdraw,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
             const SizedBox(height: 8),
             Text('Enter your UPI ID to receive \u20b9$formattedBalance',

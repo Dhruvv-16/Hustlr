@@ -1,0 +1,53 @@
+<#
+  Start Hustlr full stack: Python ML (8000) + Node API (3000) + Flutter app.
+
+  Default Flutter API target is Android emulator loopback (10.0.2.2 → host).
+
+  Examples:
+    .\scripts\start-dev.ps1
+    .\scripts\start-dev.ps1 -ApiBase "http://192.168.1.10:3000"   # physical phone on Wi‑Fi
+    .\scripts\start-dev.ps1 -ApiBase "http://127.0.0.1:3000"      # rare: special proxy setup
+
+  Prerequisites: Python 3 with ml_service deps, Node/npm in hustlr-backend, Flutter SDK.
+  Optional: venv at hustlr-backend\ml_service\.venv — set -UseVenv to use it for ML.
+#>
+param(
+  [string]$ApiBase = "http://10.0.2.2:3000",
+  [switch]$UseVenv
+)
+
+$ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$mlDir = Join-Path $repoRoot "hustlr-backend\ml_service"
+$beDir = Join-Path $repoRoot "hustlr-backend"
+
+$venvPy = Join-Path $mlDir ".venv\Scripts\python.exe"
+$python = if ($UseVenv -and (Test-Path $venvPy)) { $venvPy } else { "python" }
+if ($UseVenv -and -not (Test-Path $venvPy)) {
+  Write-Warning "ml_service\.venv not found — using 'python' from PATH"
+}
+if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+  Write-Error "Python not found. Install Python 3 or create hustlr-backend\ml_service\.venv"
+}
+
+Write-Host ""
+Write-Host "=== Hustlr dev stack ===" -ForegroundColor Cyan
+Write-Host "  ML:    http://127.0.0.1:8000  (uvicorn)"
+Write-Host "  API:   http://127.0.0.1:3000  (Node)"
+Write-Host "  App:   Flutter → API $ApiBase"
+Write-Host ""
+
+$mlCmd = "Set-Location -LiteralPath '$mlDir'; & '$python' -m uvicorn main:app --host 127.0.0.1 --port 8000"
+Write-Host "Opening window: ML service..." -ForegroundColor Green
+Start-Process pwsh -ArgumentList @("-NoExit", "-Command", $mlCmd)
+
+$beCmd = "Set-Location -LiteralPath '$beDir'; npm run dev"
+Write-Host "Opening window: Node backend..." -ForegroundColor Green
+Start-Process pwsh -ArgumentList @("-NoExit", "-Command", $beCmd)
+
+Write-Host "Waiting for backends to boot..." -ForegroundColor DarkGray
+Start-Sleep -Seconds 5
+
+Set-Location -LiteralPath $repoRoot
+Write-Host "Launching Flutter..." -ForegroundColor Green
+flutter run --dart-define=HUSTLR_API_BASE=$ApiBase

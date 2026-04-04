@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/api_service.dart';
 import 'services/mock_data_service.dart';
+import 'services/api_health_service.dart';
 import 'services/notification_service.dart';
 import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
@@ -43,11 +44,11 @@ Future<void> main() async {
   );
 
   // Firebase (messaging)
-  // Skip on Windows to avoid crashes during desktop testing
-  if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
+  // Skip on Web and Windows because DefaultFirebaseOptions are missing for this demo
+  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
     try {
       await Firebase.initializeApp();
-      NotificationService.initialize(); // ✅ ADD THIS
+      NotificationService.initialize();
 
       String? token = await FirebaseMessaging.instance.getToken();
       print("FCM TOKEN: $token");
@@ -55,7 +56,7 @@ Future<void> main() async {
       print("Firebase initialization error: $e");
     }
   } else {
-    print("Skipped Firebase initialization (Running on Desktop for testing)");
+    print("Skipped Firebase initialization (Running on Web/Desktop for testing)");
   }
 
   final claimsBloc = ClaimsBloc(
@@ -69,6 +70,9 @@ Future<void> main() async {
   mockService.onClaimApproved = (claim) {
     claimsBloc.add(ClaimStatusUpdated(claim));
   };
+
+  // Start API health monitoring (auto-refreshes every 60s)
+  ApiHealthService.instance.startAutoRefresh();
 
   runApp(
     MultiBlocProvider(

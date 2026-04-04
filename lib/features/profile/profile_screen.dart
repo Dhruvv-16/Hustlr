@@ -3,11 +3,15 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/mock_data_service.dart';
+import '../../services/storage_service.dart';
+import '../../services/api_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../widgets/language_switcher.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/api_health_service.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,10 +21,41 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _worker;
+  Map<String, dynamic>? _policy;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final userId = await StorageService.instance.getUserId();
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    
+    try {
+      final worker = await ApiService.instance.getWorkerById(userId);
+      Map<String, dynamic>? policy;
+      try {
+        final policyData = await ApiService.instance.getPolicy(userId);
+        policy = policyData['policy'] as Map<String, dynamic>?;
+      } catch (_) {}
+      
+      if (mounted) {
+        setState(() {
+          _worker = worker;
+          _policy = policy;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -30,11 +65,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final mockData = Provider.of<MockDataService>(context);
-    final worker = mockData.worker;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
+    
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.canvasColor,
+        body: Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)),
+      );
+    }
 
     return MobileContainer(
       child: Scaffold(
@@ -68,34 +108,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   delegate: SliverChildListDelegate([
                     
                     // ── User Identity ─────────────────────────────────────
-                    _buildUserIdentity(worker, theme, isDark),
+                    _buildUserIdentity(_worker, theme, isDark, l10n),
                     const SizedBox(height: 32),
 
                     // ── Personal Info ─────────────────────────────────────
-                    Text('PERSONAL INFO', style: theme.textTheme.labelSmall),
+                    Text(l10n.profile_personal_info, style: theme.textTheme.labelSmall),
                     const SizedBox(height: 16),
                     _InfoCard(
                       theme: theme,
                       isDark: isDark,
                       rows: [
-                        (Icons.person_rounded, 'NAME', worker.name),
-                        (Icons.location_on_rounded, 'ZONE', worker.zone),
-                        (Icons.phone_rounded, 'MOBILE', '+91 98765 43210'),
-                        (Icons.account_balance_wallet_rounded, 'UPI ID', 'user@ybl'),
+                        (Icons.person_rounded, l10n.profile_name, _worker?['name'] as String? ?? 'John Doe'),
+                        (Icons.location_on_rounded, l10n.profile_zone, _worker?['zone'] as String? ?? 'N/A'),
+                        (Icons.phone_rounded, l10n.profile_mobile, _worker?['phone'] as String? ?? '+91 98765 43210'),
+                        (Icons.account_balance_wallet_rounded, l10n.profile_upi_id, '${_worker?['phone'] as String? ?? 'user'}@ybl'),
                       ],
                     ),
                     const SizedBox(height: 32),
 
                     // ── Account Info ──────────────────────────────────────
-                    Text('ACCOUNT INFO', style: theme.textTheme.labelSmall),
+                    Text(l10n.profile_account_info, style: theme.textTheme.labelSmall),
                     const SizedBox(height: 16),
                     _InfoCard(
                       theme: theme,
                       isDark: isDark,
                       rows: [
-                        (Icons.badge_rounded, 'HUSTLR ID', worker.id),
-                        (Icons.shield_rounded, 'ACTIVE PLAN', mockData.activePolicy.plan),
-                        (Icons.calendar_today_rounded, 'VALIDITY', '${mockData.activePolicy.coverageStart} – ${mockData.activePolicy.coverageEnd}'),
+                        (Icons.badge_rounded, l10n.profile_hustlr_id, _worker?['id']?.toString().split('-')[0].toUpperCase() ?? 'HUSTLR-XXXX'),
+                        (Icons.shield_rounded, l10n.profile_active_plan, _policy?['plan_tier'] != null ? '${_policy!['plan_tier'].toString().toUpperCase()} SHIELD' : 'None'),
+                        (Icons.calendar_today_rounded, l10n.profile_validity, _policy != null ? 'Active' : 'N/A'),
                       ],
                     ),
                     const SizedBox(height: 48),
@@ -138,11 +178,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
 
+                    // ── API Status ────────────────────────────────────────
+                    _ApiStatusTile(theme: theme, isDark: isDark),
+                    const SizedBox(height: 16),
+                    
+                    // ── Developer Options ─────────────────────────────────
+                    GestureDetector(
+                      onTap: () => context.push('/admin/ml-tester'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B5E20).withOpacity(0.2) : const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.code_rounded, color: Color(0xFF3FFF8B), size: 24),
+                            const SizedBox(width: 16),
+                            const Expanded(child: Text("Developer: ML Tester", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
+                            const Icon(Icons.chevron_right_rounded, color: Color(0xFF3FFF8B)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
                     // ── Logout ────────────────────────────────────────────
                     Align(
                       alignment: Alignment.centerRight, // Asymmetric CTA alignment
                       child: GestureDetector(
-                        onTap: () { /* Logout logic */ },
+                        onTap: () async {
+                          await AuthService.logout();
+                          if (context.mounted) {
+                            context.go('/auth/phone');
+                          }
+                        },
                         child: Container(
                           width: 200,
                           height: 56,
@@ -178,7 +249,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUserIdentity(dynamic worker, ThemeData theme, bool isDark) {
+  Widget _buildUserIdentity(dynamic worker, ThemeData theme, bool isDark, AppLocalizations l10n) {
     return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -208,10 +279,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(worker.name, style: theme.textTheme.displaySmall),
+                  Text(_worker?['name'] as String? ?? 'John Doe', style: theme.textTheme.displaySmall),
                   const SizedBox(height: 4),
                   Text(
-                    '${worker.platform} PARTNER',
+                    '${(_worker?['platform'] as String? ?? 'Swiggy').toUpperCase()} ${l10n.profile_partner.toUpperCase()}',
                     style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
                   ),
                 ],
@@ -353,5 +424,113 @@ class _InfoCard extends StatelessWidget {
           }).toList(),
         ),
       );
+  }
+}
+
+// ── API Status Tile ──────────────────────────────────────────────────────────
+class _ApiStatusTile extends StatelessWidget {
+  final ThemeData theme;
+  final bool isDark;
+  const _ApiStatusTile({required this.theme, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ApiHealthService.instance,
+      builder: (context, _) {
+        final status = ApiHealthService.instance.overallStatus;
+        final isChecking = ApiHealthService.instance.isChecking;
+
+        final (dotColor, label) = switch (status) {
+          ApiStatus.online   => (const Color(0xFF3FFF8B), 'All APIs Online'),
+          ApiStatus.degraded => (const Color(0xFFFFD54F), 'Partial Degradation'),
+          ApiStatus.offline  => (const Color(0xFFFF5252), 'APIs Offline'),
+          ApiStatus.unknown  => (const Color(0xFF91938d), 'Checking...'),
+        };
+
+        return GestureDetector(
+          onTap: () => context.push('/profile/api-status'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: isDark ? [] : [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: dotColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: isChecking
+                      ? Center(
+                          child: SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: dotColor,
+                            ),
+                          ),
+                        )
+                      : Icon(Icons.wifi_tethering_rounded, color: dotColor, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'API Status',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            width: 7, height: 7,
+                            margin: const EdgeInsets.only(right: 5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: dotColor,
+                              boxShadow: [BoxShadow(color: dotColor.withOpacity(0.5), blurRadius: 4)],
+                            ),
+                          ),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: dotColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: theme.colorScheme.onSurface.withOpacity(0.35),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

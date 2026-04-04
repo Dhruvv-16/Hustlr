@@ -38,13 +38,13 @@ class LanguageSwitcher extends StatelessWidget {
                     horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: provider.locale.languageCode == entry.key
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFF4F6F4),
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: provider.locale.languageCode == entry.key
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFFE5E7EB),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline.withOpacity(0.2),
                     ),
                   ),
                   child: Text(
@@ -53,8 +53,8 @@ class LanguageSwitcher extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: provider.locale.languageCode == entry.key
-                        ? Colors.white
-                        : const Color(0xFF4A6741),
+                        ? Colors.black // Dark text on Ethereal Night primary glow
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                 ),

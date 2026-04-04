@@ -1,7 +1,7 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
 const { calculatePremium } = require('../services/premiumCalculator');
-const { MAX_PAYOUTS } = require('../config/constants');
+const { PLAN_CONFIG } = require('../config/constants');
 const router = express.Router();
 
 router.post('/create', async (req, res) => {
@@ -22,7 +22,7 @@ router.post('/create', async (req, res) => {
     // Deactivate any existing active policy for this user first
     await supabase
       .from('policies')
-      .update({ status: 'inactive' })
+      .update({ status: 'cancelled' })
       .eq('user_id', user_id)
       .eq('status', 'active');
 
@@ -36,7 +36,7 @@ router.post('/create', async (req, res) => {
         zone_adjustment: breakdown.zone_adjustment,
         iss_adjustment: breakdown.iss_adjustment,
         weekly_premium: breakdown.final_premium,
-        max_weekly_payout: MAX_PAYOUTS[plan_tier], 
+        max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout, 
         status: 'active'
       }])
       .select()
@@ -94,7 +94,7 @@ router.patch('/:id/upgrade', async (req, res) => {
         zone_adjustment: breakdown.zone_adjustment,
         iss_adjustment: breakdown.iss_adjustment,
         weekly_premium: breakdown.final_premium,
-        max_weekly_payout: MAX_PAYOUTS[new_plan_tier]
+        max_weekly_payout: PLAN_CONFIG[new_plan_tier].max_payout
       })
       .eq('id', id)
       .select()

@@ -23,8 +23,10 @@ import '../../features/claims/auto_explanation_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/wallet/analytics_dashboard_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
+import '../../features/admin/ml_tester_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../shared/widgets/bottom_nav_bar.dart';
 import '../services/storage_service.dart';
@@ -53,8 +55,10 @@ class AppRoutes {
   static const analytics = '/wallet/analytics';
   static const notifications = '/notifications';
   static const profile = '/profile';
+  static const apiStatus = '/profile/api-status';
   static const support = '/support';
   static const admin = '/admin';
+  static const mlTester = '/admin/ml-tester';
 }
 
 // ─── Initial Route Logic ─────────────────────────────────────────────────────
@@ -161,14 +165,14 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.manualEvidence,
-          builder: (context, state) {
-            final type = state.uri.queryParameters['type'] ?? 'Other';
-            return ManualEvidenceScreen(disruptionType: type);
-          },
+          builder: (_, __) => const ManualEvidenceScreen(),
         ),
         GoRoute(
           path: AppRoutes.claimSubmitted,
-          builder: (_, __) => const ClaimSubmittedScreen(),
+          builder: (context, state) {
+            final data = state.extra as Map<String, dynamic>?;
+            return ClaimSubmittedScreen(claimData: data);
+          },
         ),
         GoRoute(
           path: AppRoutes.autoExplanation,
@@ -198,6 +202,10 @@ final GoRouter appRouter = GoRouter(
           builder: (_, __) => const ProfileScreen(),
         ),
         GoRoute(
+          path: AppRoutes.apiStatus,
+          builder: (_, __) => const ApiStatusScreen(),
+        ),
+        GoRoute(
           path: AppRoutes.support,
           builder: (_, __) => const SupportScreen(),
         ),
@@ -208,6 +216,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.admin,
       builder: (_, __) => const AdminDashboardScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.mlTester,
+      builder: (_, __) => const MlTesterScreen(),
     ),
   ],
 );
