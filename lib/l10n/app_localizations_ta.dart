@@ -162,6 +162,43 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dashboard_activate_shield => 'Full Shield செயல்படுத்து →';
 
   @override
+  String get dashboard_current_active => 'தற்போதைய செயலில் உள்ள பாலிசி';
+
+  @override
+  String get dashboard_high_risk_prefix => 'அதிக ஆபத்து';
+
+  @override
+  String get dashboard_secure_coverage => 'இப்போதே கவரேஜ் பெறுங்கள்.';
+
+  @override
+  String get dashboard_activate => 'செயல்படுத்து';
+
+  @override
+  String get dashboard_modular => 'மாடுலர்';
+
+  @override
+  String get dashboard_add_coverage => 'புதிய கவரேஜ்\nசேர்க்கவும்';
+
+  @override
+  String get dashboard_legal => 'சட்டப்பூர்வமானது';
+
+  @override
+  String get dashboard_view_cert => 'சான்றிதழைக்\nகாண்க';
+
+  @override
+  String get dashboard_generating_cert =>
+      'உங்கள் சான்றிதழ் உருவாக்கப்படுகிறது...';
+
+  @override
+  String get dashboard_see_why => 'ஏன் என்று காண்க';
+
+  @override
+  String get dashboard_missed_payouts => 'தவறவிட்ட\nபேஅவுட்கள்';
+
+  @override
+  String get dashboard_potential_loss => 'இந்த மாதம் இழந்த சாத்தியமான வருமானம்';
+
+  @override
   String get policy_title => 'என் பாலிசி';
 
   @override
@@ -180,7 +217,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get policy_full => 'ஃபுல் ஷீல்ட்';
 
   @override
-  String get policy_elite => 'எலைட் ஷீல்ட்';
+  String get policy_elite => 'ஃபுல் ஷீல்ட்';
 
   @override
   String get policy_covers => 'கவர் செய்கிறது';
@@ -358,6 +395,36 @@ class AppLocalizationsTa extends AppLocalizations {
   String get profile_title => 'புரொஃபைல்';
 
   @override
+  String get profile_personal_info => 'தனிப்பட்ட தகவல்';
+
+  @override
+  String get profile_name => 'பெயர்';
+
+  @override
+  String get profile_zone => 'மண்டலம்';
+
+  @override
+  String get profile_mobile => 'மொபைல்';
+
+  @override
+  String get profile_upi_id => 'யுபிஐ ஐடி (UPI ID)';
+
+  @override
+  String get profile_account_info => 'கணக்கு தகவல்';
+
+  @override
+  String get profile_hustlr_id => 'HUSTLR ஐடி';
+
+  @override
+  String get profile_active_plan => 'செயலில் உள்ள திட்டம்';
+
+  @override
+  String get profile_validity => 'செல்லுபடியாகும் காலம்';
+
+  @override
+  String get profile_partner => 'பார்ட்னர்';
+
+  @override
   String get profile_delivery_partner => 'டெலிவரி பார்ட்னர்';
 
   @override
@@ -492,11 +559,11 @@ class AppLocalizationsTa extends AppLocalizations {
       'கவரேஜ் திங்கட்கிழமை செயல்படுகிறது மற்றும் ஞாயிற்றுக்கிழமை வரை இடையூறுகளை கவர் செய்கிறது.';
 
   @override
-  String get tip_cashback_title => 'Elite Shield-ல் கேஷ்பேக் சம்பாதிக்கவும்';
+  String get tip_cashback_title => 'Full Shield-ல் கேஷ்பேக் சம்பாதிக்கவும்';
 
   @override
   String get tip_cashback_body =>
-      'Elite Shield-ல் 4 தொடர்ச்சியான க்ளெய்ம் இல்லாத வாரங்களை முடித்து உங்கள் பிரீமியத்தில் 10% திரும்பப் பெறுங்கள்.';
+      'Full Shield-ல் 4 தொடர்ச்சியான க்ளெய்ம் இல்லாத வாரங்களை முடித்து உங்கள் பிரீமியத்தில் 10% திரும்பப் பெறுங்கள்.';
 
   @override
   String get error_network => 'இணைப்பு பிழை. உங்கள் இணையத்தை சரிபார்க்கவும்.';
@@ -522,4 +589,132 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get back => 'பின்செல்';
+
+  @override
+  String get manual_claim_title => 'இடையூறை புகாரளி';
+
+  @override
+  String get manual_claim_subtitle =>
+      'உங்கள் மண்டலத்தை பாதிக்கும் சிக்கலைத் தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get manual_claim_road_blocked => 'சாலை அடைப்பு / விபத்து';
+
+  @override
+  String get manual_claim_road_desc => 'முக்கிய பாதையில் செல்ல முடியவில்லை';
+
+  @override
+  String get manual_claim_dark_store => 'டார்க் ஸ்டோர் / ஹப் மூடப்பட்டுள்ளது';
+
+  @override
+  String get manual_claim_dark_desc => 'Zepto இடத்திற்கு செல்ல முடியவில்லை';
+
+  @override
+  String get manual_claim_internet_outage => 'இணைய தடை';
+
+  @override
+  String get manual_claim_internet_desc => 'சிக்னல் இல்லை';
+
+  @override
+  String get manual_claim_other => 'பிற விநியோக தடையங்கள்';
+
+  @override
+  String get manual_claim_other_desc => 'எதிர்பாராத சிக்கலைக் குறிப்பிடவும்';
+
+  @override
+  String get manual_claim_continue => 'தொடரவும்';
+
+  @override
+  String get manual_claim_need_help => 'உதவி தேவையா?';
+
+  @override
+  String get camera_title => 'AI மதிப்பீட்டிற்கான\nஆதாரத்தைப் பிடிக்கவும்';
+
+  @override
+  String get camera_subtitle =>
+      'நேரலை கேமராவை மட்டும் பயன்படுத்தவும் — கேலரி பதிவேற்றங்கள் ஏற்கப்படாது';
+
+  @override
+  String get camera_scanning => 'AI ஸ்கேன் செய்கிறது...';
+
+  @override
+  String get camera_internet_auto => 'சிக்னல்: 1 பார் தானாக கண்டறியப்பட்டது';
+
+  @override
+  String get camera_no_photo => 'புகைப்படம் தேவையில்லை';
+
+  @override
+  String get review_title => 'ஆதாரம் பிடிக்கப்பட்டது';
+
+  @override
+  String get review_subtitle =>
+      'சமர்ப்பிக்கும் முன் உங்கள் புகைப்படங்களை மதிப்பாய்வு செய்யவும்';
+
+  @override
+  String get review_network_failure => 'நெட்வொர்க் தோல்வி சரிபார்க்கப்பட்டது';
+
+  @override
+  String get review_network_desc =>
+      'உங்கள் சாதனத்தின் சிக்னல் சரிபார்க்கப்பட்டது. புகைப்படங்கள் தேவையில்லை.';
+
+  @override
+  String get review_recapture => 'மீண்டும் பிடிக்கவும்';
+
+  @override
+  String get review_submit => 'ஆதாரத்தை சமர்ப்பிக்கவும் →';
+
+  @override
+  String get review_add_more => 'மேலும் புகைப்படங்களைச் சேர்க்கவும்';
+
+  @override
+  String get review_label => 'ஆதாரம்';
+
+  @override
+  String get submitted_title => 'சமர்ப்பிக்கப்பட்டது';
+
+  @override
+  String get submitted_subtitle => 'உங்கள் ஆதாரம் மதிப்பாய்வு செய்யப்படுகிறது';
+
+  @override
+  String get submitted_next => 'அடுத்து என்ன நடக்கும்?';
+
+  @override
+  String get submitted_next_1 => '4 மணி நேரத்திற்குள் மதிப்பாய்வு';
+
+  @override
+  String get submitted_next_2 => 'தீர்க்கப்பட்டதும் உங்களுக்கு அறிவிக்கப்படும்';
+
+  @override
+  String get submitted_next_3 => 'தற்காலிக கடன் உடனடியாக வழங்கப்படலாம்';
+
+  @override
+  String get submitted_demo => 'டெமோ பயன்முறை — ஆஃப்லைன்';
+
+  @override
+  String get submitted_back => 'க்ளெய்ம்களுக்குத் திரும்பு';
+
+  @override
+  String get chat_live_support => 'நேரடி ஆதரவு';
+
+  @override
+  String get chat_agent => 'ஆதரவு முகவர்';
+
+  @override
+  String get chat_typing => 'தட்டச்சு செய்கிறார்...';
+
+  @override
+  String get chat_hint => 'ஒரு செய்தியை தட்டச்சு செய்யவும்...';
+
+  @override
+  String get chat_bot_greeting =>
+      'வணக்கம், நான் Hustlr முகவர். உங்களுக்கு எப்படி உதவ முடியும்?';
+
+  @override
+  String get chat_attach_id => 'அடையாள அட்டை';
+
+  @override
+  String get chat_attach_weather => 'வானிலை சான்று';
+
+  @override
+  String get chat_attach_receipt => 'மருத்துவ ரசீது';
 }

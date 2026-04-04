@@ -461,19 +461,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ],
         ),
       ),
-      bottomSheet: Container(
-        color: theme.canvasColor,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-        child: Row(
-          children: [
-            Expanded(
-              child: PrimaryButton(
-                text: 'Create Profile',
-                isLoading: _saving,
-                onPressed: _activeStep == 5 ? _onContinue : null,
+      bottomSheet: SafeArea(
+        child: Container(
+          color: theme.canvasColor,
+          padding: const EdgeInsets.fromLTRB(28, 16, 28, 24),
+          child: Row(
+            children: [
+              Expanded(
+                child: PrimaryButton(
+                  text: 'Create Profile',
+                  isLoading: _saving,
+                  onPressed: _activeStep == 5 ? _onContinue : null,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

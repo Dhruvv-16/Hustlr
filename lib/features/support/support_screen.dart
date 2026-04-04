@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/widgets/mobile_container.dart';
+import '../../l10n/app_localizations.dart';
+import 'chat_screen.dart';
 
 Future<void> _launch(String url) async {
   final uri = Uri.parse(url);
@@ -16,6 +18,7 @@ class SupportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n   = AppLocalizations.of(context)!;
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor   = theme.scaffoldBackgroundColor;
@@ -28,7 +31,7 @@ class SupportScreen extends StatelessWidget {
         elevation: 0,
         leading: BackButton(color: titleColor, onPressed: () => context.pop()),
         title: Text(
-          'Help & Support',
+          l10n.support_title,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: titleColor),
         ),
         centerTitle: true,
@@ -47,7 +50,7 @@ class SupportScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Frequently Asked Questions',
+                  l10n.support_faq,
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: titleColor),
                 ),
               ),
@@ -70,6 +73,7 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n     = AppLocalizations.of(context)!;
     final theme    = Theme.of(context);
     final isDark   = theme.brightness == Brightness.dark;
     final cardBg   = theme.cardColor;
@@ -95,7 +99,7 @@ class _SearchBar extends StatelessWidget {
             Expanded(
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search for help...',
+                  hintText: l10n.support_search,
                   hintStyle: TextStyle(color: hintColor, fontSize: 14),
                   border: InputBorder.none,
                   fillColor: Colors.transparent,
@@ -116,6 +120,7 @@ class _QuickHelpGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n   = AppLocalizations.of(context)!;
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final green  = theme.colorScheme.primary;
@@ -138,49 +143,35 @@ class _QuickHelpGrid extends StatelessWidget {
           icon: Icons.chat_bubble_outline_rounded,
           iconColor: green,
           iconBg: lightGreen,
-          title: 'Live Chat',
-          subtitle: 'AVG REPLY: 2 MIN',
+          title: l10n.support_live_chat,
+          subtitle: l10n.support_live_chat_sub.toUpperCase(),
           isGreenCaps: true,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 10),
-                    Text('Connecting you to support...', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
-                  ],
-                ),
-                backgroundColor: green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
           },
         ),
         _GridCard(
           icon: Icons.phone_outlined,
           iconColor: blue,
           iconBg: lightBlue,
-          title: 'Call Us',
-          subtitle: 'Available 24/7',
+          title: l10n.support_call,
+          subtitle: l10n.support_call_sub,
           onTap: () => _launch('tel:+918001234567'),
         ),
         _GridCard(
           icon: Icons.message_rounded,
           iconColor: green,
           iconBg: lightGreen,
-          title: 'WhatsApp',
-          subtitle: 'Instant support',
+          title: l10n.support_whatsapp,
+          subtitle: l10n.support_whatsapp_sub,
           onTap: () => _launch('https://wa.me/918001234567'),
         ),
         _GridCard(
           icon: Icons.email_outlined,
           iconColor: purple,
           iconBg: lightPurple,
-          title: 'Email',
-          subtitle: 'Send a message',
+          title: l10n.support_email,
+          subtitle: l10n.support_email_sub,
           onTap: () => _launch('mailto:support@hustlr.in'),
         ),
       ],
@@ -262,23 +253,24 @@ class _FaqAccordion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           _FaqItem(
-            question: 'How are claims triggered?',
-            answer: 'Our system automatically detects disruptions using weather and platform APIs. When a threshold is breached in your zone and you were active, a claim is generated automatically.',
+            question: l10n.support_faq_1_q,
+            answer: l10n.support_faq_1_a,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _FaqItem(
-            question: 'When will I receive payout?',
-            answer: 'Payouts process every Sunday night. 70% credits immediately and 30% releases within 48 hours.',
+            question: l10n.support_faq_2_q,
+            answer: l10n.support_faq_2_a,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _FaqItem(
-            question: 'Can I update my coverage?',
-            answer: 'Yes. Go to Policy → Upgrade. Changes apply from the following Monday.',
+            question: l10n.support_faq_3_q,
+            answer: l10n.support_faq_3_a,
           ),
         ],
       ),
@@ -339,6 +331,7 @@ class _TicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n     = AppLocalizations.of(context)!;
     final theme    = Theme.of(context);
     final isDark   = theme.brightness == Brightness.dark;
     final cardBg   = theme.cardColor;
@@ -366,7 +359,7 @@ class _TicketCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Raise a Ticket',
+              l10n.support_raise_ticket,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: titleColor),
             ),
             const SizedBox(height: 16),
@@ -380,7 +373,7 @@ class _TicketCard extends StatelessWidget {
                 maxLines: 4,
                 style: TextStyle(color: titleColor),
                 decoration: InputDecoration(
-                  hintText: 'Describe your issue in detail...',
+                  hintText: l10n.support_ticket_placeholder,
                   hintStyle: TextStyle(color: hintColor, fontSize: 14),
                   border: InputBorder.none,
                   fillColor: Colors.transparent,
@@ -423,7 +416,7 @@ class _TicketCard extends StatelessWidget {
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                 ),
-                child: Text('Submit Ticket',
+                child: Text(l10n.support_submit,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
               ),
             ),

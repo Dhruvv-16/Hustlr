@@ -1,28 +1,25 @@
 import 'package:equatable/equatable.dart';
 
 /// Flat-priced plan tiers. Prices never vary per worker — they are fixed product SKUs.
-enum PlanTier { basic, standard, full, elite }
+enum PlanTier { basic, standard, full }
 
 extension PlanTierPrice on PlanTier {
   int get weeklyPremium => switch (this) {
         PlanTier.basic => 29,
         PlanTier.standard => 49,
         PlanTier.full => 79,
-        PlanTier.elite => 109,
       };
 
   String get displayName => switch (this) {
         PlanTier.basic => 'Basic Shield',
         PlanTier.standard => 'Standard Shield',
         PlanTier.full => 'Full Shield',
-        PlanTier.elite => 'Elite Shield',
       };
 
   String get apiKey => switch (this) {
         PlanTier.basic => 'basic',
         PlanTier.standard => 'standard',
         PlanTier.full => 'full',
-        PlanTier.elite => 'elite',
       };
 
   static PlanTier fromString(String s) {

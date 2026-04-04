@@ -158,7 +158,7 @@ class _OTPScreenState extends State<OTPScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
-                    onTap: () => context.pop(),
+                    onTap: () => context.go('/auth/phone'),
                     child: Row(
                       children: [
                         Icon(Icons.arrow_back, color: theme.colorScheme.primary, size: 20),

@@ -253,7 +253,6 @@ String _planLabel(String tier) {
     'basic': 'Basic Shield',
     'standard': 'Standard Shield',
     'full': 'Full Shield',
-    'elite': 'Elite Shield',
   };
   return m[tier] ?? tier;
 }

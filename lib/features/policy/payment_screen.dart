@@ -4,17 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
 import '../../services/mock_data_service.dart';
 
-// ─── Local Palette ────────────────────────────────────────────────────────────
-const _bg        = Color(0xFFF0F4F0);
-const _green     = Color(0xFF2E7D32);
-const _lightGreen= Color(0xFFE8F5E9);
-const _primary   = Color(0xFF1A1A2E);
-const _grey      = Color(0xFF6B7280);
-const _divider   = Color(0xFFE5E7EB);
-const _blueLight = Color(0xFFE3F2FD);
-const _blue      = Color(0xFF1565C0);
-
-// ─── PaymentScreen ────────────────────────────────────────────────────────────
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
 
@@ -51,13 +40,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     context.go(AppRoutes.dashboard);
 
+    final green = Theme.of(context).colorScheme.primary;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
           'Coverage activated! You are protected\nMon 17 Mar – Sun 23 Mar',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
         ),
-        backgroundColor: _green,
+        backgroundColor: green,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -68,27 +59,34 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = theme.scaffoldBackgroundColor;
+    final primaryText = theme.colorScheme.onSurface;
+    final green = theme.colorScheme.primary;
+    final divider = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
+    
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: isDark ? const Color(0xFF141614) : Colors.white,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.of(context).pop(),
-          child: const Icon(Icons.arrow_back, color: _primary),
+          child: Icon(Icons.arrow_back, color: primaryText),
         ),
-        title: const Text(
+        title: Text(
           'Payment',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: _primary,
+            color: primaryText,
           ),
         ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Column(
           children: [
             // ── Order Summary Card ────────────────────────────────────────────
@@ -96,38 +94,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Order Summary',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: _primary,
+                      color: primaryText,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _SummaryRow(label: 'Standard Shield', amount: '₹72/wk'),
+                  const _SummaryRow(label: 'Standard Shield', amount: '₹59/wk'),
                   const SizedBox(height: 12),
-                  _SummaryRow(label: 'App Downtime Rider', amount: '₹12/wk'),
+                  const _SummaryRow(label: 'App Downtime Rider', amount: '₹10/wk'),
                   const SizedBox(height: 16),
-                  Container(height: 1, color: _divider),
+                  Container(height: 1, color: divider),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Total weekly cost',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: _primary,
+                          color: primaryText,
                         ),
                       ),
-                      const Text(
-                        '₹84/wk',
+                      Text(
+                        '₹69/wk',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: _green,
+                          color: green,
                         ),
                       ),
                     ],
@@ -142,17 +140,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Payment Method',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: _primary,
+                      color: primaryText,
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // UPI row
                   _PaymentMethodRow(
                     icon: Icons.account_balance_rounded,
                     title: 'UPI Payment',
@@ -161,10 +158,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
 
                   const SizedBox(height: 4),
-                  Container(height: 1, color: _divider),
+                  Container(height: 1, color: divider),
                   const SizedBox(height: 4),
 
-                  // Wallet row
                   _PaymentMethodRow(
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'Hustlr Wallet',
@@ -182,8 +178,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _blueLight,
+                color: isDark ? green.withOpacity(0.05) : const Color(0xFFE3F2FD),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? green.withOpacity(0.2) : Colors.transparent),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,15 +188,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
-                      color: _blue,
+                    decoration: BoxDecoration(
+                      color: isDark ? green.withOpacity(0.2) : const Color(0xFF1565C0),
                       shape: BoxShape.circle,
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
                         'i',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDark ? green : Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           fontStyle: FontStyle.italic,
@@ -208,12 +205,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'This is a demo payment. No real money will be charged.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: _blue,
+                        color: isDark ? theme.colorScheme.onSurface.withOpacity(0.8) : const Color(0xFF1565C0),
                         height: 1.5,
                       ),
                     ),
@@ -224,38 +221,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ],
         ),
       ),
-
-      // ── Sticky Confirm Button ──────────────────────────────────────────────
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-        child: SizedBox(
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _loading ? null : _confirm,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _green,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: SizedBox(
+            height: 56,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: isDark ? const Color(0xFF0A0B0A) : Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
               ),
+              child: _loading
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(isDark ? const Color(0xFF0A0B0A) : Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Confirm & Activate Coverage →',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
-            child: _loading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Confirm & Activate Coverage →',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
           ),
         ),
       ),
@@ -263,33 +260,36 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 }
 
-// ─── Reusable card wrapper ─────────────────────────────────────────────────────
 class _SectionCard extends StatelessWidget {
   final Widget child;
   const _SectionCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
         ],
+        border: isDark ? Border.all(color: Colors.white.withOpacity(0.05)) : null,
       ),
       child: child,
     );
   }
 }
 
-// ─── Summary row (label + amount) ────────────────────────────────────────────
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String amount;
@@ -297,20 +297,20 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
-            style: const TextStyle(fontSize: 14, color: _grey)),
+            style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.6))),
         Text(amount,
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600, color: _green)),
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
       ],
     );
   }
 }
 
-// ─── Payment method row ────────────────────────────────────────────────────────
 class _PaymentMethodRow extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -328,6 +328,11 @@ class _PaymentMethodRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final green = theme.colorScheme.primary;
+    final onSurface = theme.colorScheme.onSurface;
+    
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -339,11 +344,11 @@ class _PaymentMethodRow extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: selected ? _lightGreen : const Color(0xFFF3F4F6),
+                color: selected ? green.withOpacity(0.1) : (isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6)),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon,
-                  color: selected ? _green : _grey, size: 22),
+                  color: selected ? green : onSurface.withOpacity(0.6), size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -351,12 +356,12 @@ class _PaymentMethodRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold, color: _primary)),
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.bold, color: onSurface)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(subtitle!,
-                        style: const TextStyle(fontSize: 12, color: _green)),
+                        style: TextStyle(fontSize: 12, color: green)),
                   ],
                 ],
               ),
@@ -365,10 +370,10 @@ class _PaymentMethodRow extends StatelessWidget {
               value: selected ? 0 : 1,
               groupValue: 0,
               onChanged: (_) => onTap(),
-              activeColor: _green,
+              activeColor: green,
               fillColor: WidgetStateProperty.resolveWith<Color>((states) {
-                if (states.contains(WidgetState.selected)) return _green;
-                return _grey;
+                if (states.contains(WidgetState.selected)) return green;
+                return onSurface.withOpacity(0.5);
               }),
             ),
           ],

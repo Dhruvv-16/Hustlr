@@ -57,7 +57,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
 
     // Safely extract breakdown
     final pb = policyData?['premium_breakdown'] as Map<String, dynamic>?;
-    final int basePremium = (pb?['base'] as num?)?.toInt() ?? 39;
+    final int basePremium = (pb?['base'] as num?)?.toInt() ?? 49;
     final int zoneAdj = (pb?['zone_adj'] as num?)?.toInt() ?? 5;
     final int riskAdj = (pb?['risk_adj'] as num?)?.toInt() ?? 5;
 
@@ -67,7 +67,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
       'behavioral_adjustment': riskAdj,
       'platform_discount': -3,
       'clean_history_discount': 0,
-      'final_rate': policyData?['weekly_premium'] ?? 49,
+      'final_rate': policyData?['weekly_premium'] ?? 59,
       'min_bound': (basePremium * 0.7).round(),
       'max_bound': (basePremium * 2.0).round(),
       'zone_comparison': [
@@ -77,7 +77,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
       ],
     };
     final activePlan = policyData?['plan_name'] ?? 'Standard Shield';
-    final weeklyPremium = policyData?['weekly_premium'] ?? 49;
+    final weeklyPremium = policyData?['weekly_premium'] ?? 59;
     final userZone = 'Adyar Dark Store Zone'; // Ideally from StorageService, mocking for UI
     final userPlatform = 'Platform';
 
@@ -85,6 +85,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
     return Scaffold(
       backgroundColor: theme.canvasColor,
       appBar: AppBar(
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface), onPressed: () => context.pop()),
         title: Text('Premium Breakdown', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w800)),
         backgroundColor: Colors.transparent,
         foregroundColor: theme.colorScheme.onSurface,
@@ -203,7 +204,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '₹49 per week · Fixed price',
+            '₹59 per week · Fixed price',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: theme.colorScheme.primary),
           ),
           const SizedBox(height: 16),

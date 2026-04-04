@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -26,16 +27,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? disruptionData;
   Map<String, dynamic>? weatherData;
   Map<String, dynamic>? nudgeData;
+  Map<String, dynamic>? workAdvisorData;
   Map<String, dynamic>? activeDisruption;
   String? userId;
   String? userZone;
   String? userName;
   bool isLoading = true;
+  Timer? _disruptionRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _disruptionRefreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      if (!mounted) return;
+      _loadDashboardData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _disruptionRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
@@ -53,7 +66,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final walletRes = await ApiService.instance.getWallet(userId!);
       Map<String, dynamic> disruptionRes = {};
       try {
-        disruptionRes = await ApiService.instance.getDisruptions(userZone ?? '');
+        int? issScore;
+        final w = await ApiService.instance.getWorkerById(userId!);
+        final rawIss = w['iss_score'];
+        if (rawIss is num) {
+          issScore = rawIss.round().clamp(0, 100);
+        }
+        disruptionRes = await ApiService.instance.getDisruptions(
+          userZone ?? '',
+          issScore: issScore,
+        );
       } catch (_) {}
 
       final rawPolicy = policyRes['policy'] as Map<String, dynamic>?;
@@ -69,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final active = disruptionRes['active'] == true;
       final rawWeather = disruptionRes['weather'] as Map<String, dynamic>?;
       final rawNudge = disruptionRes['predictive_nudge'] as Map<String, dynamic>?;
+      final rawAdvisor = disruptionRes['work_advisor'] as Map<String, dynamic>?;
 
       Map<String, dynamic>? latestDisruption;
       if (!active || events.isEmpty) {
@@ -88,7 +111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           walletData = walletRes;
           weatherData = rawWeather;
           activeDisruption = latestDisruption;
-          nudgeData = (rawNudge?['active'] == true) ? rawNudge : null;
+          nudgeData = rawNudge;
+          workAdvisorData = rawAdvisor;
           isLoading = false;
         });
       }
@@ -114,7 +138,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'basic': 'Basic Shield',
       'standard': 'Standard Shield',
       'full': 'Full Shield',
-      'elite': 'Elite Shield',
     };
     return m[tier] ?? 'Standard Shield';
   }
@@ -133,11 +156,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return labels[t] ?? (t.isNotEmpty ? '${t[0].toUpperCase()}${t.substring(1).replaceAll('_', ' ')}' : 'Rain');
   }
 
-  String _getGreeting() {
+  String _getGreetingText(BuildContext context) {
     final h = DateTime.now().hour;
-    if (h < 12) return 'Good Morning';
-    if (h < 17) return 'Good Afternoon';
-    return 'Good Evening';
+    final l10n = AppLocalizations.of(context)!;
+    if (h < 12) return l10n.dashboard_greeting_morning;
+    if (h < 17) return l10n.dashboard_greeting_afternoon;
+    return l10n.dashboard_greeting_evening;
   }
 
   void _handleNavTap(BuildContext context, int index) {
@@ -159,6 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
     
     if (isLoading) {
       return Scaffold(
@@ -169,8 +194,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final premium = policyData?['weekly_premium']?.toString() ?? '72';
     final planName = policyData?['plan_name'] ?? 'Standard Shield';
+    final premium = policyData?['weekly_premium']?.toString() ?? 
+        (planName == 'Basic Shield' ? '29' : 
+         planName == 'Standard Shield' ? '49' : 
+         planName == 'Full Shield' ? '79' : '109');
     final pAmount = (walletData?['balance'] as num?)?.toInt() ?? 680;
 
     return Scaffold(
@@ -190,11 +218,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _buildHeader(context),
                       const SizedBox(height: 32),
-                      _buildTitleSection(),
+                      _buildTitleSection(l10n),
                       const SizedBox(height: 20),
-                      _buildRainAlertCard(),
+                      _buildRainAlertCard(l10n),
+                      if (workAdvisorData != null) ...[
+                        const SizedBox(height: 16),
+                        _buildWorkAdvisorCard(),
+                      ],
                       const SizedBox(height: 20),
-                      _buildActivePolicyCard(planName, premium),
+                      _buildActivePolicyCard(planName, premium, l10n),
                       const SizedBox(height: 16),
                       Container(
                         width: double.infinity,
@@ -205,10 +237,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         child: Column(
                           children: [
-                            _buildActionCards(context),
+                            _buildActionCards(context, l10n),
                             if (policyData != null) ...[
                               const SizedBox(height: 16),
-                              _buildMissedPayoutsCard(pAmount, context),
+                              _buildMissedPayoutsCard(pAmount, context, l10n),
                             ],
                           ],
                         ),
@@ -286,7 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildTitleSection() {
+  Widget _buildTitleSection(AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final deepContainer = isDark ? const Color(0xFF003324) : const Color(0xFFE8F5E9);
@@ -299,7 +331,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Vault',
+              l10n.wallet_title,
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -334,7 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          '${_getGreeting()}, ${userName ?? 'Karthik'}',
+          '${_getGreetingText(context)}, ${userName ?? 'Karthik'}',
           style: TextStyle(
             color: subtextColor,
             fontSize: 14,
@@ -345,7 +377,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActivePolicyCard(String planName, String premium) {
+  Widget _buildActivePolicyCard(String planName, String premium, AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
@@ -377,7 +409,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'CURRENT ACTIVE POLICY',
+                l10n.dashboard_current_active,
                 style: TextStyle(
                   color: mintColor,
                   fontSize: 11,
@@ -399,7 +431,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     TextSpan(
-                      text: '/wk',
+                      text: l10n.policy_per_week,
                       style: TextStyle(
                         color: subtleText,
                         fontSize: 13,
@@ -424,13 +456,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              _buildCoverageChip('RAIN', Icons.water_drop_rounded, mintColor, isDark),
-              const SizedBox(width: 10),
-              _buildCoverageChip('HEAT', Icons.wb_sunny_rounded, mintColor, isDark),
-              const SizedBox(width: 10),
-              _buildCoverageChip('PLATFORM', Icons.security_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_heavy_rain.toUpperCase(), Icons.water_drop_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_extreme_heat.toUpperCase(), Icons.wb_sunny_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_platform_downtime.toUpperCase(), Icons.security_rounded, mintColor, isDark),
             ],
           ),
         ],
@@ -467,7 +499,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRainAlertCard() {
+  /// Earning-stability + shift hints from ML `/work-advisor` (bundled in disruptions API).
+  Widget _buildWorkAdvisorCard() {
+    final a = workAdvisorData;
+    if (a == null) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF141614) : const Color(0xFFF8FAF8);
+    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subColor = textColor.withOpacity(0.65);
+
+    final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
+    final band = a['stability_band_label'] as String? ?? 'Earning outlook';
+    final headline = a['headline'] as String? ?? '';
+    final nudge = a['coverage_nudge'] as String? ?? '';
+    final suggest = a['suggest_activate_coverage'] == true;
+    final windows = a['recommended_shift_windows'] as List<dynamic>? ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: mintColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights_rounded, color: mintColor, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'WORK STABILITY',
+                  style: TextStyle(
+                    color: mintColor,
+                    fontSize: 10,
+                    letterSpacing: 1.0,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: mintColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'ESI $esi',
+                  style: TextStyle(
+                    color: mintColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            band,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Manrope',
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            headline,
+            style: TextStyle(
+              color: subColor,
+              fontSize: 13,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Manrope',
+            ),
+          ),
+          if (windows.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Suggested shift focus',
+              style: TextStyle(
+                color: textColor.withOpacity(0.85),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Manrope',
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...windows.take(2).map((w) {
+              final m = w is Map<String, dynamic> ? w : null;
+              if (m == null) return const SizedBox.shrink();
+              final label = m['label'] as String? ?? '';
+              final hours = m['hours'] as String? ?? '';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 16, color: mintColor.withOpacity(0.85)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$label · $hours',
+                        style: TextStyle(
+                          color: subColor,
+                          fontSize: 12,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Manrope',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (nudge.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              nudge,
+              style: TextStyle(
+                color: suggest ? mintColor.withOpacity(0.95) : subColor,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Manrope',
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRainAlertCard(AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
@@ -504,7 +678,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'RAIN ALERT',
+                  l10n.dashboard_rain_alert.toUpperCase(),
                   style: TextStyle(
                     color: mintColor,
                     fontSize: 10,
@@ -515,7 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'High risk in $locality.\nSecure coverage now.',
+                  '${l10n.dashboard_high_risk_prefix} $locality.\n${l10n.dashboard_secure_coverage}',
                   style: TextStyle(
                     color: textColor,
                     fontSize: 13,
@@ -537,7 +711,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               children: [
                 Text(
-                  'ACTIVATE',
+                  l10n.dashboard_activate,
                   style: TextStyle(
                     color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
                     fontSize: 11,
@@ -557,14 +731,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActionCards(BuildContext context) {
+  Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
     return Row(
       children: [
         Expanded(
           child: _buildActionCard(
             Icons.shield_outlined, 
-            'MODULAR',
-            'Add New\nCoverage',
+            l10n.dashboard_modular,
+            l10n.dashboard_add_coverage,
             () => context.push(AppRoutes.policy),
           ),
         ),
@@ -572,12 +746,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Expanded(
           child: _buildActionCard(
             Icons.article_outlined,
-            'LEGAL',
-            'View\nCertificate',
+            l10n.dashboard_legal,
+            l10n.dashboard_view_cert,
             () async {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Generating your certificate...'),
+                  content: Text(l10n.dashboard_generating_cert),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -652,7 +826,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMissedPayoutsCard(int amount, BuildContext context) {
+  Widget _buildMissedPayoutsCard(int amount, BuildContext context, AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
@@ -686,7 +860,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'SEE WHY',
+                        l10n.dashboard_see_why,
                         style: TextStyle(
                           color: mintColor,
                           fontSize: 10,
@@ -704,7 +878,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              '₹$amount missed\npayouts',
+              '₹$amount ${l10n.dashboard_missed_payouts}',
               style: TextStyle(
                 color: textColor,
                 fontSize: 28,
@@ -715,7 +889,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Potential earnings lost this month',
+              l10n.dashboard_potential_loss,
               style: TextStyle(
                 color: subtextColor,
                 fontSize: 13,

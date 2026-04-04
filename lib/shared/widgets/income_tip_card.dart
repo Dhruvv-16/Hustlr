@@ -37,7 +37,7 @@ class _IncomeTipCardState extends State<IncomeTipCard> {
     {
       'icon': Icons.trending_up_rounded,
       'title': 'Consistent weeks build a stronger profile',
-      'body': 'Workers who maintain active coverage across multiple consecutive weeks are eligible for the claim-free cashback on Elite Shield.',
+      'body': 'Workers who maintain active coverage across multiple consecutive weeks are eligible for the claim-free cashback on Full Shield.',
     },
   ];
 

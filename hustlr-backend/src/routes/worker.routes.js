@@ -1,5 +1,6 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
+const { computeZoneDepth } = require('../services/zone_depth_service');
 const router = express.Router();
 
 // GET /workers/phone/:phone
@@ -67,6 +68,19 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// POST /workers/zone-depth/compute — lat/lon → score (no DB write)
+router.post('/zone-depth/compute', (req, res) => {
+  const lat = Number(req.body?.lat);
+  const lon = Number(req.body?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return res.status(400).json({ error: 'lat and lon must be finite numbers' });
+  }
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return res.status(400).json({ error: 'lat/lon out of range' });
+  }
+  res.json(computeZoneDepth(lat, lon));
+});
+
 // GET /workers/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -104,6 +118,29 @@ router.patch('/:id/iss', async (req, res) => {
       .single();
     if (error) throw error;
     res.json({ updated_user });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// PATCH /workers/:id/zone-depth — persist zone_depth_score from lat/lon
+router.patch('/:id/zone-depth', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lat = Number(req.body?.lat);
+    const lon = Number(req.body?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({ error: 'lat and lon must be finite numbers' });
+    }
+    const { zone_depth_score, distance_km, hub } = computeZoneDepth(lat, lon);
+    const { data: updated_user, error } = await supabase
+      .from('users')
+      .update({ zone_depth_score })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ updated_user, distance_km, hub });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
