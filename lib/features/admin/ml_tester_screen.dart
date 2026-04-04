@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
+import '../../services/api_service.dart';
 
 class MlTesterScreen extends StatefulWidget {
   const MlTesterScreen({super.key});
@@ -11,9 +12,8 @@ class MlTesterScreen extends StatefulWidget {
 }
 
 class _MlTesterScreenState extends State<MlTesterScreen> {
-  // 192.168.1.10 = this PC's LAN IP (port 8000 = Python ML service)
-  // Phone must be on same WiFi as the PC running uvicorn
-  String _baseUrl = 'http://192.168.1.10:8000';
+  // Uses the Node backend to proxy the request to the ML service
+  String _baseUrl = '${ApiService.baseUrl}/ml';
   final TextEditingController _nlpController = TextEditingController(text: 'Extreme flooding in Adyar right now');
   
   double _trafficSpeed = 15.0;
@@ -102,7 +102,7 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Note: If you get a TimeoutException, make sure your Python API is running in terminal (uvicorn main:app). Use 127.0.0.1 for Desktop/Web, or 10.0.2.2 for Android Emulator.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.redAccent)),
+            const Text('Note: This screen now proxies requests through the Node.js backend. If you get a TimeoutException, ensure the backend is running and can reach the ML service.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.blueAccent)),
             const SizedBox(height: 12),
             TextField(
               onChanged: (val) => _baseUrl = val,
