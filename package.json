@@ -1,0 +1,15 @@
+{
+  "name": "hustlr-monorepo",
+  "private": true,
+  "description": "One-command dev: ML (8000) + Node API (3000) + optional Flutter",
+  "scripts": {
+    "dev:ml": "cd hustlr-backend/ml_service && python -m uvicorn main:app --host 127.0.0.1 --port 8000",
+    "dev:api": "cd hustlr-backend && npm run dev",
+    "dev:stack": "concurrently -k -c blue,magenta -n ml,api \"npm run dev:ml\" \"npm run dev:api\"",
+    "dev": "concurrently -k -c blue,magenta,green -n ml,api,flutter \"npm run dev:ml\" \"npm run dev:api\" \"flutter run --dart-define=HUSTLR_API_BASE=http://10.0.2.2:3000\"",
+    "dev:web": "concurrently -k -c blue,magenta,green -n ml,api,flutter \"npm run dev:ml\" \"npm run dev:api\" \"flutter run -d chrome --dart-define=HUSTLR_API_BASE=http://127.0.0.1:3000\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

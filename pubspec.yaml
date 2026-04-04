@@ -44,6 +44,8 @@ dependencies:
   equatable: ^2.0.5
   supabase_flutter: ^2.8.3
   image_picker: ^1.2.1
+  # Android Play Integrity token (server verifies via Google API)
+  flutter_play_integrity_wrapper: ^0.0.2
 
 dev_dependencies:
   flutter_test:

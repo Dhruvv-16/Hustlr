@@ -10,10 +10,21 @@ class ApiService {
   ///
   /// **Local dev:** `--dart-define=HUSTLR_API_BASE=...` or repo [scripts/start-dev.ps1].
   static String get baseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:3000';
-
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
+
+    // Web (e.g. Vercel): same prod URL as mobile — set HUSTLR_API_PROD in the host env and build.sh.
+    if (kIsWeb) {
+      if (prod.isNotEmpty) return prod;
+      if (devOverride.isNotEmpty) return devOverride;
+      if (kReleaseMode) {
+        throw StateError(
+          'Web release needs HUSTLR_API_PROD (Vercel: Project → Settings → Environment Variables, '
+          'same value as your Render hustlr-api HTTPS URL).',
+        );
+      }
+      return 'http://127.0.0.1:3000';
+    }
 
     if (kReleaseMode) {
       if (prod.isNotEmpty) return prod;
@@ -238,6 +249,111 @@ class ApiService {
       throw Exception(data['error'] ?? 'Failed to fetch wallet');
     } catch (_) {
       return {'balance': 0, 'transactions': []};
+    }
+  }
+
+  /// Shadow policy estimate from zone [disruption_events] (falls back to empty map on error).
+  Future<Map<String, dynamic>> getShadowSummary(String userId, {int days = 14}) async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              '$baseUrl/policies/shadow/${Uri.encodeComponent(userId)}?days=$days',
+            ),
+            headers: headers,
+          )
+          .timeout(_timeout);
+      if (res.statusCode == 404) return {};
+      final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode >= 400) {
+        throw Exception(data['error'] ?? 'Request failed');
+      }
+      return data;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Server nonce for Play Integrity (Android). Pair with [obtainPlayIntegrityToken].
+  Future<Map<String, dynamic>> getPlayIntegrityNonce() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/integrity/play/nonce'),
+            headers: headers,
+          )
+          .timeout(_timeout);
+      final raw = res.body.isEmpty ? '{}' : res.body;
+      final data = jsonDecode(raw);
+      if (data is! Map<String, dynamic>) return {};
+      if (res.statusCode != 200) return {};
+      return data;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Optional: verify token only (manual claims usually send [integrityToken] on submit).
+  Future<Map<String, dynamic>> verifyPlayIntegrity({
+    required String integrityToken,
+    String? packageName,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/integrity/play/verify'),
+            headers: headers,
+            body: jsonEncode({
+              'integrity_token': integrityToken,
+              if (packageName != null) 'package_name': packageName,
+            }),
+          )
+          .timeout(_timeout);
+      final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+      return data is Map<String, dynamic> ? data : {};
+    } catch (_) {
+      return {'ok': false, 'play_integrity_pass': false};
+    }
+  }
+
+  /// FPS-style body → `{ reasons, summary }` from `/claims/explanation`.
+  Future<Map<String, dynamic>> postClaimExplanation(Map<String, dynamic> body) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/claims/explanation'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(_timeout);
+      final raw = res.body.isEmpty ? '{}' : res.body;
+      final data = jsonDecode(raw);
+      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
+      if (res.statusCode >= 400) {
+        return {
+          'reasons': [
+            {
+              'title': 'Request failed',
+              'detail': data['error']?.toString() ?? 'Could not build explanation',
+              'severity': 'info',
+            },
+          ],
+          'summary': '',
+        };
+      }
+      return data;
+    } catch (_) {
+      return {
+        'reasons': [
+          {
+            'title': 'Offline',
+            'detail': 'Showing sample signals until the server is reachable.',
+            'severity': 'info',
+          },
+        ],
+        'summary': 'Offline',
+      };
     }
   }
 
@@ -471,6 +587,7 @@ class ApiService {
     String? description,
     List<String>? evidenceUrls,
     int? deviceSignalStrength,
+    String? integrityToken,
   }) async {
     try {
       final res = await http.post(
@@ -482,6 +599,8 @@ class ApiService {
           'description':            description,
           'evidence_urls':          evidenceUrls ?? [],
           'device_signal_strength': deviceSignalStrength,
+          if (integrityToken != null && integrityToken.isNotEmpty)
+            'integrity_token': integrityToken,
         }),
       );
       final data = jsonDecode(res.body);

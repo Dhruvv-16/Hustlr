@@ -176,7 +176,12 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.autoExplanation,
-          builder: (_, __) => const AutoExplanationScreen(),
+          builder: (context, state) {
+            final extra = state.extra;
+            final Map<String, dynamic>? payload =
+                extra is Map<String, dynamic> ? extra : null;
+            return AutoExplanationScreen(extra: payload);
+          },
         ),
         GoRoute(
           path: '/claims/:id',

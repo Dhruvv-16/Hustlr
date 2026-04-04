@@ -1,10 +1,13 @@
 const cron = require('node-cron');
 const { fetchDisruptionBundle } = require('./disruption_snapshot');
 const { supabase } = require('../config/supabase');
+const { sendPredictiveNudge } = require('./notification_service');
 
 const DEDUP_MINUTES = parseInt(process.env.DISRUPTION_CRON_DEDUP_MINUTES || '90', 10);
+const NUDGE_COOLDOWN_MS = parseInt(process.env.PREDICTIVE_NUDGE_COOLDOWN_MS || String(6 * 60 * 60 * 1000), 10);
 
 let lastRunAt = null;
+const lastNudgeSentByZone = new Map();
 let lastRunError = null;
 let lastZonesSummary = null;
 
@@ -71,6 +74,32 @@ async function persistActiveTriggers(bundle) {
   return inserted;
 }
 
+async function pushPredictiveNudgesForZone(zone, bundle) {
+  if (process.env.DISABLE_PREDICTIVE_NUDGE_PUSH === 'true') return;
+  if (!hasSupabase()) return;
+  const nudge = bundle?.predictive_nudge;
+  if (!nudge || !nudge.message) return;
+
+  const last = lastNudgeSentByZone.get(zone) || 0;
+  if (Date.now() - last < NUDGE_COOLDOWN_MS) return;
+
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('fcm_token')
+    .eq('zone', zone)
+    .not('fcm_token', 'is', null)
+    .limit(80);
+  if (error) {
+    console.warn('[Cron] nudge user query:', error.message);
+    return;
+  }
+  for (const u of users || []) {
+    if (!u.fcm_token) continue;
+    await sendPredictiveNudge({ deviceToken: u.fcm_token, zone, nudge });
+  }
+  lastNudgeSentByZone.set(zone, Date.now());
+}
+
 async function runDisruptionMonitorTick() {
   const zones = parseMonitoredZones();
   const summary = { zones: zones.length, inserted: 0, errors: [] };
@@ -80,6 +109,9 @@ async function runDisruptionMonitorTick() {
       const bundle = await fetchDisruptionBundle(zone, { useCache: false });
       const n = await persistActiveTriggers(bundle);
       summary.inserted += n;
+      if (n > 0 || bundle?.predictive_nudge?.urgency === 'HIGH') {
+        await pushPredictiveNudgesForZone(zone, bundle);
+      }
     } catch (e) {
       summary.errors.push({ zone, message: e.message });
     }

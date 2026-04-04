@@ -3,6 +3,9 @@
 set -e
 
 echo "=== Installing Flutter ==="
+export FLUTTER_ROOT="$(pwd)/flutter"
+git config --global safe.directory '*'
+
 if [ -d "flutter" ]; then
   echo "Flutter already cached, pulling latest"
   cd flutter && git pull && cd ..
@@ -10,11 +13,10 @@ else
   git clone https://github.com/flutter/flutter.git --depth 1 -b stable
 fi
 
-export PATH="$PATH:$(pwd)/flutter/bin"
+export PATH="$PATH:$FLUTTER_ROOT/bin"
 
 echo "=== Enabling Flutter web ==="
-flutter config --enable-web
-flutter --version
+flutter config --no-analytics --enable-web
 
 echo "=== Getting dependencies ==="
 flutter pub get

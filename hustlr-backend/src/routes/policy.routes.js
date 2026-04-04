@@ -3,6 +3,20 @@ const { supabase } = require('../config/supabase');
 const { calculatePremium } = require('../services/premiumCalculator');
 const { PLAN_CONFIG } = require('../config/constants');
 const router = express.Router();
+const { getShadowSummary } = require('../services/shadow_policy_service');
+
+// GET /policies/shadow/:user_id — live shadow payout estimate from disruption_events
+router.get('/shadow/:user_id', async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(req.query.days || '14', 10)));
+    const out = await getShadowSummary(req.params.user_id, days);
+    if (out.error === 'User not found') return res.status(404).json(out);
+    if (out.error) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.post('/create', async (req, res) => {
   try {

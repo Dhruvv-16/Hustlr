@@ -317,7 +317,7 @@ class ClaimDetailScreen extends StatelessWidget {
 
   Widget _buildFraudShieldCard(int score, ThemeData theme, bool isDark) {
     const layers = [
-      ('Layer 0', 'Play Integrity API', 'Device not rooted'),
+      ('Layer 0', 'Play Integrity + device signals', 'Token verified on server when configured; ML + heuristics always'),
       ('Layer 1', 'GPS zone match', 'Adyar zone confirmed'),
       ('Layer 1', 'Wi-Fi fingerprint', 'No home SSID detected'),
       ('Layer 1', 'IP geolocation', 'Outdoor IP confirmed'),

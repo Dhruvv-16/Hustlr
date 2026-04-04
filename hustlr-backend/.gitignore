@@ -102,6 +102,7 @@ Desktop.ini
 # CLI / stress scratch output (ad-hoc filenames)
 /result.txt
 /stress_output.txt
+/stress_result.json
 
 # Temporary files
 *.tmp
