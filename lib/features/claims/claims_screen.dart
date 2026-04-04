@@ -153,7 +153,7 @@ class ClaimsScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: () => _showDisruptionSheet(context),
+              onPressed: () => context.push('/claims/evidence'),
             ),
           ),
         ],
@@ -175,94 +175,6 @@ class ClaimsScreen extends StatelessWidget {
         context.go('/wallet');
         break;
     }
-  }
-
-  void _showDisruptionSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg  = isDark ? const Color(0xFF1C1F1C) : Colors.white;
-    final titleColor = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: sheetBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'What happened?',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: titleColor,
-                  ),
-                ),
-              ),
-              Divider(
-                height: 1,
-                color: isDark
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.06),
-              ),
-              _buildSheetItem(context, 'Road Blocked / Accident',    '🚧', 'Manual claim · 4hr SLA · Photo required'),
-              _buildSheetItem(context, 'Dark Store / Hub Closed',    '🏪', 'Manual claim · 4hr SLA · Photo + screenshot'),
-              _buildSheetItem(context, 'Internet Outage',            '🌐', 'Auto-verified · No photo needed'),
-              _buildSheetItem(context, 'Heavy Traffic Congestion',   '🚦', 'Manual claim · 4hr SLA · Photo + GPS'),
-              _buildSheetItem(context, 'Other Disruption',           '📦', 'Manual claim · 4hr SLA · Photo + description'),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSheetItem(BuildContext context, String title, String emoji, String subtitle) {
-    final isDark     = Theme.of(context).brightness == Brightness.dark;
-    final iconBg     = isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6);
-    final titleColor = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
-    final subColor   = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
-    final chevronColor = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
-
-    return InkWell(
-      onTap: () {
-        context.pop();
-        context.push('/claims/evidence?type=$title');
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(
-                    fontWeight: FontWeight.w600, color: titleColor, fontSize: 16)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(color: subColor, fontSize: 12)),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: chevronColor),
-          ],
-        ),
-      ),
-    );
   }
 }
 

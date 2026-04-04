@@ -142,16 +142,7 @@ class _BalanceCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Watermark Shield
-          Positioned(
-            right: -20,
-            bottom: -30,
-            child: Icon(
-              Icons.shield_rounded,
-              size: 160,
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-          ),
+
           
           Padding(
             padding: const EdgeInsets.all(24),

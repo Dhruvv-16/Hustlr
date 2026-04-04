@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
+const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-2ppj.onrender.com';
 const TIMEOUT = 60000; // 60s — allows for Render free tier cold start (~30-50s)
 
 // Pass-through proxy routes so the UI ML Data Tester works without direct access to ML url

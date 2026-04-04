@@ -91,9 +91,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        l10n.profile_title.toUpperCase(),
-                        style: theme.textTheme.displayMedium,
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
+                            onPressed: () {
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/dashboard');
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.profile_title.toUpperCase(),
+                            style: theme.textTheme.displayMedium,
+                          ),
+                        ],
                       ),
                       // Mode Toggle
                       const _ThemeToggle(),
@@ -211,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () async {
                           await AuthService.logout();
                           if (context.mounted) {
-                            context.go('/auth/phone');
+                            context.go('/login');
                           }
                         },
                         child: Container(
