@@ -11,6 +11,7 @@ const disruptionRoutes = require('./routes/disruption.routes');
 const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
 const integrityRoutes = require('./routes/integrity.routes');
+const mlRoutes = require('./routes/ml.routes');
 const mlService = require('./services/ml_service');
 const { startDisruptionCron, getDisruptionCronStatus } = require('./services/disruption_cron');
 const { startRegionalWeeklyCron, getRegionalCronStatus } = require('./services/regional_weekly_cron');
@@ -41,6 +42,7 @@ app.use('/disruptions', disruptionRoutes);
 app.use('/guidewire', guidewireRoutes);
 app.use('/cities', citiesRoutes);
 app.use('/integrity', integrityRoutes);
+app.use('/ml', mlRoutes);
 
 // Health check (root)
 app.get('/', (req, res) => {
@@ -113,7 +115,7 @@ app.get('/health/services', async (req, res) => {
     // Intelligence
     news:       toStatus('news'),
     cell_tower: toStatus('cell_tower'),
-    opencellid: process.env.OPENCELLID_API_KEY ? 'ok' : 'ok', // Safely hardcoded in cell_tower_service.js
+    opencellid: process.env.OPENCELLID_API_KEY ? 'ok' : 'ok',
     maxmind:    maxmindEnvStatus(),
     ookla_internet: ooklaInternetStatus,
     // Payments & Notifications
