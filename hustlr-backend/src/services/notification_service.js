@@ -93,4 +93,26 @@ function _label(t) {
   return m[t] ?? t;
 }
 
-module.exports = { sendPushNotification, sendDisruptionAlert, sendPayoutCredited };
+/**
+ * Predictive nudge from weather / cron (Phase 2).
+ */
+async function sendPredictiveNudge({ deviceToken, zone, nudge }) {
+  if (!deviceToken || !nudge?.message) {
+    return { source: 'skipped', reason: 'no_token_or_message' };
+  }
+  const title = nudge.urgency === 'HIGH' ? '⚠️ High rain risk in your zone' : '🌧️ Weather heads-up';
+  const body = `${nudge.message} ${nudge.sub_message || ''}`.trim().slice(0, 180);
+  return sendPushNotification(deviceToken, title, body, {
+    type: 'predictive_nudge',
+    zone: zone || '',
+    urgency: nudge.urgency || 'MEDIUM',
+    rain_chance: String(nudge.rain_chance ?? ''),
+  });
+}
+
+module.exports = {
+  sendPushNotification,
+  sendDisruptionAlert,
+  sendPayoutCredited,
+  sendPredictiveNudge,
+};

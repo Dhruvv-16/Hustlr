@@ -28,7 +28,7 @@
 8. [Guidewire Integration](#️-guidewire-integration)
 9. [Parametric Logic — Core Principle](#-parametric-logic--core-principle)
 10. [Trigger Parameters](#-trigger-parameters)
-11. [Compound Triggers — Elite Shield](#-compound-triggers--elite-shield)
+11. [Compound Triggers — Full Shield](#-compound-triggers--full-shield)
 12. [Anti-Gaming Rules](#-anti-gaming-rules)
 13. [Manual Claim Filing — UX Flow](#-manual-claim-filing--ux-flow)
 14. [Internet Zone Blackout — Trigger Architecture](#-internet-zone-blackout--trigger-architecture)
@@ -168,7 +168,7 @@ No forms. No adjusters. No claim ever filed by the worker — for automated trig
 | Lost income during civil disruptions (curfew, bandh, strike) | Personal illness or fatigue |
 | Lost income during internet zone blackouts | Low-order days due to competition |
 | Lost income due to accident blockspots on hotspot corridors | Income loss outside declared shift window |
-| Lost income during severe traffic congestion (Full Shield / Elite Shield) | Events with no corroborating data source |
+| Lost income during severe traffic congestion (Full Shield) | Events with no corroborating data source |
 
 ---
 
@@ -270,9 +270,9 @@ Example:
 
 ---
 
-## ⚡ Compound Triggers — Elite Shield
+## ⚡ Compound Triggers — Full Shield
 
-Elite Shield workers receive compound trigger payouts when two disruptions occur simultaneously.
+Full Shield workers receive compound trigger payouts when two disruptions occur simultaneously.
 
 | Compound Combination | Logic | Payout % of Daily Cap |
 |---|---|---|
@@ -282,11 +282,10 @@ Elite Shield workers receive compound trigger payouts when two disruptions occur
 | Cyclone Watch + Rain | Advisory active + rainfall >30mm/hr | 85% |
 | Dark Store Closed + Rain | Both conditions confirmed | 100% |
 | Curfew + Platform Outage | Both active during shift window | 100% |
+**Business logic:** When two disruptions overlap, income loss is multiplicative — not additive. Rain alone reduces deliveries by 70%. Rain plus platform downtime reduces deliveries by 100%. Full Shield pays a compound bonus reflecting the true income impact.
 
-**Business logic:** When two disruptions overlap, income loss is multiplicative — not additive. Rain alone reduces deliveries by 70%. Rain plus platform downtime reduces deliveries by 100%. Elite Shield pays a compound bonus reflecting the true income impact.
-
-**Claim-Free Cashback (Elite Shield):**
-Workers on Elite Shield who complete 4 consecutive weeks without a payout receive 10% of their premiums from those 4 weeks returned as wallet credit. This solves adverse selection — rewarding workers who stay insured during calm periods builds a healthier premium pool.
+**Claim-Free Cashback (Full Shield):**
+Workers on Full Shield who complete 4 consecutive weeks without a payout receive 10% of their premiums from those 4 weeks returned as wallet credit. This solves adverse selection — rewarding workers who stay insured during calm periods builds a healthier premium pool.
 
 ---
 
@@ -711,6 +710,7 @@ Background GPS tracking via `flutter_background_geolocation` runs continuously d
 
 | Component | Technology |
 |---|---|
+| Design System | Ethereal Night Theme |
 | Framework | Flutter (Dart) |
 | State Management | Riverpod |
 | Background Location | flutter_background_geolocation |
@@ -768,7 +768,7 @@ Phase 1 demonstrates the complete parametric loop:
 - 7-layer weighted ensemble FPS fraud engine
 - Regional behavioral intelligence layer (Chennai calibration)
 - Threshold obfuscation + dynamic micro-variation
-- Compound trigger logic for Elite Shield
+- Compound trigger logic for Full Shield
 - Claim-free cashback mechanic design
 - News corroboration as scored fraud layer (0.25 FPS weight)
 - Zone context override during declared emergencies
@@ -814,9 +814,9 @@ Phase 1 demonstrates the complete parametric loop:
 - [x] Predictive 72-hour forecast nudge system
 - [x] Regional behavioral intelligence layer (Chennai)
 - [x] Threshold obfuscation + dynamic micro-variation
-- [x] Compound triggers for Elite Shield
+- [x] Compound triggers for Full Shield
 - [x] Claim-free cashback mechanic
-- [x] Play Integrity API + mock location detection (Layer 0)
+- [x] Device trust Layer 0 *design* (heuristic + ML signals; Google Play Integrity optional — see Phase 2)
 - [x] Weighted ensemble FPS architecture (7 layers)
 - [x] GPS jitter analysis signal
 - [x] Barometer / altitude mismatch signal
@@ -841,20 +841,27 @@ Phase 1 demonstrates the complete parametric loop:
 
 ### Phase 2 (Weeks 3–4) — Automation & Protection
 
-- [ ] Full Flutter app — all screens + manual claim flow
-- [ ] Weather + NLP trigger cron live
-- [ ] Order failure rate trigger live
-- [ ] Internet blackout trigger live (Ookla + TRAI)
-- [ ] Zone depth scoring live (PostGIS)
-- [ ] Play Integrity API live integration
-- [ ] Shadow policy calculation live
-- [ ] Predictive nudge notification live
-- [ ] Regional intelligence weekly scan live
-- [ ] MaxMind + OpenCelliD + GPS jitter + barometer integration
-- [ ] Hardware fingerprint + install timestamp clustering live
-- [ ] Auto-explanation generation for all rejections
-- [ ] Live ClaimCenter/PolicyCenter integration
-- [ ] City risk profiles: Chennai + Mumbai + Bengaluru + Kolkata
+*Status reflects this repo. **Live** = implemented in Node / Flutter / ML and callable when env vars, Supabase, and keys are configured (Render + Vercel + mobile builds). Stubs and simulations are called out explicitly.*
+
+| Status | Item |
+|--------|------|
+| ✅ | **Flutter app** — core screens, dashboard, policies, claims, manual claim flow; polish and edge screens ongoing |
+| ✅ | **Weather + NLP / bandh cron** — `disruption_cron` + snapshot pipeline (`OWM_*`, `NEWSAPI_*`, `AQICN_*` as configured) |
+| ⚠️ | **Order failure rate** — *simulated* platform outage signal in backend (`platform_service`); no real delivery-platform API |
+| ⚠️ | **Internet blackout** — live reachability / Ookla-style checks + fallbacks; TRAI modeled as rules/flags, not a live TRAI API |
+| ✅ | **Zone depth** — Haversine ring scoring in Node; optional **PostGIS** path via Supabase RPC `hustlr_zone_depth` (`USE_POSTGIS_ZONE_DEPTH=true`, run `schema_phase2.sql`) |
+| ✅ | **Google Play Integrity** — `GET /integrity/play/nonce` + `POST /integrity/play/verify` (Google `decodeIntegrityToken`); Android manual claims send token when built with `PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`; needs service account JSON + Play Console link; `PLAY_INTEGRITY_BYPASS_DEV` for local |
+| ✅ | **Shadow policy** — live `GET /policies/shadow/:userId` + Flutter `ShadowPolicyScreen` |
+| ✅ | **Predictive nudge** — included in disruption bundle; optional FCM after cron (`DISABLE_PREDICTIVE_NUDGE_PUSH`, Firebase key) |
+| ✅ | **Regional intelligence** — `regional_weekly_cron.js` + `GET /cities/risk-profiles` / `:city` (`DISABLE_REGIONAL_WEEKLY_CRON` in `.env.example`) |
+| ⚠️ | **MaxMind + fraud sensor features** — MaxMind wired; GPS jitter / barometer / fingerprint fields supported in ML & fraud payloads; **not** a full on-device sensor pipeline |
+| ❌ | **OpenCelliD** — not integrated |
+| ⚠️ | **Hardware fingerprint + install clustering** — signals in model/schema where sent; no live cluster graph from devices |
+| ✅ | **Auto-explanation** — `POST /claims/explanation` + `AutoExplanationScreen` (backend-generated when reasons not pre-passed) |
+| ❌ | **Live Guidewire PC/CC/BC** — sample payload + optional webhook only (`ENABLE_GUIDEWIRE_ROUTES`, `guidewire_service.js`) |
+| ✅ | **City risk profiles** — API live; **Chennai** primary; Mumbai / Bengaluru / Kolkata baselines in `cities` routes / risk service |
+
+**Quick judge URLs:** API health `GET /health`, cron status `GET /health/cron`, ML via Node → `ML_SERVICE_URL`. Web on Vercel needs `HUSTLR_API_PROD`; Render `hustlr-api` should set `CORS_ORIGIN` to the Vercel origin.
 
 ### Phase 3 (Weeks 5–6) — Scale & Optimise
 

@@ -6,6 +6,11 @@ const { calculateFraudScore } = require('../services/fraud_engine');
 const { checkCircuitBreaker, updatePoolHealth } = require('../services/circuit_breaker');
 const { releasePayout } = require('../services/payout_service');
 const mlService = require('../services/ml_service');
+const { buildClaimExplanation } = require('../services/claim_explanation_service');
+const {
+  verifyIntegrityToken,
+  isConfigured: isPlayIntegrityConfigured,
+} = require('../services/play_integrity_service');
 const router = express.Router();
 
 /*
@@ -105,6 +110,15 @@ function calculateGrossPayout({ trigger_type, duration_hours = 3, claim_hour = 1
 
   return payout;
 }
+
+// POST /claims/explanation — structured rejection / hold reasons from FPS-style body
+router.post('/explanation', (req, res) => {
+  try {
+    res.json(buildClaimExplanation(req.body || {}));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // POST /claims/create
 router.post('/create', async (req, res) => {
@@ -373,8 +387,42 @@ router.post('/manual', async (req, res) => {
     description,
     zone,
     evidence_urls,    // array of uploaded photo URLs
-    device_signal_strength  // for internet outage type
+    device_signal_strength,  // for internet outage type
+    integrity_token,   // optional Play Integrity token (Android); verified when server credentials set
   } = req.body;
+
+  const packageName = process.env.PLAY_INTEGRITY_PACKAGE_NAME || 'com.shieldgig.shieldgig';
+  let playIntegrityResult = { checked: false, pass: null, verdict: null };
+
+  if (
+    integrity_token &&
+    typeof integrity_token === 'string' &&
+    isPlayIntegrityConfigured() &&
+    process.env.PLAY_INTEGRITY_BYPASS_DEV !== 'true'
+  ) {
+    try {
+      const skipNonce = process.env.PLAY_INTEGRITY_SKIP_NONCE_CHECK === 'true';
+      const v = await verifyIntegrityToken(integrity_token, packageName, { skipNonce });
+      playIntegrityResult = {
+        checked: true,
+        pass: v.play_integrity_pass,
+        verdict: v.verdict,
+        summary: v.summary,
+      };
+    } catch (e) {
+      playIntegrityResult = { checked: true, pass: false, verdict: `error:${e.message}` };
+    }
+  }
+
+  if (process.env.PLAY_INTEGRITY_REQUIRED_FOR_MANUAL === 'true') {
+    if (!playIntegrityResult.checked || !playIntegrityResult.pass) {
+      return res.status(403).json({
+        error: 'Play Integrity verification required',
+        play_integrity_pass: false,
+        hint: 'POST integrity_token from Android after GET /integrity/play/nonce',
+      });
+    }
+  }
 
   if (!user_id || !disruption_type) {
     return res.status(400).json({
@@ -451,6 +499,7 @@ router.post('/manual', async (req, res) => {
           evidence_count: evidence_urls?.length ?? 0,
           disruption_type,
           description: description ?? '',
+          play_integrity: playIntegrityResult,
         }),
       }])
       .select()

@@ -326,6 +326,12 @@
       "languageVersion": "3.9"
     },
     {
+      "name": "flutter_play_integrity_wrapper",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_play_integrity_wrapper-0.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
       "name": "flutter_plugin_android_lifecycle",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.34",
       "packageUri": "lib/",

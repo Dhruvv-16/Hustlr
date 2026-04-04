@@ -1,25 +1,120 @@
 import 'package:flutter/material.dart';
-import '../../data/mock_data.dart';
 import 'package:go_router/go_router.dart';
 
-class ShadowPolicyScreen extends StatelessWidget {
+import '../../core/services/api_service.dart';
+import '../../core/services/storage_service.dart';
+import '../../data/mock_data.dart';
+
+class ShadowPolicyScreen extends StatefulWidget {
   const ShadowPolicyScreen({super.key});
 
   @override
+  State<ShadowPolicyScreen> createState() => _ShadowPolicyScreenState();
+}
+
+class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
+  bool _loading = true;
+  Map<String, dynamic>? _live;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = await StorageService.instance.getUserId();
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    final data = await ApiService.instance.getShadowSummary(uid);
+    if (!mounted) return;
+    setState(() {
+      _live = data.isNotEmpty ? data : null;
+      _loading = false;
+    });
+  }
+
+  int _missedInr() {
+    final m = _live?['missed_payout_inr'];
+    if (m is num) return m.round();
+    return MockData.shadowMissed;
+  }
+
+  int _fortnightPremium() {
+    final p = _live?['standard_premium_fortnight_inr'];
+    if (p is num) return p.round();
+    return 98;
+  }
+
+  int _netBenefit() {
+    final n = _live?['net_benefit_inr'];
+    if (n is num) return n.round();
+    return 582;
+  }
+
+  int _eventCount() {
+    final e = _live?['events'];
+    if (e is List) return e.length;
+    return MockData.shadowEvents.length;
+  }
+
+  List<Map<String, dynamic>> _events() {
+    final e = _live?['events'];
+    if (e is List) {
+      return e.map((x) => Map<String, dynamic>.from(x as Map)).toList();
+    }
+    return MockData.shadowEvents;
+  }
+
+  int _weeklyCta() {
+    final w = (_fortnightPremium() / 2).round();
+    return w > 0 ? w : 49;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
+    final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final bg     = theme.scaffoldBackgroundColor;
+    final green = theme.colorScheme.primary;
+    final bg = theme.scaffoldBackgroundColor;
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;
     final subText = isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741);
+
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: bg,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded,
+                size: 18, color: theme.colorScheme.onSurface),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('What You Missed',
+              style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w700)),
+          backgroundColor: Colors.transparent,
+          foregroundColor: theme.colorScheme.onSurface,
+          elevation: 0,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface), onPressed: () => context.pop()),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              size: 18, color: theme.colorScheme.onSurface),
+          onPressed: () => context.pop(),
+        ),
         title: Text('What You Missed',
-            style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w700)),
+            style: TextStyle(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w700)),
         backgroundColor: Colors.transparent,
         foregroundColor: theme.colorScheme.onSurface,
         elevation: 0,
@@ -29,7 +124,6 @@ class ShadowPolicyScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Summary hero card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -38,7 +132,8 @@ class ShadowPolicyScreen extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: green.withOpacity(isDark ? 0.15 : 0.2),
-                    blurRadius: 10, offset: const Offset(0, 4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   )
                 ],
               ),
@@ -50,34 +145,43 @@ class ShadowPolicyScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '₹${MockData.shadowMissed}',
-                    style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
+                    '₹${_missedInr()}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold),
                   ),
-                  const Text('in missed payouts', style: TextStyle(color: Colors.white70)),
+                  const Text('in missed payouts',
+                      style: TextStyle(color: Colors.white70)),
+                  if (_live != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Live estimate from disruptions in your zone',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.65), fontSize: 11),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _shadowStat('₹98', 'Premium cost\n(2 weeks)'),
-                      _shadowStat('₹582', 'Net benefit'),
-                      _shadowStat('0', 'Claims filed'),
+                      _shadowStat('₹${_fortnightPremium()}', 'Premium cost\n(2 weeks)'),
+                      _shadowStat('₹${_netBenefit()}', 'Net benefit'),
+                      _shadowStat('${_eventCount()}', 'Disruption events'),
                     ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-
-            // Missed events list
             Text('Events while uninsured:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: theme.colorScheme.onSurface)),
             const SizedBox(height: 12),
-
-            ...MockData.shadowEvents.map((event) => _buildMissedEventCard(context, event)).toList(),
-
+            ..._events().map((e) => _buildMissedEventCard(context, e)),
             const SizedBox(height: 32),
-
-            // CTA
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -86,11 +190,17 @@ class ShadowPolicyScreen extends StatelessWidget {
                   backgroundColor: green,
                   foregroundColor: btnTxt,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
-                child: Text('Activate Standard Shield — ₹49/wk',
-                    style: TextStyle(color: btnTxt, fontWeight: FontWeight.bold, fontSize: 16)),
+                child: Text(
+                  'Activate Standard Shield — ₹${_weeklyCta()}/wk',
+                  style: TextStyle(
+                      color: btnTxt,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -108,22 +218,32 @@ class ShadowPolicyScreen extends StatelessWidget {
   Widget _shadowStat(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 11)),
       ],
     );
   }
 
   Widget _buildMissedEventCard(BuildContext context, Map<String, dynamic> event) {
-    final theme  = Theme.of(context);
+    final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardBg = theme.cardColor;
-    final border = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
-    final redBg  = isDark ? const Color(0xFF2D0011) : const Color(0xFFFFEBEE);
-    final red    = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
-    final text   = theme.colorScheme.onSurface;
-    final sub    = theme.colorScheme.onSurface.withOpacity(0.5);
+    final border =
+        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
+    final redBg = isDark ? const Color(0xFF2D0011) : const Color(0xFFFFEBEE);
+    final red = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
+    final text = theme.colorScheme.onSurface;
+    final sub = theme.colorScheme.onSurface.withOpacity(0.5);
+
+    final missed = event['missed'] ?? event['claimableAmount'];
+    final amt = missed is num ? missed.round().toString() : missed?.toString() ?? '—';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -147,17 +267,26 @@ class ShadowPolicyScreen extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(event['triggerName'] ?? event['trigger'],
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: text)),
-                  Text(event['date'],
-                      style: TextStyle(fontSize: 12, color: sub)),
+                  Text(
+                    (event['triggerName'] ?? event['trigger'] ?? 'Event')
+                        .toString(),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: text),
+                  ),
+                  Text(
+                    (event['date'] ?? '').toString(),
+                    style: TextStyle(fontSize: 12, color: sub),
+                  ),
                 ],
               ),
             ],
           ),
           Text(
-            '₹${event['missed'] ?? event['claimableAmount']}',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: text),
+            '₹$amt',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 16, color: text),
           ),
         ],
       ),

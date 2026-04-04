@@ -15,6 +15,7 @@
         "flutter",
         "flutter_bloc",
         "flutter_localizations",
+        "flutter_play_integrity_wrapper",
         "geolocator",
         "go_router",
         "google_fonts",
@@ -97,6 +98,14 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "flutter_play_integrity_wrapper",
+      "version": "0.0.2",
+      "dependencies": [
+        "flutter",
+        "http"
       ]
     },
     {
