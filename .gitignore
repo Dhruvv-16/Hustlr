@@ -57,8 +57,8 @@ build/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
-# Web
-**/web/
+# Flutter web entry (index.html, manifest) must stay in git for `flutter build web` on Vercel.
+# Do not add **/web/ here — it untracks the whole `web/` folder and breaks CI.
 
 # Windows
 **/windows/flutter/generated_plugin_registrant.cc
