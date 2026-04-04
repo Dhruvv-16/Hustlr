@@ -39,10 +39,14 @@ circuit_breaker = EconomicCircuitBreaker()
 # Training scripts (hustlr-ml/scripts/train_*.py) write XGBoost JSON + pickles to
 # repo_root/outputs/trained_models. Alternate bundles may live under
 # hustlr-ml/outputs/trained_models.
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# On Render (rootDir = hustlr-backend/ml_service), models are copied into
+# hustlr-backend/ml_service/outputs/trained_models so they travel with the service.
+SERVICE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SERVICE_DIR.parent.parent.parent
 MODELS_SEARCH_PATHS: List[Path] = [
-    REPO_ROOT / "outputs" / "trained_models",
-    REPO_ROOT / "hustlr-ml" / "outputs" / "trained_models",
+    SERVICE_DIR / "outputs" / "trained_models",       # Render: models inside service rootDir
+    REPO_ROOT / "outputs" / "trained_models",          # local monorepo dev
+    REPO_ROOT / "hustlr-ml" / "outputs" / "trained_models",  # alternate dev path
 ]
 
 app = FastAPI(title="Hustlr ML Service", version="1.0.0")
