@@ -33,7 +33,7 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
           'require_dual_source': false,
           'sources': {'imd': 0.9}
         }),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 70));
       setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
     } catch (e) {
       setState(() { _responseLog = 'Error: $e'; });
@@ -57,7 +57,7 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
           'time_of_day': 18,
           'is_weekend': false,
         }),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 70));
       setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
     } catch (e) {
       setState(() { _responseLog = 'Error: $e'; });
@@ -77,7 +77,7 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
           'gps_zone_mismatch': 1, 'claim_latency_under30s': 1, 'battery_charging': 1,
           'ip_home_match': 0, 'accelerometer_idle': 1, 'hw_fingerprint_match': 0, 'wifi_home_ssid': 0
         }),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 70));
       setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
     } catch (e) {
       setState(() { _responseLog = 'Error: $e'; });
