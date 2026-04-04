@@ -13,6 +13,7 @@ import '../../widgets/hustlr_bottom_nav.dart';
 import '../../services/notification_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
+import '../../features/shared/widgets/demo_control_panel.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -198,8 +199,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final premium = policyData?['weekly_premium']?.toString() ?? 
         (planName == 'Basic Shield' ? '29' : 
          planName == 'Standard Shield' ? '49' : 
-         planName == 'Full Shield' ? '79' : '109');
-    final pAmount = (walletData?['balance'] as num?)?.toInt() ?? 680;
+          planName == 'Full Shield' ? '79' : '109');
+    
+    // Fallback to MockData shadowMissed or a positive value, never wallet balance!
+    final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -271,6 +274,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
+          onLongPress: () => showDemoPanel(context),
           child: Container(
             width: 44,
             height: 44,

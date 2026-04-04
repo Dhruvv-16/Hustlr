@@ -103,7 +103,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const _SummaryRow(label: 'Standard Shield', amount: '₹59/wk'),
+                  const _SummaryRow(label: 'Standard Shield', amount: '₹49/wk'),
                   const SizedBox(height: 12),
                   const _SummaryRow(label: 'App Downtime Rider', amount: '₹10/wk'),
                   const SizedBox(height: 16),
