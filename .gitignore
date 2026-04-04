@@ -151,11 +151,11 @@ hs_err_pid*.log
 replay_pid*.log
 .analyze_out.txt
 
-# ML model binary outputs (large, not for git)
-outputs/
-hustlr_ml/outputs/
-**/*.pkl
+# ML model binary outputs — tracked in outputs/trained_models/ for Render deploy
+# (only gitignore backup/scratch files, not the actual trained models)
 **/*.json.bak
+# hustlr_ml/outputs/ contains dev scratch; production models are in outputs/trained_models/
+hustlr-ml/outputs/scratch/
 
 # OS junk
 .DS_Store
