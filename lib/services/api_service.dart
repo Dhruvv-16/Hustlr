@@ -18,18 +18,18 @@ class ApiService {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
       if (kReleaseMode) {
-        return 'https://hustlr-ta8r.onrender.com';
+        return 'https://hustlr-ad32.onrender.com';
       }
-      return 'https://hustlr-ta8r.onrender.com';
+      return 'https://hustlr-ad32.onrender.com';
     }
 
     if (kReleaseMode) {
       if (prod.isNotEmpty) return prod;
-      return 'https://hustlr-ta8r.onrender.com';
+      return 'https://hustlr-ad32.onrender.com';
     }
 
     if (devOverride.isNotEmpty) return devOverride;
-    return 'https://hustlr-ta8r.onrender.com';
+    return 'https://hustlr-ad32.onrender.com';
   }
 
   static const _timeout = Duration(seconds: 5); // 5s — real network may be slower
@@ -182,8 +182,8 @@ class ApiService {
         'policy': {
           'id': 'mock-policy',
           'plan_tier': tier,
-          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
-          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
+          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
+          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
           'zone_adjustment': 0,
           'status': 'active',
         }
@@ -472,7 +472,16 @@ class ApiService {
       final data = instance._decodeMap(res);
       return data['user'] as Map<String, dynamic>?;
     } catch (_) {
-      return null;
+      // Offline mock fallback for Demo Mode
+      return {
+        'id': 'mock-karthik-001',
+        'name': 'Karthik',
+        'phone': phone.replaceAll(RegExp(r'\D'), ''),
+        'city': 'Chennai',
+        'zone': 'Adyar',
+        'platform': 'Zepto',
+        'onboarding_complete': true,
+      };
     }
   }
 

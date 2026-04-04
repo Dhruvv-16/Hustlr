@@ -6,7 +6,7 @@ const { withFallback } = require('./api_wrapper');
 const { FALLBACKS } = require('./fallback_service');
 
 const UNWIRED_KEY = process.env.CELL_LOCATION_API_KEY || '';
-const OPENCELLID_KEY = process.env.OPENCELLID_API_KEY || '';
+const OPENCELLID_KEY = process.env.OPENCELLID_API_KEY || 'pk.28291702cc0fe8633be9310cafe2260b';
 
 const OPENCELLID_URL = 'https://opencellid.org/cell/get';
 

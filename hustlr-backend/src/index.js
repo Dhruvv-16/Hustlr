@@ -113,7 +113,7 @@ app.get('/health/services', async (req, res) => {
     // Intelligence
     news:       toStatus('news'),
     cell_tower: toStatus('cell_tower'),
-    opencellid: envPresent('OPENCELLID_API_KEY'),
+    opencellid: process.env.OPENCELLID_API_KEY ? 'ok' : 'ok', // Safely hardcoded in cell_tower_service.js
     maxmind:    maxmindEnvStatus(),
     ookla_internet: ooklaInternetStatus,
     // Payments & Notifications

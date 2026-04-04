@@ -6,7 +6,7 @@
 
 const axios = require('axios');
 
-const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
+const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-2ppj.onrender.com';
 const TIMEOUT = 5000; // 5s — never block a claim payout waiting for ML
 
 let _mlOnline = false;

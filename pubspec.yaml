@@ -45,14 +45,19 @@ dependencies:
   supabase_flutter: ^2.8.3
   image_picker: ^1.2.1
   # Android Play Integrity token (server verifies via Google API)
-  flutter_play_integrity_wrapper: ^0.0.2
-  environment_sensors: ^0.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.4.13
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icon.png"
+  min_sdk_size: 21
 
 flutter:
   generate: true

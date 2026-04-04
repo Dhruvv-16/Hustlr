@@ -19,7 +19,7 @@ const PLAN_CONFIG = {
     covered_triggers: ['rain_heavy', 'rain_extreme', 'heat_severe'],
   },
   standard: {
-    base: 59,
+    base: 49,
     max_payout: 500,         // weekly cap
     daily_cap: 150,          // max payout per day
     name: 'Standard Shield',
@@ -44,7 +44,7 @@ module.exports = {
   PLAN_CONFIG,
 
   // Tier factors for ISS-based premium multiplier
-  TIER_FACTORS: { basic: 1.0, standard: 1.25, full: 1.5 },
+  TIER_FACTORS: { basic: 1.0, standard: 1.0, full: 1.0 },
 
   // ── Per-trigger hourly rates (from actuarial model image) ─────────────────
   // Payout = hourly_rate × disruption_hours (capped by daily_cap)
