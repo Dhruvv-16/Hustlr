@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/play_integrity_helper.dart';
 import '../../services/storage_service.dart';
+import '../../services/fraud_sensor_service.dart';
 import 'manual_claim_camera_screen.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
@@ -38,6 +39,9 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     setState(() => _isSubmitting = true);
     final userId = StorageService.userId;
 
+    // Collect native sensor features (Jitter, Barometer)
+    final sensorFeatures = await FraudSensorService.collectPayload();
+
     // Simulate photo upload & get URLs
     final mockUrls = _images
         .map((img) => 's3://hustlr/claims/img_${DateTime.now().millisecondsSinceEpoch}.jpg')
@@ -60,6 +64,15 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         }
       }
     }
+    // When backend uses PLAY_INTEGRITY_SIMULATED=true, any non-empty string is enough (no real device token).
+    const simPlaceholder = String.fromEnvironment(
+      'PLAY_INTEGRITY_DEMO_PLACEHOLDER',
+      defaultValue: '',
+    );
+    if ((integrityToken == null || integrityToken.isEmpty) &&
+        simPlaceholder.isNotEmpty) {
+      integrityToken = simPlaceholder;
+    }
 
     final response = await ApiService.instance.submitManualClaim(
       userId: userId,
@@ -67,6 +80,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
       evidenceUrls: mockUrls,
       deviceSignalStrength: widget.signalStrength,
       integrityToken: integrityToken,
+      sensorFeatures: sensorFeatures,
     );
 
     if (mounted) {

@@ -45,3 +45,19 @@ CREATE TABLE IF NOT EXISTS regional_intelligence_snapshots (
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (week_start, city)
 );
+
+-- Device fingerprint samples for shared-device / ring-style fraud signals (Phase 2)
+CREATE TABLE IF NOT EXISTS device_fingerprint_events (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fingerprint_hash   TEXT NOT NULL,
+  zone               TEXT,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dfe_hash_created
+  ON device_fingerprint_events (fingerprint_hash, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dfe_zone_created
+  ON device_fingerprint_events (zone, created_at DESC)
+  WHERE zone IS NOT NULL;

@@ -9,8 +9,11 @@ const mlService = require('../services/ml_service');
 const { buildClaimExplanation } = require('../services/claim_explanation_service');
 const {
   verifyIntegrityToken,
-  isConfigured: isPlayIntegrityConfigured,
+  applyPlayIntegrityFraudDelta,
+  shouldRunIntegrityPipeline,
+  isSimulatedMode,
 } = require('../services/play_integrity_service');
+const { getSharedDeviceFraudBump } = require('../services/device_fingerprint_service');
 const router = express.Router();
 
 /*
@@ -122,7 +125,19 @@ router.post('/explanation', (req, res) => {
 
 // POST /claims/create
 router.post('/create', async (req, res) => {
-  const { user_id, trigger_type, severity, duration_hours, claim_hour, zone_depth_score, plan_tier, secondary_trigger } = req.body;
+  const {
+    user_id,
+    trigger_type,
+    severity,
+    duration_hours,
+    claim_hour,
+    zone_depth_score,
+    plan_tier,
+    secondary_trigger,
+    integrity_token,
+    simulate_integrity_fail,
+    device_fingerprint,
+  } = req.body;
 
   if (!user_id || !trigger_type) {
     return res.status(400).json({ error: 'user_id and trigger_type are required' });
@@ -160,7 +175,7 @@ router.post('/create', async (req, res) => {
     // Get worker zone
     const { data: user } = await supabase
       .from('users')
-      .select('zone, city')
+      .select('zone, city, created_at')
       .eq('id', user_id)
       .maybeSingle();
 
@@ -191,16 +206,60 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ error: 'No active policy found' });
     }
 
+    const packageName = process.env.PLAY_INTEGRITY_PACKAGE_NAME || 'com.shieldgig.shieldgig';
+    let integrityBlock = {
+      evaluated: false,
+      pass: true,
+      mode: null,
+      mock_verdict: undefined,
+      verdict: null,
+    };
+
+    if (
+      integrity_token &&
+      typeof integrity_token === 'string' &&
+      integrity_token.trim() !== '' &&
+      shouldRunIntegrityPipeline()
+    ) {
+      try {
+        const skipNonce =
+          isSimulatedMode() || process.env.PLAY_INTEGRITY_SKIP_NONCE_CHECK === 'true';
+        const v = await verifyIntegrityToken(integrity_token.trim(), packageName, {
+          skipNonce,
+          simulateFail: simulate_integrity_fail === true,
+        });
+        if (v.evaluated) {
+          integrityBlock = {
+            evaluated: true,
+            pass: v.play_integrity_pass,
+            mode: v.mode,
+            mock_verdict: v.mock_verdict,
+            verdict: v.verdict,
+            judge_note: v.judge_note,
+          };
+        }
+      } catch (e) {
+        integrityBlock = {
+          evaluated: true,
+          pass: false,
+          mode: 'verify_error',
+          verdict: e.message,
+        };
+      }
+    }
+
     // Fraud check — ML model with rule-engine fallback
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || '127.0.0.1';
     const fraudData = await checkIpLocation(clientIp, user.zone);
+
+    const playPassForMl = integrityBlock.evaluated ? integrityBlock.pass : !fraudData.fraud_signal;
 
     // Try ML fraud score first, fall back to rule engine
     let fraudResult;
     const mlFraud = await mlService.getFraudScore({
       zone_depth_score:         0.75, // default; improve with real GPS depth
       days_since_onboard:       Math.floor((Date.now() - new Date(user.created_at || Date.now()).getTime()) / 86400000),
-      play_integrity_pass:      !fraudData.fraud_signal,
+      play_integrity_pass:      playPassForMl,
       is_mock_location:         fraudData.fraud_signal || false,
     });
 
@@ -219,7 +278,25 @@ router.post('/create', async (req, res) => {
     }
     
     const baseFraudScore = fraudResult.score;
-    const fraudScore  = Math.min(100, baseFraudScore + (fraudData.fraud_signal ? 100 : 0));
+    let fraudScore = Math.min(100, baseFraudScore + (fraudData.fraud_signal ? 100 : 0));
+    if (integrityBlock.evaluated) {
+      const adj = applyPlayIntegrityFraudDelta(fraudScore, integrityBlock.pass);
+      fraudScore = adj.score;
+      integrityBlock.fraud_score_delta = adj.delta;
+      integrityBlock.fraud_score_reason = adj.reason;
+    }
+
+    let sharedDevice = { bump: 0, other_users: 0, reason: null };
+    if (device_fingerprint && typeof device_fingerprint === 'string') {
+      sharedDevice = await getSharedDeviceFraudBump(
+        user_id,
+        user?.zone ?? '',
+        device_fingerprint
+      );
+      if (sharedDevice.bump > 0) {
+        fraudScore = Math.min(100, fraudScore + sharedDevice.bump);
+      }
+    }
     const fraudStatus = fraudData.fraud_signal ? 'FLAGGED' : fraudResult.decision.status;
 
     const releaseAmount = Math.round(
@@ -230,6 +307,18 @@ router.post('/create', async (req, res) => {
     const actualRelease = fraudStatus === 'FLAGGED'
       ? Math.min(200, tranche1)
       : releaseAmount;
+
+    const fpsSignals = {
+      play_integrity: integrityBlock,
+      ip_fraud_signal: fraudData.fraud_signal || false,
+    };
+    if (sharedDevice.bump > 0) {
+      fpsSignals.shared_device_cluster = {
+        bump: sharedDevice.bump,
+        other_users: sharedDevice.other_users,
+        reason: sharedDevice.reason,
+      };
+    }
 
     // Insert claim — uses existing schema column names (tranche1, tranche2)
     const { data: claim, error: insertError } = await supabase
@@ -246,7 +335,8 @@ router.post('/create', async (req, res) => {
         tranche2,
         status:       'PENDING',
         fraud_status: fraudStatus,
-        fraud_score: fraudScore
+        fraud_score: fraudScore,
+        fps_signals: fpsSignals,
       })
       .select()
       .single();
@@ -388,29 +478,48 @@ router.post('/manual', async (req, res) => {
     zone,
     evidence_urls,    // array of uploaded photo URLs
     device_signal_strength,  // for internet outage type
-    integrity_token,   // optional Play Integrity token (Android); verified when server credentials set
+    integrity_token,   // optional Play Integrity token (Android); simulated or Google verify
+    simulate_integrity_fail, // demo only: force mock failing verdict (+30 fraud)
   } = req.body;
 
   const packageName = process.env.PLAY_INTEGRITY_PACKAGE_NAME || 'com.shieldgig.shieldgig';
-  let playIntegrityResult = { checked: false, pass: null, verdict: null };
+  let playIntegrityResult = {
+    checked: false,
+    evaluated: false,
+    pass: null,
+    verdict: null,
+  };
 
   if (
     integrity_token &&
     typeof integrity_token === 'string' &&
-    isPlayIntegrityConfigured() &&
-    process.env.PLAY_INTEGRITY_BYPASS_DEV !== 'true'
+    integrity_token.trim() !== '' &&
+    shouldRunIntegrityPipeline()
   ) {
     try {
-      const skipNonce = process.env.PLAY_INTEGRITY_SKIP_NONCE_CHECK === 'true';
-      const v = await verifyIntegrityToken(integrity_token, packageName, { skipNonce });
+      const skipNonce =
+        isSimulatedMode() || process.env.PLAY_INTEGRITY_SKIP_NONCE_CHECK === 'true';
+      const v = await verifyIntegrityToken(integrity_token.trim(), packageName, {
+        skipNonce,
+        simulateFail: simulate_integrity_fail === true,
+      });
       playIntegrityResult = {
-        checked: true,
+        checked: v.evaluated,
+        evaluated: v.evaluated,
         pass: v.play_integrity_pass,
         verdict: v.verdict,
         summary: v.summary,
+        mode: v.mode,
+        mock_verdict: v.mock_verdict,
+        judge_note: v.judge_note,
       };
     } catch (e) {
-      playIntegrityResult = { checked: true, pass: false, verdict: `error:${e.message}` };
+      playIntegrityResult = {
+        checked: true,
+        evaluated: true,
+        pass: false,
+        verdict: `error:${e.message}`,
+      };
     }
   }
 
@@ -476,6 +585,14 @@ router.post('/manual', async (req, res) => {
   const tranche1 = Math.round(provisionalAmount * 0.70);
   const tranche2 = provisionalAmount - tranche1;
 
+  let manualFraudScore = 25;
+  if (playIntegrityResult.evaluated) {
+    const adj = applyPlayIntegrityFraudDelta(manualFraudScore, playIntegrityResult.pass);
+    manualFraudScore = adj.score;
+    playIntegrityResult.fraud_score_delta = adj.delta;
+    playIntegrityResult.fraud_score_reason = adj.reason;
+  }
+
   try {
     // Create manual claim
     const { data: claim, error } = await supabase
@@ -491,16 +608,16 @@ router.post('/manual', async (req, res) => {
         gross_payout:   provisionalAmount,
         tranche1,
         tranche2,
-        fraud_score:    25,
+        fraud_score:    manualFraudScore,
         fraud_status:   'REVIEW',
         status:         'PENDING',
-        fps_signals: JSON.stringify({
+        fps_signals: {
           type: 'manual',
           evidence_count: evidence_urls?.length ?? 0,
           disruption_type,
           description: description ?? '',
           play_integrity: playIntegrityResult,
-        }),
+        },
       }])
       .select()
       .single();

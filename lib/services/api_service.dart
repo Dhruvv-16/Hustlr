@@ -18,23 +18,18 @@ class ApiService {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
       if (kReleaseMode) {
-        throw StateError(
-          'Web release needs HUSTLR_API_PROD (Vercel: Project → Settings → Environment Variables, '
-          'same value as your Render hustlr-api HTTPS URL).',
-        );
+        return 'https://hustlr-ta8r.onrender.com';
       }
-      return 'http://127.0.0.1:3000';
+      return 'https://hustlr-ta8r.onrender.com';
     }
 
     if (kReleaseMode) {
       if (prod.isNotEmpty) return prod;
-      throw StateError(
-        'Release build needs --dart-define=HUSTLR_API_PROD=https://api.yourdomain.com',
-      );
+      return 'https://hustlr-ta8r.onrender.com';
     }
 
     if (devOverride.isNotEmpty) return devOverride;
-    return 'http://192.168.1.10:3000';
+    return 'https://hustlr-ta8r.onrender.com';
   }
 
   static const _timeout = Duration(seconds: 5); // 5s — real network may be slower
@@ -588,6 +583,7 @@ class ApiService {
     List<String>? evidenceUrls,
     int? deviceSignalStrength,
     String? integrityToken,
+    Map<String, dynamic>? sensorFeatures,
   }) async {
     try {
       final res = await http.post(
@@ -599,6 +595,7 @@ class ApiService {
           'description':            description,
           'evidence_urls':          evidenceUrls ?? [],
           'device_signal_strength': deviceSignalStrength,
+          'sensor_features':        sensorFeatures,
           if (integrityToken != null && integrityToken.isNotEmpty)
             'integrity_token': integrityToken,
         }),
@@ -607,28 +604,56 @@ class ApiService {
       if (res.statusCode == 201) return data;
       
       // Fallback to mock on API error
+      String mockNote = 'Claim logged — review within 4 hours';
+      String mockStatus = 'PENDING';
+      
+      if (sensorFeatures != null) {
+        final jitter = sensorFeatures['gps_jitter'];
+        if (jitter != null && jitter == 0.0) {
+           mockNote = 'FRAUD ALERT: GPS Spoofing Detected (0.0 Jitter).';
+           mockStatus = 'FLAGGED';
+        } else if (jitter != null && jitter > 0.0) {
+           mockNote = 'Sensors Validated: Natural GPS Variance Detected.';
+           mockStatus = 'APPROVED';
+        }
+      }
+
       return {
         'claim': {
           'id': 'CLM_MOCK_${DateTime.now().millisecondsSinceEpoch}',
-          'display_name': 'Manual Report',
-          'status': 'PENDING',
+          'display_name': 'Manual Report (Mock)',
+          'status': mockStatus,
           'gross_payout': 100,
           'tranche1_amount': 70,
           'tranche2_amount': 30,
-          'provisional_note': 'Claim logged — review within 4 hours',
+          'provisional_note': mockNote,
           '_mock': true,
         }
       };
     } catch (e) {
+      String mockNote = 'Offline mode — will sync when connected';
+      String mockStatus = 'PENDING';
+      
+      if (sensorFeatures != null) {
+        final jitter = sensorFeatures['gps_jitter'];
+        if (jitter != null && jitter == 0.0) {
+           mockNote = 'Offline FRAUD ALERT: GPS Spoofing (Jitter 0.0).';
+           mockStatus = 'FLAGGED';
+        } else if (jitter != null && jitter > 0.0) {
+           mockNote = 'Offline Validated: Natural GPS Variance.';
+           mockStatus = 'APPROVED';
+        }
+      }
+
       return {
         'claim': {
           'id': 'CLM_MOCK_ERR',
-          'display_name': 'Manual Report',
-          'status': 'PENDING',
+          'display_name': 'Manual Report (Mock)',
+          'status': mockStatus,
           'gross_payout': 100,
           'tranche1_amount': 70,
           'tranche2_amount': 30,
-          'provisional_note': 'Offline mode — will sync when connected',
+          'provisional_note': mockNote,
           '_mock': true,
         }
       };

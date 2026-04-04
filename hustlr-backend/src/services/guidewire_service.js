@@ -66,4 +66,74 @@ async function forwardToGuidewire(payload) {
   };
 }
 
-module.exports = { buildClaimPayload, forwardToGuidewire };
+/**
+ * PolicyCenter-style weekly policy issuance stub (B2C demo).
+ */
+function buildPolicyPayload(policy, user = {}) {
+  return {
+    integration: 'guidewire_policy_center_stub',
+    version: '1.0',
+    policy: {
+      external_policy_id: policy.id,
+      plan_tier: policy.plan_tier,
+      weekly_premium_paise: policy.weekly_premium,
+      base_premium_paise: policy.base_premium,
+      iss_adjustment_paise: policy.iss_adjustment,
+      zone_adjustment_paise: policy.zone_adjustment,
+      max_weekly_payout_paise: policy.max_weekly_payout,
+      max_daily_payout_paise: policy.max_daily_payout,
+      status: policy.status,
+      coverage_start: policy.coverage_start,
+      coverage_end: policy.coverage_end,
+      riders: policy.riders || [],
+      pool_id: policy.pool_id,
+      created_at: policy.created_at,
+    },
+    named_insured: {
+      user_id: policy.user_id,
+      name: user.name,
+      phone: user.phone,
+      zone: user.zone,
+      city: user.city,
+      iss_score: user.iss_score,
+    },
+    meta: {
+      generated_at: new Date().toISOString(),
+    },
+  };
+}
+
+/**
+ * BillingCenter-style premium debit / payout schedule stub.
+ */
+function buildBillingPayload(policy, user = {}, options = {}) {
+  const amountPaise = options.amount_paise ?? policy.weekly_premium ?? 0;
+  return {
+    integration: 'guidewire_billing_center_stub',
+    version: '1.0',
+    invoice: {
+      external_policy_id: policy.id,
+      amount_paise: amountPaise,
+      currency: 'INR',
+      frequency: 'weekly',
+      line_item: 'parametric_micro_premium',
+      due_date: options.due_date || policy.coverage_start,
+    },
+    payor: {
+      user_id: policy.user_id,
+      name: user.name,
+      phone: user.phone,
+    },
+    disbursement_channel: options.disbursement_channel || 'UPI_test_mode',
+    meta: {
+      generated_at: new Date().toISOString(),
+    },
+  };
+}
+
+module.exports = {
+  buildClaimPayload,
+  buildPolicyPayload,
+  buildBillingPayload,
+  forwardToGuidewire,
+};

@@ -557,7 +557,7 @@ Stress tools (e.g. cyclone-scale payout exposure) align with how insurers and Gu
 | Plan | Weekly Premium | Covers | Expected Weekly Payout | Target Loss Ratio | Best For |
 |---|---|---|---|---|---|
 | **Basic Shield** | ₹35/wk | Rain + extreme heat | ~₹22 | 0.62 | Low-risk zones, new workers |
-| **Standard Shield** ⭐ | ₹59/wk | Rain, heat, pollution, app downtime | ~₹38 | 0.63 | Most city delivery workers |
+| **Standard Shield** ⭐ | ₹49/wk | Rain, heat, pollution, app downtime | ~₹38 | 0.63 | Most city delivery workers |
 | **Full Shield** | ₹79/wk | All 9 triggers + compound | ~₹58 | 0.65 | Flood-zone workers |
 
 ### Income Add-Ons
@@ -571,10 +571,10 @@ Stress tools (e.g. cyclone-scale payout exposure) align with how insurers and Gu
 
 ### Premium Bounds — Actuarial Guardrails
 
-| Bound | Multiplier | Example (Standard Shield ₹59 base) |
+| Bound | Multiplier | Example (Standard Shield ₹49 base) |
 |---|---|---|
-| Maximum | 2.0× base tier rate | ₹118/week |
-| Minimum | 0.7× base tier rate | ₹41/week |
+| Maximum | 2.0× base tier rate | ₹98/week |
+| Minimum | 0.7× base tier rate | ₹34/week |
 
 ---
 
@@ -789,7 +789,7 @@ Phase 1 demonstrates the complete parametric loop:
 | OpenWeatherMap, IMD, AQICN | ₹0 |
 | MaxMind GeoIP2 | ₹0 (free tier) |
 | OpenCelliD | ₹0 (free tier) |
-| Ookla Speed Map API | ₹0 (free tier) |
+| Ookla Enterprise (optional) | Paid — off by default; use inferred connectivity unless `USE_OOKLA_INTERNET=true` |
 | TRAI Outage Registry | ₹0 (government open data) |
 | Brave Search + NewsAPI | ₹0 (free tiers) |
 | Supabase + Render | ₹0 (free tiers) |
@@ -848,17 +848,31 @@ Phase 1 demonstrates the complete parametric loop:
 | ✅ | **Flutter app** — core screens, dashboard, policies, claims, manual claim flow; polish and edge screens ongoing |
 | ✅ | **Weather + NLP / bandh cron** — `disruption_cron` + snapshot pipeline (`OWM_*`, `NEWSAPI_*`, `AQICN_*` as configured) |
 | ⚠️ | **Order failure rate** — *simulated* platform outage signal in backend (`platform_service`); no real delivery-platform API |
-| ⚠️ | **Internet blackout** — live reachability / Ookla-style checks + fallbacks; TRAI modeled as rules/flags, not a live TRAI API |
+| ⚠️ | **Internet blackout** — default **inferred** zone connectivity (no Ookla cost); optional **Ookla Enterprise** when `OOKLA_API_KEY` + `USE_OOKLA_INTERNET=true`; TRAI modeled as flags, not a live API |
 | ✅ | **Zone depth** — Haversine ring scoring in Node; optional **PostGIS** path via Supabase RPC `hustlr_zone_depth` (`USE_POSTGIS_ZONE_DEPTH=true`, run `schema_phase2.sql`) |
-| ✅ | **Google Play Integrity** — `GET /integrity/play/nonce` + `POST /integrity/play/verify` (Google `decodeIntegrityToken`); Android manual claims send token when built with `PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`; needs service account JSON + Play Console link; `PLAY_INTEGRITY_BYPASS_DEV` for local |
+| ✅ | **Google Play Integrity** — `GET /integrity/play/nonce` + `POST /integrity/play/verify`; **simulated mode** `PLAY_INTEGRITY_SIMULATED=true` returns mock `MEETS_DEVICE_INTEGRITY` JSON (no Google billing); fraud hook: pass **−10**, fail **+30** on `/claims/create` & `/claims/manual`; production: service account + `decodeIntegrityToken`; Flutter optional `--dart-define=PLAY_INTEGRITY_DEMO_PLACEHOLDER=demo` for mock-only demos |
 | ✅ | **Shadow policy** — live `GET /policies/shadow/:userId` + Flutter `ShadowPolicyScreen` |
 | ✅ | **Predictive nudge** — included in disruption bundle; optional FCM after cron (`DISABLE_PREDICTIVE_NUDGE_PUSH`, Firebase key) |
 | ✅ | **Regional intelligence** — `regional_weekly_cron.js` + `GET /cities/risk-profiles` / `:city` (`DISABLE_REGIONAL_WEEKLY_CRON` in `.env.example`) |
-| ⚠️ | **MaxMind + fraud sensor features** — MaxMind wired; GPS jitter / barometer / fingerprint fields supported in ML & fraud payloads; **not** a full on-device sensor pipeline |
-| ❌ | **OpenCelliD** — not integrated |
-| ⚠️ | **Hardware fingerprint + install clustering** — signals in model/schema where sent; no live cluster graph from devices |
+| ✅ | **MaxMind + Native Sensor Pipeline** — MaxMind wired natively on backend; **Fully implemented Native Flutter Sensor pipeline** (`fraud_sensor_service.dart`) capturing live Barometer altitude and GPS Jitter variance during Android/iOS claim submissions, successfully hooked directly into the mock-claim engine for instant testing. |
+
+### 👨‍⚖️ Judge's Testing Guide
+
+To make grading as smooth as possible for the hackathon judges, we have built-in **Intelligent Mock Environments** so you can test our entire platform immediately without configuring `.env` keys, starting backends, or setting up databases:
+
+1. **Zero-Configuration Launch**: Simply open the Flutter codebase (in VS Code/Android Studio), select Chrome (Web) or an Emulator, and hit **Run**. The app is automatically tethered directly to our Live Production API endpoint (`https://hustlr-ta8r.onrender.com`), meaning data will automatically load.
+2. **Instant Policy Purchase**: Navigate to "Policies" in the bottom bar, select "Standard Shield", and simply tap "Secure Now".
+3. **Triggered Claim Demo**: 
+   - A mock rain disruption will automatically be visible on the Home Dashboard.
+   - Tap "Claim ₹150". You will see our **Straight-Through Processing** instantaneously approve your claim without manual review.
+4. **Device Integrity & Fraud Testing (Native Sensor Pipeline)**:
+   - Go to **Claim -> File Manual Claim** and upload a test photo.
+   - **How to trip our fraud detector (Spoofing test)**: Run the app on a simulated device or emulator where the GPS is perfectly static (Jitter = `0.0`). Submit the claim. You will see the system intelligently flag your claim as `REVIEW` or `FLAGGED` specifically citing: "High Risk: Perfect GPS stability detected (Spoofing)".
+   - **How to pass**: Run the app on a physical device. Natural hand tremors and GPS drift will create a >0.0 jitter, instantly resulting in an `APPROVED` status!
+| ✅ | **OpenCelliD** — optional first hop in `POST /workers/cell-locate` when `OPENCELLID_API_KEY` is set; Unwired Labs fallback; no hardcoded keys |
+| ✅ | **Hardware fingerprint clustering** — `device_fingerprint_events` in `schema_phase2.sql`; `POST /workers/fingerprint`; `GET /workers/fingerprint/stats`; optional `device_fingerprint` string on `POST /claims/create` bumps fraud when other users share the same hash in-zone |
 | ✅ | **Auto-explanation** — `POST /claims/explanation` + `AutoExplanationScreen` (backend-generated when reasons not pre-passed) |
-| ❌ | **Live Guidewire PC/CC/BC** — sample payload + optional webhook only (`ENABLE_GUIDEWIRE_ROUTES`, `guidewire_service.js`) |
+| ⚠️ | **Live Guidewire PC/CC/BC** — **ClaimCenter** + **PolicyCenter** + **BillingCenter** JSON stubs (`/guidewire/sample-payload`, `/guidewire/sample-policy`, `/guidewire/sample-billing/:id`) + optional webhook when `ENABLE_GUIDEWIRE_ROUTES=true` — not live carrier APIs |
 | ✅ | **City risk profiles** — API live; **Chennai** primary; Mumbai / Bengaluru / Kolkata baselines in `cities` routes / risk service |
 
 **Quick judge URLs:** API health `GET /health`, cron status `GET /health/cron`, ML via Node → `ML_SERVICE_URL`. Web on Vercel needs `HUSTLR_API_PROD`; Render `hustlr-api` should set `CORS_ORIGIN` to the Vercel origin.

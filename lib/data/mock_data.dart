@@ -264,10 +264,10 @@ class MockData {
   static const List<Map<String, dynamic>> plans = [
     {
       'name': 'Basic Shield',
-      'price': 29,
+      'price': 35,
       'covers': 'Rain + extreme heat',
       'triggers': ['Heavy Rain', 'Extreme Rain / Cyclone', 'Heat Wave'],
-      'loss_ratio': 0.65,
+      'loss_ratio': 0.62,
       'badge': null,
     },
     {
@@ -276,26 +276,15 @@ class MockData {
       'covers': 'Rain, heat, pollution, app downtime',
       'triggers': ['Heavy Rain', 'Extreme Rain / Cyclone', 'Heat Wave',
                    'Severe Pollution', 'Platform App Outage'],
-      'loss_ratio': 0.65,
+      'loss_ratio': 0.63,
       'badge': 'MOST POPULAR',
     },
     {
       'name': 'Full Shield',
       'price': 79,
-      'covers': 'All types incl. bandh + internet blackout',
-      'triggers': ['Heavy Rain', 'Extreme Rain / Cyclone', 'Heat Wave',
-                   'Severe Pollution', 'Platform App Outage',
-                   'Bandh / Strike / Curfew', 'Internet Zone Blackout',
-                   'Heavy Traffic Congestion'],
-      'loss_ratio': 0.67,
-      'badge': null,
-    },
-    {
-      'name': 'Elite Shield',
-      'price': 109,
       'covers': 'All types + compound triggers + 10% cashback',
       'triggers': ['All triggers + compound combinations'],
-      'loss_ratio': 0.55,
+      'loss_ratio': 0.65,
       'badge': 'BEST VALUE',
       'cashback': true,
     },
@@ -311,7 +300,7 @@ class MockData {
     {
       'plan': 'Basic Shield',
       'period': 'Sep 2024 – Mar 2025',
-      'price': 29,
+      'price': 35,
     },
   ];
 

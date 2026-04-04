@@ -8,6 +8,7 @@
       "version": "1.0.0+1",
       "dependencies": [
         "cupertino_icons",
+        "environment_sensors",
         "equatable",
         "firebase_core",
         "firebase_messaging",
@@ -98,6 +99,13 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "environment_sensors",
+      "version": "0.3.0",
+      "dependencies": [
+        "flutter"
       ]
     },
     {
