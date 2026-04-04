@@ -3,16 +3,26 @@
 ## One-time setup on Vercel dashboard
 
 1. Go to vercel.com → Add New Project → Import from GitHub
-2. Select the Guidewire_hackathon repo
-3. In the configuration screen, override these three fields:
+2. Select this repo (monorepo root — `vercel.json` lives at the root).
+3. In the configuration screen, override these fields:
 
    Framework Preset:    Other
-   Build Command:       bash deploy/vercel/build.sh
+   Build Command:       bash vercel-build.sh
+                        (root `vercel.json` sets this; `deploy/vercel/build.sh` delegates to the same script)
    Output Directory:    build/web
-                        (use app/build/web if Flutter is in an app/ subfolder)
    Install Command:     echo done
 
-4. Click Deploy
+4. **Environment variables** (Project → Settings → Environment Variables):
+
+   | Name | Value | Environments |
+   |------|--------|--------------|
+   | `HUSTLR_API_PROD` | `https://<hustlr-api>.onrender.com` (your Render Node service URL, HTTPS, no trailing slash) | Production (and Preview if you want preview builds to hit a real API) |
+
+   Production builds **fail** if `HUSTLR_API_PROD` is missing (the Flutter web client needs a real API).
+
+5. On **Render**, set **`CORS_ORIGIN`** on `hustlr-api` to your Vercel site origin(s), e.g. `https://your-project.vercel.app`, so the browser can call the API. (Omit on Render only if you still use wide-open CORS in code — default is allow-all when unset.)
+
+6. Click Deploy
 
 ## How it works
 
