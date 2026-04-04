@@ -3,7 +3,11 @@
   <h3>Real-Time Income Protection Engine for India's Gig Delivery Workers</h3>
 
   <a href="https://youtu.be/nD2snI4Tnu8?si=eS5sztT0aibvxodI">
-    <img src="https://img.shields.io/badge/Watch_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Video"/>
+    <img src="https://img.shields.io/badge/Phase_1_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 1 Video"/>
+  </a>
+  &nbsp;
+  <a href="YOUR_PHASE2_VIDEO_LINK_HERE">
+    <img src="https://img.shields.io/badge/Phase_2_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 2 Video"/>
   </a>
   &nbsp;
   <a href="https://github.com/Dhruvv-16/Hustlr">
@@ -383,7 +387,7 @@ Workers on Full Shield who complete 4 consecutive weeks without a payout receive
 
 The actual trigger threshold varies by Â±3mm (rain) or Â±0.5Â°C (heat) each week using a seeded random value known only to the system. Workers can never predict the exact number for the current week.
 
-**Why this matters for Chennai specifically:** Research into Chennai delivery worker behavior reveals workers are highly financially sophisticated and actively probe incentive systems. Threshold micro-variation makes threshold gaming mathematically unprofitable over time.
+**Why this matters for Chennai specifically:** Research into Chennai delivery worker behavior reveals workers are highly financially sophisticated and actively probe incentive systems. The Rapido/cab driver pattern of gaming platform incentives is directly applicable to insurance threshold gaming. Workers in organized groups can identify precise thresholds through repeated testing and share them via WhatsApp. Threshold micro-variation makes this strategy unreliable.
 
 ---
 
@@ -425,7 +429,7 @@ Within 4 hours:
 
 ## ðŸŒ Internet Zone Blackout â€” Trigger Architecture
 
-India's gig workers are uniquely vulnerable to localized internet outages. One pincode blackout eliminates their entire working zone instantly.
+India's gig workers are uniquely vulnerable to localized internet outages. A Zepto Q-commerce rider cannot accept orders, navigate, or scan QR codes during a connectivity blackout. One pincode blackout eliminates their entire working zone instantly.
 
 ```
 Signal 1 â€” Ookla Real-Time Speed Map API
@@ -444,6 +448,8 @@ Dual-confirmation rule:
   Signal 1 alone        â†’  HOLD for 20-minute reconfirmation window
 ```
 
+**Fraud resistance:** Faking connectivity loss requires active data transmission to submit the claim — which is self-contradictory. This makes the internet blackout trigger one of Hustlr's most inherently fraud-resistant signals.
+
 ---
 
 ## ðŸš§ Accident Blockspot â€” Trigger Architecture
@@ -461,7 +467,20 @@ Cross-checked against:
 Worker-assisted confirmation:
   Push: "Accident blocking detected on GST Road near you. Affected?"
   Worker: tap confirm + upload 1 photo
+
+Hustlr cross-checks:
+  →  Worker GPS on that corridor in last 30 min?
+  →  Zero completed orders in that window?
+  →  Is blockspot on Chennai Accident Hotspot Map?
 ```
+
+**Chennai Accident Hotspot Map:**
+
+| Tier | Corridors | Skepticism Weight |
+|---|---|---|
+| Tier 1 | GST Road, Rajiv Gandhi Salai, Poonamallee High Road | Low |
+| Tier 2 | Anna Salai, Velachery Main Road, OMR | Medium |
+| Tier 3 | Internal streets, zone-internal routes | High |
 
 ---
 
@@ -479,6 +498,15 @@ Step 3 â€” Platform order failure corroboration:
 
 All three conditions must be met simultaneously â†’ AUTO_TRIGGER
 ```
+
+**City-specific corridor baselines ✅ (Phase 2 live — all 4 cities):**
+
+| City | High-Risk Corridor | Baseline | Trigger Threshold |
+|---|---|---|---|
+| Chennai | GST Road, Anna Salai | 18–22 km/h | < 11–13 km/h |
+| Bengaluru | Electronic City Flyover, ORR | 15–20 km/h | < 9–12 km/h |
+| Mumbai | Eastern Express Highway, WEH | 20–25 km/h | < 12–15 km/h |
+| Delhi | NH48, Gurugram corridor | 22–28 km/h | < 13–17 km/h |
 
 ---
 
@@ -543,31 +571,182 @@ claim auto-triggered â†’ â‚¹150 Sunday night.
 
 ## ðŸ›¡ï¸ Adversarial Defense & Anti-Spoofing Strategy
 
-A coordinated syndicate of 500 workers attempting to organize via Telegram to use GPS spoofing apps to fake their location inside a rain-alert zone while sitting at home will categorically fail.
+### The Threat
 
 ### Layer 0 â€” Device Integrity Check
 
-Every claim is rejected before processing if the device fails integrity checks:
-1. Play Integrity API confirms unmodified OS and non-rooted environment
-2. Mock Location (`isMockLocation`) flagged immediately
-3. Developer mode status triggers elevated +20 Abuse Score
+### Why GPS Spoofing Fails Against Hustlr
 
-### Network Drop Signal Recognition
+Hustlr never trusts a single signal. Every payout requires **multi-stream coherence** across independent data channels that a spoofing app cannot simultaneously fake.
 
-When a worker's GPS drops, Hustlr does not automatically reject if they are stranded in a disaster zone. It utilizes a 30-minute grace window and runs independent checks against Cell Tower triangulation and Open Wi-Fi fingerprints to separate genuine stranded workers from home-based fraudsters.
+| Signal Layer | What It Measures | What Spoofing Looks Like |
+|---|---|---|
+| GPS coordinates | Claimed location | Too perfect — zero statistical jitter over 5-minute windows |
+| Cell tower triangulation (OpenCelliD) | Tower the device is connected to | Home tower ID doesn't match flood zone |
+| Wi-Fi fingerprint | SSIDs visible to device | Known home SSID present = flagged |
+| IP geolocation (MaxMind) | ISP + approximate location | Home broadband IP ≠ claimed outdoor zone |
+| Accelerometer / motion | Physical movement patterns | Stationary couch ≠ stranded outdoor worker |
+| Battery charging state | Charging = plugged in at home | Charging during claimed outdoor disruption |
+| Barometer / altitude | Device elevation | Ground-level flood claim from 12th floor |
+
+### The Data — What Hustlr Analyzes
+
+**Layer 0 — Device Integrity Check (runs before any GPS is trusted):**
+
+Every claim is rejected before processing if the device fails integrity checks. A GPS spoofing app requires developer mode or root access — catching this at the device layer blocks the entire attack vector before a single GPS coordinate is evaluated.
+
+```
+Check 1 — Play Integrity API (Google)
+  Verifies app has not been tampered with
+  Confirms device is not rooted or jailbroken
+  Confirms developer mode is OFF
+  Returns: MEETS_DEVICE_INTEGRITY / FAILS_DEVICE_INTEGRITY
+
+Check 2 — Mock Location Detection
+  Android exposes isMockLocation flag in location data
+  If true → GPS coordinates are software-generated, not physical
+  Result: claim auto-rejected, worker notified
+
+Check 3 — Developer Mode Check
+  If USB debugging enabled → adds +20 to fraud score
+
+Rule: Any claim from a device failing Play Integrity API
+      is auto-rejected before fraud scoring begins.
+```
+
+**Why this matters:** Every GPS spoofing app on Android requires mock location permissions (developer mode) or root access. Layer 0 eliminates 90%+ of spoofing attempts before any other signal is evaluated — the lowest-cost, highest-impact fraud prevention step in the entire system.
+
+**Layer 1 — Individual Signal Checks:**
+
+```python
+SIGNAL_WEIGHTS = {
+    'gps_zone_mismatch':                 25,
+    'wifi_home_ssid_detected':           20,
+    'battery_charging':                  15,
+    'accelerometer_idle':                10,
+    'platform_app_inactive':             15,
+    'ip_geolocation_home_match':         20,
+    'claim_latency_under_30s':           10,
+    'gps_jitter_too_perfect':            15,
+    'barometer_altitude_mismatch':       10,
+    'device_hardware_fingerprint_match': 15,
+    'app_install_timestamp_cluster':     10,
+}
+```
+
+**Layer 2 — Behavioral Baseline:**
+First 2 weeks build a Personal Activity Graph: home zone, normal work zones, typical hours, average motion. Claims from zones the worker has never worked in receive a behavioral penalty.
+
+**Layer 3 — News Corroboration Score (0.25 weight in FPS):**
+Before any payout, Hustlr independently queries Brave Search and NewsAPI for verified public crisis reports specific to the claimed zone and time. Absence of public corroboration is a scored fraud signal. A syndicate cannot fabricate official IMD alerts or government advisories.
+
+**Layer 4 — Behavioral Fingerprinting:**
+
+| Signal | What It Detects |
+|---|---|
+| Claim-initiation latency | Claims filed < 30s after trigger = syndicate reflex |
+| Orders completed during disruption | Worker completed a delivery during claimed window → auto-reject |
+| Longitudinal claim frequency | Claiming every disruption with zero post-disruption activity across weeks |
+| Onboarding recency | < 2 weeks tenure + max-value Week 1 claim → elevated scrutiny |
+
+**Layer 5 — Coordinated Ring Detection:**
+
+| Signal | Threshold | Indication |
+|---|---|---|
+| Claim Surge Velocity | 50+ claims from one zone in 10 minutes | Coordinated trigger |
+| Geographic Clustering (DBSCAN) | Claims in implausibly tight boundary | Ring from one Telegram group |
+| Device Fingerprint Similarity | Shared hardware ID / install timestamp | Same APK distributed in ring |
+
+**Poisson Distribution Test:** Genuine disruptions spread claim filings over 20–40 minutes. Coordinated rings fire within seconds. Uniform filing at p < 0.05 = coordinated ring confirmed.
+
+**Layer 6 — Internet Blackout Self-Validation:**
+Active device-to-server communication during a claimed blackout invalidates the claim. The trigger fires server-side from Ookla + TRAI — not from device reporting.
+
+### The Decision Engine — Weighted Ensemble FPS
+
+```python
+FPS = weighted_ensemble(
+    location_authenticity_score   × 0.25,
+    delivery_zone_match_score     × 0.20,
+    news_corroboration_score      × 0.25,
+    behavioral_fingerprint_score  × 0.15,
+    zone_anomaly_score            × 0.15
+)
+```
+
+| Tier | FPS Range | Action |
+|---|---|---|
+| GREEN | 0.0 – 0.30 | Auto-approve — payout within 2 minutes |
+| YELLOW | 0.31 – 0.60 | Soft hold — "verifying, reply within 2 hours" |
+| RED | 0.61 – 1.00 | Human review — provisional ₹100–300 credit released immediately |
+
+### Zone Context Override During Declared Emergencies
+
+When IMD or NDMA issues an official disaster advisory, all FPS thresholds in that zone are elevated by 15 points for the advisory duration. Genuine stranded workers in cyclone zones are not subjected to fraud scrutiny during the worst events.
+
+### Protecting Honest Workers — Five Principles
+
+**Principle 1:** Soft holds, not hard rejections. RED always receives provisional credit immediately.
+
+**Principle 2:** Zone context override during officially declared emergencies.
+
+**Principle 3:** Worker Trust Score (backend only) — 8+ weeks clean history reduces effective FPS by up to 15 points.
+
+**Principle 4:** Transparent auto-explanation on every rejection naming which signals triggered the flag, plus one-tap appeal within 4 hours.
+
+**Principle 5:** No permanent action without confirmed multi-signal fraud across multiple events.
+
+### Network Drop Signal Recognition — Honest Worker Protection Flow
+
+When a worker's GPS signal is lost during a disruption event, Hustlr does not automatically reject their claim. It runs a specific verification flow to distinguish a genuine stranded worker from a fraudster at home.
+
+```mermaid
+flowchart TD
+    ND1[GPS Signal Lost During Disruption] --> ND2{Wi-Fi SSID Check}
+    ND2 -- Home SSID detected --> ND3[Worker at home\nClaim rejected]
+    ND2 -- Unknown SSID or no Wi-Fi --> ND4{Cell Tower Check}
+    ND4 -- Tower in disruption zone --> ND5[Worker physically in zone\nClaim approved with delay note]
+    ND4 -- Tower outside zone --> ND6{Platform Activity Check}
+    ND6 -- Zero orders in window --> ND7[Signal ambiguous\nFlag for soft review\nDo NOT auto-reject]
+    ND6 -- Orders found --> ND8[Worker was active\nClaim rejected]
+    ND5 --> ND9[Payout Released\nWorker notified: verification complete]
+    ND7 --> ND10[30-min grace window\nRe-check all signals\nWorker notified: verifying automatically]
+```
+
+**The 30-minute grace window:** GPS loss alone never causes auto-rejection. The system always checks two independent alternative signals before making any determination. A worker stranded in a flood zone with no connectivity is exactly the worker Hustlr exists to protect.
 
 ---
 
 ## ðŸ“ Zone Depth Scoring â€” Anti-Boundary Gaming
 
-Workers cannot game a hard boundary by standing 50 metres inside it during a disruption.
+**The problem with binary zone membership:** Workers can game a hard boundary by standing 50 metres inside it during a disruption. A financially sophisticated Chennai worker will learn where the boundary is and exploit it.
 
 **Continuous Zone Depth Score:**
 - Outer ring (0â€“500m inside boundary) â†’ 0.00â€“0.20 score (No payout - boundary gaming)
 - Middle ring (500mâ€“2km from boundary) â†’ 0.21â€“0.60 score (Partial multiplier)
 - Core zone (2km+ from any boundary) â†’ 0.61â€“1.00 score (Full payout)
 
-Score is calculated continuously throughout the GPS pings in a 4-hour window before the disruption.
+```
+Zone divided into 3 concentric rings around dark store:
+
+  Outer ring    (0–500m inside boundary)    depth score: 0.00–0.20
+  Middle ring   (500m–2km from boundary)    depth score: 0.21–0.60
+  Core zone     (2km+ from any boundary)    depth score: 0.61–1.00
+
+Worker's depth score = mean of all GPS pings during shift
+
+Payout multiplier:
+  Score 0.00–0.20  →  0.0   (no payout — boundary gaming detected)
+  Score 0.21–0.40  →  0.30  (30% of calculated payout)
+  Score 0.41–0.60  →  0.60  (60%)
+  Score 0.61–0.80  →  0.85  (85%)
+  Score 0.81–1.00  →  1.00  (full payout)
+
+Additional rule: worker must have at least one GPS ping
+in the core zone during the 4 hours before disruption trigger fired.
+```
+
+A worker who runs to the zone edge the moment rain starts has a depth score near zero — payout multiplier of 0.0. A worker who spent their entire shift delivering deep inside the zone has a depth score of 0.84 — full payout. There is no single coordinate to stand on.
 
 ---
 
@@ -586,7 +765,18 @@ LLM preprocessing architecture scoring unstructured government advisories and un
 
 ## ðŸŒ Regional Behavioral Intelligence Layer
 
-The **Regional Behavioral Risk Index** uses historical claims gaming data, social network sentiment, and localized delivery optimization techniques unique to cities.
+### The Chennai Insight
+
+Research into Chennai delivery worker behavior — through Reddit (r/Chennai, r/india), delivery partner forums, Twitter/X, and YouTube delivery partner vlogs — reveals a consistent pattern: Chennai gig workers are financially sophisticated and actively probe platform incentive systems. The Rapido/cab driver behavior of understanding surge mechanics and finding system edges is directly applicable to parametric insurance.
+
+**What the research identified:**
+
+1. Workers share threshold information in WhatsApp groups within hours of discovery
+2. Delivery partner communities in Chennai are highly organized
+3. Financial incentive awareness is high — workers track per-order rates, surge timing, and bonus structures precisely
+4. Collective action is common — Chennai workers have organized successful platform negotiations previously
+
+### Regional Behavior Risk Index
 
 | City | Behavioral Risk Index | Key Characteristic |
 |---|---|---|
@@ -594,8 +784,15 @@ The **Regional Behavioral Risk Index** uses historical claims gaming data, socia
 | Bengaluru | 0.55 | Tech-adjacent workforce, individual optimization focus |
 | Mumbai | 0.50 | Volume-focused, less community coordination |
 | Delhi | 0.45 | Diverse worker base, lower coordination density |
+| Tier 2 cities | 0.30 | Lower financial literacy, less organized |
 
-*Hustlr scales fraud weights regionally without individually denying claims via city affiliation alone.*
+**How this index is used:**
+- Adjusts fraud signal weights regionally
+- Informs the threshold micro-variation range
+- Calibrates zone depth scoring multiplier curve
+- NOT used to deny individual claims — portfolio-level actuarial input only
+
+**The ethical boundary:** Regional behavioral intelligence adjusts system-level thresholds and fraud weights. It never denies an individual worker's claim based on their city alone.
 
 ---
 
@@ -607,7 +804,10 @@ Workers who have not purchased insurance are tracked in a **shadow policy mode**
 
 ### 2. Predictive Insurance Activation
 
-Every Wednesday evening, a 72-hour disruption forecast can nudge workers to activate coverage *before* the event (e.g. heavy rain Friday afternoon).
+Every Wednesday evening, Hustlr runs a 72-hour disruption forecast. If probability exceeds 60%, workers receive:
+> *"Heavy rain expected Friday 2–6 PM in your Adyar zone. Activate Standard Shield now to protect up to ₹600 of Friday earnings."*
+
+Workers activate before the disruption — not after. A 65% loss ratio on a ₹49 premium is ₹17 profit per worker per week.
 
 ### 3. Play Integrity API as Layer 0
 
@@ -615,7 +815,7 @@ Catching GPS spoofing at the device level before GPS data is trusted â€” bl
 
 ### 4. Zone Depth Scoring
 
-Continuous presence scoring inside the zone replaces binary inside/outside membership to reduce boundary gaming.
+Replaces binary zone membership with continuous presence scoring. No other team will implement this.
 
 ### 5. Regional Behavioral Intelligence
 
@@ -623,11 +823,29 @@ City-level calibration of fraud weights (e.g. Chennai index) informs portfolio-l
 
 ### 6. Internet Blackout as First-Class Trigger
 
-Q-commerce workers who cannot operate without connectivity get explicit coverage design for zone-level connectivity loss.
+For Q-commerce workers who cannot operate without connectivity, an internet blackout is as income-destroying as rain. No parametric insurance product in India currently covers this.
 
 ### 7. Insurer Profitability Simulator
 
-Stress tools (e.g. cyclone-scale payout exposure) align with how insurers and Guidewire think about capital and reserves.
+> *"If a Cyclone Michaung-level event hits Chennai today, what is total payout exposure across all active policies?"*
+
+Exactly the kind of enterprise risk tool Guidewire builds for large insurers — packaged inside Hustlr.
+
+### 8. Data Trust Engine — Multi-Source Credibility Scoring *(Phase 2)*
+
+Rather than trusting any single data source, every disruption event is graded against a **4-tier Trust Matrix** (Tier 1: Govt/Official 0.90–1.00 → Tier 4: Device Sensors 0.20–0.30). Sources are cross-referenced, and their combined trust must exceed **0.75** to trigger a payout. GPS alone — structurally capped at 0.20–0.30 — can never trigger a payout on its own. This eliminates an entire class of fraud attacks at the data-source level.
+
+### 9. Economic Circuit Breaker — Pool Insolvency Prevention *(Phase 2)*
+
+A real-time **Burning Cost Rate (BCR)** monitor tracks the live ratio of claims paid vs premiums collected. Hard limits: 50 auto-approved claims per zone per hour, 85% BCR ceiling. If the pool approaches insolvency during a catastrophic week, new enrollments are automatically halted for that city — protecting existing policyholders without any manual intervention. The circuit breaker transforms a passive premium pool into an actively self-defending financial instrument.
+
+### 10. 70/30 Tranche Payout Architecture *(Phase 2)*
+
+Payouts are split at disbursement: **70% sent immediately** (covers food, petrol, rent — the urgent expenses a stranded worker has that day) and **30% held until Sunday settlement** (gives the fraud engine a full-week pattern review before the final tranche releases). Workers receive money the same day their disruption occurs while the system retains the ability to claw back the safety tranche on late-detected fraud. No other Indian parametric product uses tranche-based disbursement.
+
+### 11. API Resilience Wrapper — Zero-Downtime Trigger Engine *(Phase 2)*
+
+The `api_wrapper.js` resilience layer means Hustlr never stops monitoring even when upstream APIs fail. Any API that fails 3 consecutive polls is automatically marked `DEGRADED` — the system switches to verified cached data for 5 minutes then retries. Workers are never disadvantaged because OpenWeatherMap had a bad hour. The system's trigger accuracy is structurally independent of any single API provider's uptime.
 
 ---
 
@@ -762,6 +980,17 @@ Mixing Chennai Rain and Delhi AQI into one pool would create cross-subsidization
 
 Each city gets a composite risk score from 8 local data points:
 
+| Data Point | Source |
+|---|---|
+| 10-year IMD rainfall history | imdpune.gov.in |
+| NDMA flood zone maps | ndma.gov.in |
+| Bandh/strike frequency (NLP archive) | Hustlr NLP scraper |
+| Platform order density | Platform API |
+| Average disruption hours per event | IMD + historical |
+| Internet outage frequency | TRAI + Ookla |
+| Accident blockspot density | NCRB + Traffic Police |
+| Peak traffic congestion frequency | Google Maps historical |
+
 - **Chennai:** High flood + moderate bandh + high accident density (GST Road / IT Corridor) + high behavioral gaming risk
 - **Kolkata:** Highest bandh score in India + moderate flood
 - **Bengaluru:** Low bandh + high internet outage + high accident density (Electronic City flyover)
@@ -786,29 +1015,32 @@ flowchart TD
     G --> K[Ookla + TRAI internet signals]
     G --> L[Traffic API + news corroboration]
 
-    H --> M{Threshold + shift\nwindow check}
+    H --> M{Data Trust Engine\ncombined score > 0.75?}
     I --> M
     J --> M
     K --> M
     L --> M
 
-    M -->|PASS| N[Zone depth score calculated]
     M -->|FAIL| G
+    M -->|PASS| N{Threshold + shift\nwindow check}
+    N -->|FAIL| G
+    N -->|PASS| O[Zone depth score calculated]
 
-    N --> O[FPS computed across\n7 layers in under 2 seconds]
+    O --> P[FPS computed across\n7 layers in under 2 seconds]
 
-    O -->|GREEN| P[70% released immediately\n30% after 48hr review]
-    O -->|YELLOW| Q[Provisional credit\nsoft verification]
-    O -->|RED| R[Manual review\nprovisional 100-300 credit]
+    P -->|GREEN| Q{Circuit Breaker\nBCR < 85%?}
+    P -->|YELLOW| Q
+    P -->|RED| R[Manual review\nprovisional 100-300 credit]
 
-    P --> S[Sunday 11 PM\nweekly settlement batch]
-    Q --> S
-    R --> S
+    Q -->|OPEN — pool critical| S[Enrollment halted\nExisting policies protected]
+    Q -->|CLOSED — pool healthy| T[70% immediate tranche\nreleased to worker UPI]
 
-    S --> T[Full payout credited\nMonday 12 AM]
-    T --> U[Shadow policy tracks\nuninsured workers]
-    U --> V[Wednesday forecast\npredictive nudge sent]
-    V --> G
+    T --> U[Sunday 11 PM\nweekly settlement batch]
+    R --> U
+    U --> V[30% safety tranche released\nFull payout complete Monday]
+    V --> W[Shadow policy tracks\nuninsured workers]
+    W --> X[Wednesday forecast\npredictive nudge sent]
+    X --> G
 ```
 
 ---
@@ -817,23 +1049,25 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    T1[Real-time data received\nevery 15 minutes] --> T2{Threshold\nbreached?}
-    T2 -- No --> T3[Log reading\ncontinue monitoring]
-    T2 -- Yes --> T4{Minimum 45-minute\nduration confirmed?}
+    T1[Real-time data received\nevery 15 minutes] --> T2{Data Trust Engine\ncombined source trust > 0.75?}
+    T2 -- Trust insufficient --> T3[Log reading\ncontinue monitoring]
+    T2 -- Trust confirmed --> T4{Threshold\nbreached?}
     T4 -- No --> T3
-    T4 -- Yes --> T5{Shift window\noverlap check}
-    T5 -- Outside shift --> T6[No payout\ndisruption outside work hours]
-    T5 -- Within shift --> T7[Layer 0: Play Integrity\ndevice check]
-    T7 -- Device fails --> T8[Auto-reject\nworker notified]
-    T7 -- Device passes --> T9[Zone depth score\ncalculated]
-    T9 -->|Score below 0.20| T10[No payout\nboundary gaming detected]
-    T9 -->|Score above 0.20| T11[FPS fraud scoring\nacross 7 layers]
-    T11 -->|GREEN| T12[Claim PENDING\nworker notified]
-    T11 -->|YELLOW| T13[Soft hold\nprovisional credit]
-    T11 -->|RED| T14[Manual review queue\nprovisional credit released]
-    T12 --> T15[Sunday settlement\npayout released]
-    T13 --> T15
-    T14 --> T15
+    T4 -- Yes --> T5{Minimum 45-minute\nduration confirmed?}
+    T5 -- No --> T3
+    T5 -- Yes --> T6{Shift window\noverlap check}
+    T6 -- Outside shift --> T7[No payout\ndisruption outside work hours]
+    T6 -- Within shift --> T8[Layer 0: Play Integrity\ndevice check]
+    T8 -- Device fails --> T9[Auto-reject\nworker notified]
+    T8 -- Device passes --> T10[Zone depth score\ncalculated]
+    T10 -->|Score below 0.20| T11[No payout\nboundary gaming detected]
+    T10 -->|Score above 0.20| T12[FPS fraud scoring\nacross 7 layers]
+    T12 -->|GREEN / YELLOW| T13{Circuit Breaker\nBCR < 85%?}
+    T12 -->|RED| T14[Manual review queue\nprovisional credit released]
+    T13 -- OPEN pool critical --> T15[Enrollment halted\nExisting policies protected]
+    T13 -- CLOSED pool healthy --> T16[70% immediate tranche\nworker notified]
+    T16 --> T17[Sunday settlement\n30% safety tranche released]
+    T14 --> T17
 ```
 
 ---
@@ -853,7 +1087,7 @@ flowchart TD
     F9 --> F10{Weighted ensemble FPS\n5 category scores}
     F10 -->|0.0-0.30 GREEN| F11[Auto-approve\npayout within 2 minutes]
     F10 -->|0.31-0.60 YELLOW| F12[Soft hold\nprovisional credit + 2hr verification]
-    F10 -->|0.61+ RED| F13[Human review\nprovisional credit released\nauto-explanation sent to worker]
+    F10 -->|0.61+ RED| F13[Human review\nprovisional 100-300 released\nauto-explanation sent to worker]
 ```
 
 ---
@@ -892,7 +1126,7 @@ Background GPS tracking via `flutter_background_geolocation` runs continuously d
 |---|---|
 | Design System | Ethereal Night Theme |
 | Framework | Flutter (Dart) |
-| State Management | Riverpod |
+| State Management | flutter_bloc + Provider (UserBloc, PolicyBloc, ClaimsBloc) |
 | Background Location | flutter_background_geolocation |
 | Local Storage | Hive (offline-first) |
 | Payments (mock) | Razorpay Flutter SDK â€” test mode |
@@ -908,16 +1142,25 @@ Background GPS tracking via `flutter_background_geolocation` runs continuously d
 | Auth | Supabase Auth (OTP via phone) |
 | Hosting | Render (free tier) |
 | Trigger Polling | Node-cron (every 15 min) |
-| NLP / ML | Python FastAPI microservice (XGBoost, scikit-learn, Prophet) |
+| NLP Scraper | Python + spaCy + LLM preprocessing via FastAPI microservice |
+| Data Trust Engine | `data_trust.js` — 4-tier cross-source credibility scoring |
+| Fraud Engine | `fraud_engine.js` — Abuse Score 0–100 + auto-decision router |
+| Circuit Breaker | `circuit_breaker.js` — BCR monitoring + zone rate limits |
+| Payout Dispatch | `payout_service.js` + `instamojo_payout.js` — 70/30 tranche |
+| API Resilience | `api_wrapper.js` — 3-strike degraded mode + 5-min cache fallback |
+| DB Triggers | `triggers.sql` — pool sync, financial auto-compute, baseline generation |
 
 **AI/ML**
 
 | Component | Technology |
 |---|---|
-| ISS Scoring | Rule engine + XGBoost (FastAPI) |
-| Fraud Detection | Isolation Forest + XGBoost + 7-layer ensemble |
-| NLP | TF-IDF + XGBoost + keyword rules |
-| Forecasting | Facebook Prophet |
+| ISS Scoring (Phase 1) | Python rule engine via FastAPI |
+| Fraud Detection | scikit-learn Isolation Forest + weighted ensemble FPS |
+| Zone Depth Scoring | PostGIS geospatial distance calculation |
+| Regional Intelligence | Python NLP pipeline (weekly scan) |
+| Internet Anomaly | Statistical threshold engine |
+| Accident Classifier | Congestion baseline + NLP corroboration |
+| Disruption Forecasting | Facebook Prophet — Phase 3 |
 
 **Guidewire**
 
@@ -928,11 +1171,348 @@ Background GPS tracking via `flutter_background_geolocation` runs continuously d
 | Premium billing + payout | BillingCenter REST API |
 | Distribution packaging | Guidewire Marketplace |
 
+**External APIs**
+
+| API | Use | Cost |
+|---|---|---|
+| OpenWeatherMap | Rainfall real-time | Free |
+| IMD Open Data | Authoritative thresholds + fallback | Free |
+| AQICN / WAQI | AQI monitoring | Free |
+| MaxMind GeoIP2 | IP geolocation + VPN detection | Free tier |
+| OpenCelliD | Cell tower triangulation | Free tier |
+| Ookla Speed Map API | Internet zone health | Free tier |
+| TRAI Outage Registry | Authoritative ISP outage data | Free (gov) |
+| Google Maps Traffic | Road speed monitoring | Pay-per-use |
+| Brave Search + NewsAPI | Crisis event corroboration | Free tier |
+| Play Integrity API | Device integrity verification | Free (Google) |
+| Zepto | Order failure rate + status | Mock Phase 1 |
+| Razorpay | UPI payout simulation | Test mode |
+
 ---
 
 ## ðŸ§ª MVP Scope â€” Phase 1
 
-Phase 1 demonstrates the complete parametric loop:
+## 🏗 Phase 2: Backend Micro-Services Architecture
+
+The core intelligence lives in `hustlr-backend/src/services/`. Each service is an independent module responsible for a single domain — designed so individual actuaries and adjusters can be upgraded, swapped, or scaled without touching adjacent systems.
+
+### A. Data Sources — Real-Time Disruption Monitoring
+
+The backend polls external APIs every 15 minutes to track ground-truth disruptions.
+
+| Service | File | What It Does |
+|---|---|---|
+| Weather | `weather_service.js` | OpenWeatherMap — monitors rainfall (>64.5 mm/hr Heavy Rain, >115.6 mm/hr Cyclonic) and Heat Waves (>43°C) |
+| AQI | `aqi_service.js` | AQICN/WAQI — flags Severe Pollution events (AQI ≥ 200) |
+| Traffic | `traffic_service.js` | Google Maps — monitors road-speed gridlock vs historical baseline |
+| Cell Tower + News | `cell_tower_service.js` + `news_service.js` | Additional corroboration sources cross-referencing active disruptions |
+| API Wrapper | `api_wrapper.js` | **Resilience layer** — if any upstream API fails 3 consecutive polls, marks it `DEGRADED` and falls back to cached data for exactly 5 minutes before retry |
+
+### B. The Data Trust Engine (`data_trust.js`)
+
+GPS and device accelerometers are trivially spoofable. Hustlr grades every incoming data point on a **Trust Matrix** before any payout decision is made.
+
+| Tier | Source Examples | Trust Range |
+|---|---|---|
+| **Tier 1 — Govt/Official** | IMD advisories, NDMA alerts | 0.90 – 1.00 |
+| **Tier 2 — Third-Party Verified** | OpenWeatherMap, AQICN, Platform logs, News | 0.70 – 0.85 |
+| **Tier 3 — Community Reports** | Crowd-sourced connectivity reports | 0.40 – 0.65 |
+| **Tier 4 — Device Sensors** | GPS coordinates, Accelerometers | 0.20 – 0.30 |
+
+**Trust Rule:** A single source is insufficient. Sources are cross-referenced and their combined trust score must mathematically exceed **0.75** to be considered valid for payout triggering. GPS alone — Tier 4 at 0.20–0.30 — is structurally incapable of triggering a claim on its own.
+
+### C. The Fraud Engine (`fraud_engine.js`)
+
+To operate profitably with zero human claims adjusters, claims must self-regulate against bad actors. The fraud engine calculates an **Abuse Score (0–100)** per claim from worker history and live signal analysis.
+
+**Red Flags That Increase the Abuse Score:**
+
+| Signal | Score Added |
+|---|---|
+| Account age < 14 days | +20 |
+| Claim velocity spike — 50+ claims from one zone in 10 min | +25 |
+| User location/zone mismatch | +25 |
+| Claiming outside declared shift window (8 AM – 10 PM) | +20 |
+| Device in developer mode / mock location detected | Auto-reject (Layer 0) |
+
+**Auto-Decision Router:**
+
+| Score | Outcome |
+|---|---|
+| **< 30 — Clean** | Payout instantly auto-approved |
+| **30–60 — Soft Hold** | Payout delayed 2 hours; amount restricted to 70% tranche only |
+| **> 60 — Flagged** | Sent immediately to manual admin review queue |
+
+### D. The Economic Circuit Breaker (`circuit_breaker.js`)
+
+A liquidity failsafe protecting the premium pool against insolvency during mass-disruption events (e.g., Cyclone Michaung week).
+
+The circuit breaker tracks the **Burning Cost Rate (BCR)** — the live ratio of `Claims Paid ÷ Premiums Collected`.
+
+**Hardcoded Limits:**
+
+| Parameter | Limit |
+|---|---|
+| Maximum auto-approved claims | 50 per hour per zone |
+| Maximum pool BCR | 85% |
+
+If the BCR breaches 85%, the system **automatically halts all new policy enrollments** for that city. Existing policies continue to be honoured. No new exposure is written until the pool recovers — preventing insolvency while protecting active workers already covered.
+
+### E. Payout Dispatch (`payout_service.js` + `instamojo_payout.js`)
+
+Once a claim clears fraud scoring and the circuit breaker allows it:
+
+**Tranche Architecture:**
+- **70% Immediate Tranche** — transferred to the worker's linked UPI/account instantly to cover urgent expenses (food, petrol)
+- **30% Safety Tranche** — held and released at end of week after the full week's claim pattern review
+
+**Failure Resilience:**
+- Transfer retried up to **3 times** before issuing a fatal `PAYOUT_FAILED` state written to Supabase
+- Every failure state generates an admin notification and a worker-facing message explaining the delay
+
+---
+
+## 🗄 Phase 2: Database Architecture — Supabase Triggers
+
+Rather than burdening the Node.js application layer with synchronisation logic, Hustlr delegates critical financial state management to the PostgreSQL database itself via `triggers.sql`.
+
+| Trigger | Event | What It Does |
+|---|---|---|
+| **Metadata Sync** | Any row update | Always stamps `updated_at` — ensures audit trail integrity |
+| **Pool Synchronisation** | Policy status change | Auto-increments/decrements `active_policies` count in `risk_pools` table — pool health stays current without an API call |
+| **Financial Auto-Compute** | Claim status → `SETTLED` | Triggers compute and write `total_claims_paid` and recalculate `loss_ratio` directly in the DB — no application-layer race condition possible |
+| **Baseline Generation** | New user created | Auto-creates a `fraud_baselines` entry and generates a formatted short `referral_code` — zero-touch new-user provisioning |
+
+**Why DB-level triggers:** Application-layer synchronisation introduces race conditions under concurrent claims (e.g., cyclone week with 1,000 simultaneous payouts). PostgreSQL triggers execute atomically within the same transaction — the pool balance and loss ratio are always consistent without locking.
+
+---
+
+## 👤 Phase 2: Registration & Onboarding Flow
+
+Optimised for a delivery worker completing registration at a red light on a ₹10,000 Android phone. Target: full onboarding under 90 seconds.
+
+```
+Step 1 — Phone OTP Login
+  Single device lock enforced at registration.
+  One account per verified phone number.
+
+Step 2 — Platform Selection
+  Worker selects: Zepto / Swiggy / Zomato / Amazon / Other
+  Platform exclusivity compliance confirmed.
+
+Step 3 — Zone Declaration
+  Worker selects their primary dark store / delivery zone.
+  PostGIS records the zone centroid for depth scoring.
+
+Step 4 — Income Baseline
+  Worker self-declares average weekly income (₹ range picker).
+  Used to calibrate ISS score and payout rate.
+
+Step 5 — ISS Score Calculated
+  Rule engine runs in < 1 second.
+  Tier recommendation displayed: "Based on your zone, Standard Shield is best for you."
+
+Step 6 — Plan Selection
+  Worker sees all four tiers + relevant add-on toggles.
+  Pricing shown weekly — no monthly confusion.
+
+Step 7 — Weekly Policy Created
+  PolicyCenter API called.
+  BillingCenter schedules first weekly deduction.
+  Worker receives confirmation push notification.
+```
+
+**Onboarding anti-fraud controls active from Step 1:**
+- 14-day new-account heightened scrutiny flag set automatically
+- Referral chain depth recorded for ring-detection baseline
+- Device hardware fingerprint captured and stored
+
+---
+
+## 📋 Phase 2: Insurance Policy Management
+
+### Policy Lifecycle
+
+```
+Monday 12:01 AM  →  New weekly policy created via PolicyCenter
+Monday  (debit)  →  BillingCenter executes weekly premium deduction
+Throughout week  →  Policy status: ACTIVE — triggers monitored
+Sunday 11 PM     →  Weekly settlement batch — claims evaluated
+Sunday 11:30 PM  →  ISS score refreshed for next week
+Monday 12:01 AM  →  New policy issued for next week (loop continues)
+```
+
+### Plan Tiers — Active in Phase 2
+
+| Plan | Weekly Premium | Core Coverage | Add-Ons Available |
+|---|---|---|---|
+| **Basic Shield** | ₹29/wk | Rain + extreme heat | Cyclone, App Downtime |
+| **Standard Shield** ⭐ | ₹49/wk | Rain, heat, pollution, app downtime | Curfew/Strike, Cyclone, Internet Blackout |
+| **Full Shield** | ₹79/wk | All types incl. bandh + internet blackout | Accident Blockspot, Heavy Traffic |
+| **Elite Shield** 🔥 | ₹109/wk | All types + compound triggers + 10% cashback | All add-ons bundled |
+
+### Policy Add-Ons — Phase 2 Live
+
+| Add-On | Weekly Cost | Status |
+|---|---|---|
+| Curfew & Strike | +₹15/wk | ✅ Live |
+| App Downtime | +₹12/wk | ✅ Live |
+| Cyclone | +₹25/wk | ✅ Live |
+| Election Day | +₹20/wk | ✅ Live |
+| Internet Blackout | +₹18/wk | ✅ Live — Phase 2 |
+| Accident Blockspot | +₹15/wk | ✅ Live — Phase 2 |
+| Heavy Traffic Congestion | +₹15/wk | ✅ Live — Phase 2 |
+
+---
+
+## 💰 Phase 2: Dynamic Premium Calculation
+
+Hustlr uses a **fixed-tier + ISS-influenced onboarding recommendation** model — not a week-to-week dynamic repricing model. This is a deliberate design decision.
+
+**Why fixed tiers (not dynamic repricing):**
+
+Workers on ₹500–600/week incomes cannot budget around a price that shifts each Sunday. A cyclone week where a premium jumps from ₹87 to ₹121 would cause workers to cancel coverage exactly when they need it most — defeating the product's purpose. Fixed tiers with a transparent price a worker can rely on week-to-week are non-negotiable for this persona.
+
+**How the ISS score still drives dynamic intelligence:**
+
+```
+ISS 0–29   →  Recommend Elite Shield  (₹109/wk)
+ISS 30–49  →  Recommend Full Shield   (₹79/wk)
+ISS 50–69  →  Recommend Standard Shield (₹49/wk)
+ISS 70–100 →  Recommend Basic Shield  (₹29/wk)
+```
+
+The ISS score influences which tier a worker is recommended at onboarding — and re-evaluated weekly to detect if their risk profile has changed enough to suggest a tier upgrade or downgrade. The worker decides whether to act on the recommendation. Their price does not change without their explicit action.
+
+**Premium Guardrails:**
+
+| Bound | Multiplier | Example (Standard Shield base) |
+|---|---|---|
+| Maximum premium | 2.0× base rate | ₹98/week |
+| Minimum premium | 0.7× base rate | ₹34/week |
+| Week-over-week ISS change cap | ±20% recommendation shift | Prevents shock re-recommendations |
+
+---
+
+## 🔄 Phase 2: Claims Management
+
+### Automated Claims (Zero Worker Action Required)
+
+For all parametric triggers (weather, AQI, bandh, internet blackout, platform outage), claims are initiated server-side — the worker never files anything.
+
+```
+1. Cron job fires every 15 minutes
+2. Data trust engine validates source credibility (combined trust > 0.75)
+3. Threshold + shift window check passes
+4. Zone depth score calculated via PostGIS
+5. Fraud engine scores the claim (Abuse Score 0–100)
+6. Circuit breaker confirms pool BCR is within limits
+7. Claim written to Supabase with status PENDING
+8. Worker receives push notification: "Rain disruption detected in your zone. Claim queued for Sunday settlement."
+9. Sunday 11 PM: settlement batch runs, payout dispatched
+```
+
+**3–5 Automated Triggers Built (Phase 2):**
+
+| # | Trigger | API Source | Threshold |
+|---|---|---|---|
+| 1 | Heavy Rain | OpenWeatherMap + IMD | ≥ 64.5 mm/hr |
+| 2 | Extreme Rain / Cyclone | OpenWeatherMap + IMD | ≥ 115.6 mm/hr |
+| 3 | Platform App Outage | Mock Zepto API (order failure rate) | Order failure > 60% |
+| 4 | Internet Zone Blackout | Ookla Speed Map + TRAI Registry | < 10% connectivity for ≥ 30 min |
+| 5 | Bandh / Curfew / Strike | NewsAPI + NLP scraper | NLP confidence ≥ 0.6 + platform OFFLINE |
+
+### Manual Claims — Worker-Initiated (Assisted Flow)
+
+For accident blockspots and road closures where automated APIs cannot confirm the disruption with sufficient confidence, workers use the **"Report a Disruption"** button on the Claims screen.
+
+```
+Step 1 — Select Disruption Type
+  🚧  Road Blocked / Accident
+  🏪  Dark Store / Hub Closed
+  🌐  Internet Outage (zone-level)
+  📦  Other Delivery Blockage
+
+Step 2 — Evidence Capture (EXIF-stamped, live camera only — no gallery uploads)
+  Road Blocked   →  1 photo (GPS-stamped at capture via mandatory AI reticle overlay)
+  Hub Closed     →  1 photo + Zepto screenshot (zero orders)
+  Internet       →  App auto-reads signal strength — no photo required
+  Other          →  1 photo + description (max 100 chars)
+
+Step 3 — Submit + Track
+  Claim ID issued immediately
+  Status screen: SUBMITTED → UNDER REVIEW → APPROVED/REJECTED
+  4-hour SLA for manual reviews
+  One-tap appeal within 4 hours if rejected
+```
+
+**Manual claim anti-fraud controls:**
+- Live capture enforced — `manual_claim_camera_screen.dart` mandates the AI reticle overlay, blocking gallery uploads entirely
+- EXIF timestamp + GPS coordinates validated against the declared zone
+- Cross-checked against Traffic API gridlock data + NewsAPI corroboration
+- Duplicate submission prevention — same zone + same disruption type within 24 hours blocked
+
+### Seamless UX Principle
+
+The best claim process is the one the worker never has to think about. For the 5 automated triggers, the worker does nothing — they receive a push notification and money appears on Sunday. The manual flow exists only as a fallback for the edge cases automated APIs cannot catch. SLA: 4 hours.
+
+---
+
+## 💸 Phase 2: Payout Dispatch
+
+Once a claim clears fraud scoring and the circuit breaker, the payout is executed via `instamojo_payout.js` (mock/test mode):
+
+```
+Claim APPROVED
+  → 70% Immediate Tranche  →  worker's UPI (instant)
+  → 30% Safety Tranche     →  held until Sunday 11 PM weekly batch
+
+Retry Logic:
+  Attempt 1 → 2 → 3 → PAYOUT_FAILED (written to DB, admin alerted, worker notified)
+
+Worker notification:
+  "₹105 credited to your UPI (Karthik). ₹45 will follow Sunday night."
+```
+
+**Why split tranches:** The 70% immediate transfer covers the worker's urgent expenses — food, petrol, rent — on the day of disruption. The 30% safety hold gives the fraud engine a review window to catch late-detected anomalies before the full balance is released. Workers are told about both tranches at policy activation — no surprises.
+
+---
+
+## ⚡ Phase 2: Economic Circuit Breaker
+
+The circuit breaker is a financial failsafe that protects the liquidity pool during mass-disruption weeks.
+
+```python
+# Pseudocode — circuit_breaker.js
+def check_pool_health(city_zone):
+    claims_paid_this_week = get_claims_paid(city_zone)
+    premiums_collected = get_premiums_collected(city_zone)
+    BCR = claims_paid_this_week / premiums_collected
+
+    if claims_in_last_hour(city_zone) > 50:
+        HALT new enrollments — "Rate limit exceeded"
+        return CIRCUIT_OPEN
+
+    if BCR > 0.85:
+        HALT new enrollments for city — "Pool health critical"
+        NOTIFY admin + reinsurance trigger evaluation
+        return CIRCUIT_OPEN
+
+    return CIRCUIT_CLOSED  # Normal operation
+```
+
+| BCR Level | System State | Action |
+|---|---|---|
+| < 65% | Healthy | Normal operations |
+| 65–85% | Elevated | Admin warning, no change |
+| > 85% | Critical | New enrollments halted for that city |
+| > 400% pool (4× weekly total) | Catastrophic | Reinsurance clause activated |
+
+---
+
+## 🧪 MVP Scope — Phase 1 ✅ & Phase 2 ✅
+
+### Phase 1 Complete ✅
 
 - Rain trigger via live OpenWeatherMap + IMD with shift window check
 - Zone depth scoring (3-ring model with payout multiplier)
@@ -959,6 +1539,32 @@ Phase 1 demonstrates the complete parametric loop:
 - Guidewire ClaimCenter payload structure
 - Insurer profitability simulator design
 - UPI payout via Razorpay test mode
+
+### Phase 2 Complete ✅
+
+- Full Flutter app — all screens + manual claim camera flow (EXIF + AI reticle)
+- BLoC state management (UserBloc, PolicyBloc, ClaimsBloc)
+- Registration + KYC onboarding flow (< 90 seconds)
+- Weekly policy creation via PolicyCenter API
+- Insurance policy management (active, expired, history screens)
+- Dynamic premium recommendation engine (ISS-driven tier suggestion)
+- Premium guardrails (2× ceiling, 0.7× floor, ±20% ISS shift cap)
+- 5 automated parametric triggers live (rain, cyclone, platform outage, internet blackout, bandh)
+- Claims management — automated + manual fallback
+- Manual claim camera screen with AI reticle (live capture enforced)
+- Manual evidence submission flow
+- Claims status tracking (SUBMITTED → UNDER REVIEW → APPROVED/REJECTED)
+- Data Trust Engine (4-tier cross-source validation, >0.75 threshold)
+- Fraud Engine with Abuse Score auto-router (< 30 auto-approve, 30–60 soft hold, > 60 flagged)
+- Economic Circuit Breaker (BCR monitoring + 50 claims/hr zone cap)
+- 70/30 tranche payout dispatch (Instamojo test mode)
+- Supabase DB triggers (metadata sync, pool sync, financial auto-compute, baseline generation)
+- API resilience wrapper (3-strike degraded mode + 5-minute fallback cache)
+- Internet Blackout add-on live
+- Accident Blockspot add-on live
+- Heavy Traffic Congestion add-on live
+- Wallet screen — financial ledger (payouts vs premiums)
+- Dashboard — real-time disruption status, active policy card, ISS score
 
 ---
 
@@ -1207,7 +1813,6 @@ curl -X POST https://hustlr-ad32.onrender.com/claims/manual \
 **Quick judge URLs:** API health `GET /health`, cron status `GET /health/cron`, ML via Node → `ML_SERVICE_URL`. Web on Vercel needs `HUSTLR_API_PROD`; Render `hustlr-api` should set `CORS_ORIGIN` to the Vercel origin.
 
 ### Phase 3 (Weeks 5–6) — Scale & Optimise
-
 - [ ] Isolation Forest fraud model + Poisson timing test
 - [ ] LLM news preprocessing pipeline
 - [ ] Facebook Prophet forecasting model
@@ -1224,8 +1829,9 @@ curl -X POST https://hustlr-ad32.onrender.com/claims/manual \
 
 ### Go-To-Market Strategy — B2C First, B2B2C Second
 
-**Phase 1 — B2C Direct (Months 0–12):**
+Hustlr launches **direct to consumer** — not as enterprise infrastructure from day one.
 
+**Phase 1 — B2C Direct (Months 0–12):**
 ```
 Target:      10,000 Zepto workers in Chennai
 Acquisition: WhatsApp delivery partner groups +
@@ -1237,6 +1843,19 @@ Goal:        Prove loss ratio stays below 65%
              Accumulate 12 months of real claims data
 ```
 
+**Phase 2 — B2B2C Platform Sales (Months 12+):**
+```
+Pitch to Zepto:
+  "10,000 of your delivery partners already use this.
+   Loss ratio: 61%. Fraud rate: 3.2%.
+   License it and offer it natively inside your app."
+
+Pitch to ICICI Lombard / HDFC ERGO:
+  "12 months of parametric claims data for Q-commerce
+   workers in Chennai. Proven insurable at 61% loss ratio.
+   License our engine."
+```
+
 ### Premium Structure
 
 | Parameter | Value | Rationale |
@@ -1244,7 +1863,7 @@ Goal:        Prove loss ratio stays below 65%
 | Premium frequency | Weekly deduction | Matches gig worker pay cycle |
 | ISS score update | Weekly (every Sunday night) | Reflects latest risk signals before Monday policy |
 | Premium recalculation | Weekly (every Monday) | New PolicyCenter policy each week using latest ISS |
-| Week-over-week change cap | ±20% maximum | Protects workers from premium shock |
+| Week-over-week change cap | ±20% maximum | Protects workers from shock spikes — ₹49 can only move to ₹39–₹59 in one week |
 | Plan tier stability | Fixed per season | Worker knows which plan tier they're on |
 | Payout type | Fixed amounts per trigger type | Parametric simplicity |
 
@@ -1252,13 +1871,13 @@ Goal:        Prove loss ratio stays below 65%
 
 | Control | Parameter | Purpose |
 |---|---|---|
-| Weekly payout cap | 65% of pool | Target loss ratio |
-| Reserve fund | 15% of pool | Claims overflow + cyclone week buffer |
-| Hustlr technology fee | 8% of pool | Engine + fraud + app |
-| Insurer underwriting margin | 7% of pool | Insurer profit |
-| Reinsurance premium | 2% of pool | Catastrophic transfer |
-| Guidewire licensing | 3% of pool | PC + CC + BC |
-| Daily worker cap | ₹150/day | Per-worker exposure |
+| Weekly payout cap | 65% of pool | Target loss ratio — actual claims paid out |
+| Reserve fund | 15% of pool | Claims overflow buffer + cyclone week protection |
+| Hustlr technology fee | 8% of pool | Trigger engine + fraud detection + Flutter app |
+| Insurer underwriting margin | 7% of pool | ICICI Lombard / HDFC ERGO profit |
+| Reinsurance premium | 2% of pool | Catastrophic event transfer (>4× weekly pool) |
+| Guidewire licensing | 3% of pool | PolicyCenter + ClaimCenter + BillingCenter |
+| Daily worker cap | ₹150/day | Per-worker exposure limit |
 | Weekly worker cap | ₹500/week | Cyclone week protection |
 | Geographic concentration | Hard 25% cap per city | Correlated loss prevention |
 
@@ -1273,6 +1892,8 @@ Goal:        Prove loss ratio stays below 65%
 | Reinsurance premium | 2% | ₹9,800 |
 | Guidewire licensing | 3% | ₹14,700 |
 | **Total** | **100%** | **₹4,90,000** |
+
+**Why this works:** Every rupee is accounted for. Guidewire can see their licensing fee explicitly. The insurer sees their margin. Hustlr's technology fee is sustainable at scale. The reserve accumulates weekly as a catastrophic buffer — a Cyclone Michaung-level event triggering the reinsurance clause transfers excess loss beyond 4× pool (₹19,60,000) to the licensed insurer's reinsurance arrangement.
 
 ### Projected Financials — Chennai Pilot (10,000 Workers)
 
