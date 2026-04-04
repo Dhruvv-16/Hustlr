@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:environment_sensors/environment_sensors.dart';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 class FraudSensorService {
-  static final _envSensors = EnvironmentSensors();
 
   /// Captures a sensor payload including GPS coordinates, GPS jitter (std div), 
   /// and barometric pressure if available. Also gathers basic device spoofing heuristics.
@@ -20,17 +20,7 @@ class FraudSensorService {
     }
 
     try {
-      // 1. Fetch Barometer Data (Quickly grab latest reading)
-      double? pressureHpa;
-      try {
-        final hasBarometer = await _envSensors.getSensorAvailable(SensorType.Pressure);
-        if (hasBarometer) {
-          pressureHpa = await _envSensors.pressure.first.timeout(const Duration(milliseconds: 800));
-          payload['barometer_hpa'] = pressureHpa;
-        }
-      } catch (_) {
-        // Sensor failure, silently ignore
-      }
+      // Barometer removed due to plugin compilation issues
 
       // 2. Location & Jitter (std dev)
       final locAllowed = await _checkLocationPermission();
