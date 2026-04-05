@@ -20,18 +20,20 @@ router.get('/shadow/:user_id', async (req, res) => {
 
 router.post('/create', async (req, res) => {
   try {
-    const { user_id, plan_tier, risk_score = 0.5 } = req.body;
+    const { user_id, plan_tier } = req.body;
     
-    // Fetch user to get zone and iss_score
+    // Fetch user to get zone, iss_score, and active_days for loading
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('zone, iss_score')
+      .select('zone, iss_score, active_days_last_30')
       .eq('id', user_id)
       .single();
     if (userError) throw userError;
 
-    // Calculate dynamic premium
-    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, risk_score);
+    // Calculate dynamic premium with monsoon surcharge + activity loading
+    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, {
+      active_days_last_30: user.active_days_last_30 ?? 25,
+    });
 
     // Deactivate any existing active policy for this user first
     await supabase
@@ -82,7 +84,7 @@ router.get('/:user_id', async (req, res) => {
 router.patch('/:id/upgrade', async (req, res) => {
   try {
     const { id } = req.params;
-    const { new_plan_tier, risk_score = 0.5 } = req.body;
+    const { new_plan_tier } = req.body;
 
     const { data: existingPolicy, error: policyFetchError } = await supabase
       .from('policies')
@@ -93,12 +95,14 @@ router.patch('/:id/upgrade', async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('zone, iss_score')
+      .select('zone, iss_score, active_days_last_30')
       .eq('id', existingPolicy.user_id)
       .single();
     if (userError) throw userError;
 
-    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, risk_score);
+    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, {
+      active_days_last_30: user.active_days_last_30 ?? 25,
+    });
 
     const { data: updated_policy, error: updateError } = await supabase
       .from('policies')
