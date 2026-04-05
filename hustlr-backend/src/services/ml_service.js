@@ -26,6 +26,9 @@ async function isMlOnline() {
 }
 
 // ── ISS Score ────────────────────────────────────────────────────────────────
+// ISS 0–39   → High risk  → Recommend Full Shield (₹79/wk)
+// ISS 40–80  → Med risk   → Recommend Standard Shield (₹49/wk)
+// ISS 81–100 → Low risk   → Recommend Basic Shield (₹35/wk)
 async function getISSScore({
   zone_flood_risk = 0.5,
   avg_daily_income = 600,
@@ -52,10 +55,22 @@ async function getISSScore({
     score += Math.min(avg_daily_income / 200, 10);
     score -= claims_history_penalty;
     const iss = Math.max(0, Math.min(100, Math.round(score)));
+
+    // README-canonical thresholds: 0–39 = Full Shield, 40–80 = Standard Shield, 81–100 = Basic Shield
+    const recommended_tier =
+      iss <= 39 ? 'full' :
+      iss <= 80 ? 'standard' :
+      'basic';
+    const recommended_tier_name =
+      iss <= 39 ? 'Full Shield' :
+      iss <= 80 ? 'Standard Shield' :
+      'Basic Shield';
+
     return {
       iss_score: iss,
-      risk_band: iss < 50 ? 'HIGH' : iss < 70 ? 'MEDIUM' : 'LOW',
-      recommended_tier: iss < 40 ? 'Full Shield' : iss < 65 ? 'Standard Shield' : 'Basic Shield',
+      risk_band: iss < 40 ? 'HIGH' : iss < 81 ? 'MEDIUM' : 'LOW',
+      recommended_tier,
+      recommended_tier_name,
       _source: 'rule_fallback',
     };
   }
@@ -120,7 +135,13 @@ async function detectBlackout({ ookla_avg_speed, device_pct_weak, sustained_minu
     return data;
   } catch {
     const fired = ookla_avg_speed < 2.0 && device_pct_weak >= 0.30 && sustained_minutes >= 20;
-    return { blackout_detected: fired, severity: fired ? 'MODERATE' : 'NONE', trigger_fires: fired, hourly_rate_inr: fired ? 50 : 0, _source: 'rule_fallback' };
+    return {
+      blackout_detected: fired,
+      severity: fired ? 'MODERATE' : 'NONE',
+      trigger_fires: fired,
+      hourly_rate_inr: fired ? 45 : 0,  // ₹45/hr per actuarial model
+      _source: 'rule_fallback',
+    };
   }
 }
 
@@ -135,7 +156,13 @@ async function classifyTraffic({ zone, traffic_speed_kmh, baseline_speed_kmh, tr
   } catch {
     const drop = (baseline_speed_kmh - traffic_speed_kmh) / baseline_speed_kmh;
     const heavy = drop >= 0.40 && traffic_duration_min >= 45;
-    return { classification: heavy ? 'ACCIDENT_BLOCKSPOT' : 'INCONCLUSIVE', heavy_traffic_trigger: heavy, trigger_fires: heavy, hourly_rate_inr: heavy ? 40 : 0, _source: 'rule_fallback' };
+    return {
+      classification: heavy ? 'ACCIDENT_BLOCKSPOT' : 'INCONCLUSIVE',
+      heavy_traffic_trigger: heavy,
+      trigger_fires: heavy,
+      hourly_rate_inr: heavy ? 30 : 0,  // ₹30/hr per actuarial model
+      _source: 'rule_fallback',
+    };
   }
 }
 
@@ -196,10 +223,24 @@ async function calculatePayout({ trigger_type, disruption_hours, zone_depth_scor
     }, { timeout: TIMEOUT });
     return data;
   } catch {
-    // Conservative fallback
-    const RATES = { heavy_rain: 50, extreme_rain: 65, heat_wave: 40, aqi: 40, app_outage: 50, bandh: 50, internet_blackout: 50, heavy_traffic: 40 };
-    const rate   = RATES[trigger_type] || 50;
-    const payout = Math.min(Math.round(rate * disruption_hours * 0.85), 150);
+    // Fallback uses canonical HOURLY_RATES and plan-tier daily caps from constants.js
+    // Trigger key names MUST match HOURLY_RATES keys exactly.
+    const RATES = {
+      rain_heavy:        40,  // ₹40/hr
+      rain_extreme:      65,  // ₹65/hr
+      heat_severe:       45,  // ₹45/hr
+      aqi_hazardous:     35,  // ₹35/hr
+      platform_outage:   50,  // ₹50/hr
+      bandh:             55,  // ₹55/hr
+      traffic_severe:    30,  // ₹30/hr
+      internet_blackout: 45,  // ₹45/hr
+      cyclone_landfall:  80,  // ₹80/hr (Full Shield only)
+    };
+    // Plan-tier daily hard caps (README canonical)
+    const PLAN_DAILY_CAPS = { basic: 100, standard: 150, full: 250 };
+    const rate       = RATES[trigger_type] || 40;
+    const dailyCap   = PLAN_DAILY_CAPS[plan_tier] || 150;
+    const payout     = Math.min(Math.round(rate * (disruption_hours || 3)), dailyCap);
     return { payout_inr: payout, approved: payout > 0, _source: 'rule_fallback' };
   }
 }
