@@ -92,6 +92,10 @@ async function getFraudScore({
   platform_app_inactive = 0,
   ip_home_match = 0,
   claim_latency_under30s = 0,
+  gps_jitter_too_perfect = 0,
+  barometer_altitude_mismatch = 0,
+  device_hardware_fingerprint_match = 0,
+  app_install_timestamp_cluster = 0,
 } = {}) {
   try {
     const { data } = await axios.post(`${ML_URL}/fraud`, {
@@ -99,7 +103,9 @@ async function getFraudScore({
       play_integrity_pass, is_mock_location, ndma_emergency_active,
       gps_zone_mismatch, wifi_home_ssid, battery_charging,
       accelerometer_idle, platform_app_inactive, ip_home_match,
-      claim_latency_under30s,
+      claim_latency_under30s, gps_jitter_too_perfect,
+      barometer_altitude_mismatch, device_hardware_fingerprint_match,
+      app_install_timestamp_cluster,
     }, { timeout: TIMEOUT });
     return data;
   } catch {
@@ -134,7 +140,15 @@ async function detectBlackout({ ookla_avg_speed, device_pct_weak, sustained_minu
     }, { timeout: TIMEOUT });
     return data;
   } catch {
-    const fired = ookla_avg_speed < 2.0 && device_pct_weak >= 0.30 && sustained_minutes >= 20;
+    const sig1 = ookla_avg_speed < 2.0 && sustained_minutes >= 20;
+    const sig2 = device_pct_weak >= 0.30;
+    const sig3 = trai_match === true;
+    
+    // Dual-confirmation rule:
+    // Signal 1 + Signal 2  -> AUTO_TRIGGER
+    // Signal 3 alone       -> AUTO_TRIGGER
+    const fired = sig3 || (sig1 && sig2);
+    
     return {
       blackout_detected: fired,
       severity: fired ? 'MODERATE' : 'NONE',
