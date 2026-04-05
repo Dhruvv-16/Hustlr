@@ -73,7 +73,7 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.cloud_off,
               label: "Trigger Platform Downtime",
-              subtitle: "Simulates Zepto outage → ₹100 payout",
+              subtitle: "Simulates Zepto outage → ₹140 payout",
               color: const Color(0xFF00897B),
               bgColor: const Color(0xFFE0F2F1),
               onTap: () {
