@@ -22,7 +22,7 @@ const PLAN_CONFIG = {
     name: 'Basic Shield',
     target_bcr: 0.62,
     multiplier: 6.0,
-    covered_triggers: ['rain_heavy', 'rain_extreme', 'heat_severe'],
+    covered_triggers: ['rain_heavy', 'heat_severe'],
   },
   standard: {
     base: 49,
@@ -54,7 +54,7 @@ const ADD_ON_TIER_REQUIREMENTS = {
   internet_blackout:  'standard',  // Blackout: ₹45/hr — Standard+ only
   curfew_strike:      'standard',  // Bandh/curfew: ₹55/hr — Standard+ only
   accident_blockspot: 'standard',  // Accident blockspot — Standard+ only
-  traffic_congestion: 'standard',  // Heavy traffic — Standard+ only (trigger itself is Full Shield)
+  traffic_congestion: 'full',      // Heavy traffic — Full Shield only (trigger itself is Full Shield)
   election_day:       'basic',     // Election day: available to all plans
   app_downtime:       'basic',     // App downtime: Basic only (already included in Standard+)
 };
@@ -149,7 +149,7 @@ module.exports = {
     curfew_strike:      { weekly: 12, min_plan: 'standard', note: 'Standard+ only. NewsAPI NLP. ~3 events/yr Chennai.' },
     internet_blackout:  { weekly: 18, min_plan: 'standard', note: 'Standard+ only. ₹45/hr. 2×/yr. Ookla+TRAI.' },
     accident_blockspot: { weekly: 15, min_plan: 'standard', note: 'Standard+ only. Tier 1/2/3 hotspot corridors.' },
-    traffic_congestion: { weekly: 15, min_plan: 'standard', note: 'Standard+ only. ₹30/hr. Speed 40% below baseline ≥45min.' },
+    traffic_congestion: { weekly: 15, min_plan: 'full', note: 'Full Shield only. ₹30/hr. Speed 40% below baseline ≥45min.' },
     election_day:       { weekly: 8,  min_plan: 'basic',    note: 'All plans. Fixed calendar. Low adverse selection risk.' },
     app_downtime:       { weekly: 10, min_plan: 'basic',    note: 'Basic only. Platform outage >60%. Already in Standard+.' },
   },

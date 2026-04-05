@@ -56,31 +56,38 @@ function calculatePremium(plan_tier, iss_score, zone, {
     ? Math.round(base * MONSOON_SURCHARGE)   // +22% = ₹7–₹17 depending on plan
     : 0;
 
-  // ── Subtotal before clamp ────────────────────────────────────────────────────
-  let final_premium = base + zone_adjustment + iss_adjustment + activity_loading + monsoon_surcharge;
-
-  // ── Hard clamp: max ±20% from advertised base (README guardrail) ─────────────
-  // Monsoon surcharge is NOT subject to clamp (it's a seasonal product adjustment)
-  // Only zone + ISS + activity adjustments are clamped.
+  // ── Step 1: Weekly Drift Guardrail (max ±20% from advertised base) ─────────────
+  // Monsoon surcharge is NOT subject to this weekly drift clamp.
+  // Only zone + ISS + activity adjustments are restricted to ±20% per week.
   const adjustments_before_monsoon = zone_adjustment + iss_adjustment + activity_loading;
   const maxDrift = Math.round(base * 0.2);
   const clamped_adjustments = Math.max(-maxDrift, Math.min(maxDrift, adjustments_before_monsoon));
-  final_premium = base + clamped_adjustments + monsoon_surcharge;
+  
+  // Calculate the premium before applying the absolute ceiling
+  let final_premium = base + clamped_adjustments + monsoon_surcharge;
+
+  // ── Step 2: Absolute Policy Boundary (min 0.7x and max 2.0x of base) ───────────
+  // No matter what combination of surcharges and penalties occur, 
+  // the premium can NEVER exceed these absolute limits.
+  const minPremium = Math.round(base * 0.7);
+  const maxPremium = Math.round(base * 2.0);
+  
+  final_premium = Math.max(minPremium, Math.min(maxPremium, final_premium));
 
   return {
-    base_premium:       base,
-    zone_adjustment:    zone_adjustment,
-    iss_adjustment:     iss_adjustment,
-    activity_loading:   activity_loading,
-    activity_note:      activity_note,
-    monsoon_surcharge:  monsoon_surcharge,
-    is_monsoon_season:  is_monsoon_season,
-    risk_adjustment:    0,
-    final_premium:      final_premium,
-    weekly_cap:         plan.max_payout,
-    daily_cap:          plan.daily_cap,
-    multiplier:         plan.multiplier,
-    breakdown_label:    `₹${base} base + ₹${zone_adjustment} zone + ₹${iss_adjustment} ISS + ₹${activity_loading} activity + ₹${monsoon_surcharge} monsoon = ₹${final_premium}/wk`,
+    base_premium: base,
+    zone_adjustment: zone_adjustment,
+    iss_adjustment: iss_adjustment,
+    activity_loading: activity_loading,
+    activity_note: activity_note,
+    monsoon_surcharge: monsoon_surcharge,
+    is_monsoon_season: is_monsoon_season,
+    risk_adjustment: 0,
+    final_premium: final_premium,
+    weekly_cap: plan.max_payout,
+    daily_cap: plan.daily_cap,
+    multiplier: plan.multiplier,
+    breakdown_label: `₹${base} base + ₹${zone_adjustment} zone + ₹${iss_adjustment} ISS + ₹${activity_loading} activity + ₹${monsoon_surcharge} monsoon = ₹${final_premium}/wk`,
   };
 }
 
