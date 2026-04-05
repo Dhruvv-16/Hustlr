@@ -60,7 +60,7 @@ const DISPLAY_NAMES = {
 // Which triggers each plan covers
 const PLAN_TRIGGERS = {
   basic:    ['rain_heavy', 'rain_extreme', 'heat_severe'],
-  standard: ['rain_heavy', 'rain_extreme', 'heat_severe', 'aqi_hazardous', 'platform_outage', 'bandh'],
+  standard: ['rain_heavy', 'rain_extreme', 'heat_severe', 'aqi_hazardous', 'platform_outage', 'bandh', 'internet_blackout'],
   full:     ['rain_heavy', 'rain_extreme', 'heat_severe', 'aqi_hazardous', 'platform_outage',
              'bandh', 'traffic_severe', 'internet_blackout', 'cyclone_landfall'],
 };
@@ -553,7 +553,7 @@ router.post('/manual', async (req, res) => {
 
   if (daysSince < 7) {
     return res.status(400).json({
-      error: 'Minimum 7 active days required before filing claims',
+      error: 'Minimum 7 active delivery days required before filing claims',
       days_remaining: 7 - daysSince
     });
   }

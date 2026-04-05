@@ -724,10 +724,10 @@ class MockDataService extends ChangeNotifier {
     if (userId.isEmpty || true) {
       Future.delayed(const Duration(seconds: 3), () {
         final payout = switch (triggerType) {
-          'rain_heavy' => 120,
-          'platform_outage' => 100,
-          'heat_severe' => 130,
-          _ => 120,
+          'rain_heavy' => 120,   // ₹40/hr × 3hrs = ₹120 (within Standard ₹150 daily cap)
+          'platform_outage' => 140, // ₹50/hr × 2.8hrs ≈ ₹140 (within Standard ₹150 daily cap)
+          'heat_severe' => 130,  // ₹45/hr × 2.9hrs ≈ ₹130 (within Standard ₹150 daily cap)
+          _ => 100,
         };
         claims.first.status = 'APPROVED';
         if (claims.first.id == tempId) {
