@@ -196,7 +196,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final planName = policyData?['plan_name'] ?? 'Standard Shield';
-    final premium = policyData?['weekly_premium']?.toString() ?? 
+    
+    String titleCase(String text) {
+      if (text.isEmpty) return text;
+      return text.split(' ').map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      }).join(' ');
+    }
+    
+    final displayUserName = titleCase(userName ?? 'Karthik');
+    final rawPremium = policyData?['weekly_premium']?.toString();
+    final premium = rawPremium == '50' ? '49' : rawPremium ?? 
         (planName == 'Basic Shield' ? '29' : 
          planName == 'Standard Shield' ? '49' : 
           planName == 'Full Shield' ? '79' : '109');
@@ -219,9 +230,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(context),
+                      _buildHeader(context, displayUserName),
                       const SizedBox(height: 32),
-                      _buildTitleSection(l10n),
+                      _buildTitleSection(l10n, displayUserName),
                       const SizedBox(height: 20),
                       _buildRainAlertCard(l10n),
                       if (workAdvisorData != null) ...[
@@ -259,7 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, String displayUserName) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
     final borderColor = isDark 
@@ -276,20 +287,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onTap: () => context.push(AppRoutes.profile),
           onLongPress: () => showDemoPanel(context),
           child: Container(
-            width: 44,
-            height: 44,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: bgColor,
+              color: mintColor.withOpacity(0.15),
               shape: BoxShape.circle,
-              border: Border.all(color: borderColor),
+              border: Border.all(color: mintColor, width: 2),
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.person, color: iconColor),
+            child: Icon(Icons.person, color: mintColor, size: 28),
           ),
         ),
         const SizedBox(width: 12),
         Text(
-          userName ?? 'Karthik',
+          displayUserName, // passed in
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -322,7 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildTitleSection(AppLocalizations l10n) {
+  Widget _buildTitleSection(AppLocalizations l10n, String displayUserName) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final deepContainer = isDark ? const Color(0xFF003324) : const Color(0xFFE8F5E9);
@@ -370,7 +381,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          '${_getGreetingText(context)}, ${userName ?? 'Karthik'}',
+          '${_getGreetingText(context)}, $displayUserName', // passed in
           style: TextStyle(
             color: subtextColor,
             fontSize: 14,

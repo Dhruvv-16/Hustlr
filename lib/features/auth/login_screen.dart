@@ -61,29 +61,19 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 40),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset('assets/icon.png', width: 48, height: 48),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'Hustlr',
-                    style: theme.textTheme.displayLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontSize: 40,
-                      shadows: [
-                        Shadow(
-                          color: theme.colorScheme.primary.withOpacity(isDark ? 0.3 : 0.15),
-                          blurRadius: isDark ? 24 : 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+              Text(
+                'Hustlr',
+                style: theme.textTheme.displayLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontSize: 40,
+                  shadows: [
+                    Shadow(
+                      color: theme.colorScheme.primary.withOpacity(isDark ? 0.3 : 0.15),
+                      blurRadius: isDark ? 24 : 12,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
               Text(

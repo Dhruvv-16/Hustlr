@@ -334,7 +334,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get claim_detail_download => 'Download Receipt';
 
   @override
-  String get wallet_title => 'Vault';
+  String get wallet_title => 'Wallet';
 
   @override
   String get wallet_balance => 'Available Balance';
@@ -498,14 +498,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get support_faq_1_a =>
-      'Claims are triggered automatically when a disruption is detected in your zone. You never need to file anything manually.';
+      'In parametric insurance, there is no filing, no investigation, and no approval. Claims trigger automatically when official thresholds are crossed (e.g., AQI > 300 via CPCB, or rain > 50mm). The worker does nothing.';
 
   @override
   String get support_faq_2_q => 'When will I receive my payout?';
 
   @override
   String get support_faq_2_a =>
-      '70% is credited immediately. The remaining 30% is released after a 48-hour fraud review on Tuesday night.';
+      'If your GPS cross-checks with your platform login data (proving you were active), funds are transferred directly to your UPI within 2 hours.';
 
   @override
   String get support_faq_3_q => 'Can I update my coverage?';
@@ -513,6 +513,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get support_faq_3_a =>
       'Yes. Go to the Policy tab and tap Upgrade Plan to change your coverage tier.';
+
+  @override
+  String get support_faq_4_q => 'How are the weekly premiums priced?';
+
+  @override
+  String get support_faq_4_a =>
+      'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.';
 
   @override
   String get support_raise_ticket => 'Raise a Ticket';
