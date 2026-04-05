@@ -48,19 +48,16 @@ class WalletScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: bgScreen,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.menu_rounded, color: primary),
-          onPressed: () {},
-        ),
+        automaticallyImplyLeading: false,
         title: Text(
           l10n.wallet_title,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: primary,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -69,7 +66,7 @@ class WalletScreen extends StatelessWidget {
               children: [
                 IconButton(
                   icon: Icon(Icons.notifications_rounded, color: primary),
-                  onPressed: () {},
+                  onPressed: () => context.push(AppRoutes.notifications),
                 ),
                 Positioned(
                   top: 8,
@@ -128,10 +125,14 @@ class _BalanceCard extends StatelessWidget {
     final mockData = Provider.of<MockDataService>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-    final formattedBalance = mockData.walletBalance.toString().replaceAllMapped(
+    final balanceValue = mockData.walletBalance;
+    // Never show a negative balance to the user — premiums show in activity.
+    final displayBalance = balanceValue < 0 ? 0 : balanceValue;
+    final absBalance = displayBalance.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
       (m) => '${m[1]},'
     );
+    final formattedBalance = '₹$absBalance';
 
     return Container(
       width: double.infinity,
@@ -165,7 +166,7 @@ class _BalanceCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '₹$formattedBalance',
+                  formattedBalance,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 52,
@@ -730,6 +731,11 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
   final formattedBalance = mockData.walletBalance.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
+  // Capture the parent scaffold context BEFORE the builder — the builder's
+  // inner context becomes unmounted once Navigator.pop() closes the sheet,
+  // which would cause _processWithdrawal to silently exit on context.mounted check.
+  final parentContext = context;
+
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -737,17 +743,17 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (context) {
+    builder: (sheetCtx) {
       return Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
           left: 24, right: 24, top: 32,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(AppLocalizations.of(context)!.wallet_withdraw,
+            Text(AppLocalizations.of(sheetCtx)!.wallet_withdraw,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
             const SizedBox(height: 8),
             Text('Enter your UPI ID to receive \u20b9$formattedBalance',
@@ -796,8 +802,10 @@ void _showWithdrawBottomSheet(BuildContext context, MockDataService mockData) {
               width: double.infinity, height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
-                  _processWithdrawal(context, mockData, upiController.text);
+                  final upi = upiController.text;
+                  Navigator.pop(sheetCtx); // close the bottom sheet
+                  // Use parentContext (outer scaffold) — sheetCtx is now unmounted
+                  _processWithdrawal(parentContext, mockData, upi);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: green,

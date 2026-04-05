@@ -272,6 +272,11 @@ class _FaqAccordion extends StatelessWidget {
             question: l10n.support_faq_3_q,
             answer: l10n.support_faq_3_a,
           ),
+          const SizedBox(height: 12),
+          _FaqItem(
+            question: l10n.support_faq_4_q,
+            answer: l10n.support_faq_4_a,
+          ),
         ],
       ),
     );

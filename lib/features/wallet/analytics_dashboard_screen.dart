@@ -54,11 +54,20 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
+  /// Returns the quarterly policy expiry — 3 months from today — formatted as "Mon YYYY".
+  String _quarterlyExpiry() {
+    final expiry = DateTime.now().add(const Duration(days: 90));
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[expiry.month - 1]} ${expiry.year}';
+  }
+
   Widget _buildHeroCard(BuildContext context) {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final mockData = Provider.of<MockDataService>(context);
-    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
+    final rawZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
+    final userZone = rawZone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
+                            .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
     final green = theme.colorScheme.primary;
     final heroBg = isDark ? const Color(0xFF004734) : const Color(0xFF125117);
     final subText = isDark ? green.withOpacity(0.8) : const Color(0xFFB0F3A6);
@@ -90,7 +99,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Across 3 disruption events in $userZone zone this month',
+            'Across 3 disruption events in $userZone this month',
             style: TextStyle(color: subText, fontSize: 13),
           ),
         ],
@@ -116,7 +125,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         children: [
           _buildPolicyRow(context, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Policy Valid', value: 'Oct 2026'),
+          _buildPolicyRow(context, title: 'Policy Valid', value: _quarterlyExpiry()),
           const SizedBox(height: 12),
           _buildPolicyRow(context, title: 'Add-ons', value: 'App Downtime (1 active)'),
         ],
@@ -264,7 +273,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     final green  = theme.colorScheme.primary;
     final text   = theme.colorScheme.onSurface;
     final mockData = Provider.of<MockDataService>(context);
-    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
+    final rawZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
+    final userZone = rawZone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
+                            .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
