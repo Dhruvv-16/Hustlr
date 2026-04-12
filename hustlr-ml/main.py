@@ -45,6 +45,7 @@ from ring_detector import (
 # ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????
 _MODEL_BUNDLE: dict | None = None
 _ISS_BUNDLE: dict | None = None
+_CHATBOT_BUNDLE: dict | None = None
 MODELS_DIR = Path(__file__).parent.parent / "trained_models" / "trained_models"
 
 @asynccontextmanager
@@ -79,10 +80,28 @@ async def lifespan(app: FastAPI):
     else:
         print("[Startup] ISS model not found ??? will use rule engine fallback")
 
+    chat_dir = Path(__file__).parent / "models"
+    bot_path = chat_dir / "chatbot_model.pkl"
+    if bot_path.exists():
+        import json
+        with open(chat_dir / "chatbot_responses.json", "r") as f:
+            resp_dict = json.load(f)
+        _CHATBOT_BUNDLE = {
+            "model": joblib.load(bot_path),
+            "vectorizer": joblib.load(chat_dir / "chatbot_vectorizer.pkl"),
+            "responses": resp_dict
+        }
+        print("[Startup] NLP Chatbot loaded successfully")
+    else:
+        print("[Startup] NLP Chatbot models missing")
+
+    yield
+
     yield
 
     _MODEL_BUNDLE = None
     _ISS_BUNDLE = None
+    _CHATBOT_BUNDLE = None
 
 
 app = FastAPI(
@@ -170,6 +189,14 @@ class ClaimScoreResponse(BaseModel):
     anomaly_score: float
     top_features: list[str]
     poisson_p_value: float
+
+class ChatRequest(BaseModel):
+    message: str
+
+class ChatResponse(BaseModel):
+    intent: str
+    response: str
+    confidence: float
 
 
 class RingClaimPoint(BaseModel):
@@ -423,6 +450,32 @@ async def ring_detect(req: RingDetectRequest):
         recommended_action = action,
         latency_ms         = round(latency_ms, 3),
     )
+
+@app.post("/chat", response_model=ChatResponse, tags=["Support"])
+async def chat_bot(req: ChatRequest):
+    if not _CHATBOT_BUNDLE:
+        return ChatResponse(
+            intent="default", 
+            response="I'm here to help! My ML brain is currently offline. Ask me anything basic.", 
+            confidence=0.0
+        )
+    
+    vec = _CHATBOT_BUNDLE["vectorizer"]
+    model = _CHATBOT_BUNDLE["model"]
+    responses = _CHATBOT_BUNDLE["responses"]
+    
+    # Vectorize and Predict semantic intent natively
+    X = vec.transform([req.message.lower()])
+    intent = model.predict(X)[0]
+    probs = model.predict_proba(X)[0]
+    confidence = float(max(probs))
+    
+    # Fallback bounds 
+    if confidence < 0.20:
+        intent = "default"
+        
+    answer = responses.get(intent, responses.get("default", "I'm here to help!"))
+    return ChatResponse(intent=intent, response=answer, confidence=round(confidence, 3))
 
 
 @app.get("/fraud/model-health", tags=["Health"])

@@ -797,4 +797,29 @@ class ApiService {
       // Best-effort — silently ignore offline heartbeats
     }
   }
+
+  // ── NLP Support Chatbot (Phase 3 Custom ML) ──────────────────────────────────
+  
+  static String get mlBackendUrl => const String.fromEnvironment('HUSTLR_ML_PROD', defaultValue: 'https://hustlr-ml-complete.onrender.com');
+
+  Future<Map<String, dynamic>> sendChatMessage(String message) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$mlBackendUrl/chat'),
+        headers: headers,
+        body: jsonEncode({'message': message}),
+      ).timeout(const Duration(seconds: 15));
+      
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200) return data;
+      throw Exception('Chat API returned ${res.statusCode}');
+    } catch (_) {
+      // Fallback for offline or unreachable ML server
+      return {
+        'intent': 'default',
+        'response': 'Network error! But my hardcoded fallback says: I am here to help with Hustlr policies.',
+        'confidence': 0.0,
+      };
+    }
+  }
 }
