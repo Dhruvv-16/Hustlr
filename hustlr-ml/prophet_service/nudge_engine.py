@@ -44,7 +44,7 @@ def run_wednesday_nudge(today: date, zone: str, worker_plan_tier: str):
             
             if trig in covered_triggers:
                 payout = PLAN_CAPS.get(worker_plan_tier, 0)
-                msg_cov = f"{trigger_display} expected {pred_date} in your zone. You're covered — {worker_plan_tier} Shield active. Estimated payout: up to ₹{payout}."
+                msg_cov = f"{trigger_display} expected {pred_date} in your zone. You're covered ? {worker_plan_tier} Shield active. Estimated payout: up to ?{payout}."
                 msg_unins = ""
             else:
                 # Find the minimum tier that covers this
@@ -55,7 +55,7 @@ def run_wednesday_nudge(today: date, zone: str, worker_plan_tier: str):
                         break
                 payout = PLAN_CAPS.get(req_tier, 0)
                 msg_cov = ""
-                msg_unins = f"{trigger_display} expected {pred_date}. {req_tier} Shield would protect up to ₹{payout}. Coverage starts next Monday — activate quarterly plan now."
+                msg_unins = f"{trigger_display} expected {pred_date}. {req_tier} Shield would protect up to ?{payout}. Coverage starts next Monday ? activate quarterly plan now."
                 
             payload = {
                 "zone": zone,
