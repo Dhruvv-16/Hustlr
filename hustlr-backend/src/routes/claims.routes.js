@@ -2,10 +2,9 @@ const express = require('express');
 const { supabase } = require('../config/supabase');
 const { checkIpLocation } = require('../services/maxmind_service');
 const { sendDisruptionAlert, sendPayoutCredited } = require('../services/notification_service');
-const { calculateFraudScore } = require('../services/fraud_engine');
+const { scoreClaim } = require('../services/fraud_engine');
 const { checkCircuitBreaker, updatePoolHealth } = require('../services/circuit_breaker');
 const { releasePayout } = require('../services/payout_service');
-const mlService = require('../services/ml_service');
 const { buildClaimExplanation } = require('../services/claim_explanation_service');
 const {
   verifyIntegrityToken,
@@ -273,30 +272,22 @@ router.post('/create', async (req, res) => {
 
     const playPassForMl = integrityBlock.evaluated ? integrityBlock.pass : !fraudData.fraud_signal;
 
-    // Try ML fraud score first, fall back to rule engine
-    let fraudResult;
-    const mlFraud = await mlService.getFraudScore({
-      zone_depth_score:         0.75, // default; improve with real GPS depth
-      days_since_onboard:       Math.floor((Date.now() - new Date(user.created_at || Date.now()).getTime()) / 86400000),
-      play_integrity_pass:      playPassForMl,
-      is_mock_location:         fraudData.fraud_signal || false,
+    // Use Python ML Service purely for fraud scoring
+    const daysSince = Math.floor((Date.now() - new Date(user.created_at || Date.now()).getTime()) / 86400000);
+    const fraudResult = await scoreClaim({
+      worker_id:             user_id,
+      zone_id:               user?.zone || 'unknown',
+      zone_match:            0.85,
+      gps_jitter:            0.10,
+      accelerometer_match:   0.90,
+      latency:               120,
+      wifi_home:             false,
+      days_active:           daysSince,
+      zone_depth_score:      0.75,
+      is_mock_location:      fraudData.fraud_signal || false,
     });
-
-    if (mlFraud._source !== 'rule_fallback') {
-      // ML responded — map to existing schema
-      fraudResult = {
-        score:    Math.round(mlFraud.fps_score * 100),
-        decision: {
-          status:      mlFraud.fps_tier,
-          release_pct: mlFraud.fps_tier === 'GREEN' ? 100 : mlFraud.fps_tier === 'YELLOW' ? 70 : 40,
-        },
-      };
-    } else {
-      // Classic rule engine fallback
-      fraudResult = await calculateFraudScore({ userId: user_id, zone: user?.zone, triggerType: trigger_type });
-    }
     
-    const baseFraudScore = fraudResult.score;
+    const baseFraudScore = fraudResult.fraud_score;
     let fraudScore = Math.min(100, baseFraudScore + (fraudData.fraud_signal ? 100 : 0));
     if (integrityBlock.evaluated) {
       const adj = applyPlayIntegrityFraudDelta(fraudScore, integrityBlock.pass);
@@ -316,10 +307,14 @@ router.post('/create', async (req, res) => {
         fraudScore = Math.min(100, fraudScore + sharedDevice.bump);
       }
     }
-    const fraudStatus = fraudData.fraud_signal ? 'FLAGGED' : fraudResult.decision.status;
+    const fraudStatus = fraudData.fraud_signal ? 'FLAGGED' : fraudResult.status;
+
+    let releasePct = 100;
+    if (fraudStatus === 'YELLOW' || fraudStatus === 'REVIEW') releasePct = 70;
+    if (fraudStatus === 'RED' || fraudStatus === 'FLAGGED' || fraudStatus === 'HUMAN_REVIEW') releasePct = 40;
 
     const releaseAmount = Math.round(
-      tranche1 * (fraudResult.decision.release_pct / 100)
+      tranche1 * (releasePct / 100)
     );
     
     // If FLAGGED — release provisional ₹200 only

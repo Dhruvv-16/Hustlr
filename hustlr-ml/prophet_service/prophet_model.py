@@ -9,7 +9,7 @@ from prophet import Prophet
 from scipy.stats import norm
 
 MODEL_PATH = Path(__file__).parent.parent / "models" / "prophet_chennai.pkl"
-
+MODELS_DIR = Path(__file__).parent.parent.parent / "trained_models" / "trained_models"
 def fetch_open_meteo_historical() -> pd.DataFrame:
     """
     Fetch 2018-2024 daily rainfall data for Chennai via Open-Meteo Historical Archive API.
@@ -82,12 +82,68 @@ def load_model():
         train_model()
     return joblib.load(MODEL_PATH)
 
+ZONE_MODEL_MAP = {
+    "adyar":          "model7_prophet_adyar.pkl",
+    "velachery":      "model7_prophet_velachery.pkl",
+    "tambaram":       "model7_prophet_tambaram.pkl",
+    "t_nagar":        "model7_prophet_t_nagar.pkl",
+    "anna_nagar":     "model7_prophet_anna_nagar.pkl",
+    "porur":          "model7_prophet_porur.pkl",
+    "sholinganallur": "model7_prophet_sholinganallur.pkl",
+    "guindy":         "model7_prophet_guindy.pkl",
+    "perambur":       "model7_prophet_perambur.pkl",
+    "chromepet":      "model7_prophet_chromepet.pkl",
+}
+
+def _normalize_zone_key(zone_id: str) -> str:
+    """
+    Convert any zone string to the key used in ZONE_MODEL_MAP.
+    'Adyar Dark Store Zone' → 'adyar'
+    'adyar' → 'adyar'
+    'ADYAR' → 'adyar'
+    """
+    return (zone_id
+        .lower()
+        .replace(" dark store zone", "")
+        .replace(" ", "_")
+        .replace("-", "_")
+        .strip())
+
+def load_zone_model(zone_id: str):
+    """
+    Load the Prophet model for a given zone.
+    Falls back to Adyar if zone not found.
+    Falls back to fresh training if no pkl exists.
+    """
+    import joblib
+    key      = _normalize_zone_key(zone_id)
+    filename = ZONE_MODEL_MAP.get(key, "model7_prophet_adyar.pkl")
+    path     = MODELS_DIR / filename
+
+    if path.exists():
+        try:
+            model = joblib.load(path)
+            print(f"[Prophet] Loaded {filename} for zone '{zone_id}'")
+            return model
+        except Exception as e:
+            print(f"[Prophet] Failed to load {filename}: {e}")
+
+    # Fallback — try Adyar as generic Chennai model
+    adyar_path = MODELS_DIR / "model7_prophet_adyar.pkl"
+    if adyar_path.exists():
+        print(f"[Prophet] Zone '{zone_id}' not found — using Adyar fallback")
+        return joblib.load(adyar_path)
+
+    # Last resort — train fresh (slow, only on first cold start)
+    print(f"[Prophet] No pkl found — training fresh model for '{zone_id}'")
+    return load_model()
+
 def generate_forecast(zone_id: str, days: int = 7) -> dict:
     """
     Generate forecast for the next `days`.
     Compute disruption_probability using Normal CDF on yhat boundaries.
     """
-    model = load_model()
+    model = load_zone_model(zone_id)
     
     future = model.make_future_dataframe(periods=days, freq='D')
     future = add_regressors(future)
