@@ -25,14 +25,25 @@ export type Claim = {
   fps_signals?: Record<string, unknown>;
 };
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    signal: AbortSignal.timeout(10000),
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+// Render free-tier cold starts can take up to 60 s — retry with backoff
+async function apiFetch<T>(path: string, init?: RequestInit, retries = 2): Promise<T> {
+  const TIMEOUT_MS = 65_000; // 65 s covers Render cold-start window
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      // Wait 3 s between retries
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  throw new Error('unreachable');
 }
 
 /** GET /disruptions/health/apis — no auth required */
@@ -78,20 +89,34 @@ export async function fetchZoneDisruption(zone: string) {
 
 /** ML GET /forecast/:zone — Python FastAPI Prophet endpoint */
 export async function fetchProphetForecast(zoneId: string, days: number = 7) {
-  const res = await fetch(`${ML_API_BASE}/forecast/${encodeURIComponent(zoneId)}?days=${days}`, {
-    signal: AbortSignal.timeout(10000),
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(`${ML_API_BASE}/forecast/${encodeURIComponent(zoneId)}?days=${days}`, {
+        signal: AbortSignal.timeout(65_000),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
 }
 
 /** ML GET /fraud/model-health — Python FastAPI model diagnostic endpoint */
 export async function fetchFraudModelHealth() {
-  const res = await fetch(`${ML_API_BASE}/fraud/model-health`, {
-    signal: AbortSignal.timeout(10000),
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(`${ML_API_BASE}/fraud/model-health`, {
+        signal: AbortSignal.timeout(65_000),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
 }
