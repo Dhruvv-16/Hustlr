@@ -1,4 +1,8 @@
 const { supabase } = require('../config/supabase');
+const http = require('http');
+
+// ── ML Service URL (Isolation Forest + Ring Detector) ─────────────────────
+const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml.onrender.com';
 
 const SIGNAL_WEIGHTS = {
   new_account:          20,
@@ -8,6 +12,7 @@ const SIGNAL_WEIGHTS = {
   duplicate_event:      50,
   mass_claim_spike:     35,
   first_week_max_claim: 20,
+  ml_zone_anomaly:      25,  // Isolation Forest – zone-level anomaly score
 };
 
 async function getWorkerHistory(userId) {
@@ -94,6 +99,43 @@ async function calculateFraudScore({
     if (zoneCount > 50) {
       score += SIGNAL_WEIGHTS.mass_claim_spike;
       signals.push('mass_claim_spike');
+    }
+
+    // Signal 7 — Isolation Forest ML zone anomaly score
+    // Calls POST /fraud/score on the Python FastAPI microservice.
+    // isolation_forest_score > 0.65 = anomalous zone pattern (ring burst, bot latency, etc.)
+    // Fails silently if ML service is unreachable — rule engine still runs.
+    try {
+      const mlBody = JSON.stringify({
+        zone_id:                        zone || 'TN_UNKNOWN',
+        timestamp:                      Math.floor(Date.now() / 1000),
+        device_hash:                    'rule_engine_call',
+        gps_lat:                        13.08,
+        gps_lng:                        80.27,
+        latency_seconds:                300,
+        orders_during_window:           0,
+        days_since_onboarding:          daysSinceJoining,
+        referral_depth:                 0,
+        simultaneous_claims_zone_15min: zoneCount,
+      });
+
+      const mlRes = await fetch(`${ML_URL}/fraud/score`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    mlBody,
+        signal:  AbortSignal.timeout(4000), // 4s timeout, don't block claim
+      });
+
+      if (mlRes.ok) {
+        const mlData = await mlRes.json();
+        if (mlData.is_anomalous) {
+          score += SIGNAL_WEIGHTS.ml_zone_anomaly;
+          signals.push('ml_zone_anomaly');
+          console.log(`[FraudEngine] ML anomaly detected — IF score: ${mlData.isolation_forest_score}`);
+        }
+      }
+    } catch (mlErr) {
+      console.warn('[FraudEngine] ML service unavailable — rule engine only:', mlErr.message);
     }
 
   } catch (e) {

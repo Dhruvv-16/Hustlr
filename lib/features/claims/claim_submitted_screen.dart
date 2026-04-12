@@ -79,7 +79,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                                       color: theme.colorScheme.onSurface.withOpacity(0.05),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Center(child: Icon(Icons.broken_image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.2))),
+                                    child: Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -90,7 +90,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                                       color: theme.colorScheme.onSurface.withOpacity(0.05),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Center(child: Icon(Icons.broken_image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.2))),
+                                    child: Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
                                   ),
                                 )
                               ],

@@ -2,6 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../services/location_service.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
@@ -11,9 +16,12 @@ import '../../widgets/notification_bell.dart';
 import '../../widgets/income_tip_card.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../features/shared/widgets/demo_control_panel.dart';
+import '../../features/shared/widgets/battery_optimization_prompt.dart';
+import '../../services/shift_tracking_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,7 +30,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
   Map<String, dynamic>? disruptionData;
@@ -35,10 +43,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? userName;
   bool isLoading = true;
   Timer? _disruptionRefreshTimer;
+  StreamSubscription<Position>? _locationStream;
+
+  // Debug variables
+  bool _debugMode = false;
+  String _locationPermissionStatus = 'unknown';
+  bool _backgroundTrackingActive = false;
+
+  // Live pulled from LocationService.instance on every GPS tick
+  double get _lastLat => LocationService.instance.currentLat;
+  double get _lastLng => LocationService.instance.currentLon;
+  double get _zoneDepthScore => LocationService.instance.depthScore * 100;
+
+  // API health check results
+  Map<String, String> _apiHealthStatus = {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkLocationPermission();
+    _fetchInitialLocation(); // ← get GPS fix immediately without waiting for movement
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkLocationPermission();
+    });
+
+    // Subscribe to LocationService so debug values refresh on every GPS ping
+    LocationService.instance.addListener(_onLocationUpdate);
+    ShiftTrackingService.instance.addListener(_onShiftUpdate);
+
     _loadDashboardData();
     _disruptionRefreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
       if (!mounted) return;
@@ -46,9 +79,96 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  /// Get a one-shot GPS fix immediately on mount so the debug panel shows
+  /// real coordinates without requiring the user to physically move first.
+  Future<void> _fetchInitialLocation() async {
+    try {
+      final hasPermission = await Permission.locationWhenInUse.isGranted;
+      if (!hasPermission) return;
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      LocationService.instance.updateFromGps(pos.latitude, pos.longitude);
+      if (mounted) setState(() {});
+    } catch (_) {
+      // Silently skip if GPS unavailable
+    }
+  }
+
+  /// Run a live health check against each key API endpoint and store results.
+  Future<void> _checkApiHealth() async {
+    setState(() => _apiHealthStatus = {'_loading': 'true'});
+    final base = ApiService.baseUrl;
+    final results = <String, String>{};
+
+    Future<String> ping(String path) async {
+      try {
+        final res = await http.get(
+          Uri.parse('$base$path'),
+        ).timeout(const Duration(seconds: 8));
+        return res.statusCode < 400 ? '✅ ${res.statusCode}' : '❌ ${res.statusCode}';
+      } on TimeoutException {
+        return '⏱ TIMEOUT';
+      } catch (e) {
+        return '❌ ERR';
+      }
+    }
+
+    results['GET /health']          = await ping('/health');
+    if (userId != null) {
+      results['GET /workers/:id']   = await ping('/workers/$userId');
+      results['GET /policies/:id']  = await ping('/policies/$userId');
+      results['GET /wallet/:id']    = await ping('/wallet/$userId');
+      results['GET /claims/:id']    = await ping('/claims/$userId');
+      final zone = Uri.encodeComponent(userZone ?? 'Adyar Dark Store Zone');
+      results['GET /disruptions']   = await ping('/disruptions/$zone');
+    } else {
+      results['NOTE'] = 'Log in first for user-scoped endpoints';
+    }
+
+    if (mounted) setState(() => _apiHealthStatus = results);
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.locationWhenInUse.status;
+    final bgStatus = await Permission.locationAlways.status;
+    final gpsEnabled = await Geolocator.isLocationServiceEnabled();
+    
+    if (mounted) {
+      setState(() {
+        if (!gpsEnabled) {
+          _locationPermissionStatus = 'GPS_DISABLED_ON_DEVICE';
+        } else {
+          _locationPermissionStatus = status.toString();
+        }
+        _backgroundTrackingActive = bgStatus.isGranted && gpsEnabled;
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkLocationPermission();
+    }
+  }
+
+  void _onLocationUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  void _onShiftUpdate() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    LocationService.instance.removeListener(_onLocationUpdate);
+    ShiftTrackingService.instance.removeListener(_onShiftUpdate);
+    WidgetsBinding.instance.removeObserver(this);
     _disruptionRefreshTimer?.cancel();
+    _locationStream?.cancel();
     super.dispose();
   }
 
@@ -75,7 +195,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
         disruptionRes = await ApiService.instance.getDisruptions(
           userZone ?? '',
-          issScore: issScore,
         );
       } catch (_) {}
 
@@ -122,12 +241,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final hasActivePolicy = policyData != null;
       final hasDisruptions = events.isNotEmpty;
       
-      if (hasDisruptions) {
-        if (hasActivePolicy) {
-          NotificationService.instance.addRainAlert(userZone ?? 'Adyar Dark Store Zone');
-        } else {
-          NotificationService.instance.addMissedPayout(350);
-        }
+      // Only fire notifications for genuinely new data — not every load
+      // Rain alert: only when disruption is truly active (server-confirmed)
+      if (hasDisruptions && active && hasActivePolicy) {
+        NotificationService.instance.addRainAlert(userZone ?? 'your zone');
+      }
+      // Missed payout: only for users WITHOUT a policy AND confirmed disruptions
+      if (hasDisruptions && active && !hasActivePolicy) {
+        NotificationService.instance.addMissedPayout(350);
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
@@ -195,6 +316,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final isLocationDenied = _locationPermissionStatus.contains('denied');
+    final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
+
+    if (isLocationDenied || isGpsOff) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.location_disabled,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Location Required',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isGpsOff
+                      ? 'Your physical GPS sensor is turned off. Hustlr requires active GPS to track your delivery routes and authenticate weather claims.'
+                      : 'Hustlr requires "While using the app" or "Always" location access to protect your income during deliveries. "Only this time" is not supported.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (isGpsOff) {
+                      await Geolocator.openLocationSettings();
+                    } else {
+                      await openAppSettings();
+                    }
+                    _checkLocationPermission();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  ),
+                  child: Text(isGpsOff ? 'Turn On GPS' : 'Open Settings'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final planName = policyData?['plan_name'] ?? 'Standard Shield';
     
     String titleCase(String text) {
@@ -221,12 +400,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 100),
+              padding: const EdgeInsets.only(bottom: 24),
               physics: const BouncingScrollPhysics(),
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -259,6 +438,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                       ),
+                      if (_debugMode) _buildDebugPanel(),
                     ],
                   ),
                 ),
@@ -308,9 +488,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fontFamily: 'Manrope',
           ),
         ),
+        const SizedBox(width: 8),
+        const ShiftStatusDot(),
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded, () => context.push(AppRoutes.support), mintColor, isDark),
         const SizedBox(width: 12),
+        IconButton(
+          icon: Icon(
+            _debugMode ? Icons.bug_report : Icons.bug_report_outlined,
+            color: _debugMode ? Colors.red : Colors.grey,
+          ),
+          onPressed: () => setState(() => _debugMode = !_debugMode),
+        ),
+        const SizedBox(width: 8),
         _buildMintIconBtn(Icons.notifications_rounded, () => context.push(AppRoutes.notifications), mintColor, isDark),
       ],
     );
@@ -750,9 +940,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
+        if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
+          BatteryOptimizationPrompt(onAllGranted: () {
+            ShiftTrackingService.instance.startShift(userZone ?? 'Adyar Dark Store Zone');
+          }),
+          const SizedBox(height: 16),
+        ],
+        Row(
+          children: [
+            Expanded(
           child: _buildActionCard(
             Icons.shield_outlined, 
             l10n.dashboard_modular,
@@ -780,8 +978,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ],
-    );
-  }
+    ),
+   ],
+  );
+}
 
   Widget _buildActionCard(IconData icon, String kicker, String label, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -916,6 +1116,214 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDebugPanel() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '🔧 DEBUG MODE — TESTING ONLY',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          Divider(color: Colors.red.withOpacity(0.3)),
+          
+          Wrap(
+            spacing: 8,
+            children: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () => _loadDashboardData(),
+                child: const Text('REFRESH', style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () {
+                  // Simulate a rain event locally for UI
+                  if (mounted) {
+                    setState(() {
+                      disruptionData = {
+                        'active': true,
+                        'trigger_type': 'Heavy Rain',
+                        'zone': userZone ?? 'Adyar Dark Store Zone',
+                      };
+                      activeDisruption = disruptionData;
+                    });
+                  }
+                },
+                child: const Text('RAIN', style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () => _checkLocationPermission(),
+                child: const Text('GPS', style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () async {
+                  await StorageService.clearAll();
+                  try {
+                    final box = Hive.box('appData');
+                    await box.put('isLoggedIn', false);
+                    await box.put('isDemoSession', false);
+                    await box.put('onboardingComplete', false);
+                  } catch (_) {}
+                  if (context.mounted) context.go(AppRoutes.login);
+                },
+                child: const Text('LOGOUT', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          _DebugHeader('--- USER STATE ---'),
+          _DebugRow('USER ID', userId ?? 'NULL'),
+          _DebugRow('NAME', userName ?? 'NULL'),
+          _DebugRow('ZONE', userZone ?? 'NULL'),
+
+          _DebugHeader('--- POLICY STATE ---'),
+          _DebugRow('POLICY ID', policyData?['id']?.toString() ?? 'NULL'),
+          _DebugRow('PLAN TIER', policyData?['plan_tier']?.toString() ?? 'NULL'),
+          _DebugRow('WEEKLY PREMIUM', policyData?['weekly_premium']?.toString() ?? 'NULL'),
+          _DebugRow('STATUS', policyData?['status']?.toString() ?? 'NULL'),
+
+          _DebugHeader('--- WALLET STATE ---'),
+          _DebugRow('BALANCE', walletData?['balance']?.toString() ?? 'NULL'),
+          _DebugRow('TOTAL PAYOUTS', walletData?['total_payouts']?.toString() ?? 'NULL'),
+          _DebugRow('TOTAL PREMIUMS', walletData?['total_premiums']?.toString() ?? 'NULL'),
+          _DebugRow('TRANSACTION COUNT', (walletData?['transactions'] as List?)?.length.toString() ?? '0'),
+
+          _DebugHeader('--- DISRUPTION STATE ---'),
+          _DebugRow('WEATHER SOURCE', weatherData?['station']?.toString() ?? 'NULL'),
+          _DebugRow('RAIN MM', '${weatherData?['rainfall_mm_1h'] ?? 'NULL'}'),
+          _DebugRow('TEMP', '${weatherData?['temp_celsius'] ?? 'NULL'}°C'),
+          _DebugRow('TRIGGER ACTIVE', disruptionData?['active']?.toString() ?? 'false'),
+          _DebugRow('TRIGGER TYPE', disruptionData?['trigger_type']?.toString() ?? 'NONE'),
+
+          _DebugHeader('--- API STATE ---'),
+          _DebugRow('BACKEND URL', ApiService.baseUrl),
+          const SizedBox(height: 8),
+          // ── Live API Health Check ──────────────────────────────────
+          if (_apiHealthStatus.isEmpty)
+            GestureDetector(
+              onTap: _checkApiHealth,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('▶ RUN API HEALTH CHECK',
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            )
+          else if (_apiHealthStatus['_loading'] == 'true')
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(children: [
+                SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3FFF8B))),
+                SizedBox(width: 10),
+                Text('Pinging endpoints...', style: TextStyle(color: Colors.white70, fontSize: 11)),
+              ]),
+            )
+          else ...[
+            ..._apiHealthStatus.entries.map((e) =>
+              _DebugRow(e.key, e.value)),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: _checkApiHealth,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('↻ RE-RUN CHECK',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+
+          _DebugHeader('--- LOCATION STATE ---'),
+          _DebugRow('LOCATION PERMISSION', _locationPermissionStatus),
+          _DebugRow('LAST GPS LAT', _lastLat == 0.0 ? 'NO FIX YET' : _lastLat.toStringAsFixed(6)),
+          _DebugRow('LAST GPS LNG', _lastLng == 0.0 ? 'NO FIX YET' : _lastLng.toStringAsFixed(6)),
+          _DebugRow('ZONE DEPTH SCORE', _zoneDepthScore.toStringAsFixed(1)),
+          _DebugRow('BACKGROUND TRACKING', _backgroundTrackingActive.toString()),
+        ],
+      ),
+    );
+  }
+}
+
+class _DebugHeader extends StatelessWidget {
+  final String title;
+  const _DebugHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.yellow,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _DebugRow extends StatelessWidget {
+  final String keyName;
+  final String valName;
+  const _DebugRow(this.keyName, this.valName);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '$keyName: $valName',
+      style: const TextStyle(
+        color: Colors.greenAccent,
+        fontSize: 11,
+        fontFamily: 'monospace',
       ),
     );
   }

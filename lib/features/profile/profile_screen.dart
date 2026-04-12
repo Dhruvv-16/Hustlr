@@ -12,6 +12,8 @@ import '../../l10n/app_localizations.dart';
 import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
+import '../../features/shared/widgets/demo_control_panel.dart';
+import '../../widgets/trust_score_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,6 +25,12 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _worker;
   Map<String, dynamic>? _policy;
+  Map<String, dynamic>? _trustProfile = {
+    'score': 124,
+    'tier': {'label': '🥇 Gold'},
+    'clean_weeks': 3,
+    'cashback_earned': 49,
+  };
   bool _isLoading = true;
 
   @override
@@ -41,15 +49,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final worker = await ApiService.instance.getWorkerById(userId);
       Map<String, dynamic>? policy;
+      Map<String, dynamic>? trustProfile;
       try {
         final policyData = await ApiService.instance.getPolicy(userId);
         policy = policyData['policy'] as Map<String, dynamic>?;
+      } catch (_) {}
+      
+      try {
+        trustProfile = await ApiService.instance.getTrustProfile(userId);
       } catch (_) {}
       
       if (mounted) {
         setState(() {
           _worker = worker;
           _policy = policy;
+          _trustProfile = trustProfile ?? _trustProfile; // fallback if fails completely
           _isLoading = false;
         });
       }
@@ -139,6 +153,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (Icons.account_balance_wallet_rounded, l10n.profile_upi_id, '${_worker?['phone'] as String? ?? 'user'}@ybl'),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    TrustScoreCard(trustProfile: _trustProfile),
                     const SizedBox(height: 32),
 
                     // ── Account Info ──────────────────────────────────────
@@ -212,6 +228,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const Icon(Icons.code_rounded, color: Color(0xFF3FFF8B), size: 24),
                             const SizedBox(width: 16),
                             const Expanded(child: Text("Developer: ML Tester", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
+                            const Icon(Icons.chevron_right_rounded, color: Color(0xFF3FFF8B)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => showDemoPanel(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B5E20).withOpacity(0.2) : const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.build_circle_rounded, color: Color(0xFF3FFF8B), size: 24),
+                            const SizedBox(width: 16),
+                            const Expanded(child: Text("Developer: Demo Controls", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
                             const Icon(Icons.chevron_right_rounded, color: Color(0xFF3FFF8B)),
                           ],
                         ),

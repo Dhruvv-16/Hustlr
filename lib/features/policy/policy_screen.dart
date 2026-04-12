@@ -464,8 +464,37 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         ]),
       ),
       Positioned(
-        left: 0, right: 0, bottom: 96,
-        child: _StickyBottomBar(total: _totalCost, onProceed: widget.onProceed),
+        left: 0, right: 0, bottom: 0,
+        child: _StickyBottomBar(
+          total: _totalCost,
+          onProceed: () {
+            final planPrices = {'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79};
+            final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
+            final planName = _selectedPlan ?? 'Standard Shield';
+            final planCost = planPrices[planName] ?? 49;
+            final bool allIncluded = planName == 'Full Shield';
+
+            List<Map<String, dynamic>> activeRiders = [];
+            if (!allIncluded) {
+              for (final r in _riderToggles.entries) {
+                if (r.key == 'App Downtime' && planName == 'Standard Shield') continue;
+                if (r.value) {
+                  activeRiders.add({
+                    'name': '${r.key} Rider',
+                    'cost': riderPrices[r.key] ?? 0
+                  });
+                }
+              }
+            }
+
+            context.push('/policy/payment', extra: <String, dynamic>{
+              'plan': planName,
+              'planCost': planCost,
+              'total': _totalCost,
+              'riders': activeRiders
+            });
+          }
+        ),
       ),
     ]);
   }

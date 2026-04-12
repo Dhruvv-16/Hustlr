@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
-import '../../services/mock_data_service.dart';
+import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final Map<String, dynamic>? checkoutData;
+  const PaymentScreen({super.key, this.checkoutData});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -17,35 +18,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _confirm() async {
     setState(() => _loading = true);
-
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      final userId = await StorageService.instance.getUserId();
+      if (userId != null) {
+        final planName = widget.checkoutData?['plan'] ?? 'standard';
+        final result = await ApiService.instance.createPolicy(
+          userId: userId,
+          planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
+        );
+        final policyId = result['policy']?['id'] as String?;
+        if (policyId != null) {
+          await StorageService.instance.savePolicyId(policyId);
+        }
+      }
+    } catch (_) {}
 
     if (!mounted) return;
-
-    // Update policy status in mock data
-    final mockData = Provider.of<MockDataService>(context, listen: false);
-    mockData.activePolicy = PolicyModel(
-      plan: mockData.activePolicy.plan,
-      premium: mockData.activePolicy.premium,
-      status: 'ACTIVE',
-      coverageStart: mockData.activePolicy.coverageStart,
-      coverageEnd: mockData.activePolicy.coverageEnd,
-      riders: mockData.activePolicy.riders,
-      coverageDescription: mockData.activePolicy.coverageDescription,
-    );
-
     setState(() => _loading = false);
-
-    if (!mounted) return;
-
     context.go(AppRoutes.dashboard);
 
     final green = Theme.of(context).colorScheme.primary;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
-          'Coverage activated! You are protected\nMon 17 Mar – Sun 23 Mar',
+          'Coverage activated! You are now protected.',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
         ),
         backgroundColor: green,
@@ -65,7 +61,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final primaryText = theme.colorScheme.onSurface;
     final green = theme.colorScheme.primary;
     final divider = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
-    
+
+    final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
+    final planCost = widget.checkoutData?['planCost'] ?? 49;
+    final riders = widget.checkoutData?['riders'] as List<Map<String, dynamic>>? ?? [];
+    final total = widget.checkoutData?['total'] ?? 49;
+
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
@@ -103,10 +104,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const _SummaryRow(label: 'Standard Shield', amount: '₹49/wk'),
-                  const SizedBox(height: 12),
-                  const _SummaryRow(label: 'App Downtime Rider', amount: '₹10/wk'),
-                  const SizedBox(height: 16),
+                  _SummaryRow(label: planName, amount: '₹$planCost/wk'),
+                  if (riders.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ...riders.map((r) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _SummaryRow(
+                              label: r['name'], amount: '₹${r['cost']}/wk'),
+                        )),
+                  ],
+                  const SizedBox(height: 4),
                   Container(height: 1, color: divider),
                   const SizedBox(height: 16),
                   Row(
@@ -121,7 +128,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         ),
                       ),
                       Text(
-                        '₹69/wk',
+                        '₹$total/wk',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

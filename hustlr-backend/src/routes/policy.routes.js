@@ -36,10 +36,46 @@ router.post('/create', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    // Calculate dynamic premium with monsoon surcharge + activity loading
+    // Calculate dynamic premium with activity loading
     const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, {
       active_days_last_30: user.active_days_last_30 ?? 25,
     });
+
+    // ── Dynamic Temporal Surcharging ──
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    let monsoonSurchargePct = 0;
+    
+    if (currentMonth >= 6 && currentMonth <= 9) {
+      monsoonSurchargePct = 0.15;
+    } else if (currentMonth >= 10 && currentMonth <= 12) {
+      monsoonSurchargePct = 0.22; // Cyclone season
+    }
+
+    // ── Forward-Risk Surcharge via Prophet ──
+    let forwardRiskPct = 0;
+    try {
+      const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
+      const zoneStr = user.zone || 'TN_CHENNAI';
+      const forecastRes = await fetch(`${ML_URL}/forecast/${zoneStr}?days=7`, { signal: AbortSignal.timeout(3000) });
+      
+      if (forecastRes.ok) {
+        const forecastData = await forecastRes.json();
+        const highRisk = forecastData.forecasts?.some(f => (f.disruption_probability || 0) > 0.7);
+        if (highRisk) {
+          forwardRiskPct = 0.08;
+          console.log(`[Policy] High risk weather forecast detected for ${zoneStr}. Applying +8% forward risk.`);
+        }
+      }
+    } catch (_) {
+      console.warn('[Policy] ML Forecast unavailable, defaulting to 0% forward risk.');
+    }
+
+    const baseForSurcharge = breakdown.final_premium;
+    const monsoonAmount = Math.round(baseForSurcharge * monsoonSurchargePct);
+    const forwardRiskAmount = Math.round(baseForSurcharge * forwardRiskPct);
+    
+    const finalPremiumWithSurcharge = baseForSurcharge + monsoonAmount + forwardRiskAmount;
 
     // Deactivate any existing active policy for this user first
     await supabase
@@ -48,16 +84,17 @@ router.post('/create', async (req, res) => {
       .eq('user_id', user_id)
       .eq('status', 'active');
 
-    // Insert the new policy
+    // Make sure 'surcharge_breakdown' exists or just put it in a known column if not.
+    // For now we will insert the updated premium.
     const { data: policy, error: policyError } = await supabase
       .from('policies')
       .insert([{
         user_id,
         plan_tier,
-        base_premium: breakdown.base_premium,
-        zone_adjustment: breakdown.zone_adjustment,
-        iss_adjustment: breakdown.iss_adjustment,
-        weekly_premium: breakdown.final_premium,
+        base_premium:     breakdown.base_premium,
+        zone_adjustment:  breakdown.zone_adjustment,
+        iss_adjustment:   breakdown.iss_adjustment,
+        weekly_premium:   finalPremiumWithSurcharge,
         max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout,
         status: 'active'
       }])
@@ -65,7 +102,20 @@ router.post('/create', async (req, res) => {
       .single();
     if (policyError) throw policyError;
 
-    res.json({ policy, premium_breakdown: breakdown });
+    // Log the surcharge breakdown explicitly
+    console.log(`[Policy] Created policy ${policy.id} w/ Monsoon: ₹${monsoonAmount}, ForwardRisk: ₹${forwardRiskAmount}`);
+
+    res.json({
+      policy,
+      premium_breakdown: {
+        ...breakdown,
+        monsoon_surcharge_pct: monsoonSurchargePct,
+        monsoon_surcharge: monsoonAmount,
+        forward_risk_pct: forwardRiskPct,
+        forward_risk_surcharge: forwardRiskAmount,
+        final_with_surcharge: finalPremiumWithSurcharge,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -81,7 +131,7 @@ router.get('/:user_id', async (req, res) => {
       .select('*')
       .eq('user_id', user_id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
     if (error) throw error;
     res.json({ policy });
   } catch (error) {

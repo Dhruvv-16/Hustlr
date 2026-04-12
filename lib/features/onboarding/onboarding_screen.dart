@@ -67,15 +67,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _onContinue() async {
-    String titleCase(String text) {
-      if (text.isEmpty) return text;
-      return text.split(' ').map((word) {
-        if (word.isEmpty) return word;
-        return word[0].toUpperCase() + word.substring(1).toLowerCase();
-      }).join(' ');
-    }
-    
-    final name = titleCase(_nameController.text.trim());
+    final name = _nameController.text.trim();
     if (name.isEmpty) { _showError('Please enter your name.'); return; }
     if (_selectedCity == null) { _showError('Please select your city.'); return; }
     if (_selectedZone == null) { _showError('Please select your zone.'); return; }
@@ -99,6 +91,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       await StorageService.setUserId(userId);
       await StorageService.setString('userName', name);
+      await StorageService.setString('workerName', name);
       await StorageService.setUserZone(_selectedZone!);
       await StorageService.setString('userCity', _selectedCity!);
       await StorageService.setString('userPlatform', _selectedPlatform!);
@@ -118,6 +111,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       final box = Hive.box('appData');
       await box.put('userName', name);
+      await box.put('workerName', name);
       await box.put('userCity', _selectedCity);
       await box.put('userZone', _selectedZone);
       await box.put('userPlatform', _selectedPlatform);

@@ -88,4 +88,37 @@ class NotificationService {
       createdAt: DateTime.now(),
     ));
   }
+
+  void addShiftPaused() {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'shift_paused',
+      title: 'GPS signal lost — coverage paused',
+      body: 'Re-enable location to resume your shift protection. Claims during this gap cannot be verified.',
+      color: 'red',
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  void addShiftResumed() {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'shift_resumed',
+      title: 'Location restored — you\'re covered again',
+      body: 'Your shift protection has resumed. The gap has been logged.',
+      color: 'green',
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  void addFraudAlert() {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'fraud_alert',
+      title: 'Suspicious Location Activity',
+      body: 'Your coverage is temporarily suspended due to impossible GPS jumping (Velocity Fraud).',
+      color: 'red',
+      createdAt: DateTime.now(),
+    ));
+  }
 }
