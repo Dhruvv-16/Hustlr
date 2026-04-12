@@ -97,7 +97,15 @@ export default function ZoneHeatmap() {
             <h3 className="font-black text-lg text-emerald-400">Prophet AI: 7-Day Forecasting</h3>
             <p className="text-sm text-white/50">Predicting heavy rain probability for Adyar Dark Store Zone.</p>
           </div>
-          {prophetLoading && <span className="text-xs text-white/40 animate-pulse">Computing ML Vectors...</span>}
+        <div className="flex items-center gap-3">
+          {prophetLoading ? (
+            <span className="text-xs text-white/40 animate-pulse border border-white/10 px-2 py-1 rounded">⚙️ Computing ML Vectors...</span>
+          ) : prophetData.length > 0 ? (
+            <span className="text-xs font-bold text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded">✅ API Native (0ms)</span>
+          ) : (
+            <span className="text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-1 rounded">❌ API Offline</span>
+          )}
+        </div>
         </div>
         
         {prophetData.length > 0 ? (
@@ -119,7 +127,7 @@ export default function ZoneHeatmap() {
             </AreaChart>
           </ResponsiveContainer>
         ) : !prophetLoading && (
-          <div className="text-center text-white/30 text-sm py-10">No Prophet data returned. AI engine may be offline.</div>
+          <div className="text-center text-white/30 text-sm py-10">No Prophet dataset found. Try reloading to trigger cold start training.</div>
         )}
       </div>
     </div>
