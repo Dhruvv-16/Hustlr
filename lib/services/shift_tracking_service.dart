@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
@@ -60,15 +59,11 @@ class ShiftTrackingService extends ChangeNotifier {
     _status = ShiftStatus.active;
     notifyListeners();
 
-    // Start GPS stream with anti-spoofing checks
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    ).listen(_onPosition);
+    // Start GPS stream — also driven from foreground task handler
+    // to survive aggressive battery management (OxygenOS Smart mode, MIUI, etc.)
+    _startPositionStream();
 
-    // Heartbeat watchdog: if no ping for 120s → pause shift
+    // Watchdog: if no ping for 180s → auto-resume stream before pausing
     _heartbeatWatchdog = Timer.periodic(const Duration(seconds: 30), (_) {
       _checkHeartbeat();
     });
@@ -77,6 +72,7 @@ class ShiftTrackingService extends ChangeNotifier {
   Future<void> stopShift() async {
     await FlutterForegroundTask.stopService();
     await _positionSub?.cancel();
+    _positionSub = null;
     _heartbeatWatchdog?.cancel();
     _status = ShiftStatus.offline;
     _frsSignals.clear();
@@ -86,8 +82,36 @@ class ShiftTrackingService extends ChangeNotifier {
   void resumeShift() {
     if (_status == ShiftStatus.paused) {
       _status = ShiftStatus.active;
+      // Restart the GPS stream — it may have been killed by the OS
+      _startPositionStream();
       notifyListeners();
     }
+  }
+
+  void _startPositionStream() {
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+        // foregrondNotification keeps stream alive even in battery-restricted modes
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Hustlr GPS Active',
+          notificationText: 'Tracking your location for coverage',
+          enableWakeLock: true,
+        ),
+      ),
+    ).listen(
+      _onPosition,
+      onError: (e) {
+        // Stream died (killed by OS) — attempt restart after 5s
+        Future.delayed(const Duration(seconds: 5), () {
+          if (_status == ShiftStatus.active || _status == ShiftStatus.paused) {
+            _startPositionStream();
+          }
+        });
+      },
+    );
   }
 
   // ─── POSITION HANDLER + ANTI-SPOOFING ─────────────────────────────────────
@@ -155,7 +179,12 @@ class ShiftTrackingService extends ChangeNotifier {
   void _checkHeartbeat() {
     if (_lastHeartbeatAt == null) return;
     final elapsed = DateTime.now().difference(_lastHeartbeatAt!).inSeconds;
-    if (elapsed > 120 && _status == ShiftStatus.active) {
+    if (elapsed > 60 && _status == ShiftStatus.active) {
+      // Stream may be stalled — restart it proactively before pausing
+      _startPositionStream();
+    }
+    if (elapsed > 180 && _status == ShiftStatus.active) {
+      // Still no ping after restart attempt — mark paused
       _status = ShiftStatus.paused;
       NotificationService.instance.addShiftPaused();
       notifyListeners();

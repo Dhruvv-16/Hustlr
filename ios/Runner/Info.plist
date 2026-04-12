@@ -4,6 +4,9 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- local_auth: Required for Face ID on iOS -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Hustlr uses Face ID to verify your identity before processing high-value insurance claims.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

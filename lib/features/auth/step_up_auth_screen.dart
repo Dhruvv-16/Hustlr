@@ -2,12 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../services/api_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/services/biometric_service.dart';
 
 /// AWS Rekognition Step-Up Identity Verification Screen
 /// Triggered on: behavioral anomaly, high-value claims (>=300),
 /// new device detected, or 1% random weekly audit.
+///
+/// Auth flow (two-tier):
+///   Tier 1 → Native biometric (fingerprint / Face ID via local_auth)
+///   Tier 2 → Camera selfie → AWS Rekognition (fallback or high-risk escalation)
 class StepUpAuthScreen extends StatefulWidget {
   /// Optional reason string shown to the user explaining why this was triggered
   final String? triggerReason;
@@ -24,8 +30,12 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   late Animation<double> _pulseAnimation;
 
   _VerificationState _state = _VerificationState.idle;
+  _AuthTier _tier = _AuthTier.biometric;
+
   String? _errorMessage;
   double? _similarityScore;
+  bool _biometricAvailable = false;
+  List<BiometricType> _enrolledBiometrics = [];
 
   @override
   void initState() {
@@ -37,12 +47,51 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    _checkBiometricAvailability();
   }
 
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
+  Future<void> _checkBiometricAvailability() async {
+    final available = await BiometricService.instance.isAvailable();
+    final enrolled = await BiometricService.instance.getEnrolledBiometrics();
+    if (mounted) {
+      setState(() {
+        _biometricAvailable = available;
+        _enrolledBiometrics = enrolled;
+        // If biometric is unavailable, jump straight to camera tier
+        if (!available) _tier = _AuthTier.camera;
+      });
+      // Auto-trigger biometric prompt on screen open if available
+      if (available) _triggerBiometric();
+    }
+  }
+
+  Future<void> _triggerBiometric() async {
+    setState(() {
+      _state = _VerificationState.verifying;
+      _errorMessage = null;
+    });
+
+    final result = await BiometricService.instance.authenticate(
+      reason: widget.triggerReason ??
+          'Confirm your identity to proceed with this claim.',
+    );
+
+    if (!mounted) return;
+
+    if (result.success) {
+      setState(() => _state = _VerificationState.success);
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted) {
+        Navigator.pop(context, {'verified': true, 'method': 'biometric'});
+      }
+    } else {
+      setState(() {
+        _state = _VerificationState.failed;
+        _errorMessage = result.errorMessage;
+        // On biometric failure, offer camera escalation
+        _tier = _AuthTier.camera;
+      });
+    }
   }
 
   Future<void> _captureAndVerify() async {
@@ -90,7 +139,13 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
       if (verified) {
         await Future.delayed(const Duration(seconds: 2));
-        if (mounted) Navigator.pop(context, {'verified': true, 'similarity_score': score});
+        if (mounted) {
+          Navigator.pop(context, {
+            'verified': true,
+            'similarity_score': score,
+            'method': 'rekognition',
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -98,6 +153,14 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         _errorMessage = 'Verification error. Please try again.';
       });
     }
+  }
+
+  // ── UI ──────────────────────────────────────────────────────────────────────
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   @override
@@ -117,9 +180,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         title: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.2),
+            color: primaryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: primaryColor.withOpacity(0.5)),
+            border: Border.all(color: primaryColor.withValues(alpha: 0.5)),
           ),
           child: const Text(
             'STEP-UP IDENTITY CHECK',
@@ -138,6 +201,11 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           children: [
             const SizedBox(height: 16),
 
+            // Auth tier indicator chips
+            _buildTierChips(accentGreen),
+
+            const SizedBox(height: 12),
+
             // Trigger reason banner
             if (widget.triggerReason != null)
               Container(
@@ -146,7 +214,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3E0),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFFA000).withOpacity(0.4)),
+                  border: Border.all(color: const Color(0xFFFFA000).withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -168,12 +236,14 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
             const SizedBox(height: 32),
 
-            // Face ring + status
+            // Biometric / face ring + status
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildFaceRing(accentGreen),
+                  _tier == _AuthTier.biometric
+                      ? _buildBiometricRing(accentGreen)
+                      : _buildFaceRing(accentGreen),
                   const SizedBox(height: 32),
                   _buildStatusText(),
                   if (_errorMessage != null) ...[
@@ -200,17 +270,95 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'Hustlr uses AWS Rekognition to verify your identity. Only a numeric face embedding is stored — never your raw photo. Processed under DPDPA 2023 § 7(b) fraud prevention purpose limitation.',
+                'Hustlr uses device biometrics and AWS Rekognition to verify your identity. Only a numeric face embedding is stored — never your raw photo. Processed under DPDPA 2023 § 7(b) fraud prevention purpose limitation.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white24, fontSize: 10, height: 1.5),
               ),
             ),
 
-            // CTA Button
-            _buildActionButton(primaryColor, accentGreen),
+            // CTA Button(s)
+            _buildActionButtons(primaryColor, accentGreen),
             const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTierChips(Color accentGreen) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _TierChip(
+          label: 'Tier 1: Biometric',
+          icon: _primaryBiometricIcon(),
+          active: _tier == _AuthTier.biometric,
+          done: _tier == _AuthTier.camera,
+          color: accentGreen,
+        ),
+        const SizedBox(width: 8),
+        const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 12),
+        const SizedBox(width: 8),
+        _TierChip(
+          label: 'Tier 2: Face (AWS)',
+          icon: Icons.camera_front_outlined,
+          active: _tier == _AuthTier.camera,
+          done: false,
+          color: accentGreen,
+        ),
+      ],
+    );
+  }
+
+  IconData _primaryBiometricIcon() {
+    if (_enrolledBiometrics.contains(BiometricType.face)) {
+      return Icons.face_outlined;
+    }
+    return Icons.fingerprint;
+  }
+
+  Widget _buildBiometricRing(Color accentGreen) {
+    final ringColor = _state == _VerificationState.success
+        ? accentGreen
+        : _state == _VerificationState.failed
+            ? Colors.redAccent
+            : accentGreen;
+
+    Widget icon;
+    if (_state == _VerificationState.verifying) {
+      icon = const CircularProgressIndicator(color: Color(0xFF4CAF50), strokeWidth: 3);
+    } else if (_state == _VerificationState.success) {
+      icon = Icon(Icons.check_circle_outline_rounded, color: accentGreen, size: 64);
+    } else if (_state == _VerificationState.failed) {
+      icon = const Icon(Icons.highlight_off_rounded, color: Colors.redAccent, size: 64);
+    } else {
+      icon = Icon(_primaryBiometricIcon(), color: Colors.white54, size: 64);
+    }
+
+    final shouldPulse = _state == _VerificationState.idle;
+
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (_, child) => Transform.scale(
+        scale: shouldPulse ? _pulseAnimation.value : 1.0,
+        child: child,
+      ),
+      child: Container(
+        width: 180,
+        height: 180,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: ringColor, width: 3),
+          color: ringColor.withValues(alpha: 0.08),
+          boxShadow: [
+            BoxShadow(
+              color: ringColor.withValues(alpha: 0.25),
+              blurRadius: 40,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: Center(child: icon),
       ),
     );
   }
@@ -248,10 +396,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: ringColor, width: 3),
-          color: ringColor.withOpacity(0.08),
+          color: ringColor.withValues(alpha: 0.08),
           boxShadow: [
             BoxShadow(
-              color: ringColor.withOpacity(0.25),
+              color: ringColor.withValues(alpha: 0.25),
               blurRadius: 40,
               spreadRadius: 5,
             ),
@@ -264,27 +412,50 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
   Widget _buildStatusText() {
     String title, subtitle;
-    switch (_state) {
-      case _VerificationState.idle:
-        title = 'Face Identity Check';
-        subtitle = 'Look into the camera and tap "Verify Identity" when ready.';
-        break;
-      case _VerificationState.capturing:
-        title = 'Opening Camera...';
-        subtitle = 'Please hold your phone steady in good lighting.';
-        break;
-      case _VerificationState.verifying:
-        title = 'Verifying via AWS Rekognition...';
-        subtitle = 'Comparing against your registered face profile. This takes ~3 seconds.';
-        break;
-      case _VerificationState.success:
-        title = 'Identity Confirmed ✓';
-        subtitle = 'Similarity: ${(_similarityScore! * 100).toStringAsFixed(1)}% — Proceeding...';
-        break;
-      case _VerificationState.failed:
-        title = 'Verification Failed';
-        subtitle = 'Face did not match your registered profile. Try again in good lighting.';
-        break;
+    if (_tier == _AuthTier.biometric) {
+      switch (_state) {
+        case _VerificationState.idle:
+          title = 'Biometric Identity Check';
+          subtitle = _biometricAvailable
+              ? 'Use your fingerprint or Face ID to confirm your identity.'
+              : 'No biometric enrolled — use camera instead.';
+          break;
+        case _VerificationState.verifying:
+          title = 'Waiting for Biometric...';
+          subtitle = 'Approve the prompt on your device.';
+          break;
+        case _VerificationState.success:
+          title = 'Identity Confirmed';
+          subtitle = 'Biometric match successful. Proceeding...';
+          break;
+        case _VerificationState.failed:
+          title = 'Biometric Failed';
+          subtitle = 'Switching to camera verification (AWS Rekognition).';
+          break;
+        default:
+          title = 'Biometric Check';
+          subtitle = '';
+      }
+    } else {
+      switch (_state) {
+        case _VerificationState.idle:
+        case _VerificationState.failed:
+          title = 'Face Identity Check';
+          subtitle = 'Look into the camera and tap "Verify Identity" when ready.';
+          break;
+        case _VerificationState.capturing:
+          title = 'Opening Camera...';
+          subtitle = 'Please hold your phone steady in good lighting.';
+          break;
+        case _VerificationState.verifying:
+          title = 'Verifying via AWS Rekognition...';
+          subtitle = 'Comparing against your registered face profile. This takes ~3 seconds.';
+          break;
+        case _VerificationState.success:
+          title = 'Identity Confirmed';
+          subtitle = 'Similarity: ${(_similarityScore! * 100).toStringAsFixed(1)}% — Proceeding...';
+          break;
+      }
     }
 
     return Column(
@@ -317,32 +488,131 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     );
   }
 
-  Widget _buildActionButton(Color primaryColor, Color accentGreen) {
+  Widget _buildActionButtons(Color primaryColor, Color accentGreen) {
     if (_state == _VerificationState.success) return const SizedBox.shrink();
 
     final isLoading = _state == _VerificationState.verifying ||
         _state == _VerificationState.capturing;
-    final label = _state == _VerificationState.failed ? 'Try Again' : 'Verify Identity';
 
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: isLoading ? null : _captureAndVerify,
-        icon: const Icon(Icons.camera_alt_outlined),
-        label: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+    if (_tier == _AuthTier.biometric) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: isLoading ? null : _triggerBiometric,
+              icon: Icon(_primaryBiometricIcon()),
+              label: Text(
+                _state == _VerificationState.failed ? 'Retry Biometric' : 'Use Biometric',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: primaryColor.withValues(alpha: 0.3),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          if (_biometricAvailable && _state == _VerificationState.failed) ...[
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => setState(() {
+                _tier = _AuthTier.camera;
+                _state = _VerificationState.idle;
+                _errorMessage = null;
+              }),
+              child: const Text(
+                'Use Camera Instead (AWS Rekognition)',
+                style: TextStyle(color: Colors.white38, fontSize: 13),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Camera tier buttons
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: isLoading ? null : _captureAndVerify,
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: Text(
+              _state == _VerificationState.failed ? 'Try Again' : 'Verify Identity',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: primaryColor.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: primaryColor.withOpacity(0.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
+        if (_biometricAvailable) ...[
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => setState(() {
+              _tier = _AuthTier.biometric;
+              _state = _VerificationState.idle;
+              _errorMessage = null;
+            }),
+            child: const Text(
+              'Use Biometric Instead',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TierChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final bool done;
+  final Color color;
+
+  const _TierChip({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.done,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chipColor = done
+        ? color.withValues(alpha: 0.6)
+        : active
+            ? color
+            : Colors.white12;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: chipColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: chipColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(done ? Icons.check_circle : icon, size: 14, color: chipColor),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(color: chipColor, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
 }
 
 enum _VerificationState { idle, capturing, verifying, success, failed }
+enum _AuthTier { biometric, camera }
