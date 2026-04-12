@@ -34,7 +34,7 @@ router.post('/traffic', async (req, res) => {
 
 router.post('/fraud', async (req, res) => {
   try {
-    const { data } = await axios.post(`${ML_URL}/fraud`, req.body, { timeout: TIMEOUT });
+    const { data } = await axios.post(`${ML_URL}/fraud-score`, req.body, { timeout: TIMEOUT });
     res.json(data);
   } catch (error) {
     if (error.response) {
