@@ -20,6 +20,7 @@ class BatteryOptimizationPrompt extends StatefulWidget {
 class _BatteryOptimizationPromptState
     extends State<BatteryOptimizationPrompt> with WidgetsBindingObserver {
   bool _locationAlways = false;
+  bool _locationForegroundOnly = false;  // soft pass: while-using-app grants foreground only
   bool _batteryUnrestricted = false;
   bool _batteryManuallyVerified = false;
   bool _checking = true;
@@ -45,23 +46,29 @@ class _BatteryOptimizationPromptState
   Future<void> _checkAll() async {
     setState(() => _checking = true);
 
-    final locStatus = await Permission.locationAlways.status;
+    final locAlwaysStatus = await Permission.locationAlways.status;
+    final locFgStatus = await Permission.location.status;
     final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
 
-    final locationGranted = locStatus == PermissionStatus.granted;
+    final locationAlways = locAlwaysStatus == PermissionStatus.granted;
+    // Soft pass: foreground-only is acceptable — worker can go online with a warning
+    final locationForeground = locFgStatus == PermissionStatus.granted || locationAlways;
     final batteryGranted = batteryStatus == PermissionStatus.granted;
-
+    // OEM workaround: OnePlus / Xiaomi ROMs silently revert == denied even after user taps Allow.
+    // _batteryManuallyVerified is set to true the moment the user returns from battery settings.
     final batteryUnrestricted = batteryGranted || _batteryManuallyVerified;
 
     if (mounted) {
       setState(() {
-        _locationAlways = locationGranted;
+        _locationAlways = locationAlways;
+        _locationForegroundOnly = locationForeground && !locationAlways;
         _batteryUnrestricted = batteryUnrestricted;
         _checking = false;
       });
     }
 
-    if (locationGranted && batteryUnrestricted) {
+    // Gate: require at least foreground location + battery unrestricted
+    if (locationForeground && batteryUnrestricted) {
       widget.onAllGranted();
     }
   }
@@ -70,11 +77,12 @@ class _BatteryOptimizationPromptState
     // Android 11+ requires foreground location granted before requesting background.
     var status = await Permission.location.request();
     if (status == PermissionStatus.granted) {
+      // Try to upgrade to Always Allow (background)
       status = await Permission.locationAlways.request();
     }
-    if (status != PermissionStatus.granted) {
-      // User hit deny or system blocked it — send to app settings
-      await openAppSettings();
+    if (status == PermissionStatus.permanentlyDenied) {
+      // Deep-link directly to THIS app's location settings (not generic settings)
+      await AppSettings.openAppSettings(type: AppSettingsType.location);
     }
     _checkAll();
   }
@@ -115,7 +123,7 @@ class _BatteryOptimizationPromptState
         ),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 12,
               offset: const Offset(0, 4)),
         ],
@@ -142,17 +150,26 @@ class _BatteryOptimizationPromptState
           Text(
             'Hustlr needs these to verify your location during disruptions and process payouts.',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Location Permission Row
+          // Location Permission Row — show nuanced state
           _PermissionRow(
             icon: Icons.location_on_rounded,
-            label: 'Always Allow Location',
-            subtitle: 'Required to track your zone during deliveries',
-            isGranted: _locationAlways,
+            label: _locationAlways
+                ? 'Always Allow Location'
+                : _locationForegroundOnly
+                    ? 'Location: While Using App'
+                    : 'Always Allow Location',
+            subtitle: _locationAlways
+                ? 'Background tracking active'
+                : _locationForegroundOnly
+                    ? 'Tap Fix to upgrade to Always Allow for full protection'
+                    : 'Required to track your zone during deliveries',
+            isGranted: _locationAlways || _locationForegroundOnly,
+            isWarning: _locationForegroundOnly,
             onFix: _requestLocation,
           ),
           const SizedBox(height: 10),
@@ -236,6 +253,7 @@ class _PermissionRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final bool isGranted;
+  final bool isWarning;   // amber state: foreground-only location
   final VoidCallback onFix;
 
   const _PermissionRow({
@@ -244,6 +262,7 @@ class _PermissionRow extends StatelessWidget {
     required this.subtitle,
     required this.isGranted,
     required this.onFix,
+    this.isWarning = false,
   });
 
   @override
@@ -256,14 +275,20 @@ class _PermissionRow extends StatelessWidget {
           height: 38,
           decoration: BoxDecoration(
             color: isGranted
-                ? const Color(0xFF43A047).withOpacity(0.1)
-                : const Color(0xFFE53935).withOpacity(0.08),
+                ? isWarning
+                    ? const Color(0xFFFFA000).withValues(alpha: 0.12)
+                    : const Color(0xFF43A047).withValues(alpha: 0.1)
+                : const Color(0xFFE53935).withValues(alpha: 0.08),
             shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
             size: 20,
-            color: isGranted ? const Color(0xFF43A047) : const Color(0xFFE53935),
+            color: isGranted
+                ? isWarning
+                    ? const Color(0xFFFFA000)
+                    : const Color(0xFF43A047)
+                : const Color(0xFFE53935),
           ),
         ),
         const SizedBox(width: 12),
@@ -290,6 +315,16 @@ class _PermissionRow extends StatelessWidget {
               minimumSize: const Size(48, 32),
             ),
             child: const Text('Fix', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          )
+        else if (isWarning)
+          TextButton(
+            onPressed: onFix,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFFFA000),
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(48, 32),
+            ),
+            child: const Text('Upgrade', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           )
         else
           const Icon(Icons.check_rounded, color: Color(0xFF43A047), size: 20),

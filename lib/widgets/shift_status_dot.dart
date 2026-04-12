@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:app_settings/app_settings.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../../services/shift_tracking_service.dart';
 
 /// Animated GPS status dot shown on the Dashboard next to shift status.
@@ -84,10 +83,10 @@ class _ShiftStatusDotState extends State<ShiftStatusDot>
               height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withOpacity(_pulseAnim.value),
+                color: color.withValues(alpha: _pulseAnim.value),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.4),
+                    color: color.withValues(alpha: 0.4),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),
@@ -147,7 +146,11 @@ void _showFixGpsSheet(BuildContext context) {
           _FixStep(
             number: '3',
             text: 'Make sure location is set to "Always Allow"',
-            onTapUpdate: () async => await openAppSettings(),
+            onTapUpdate: () async {
+              // Deep-link directly to THIS app’s location settings
+              // (avoids landing on Rapido or another app’s settings page)
+              await AppSettings.openAppSettings(type: AppSettingsType.location);
+            },
           ),
           const SizedBox(height: 24),
           SizedBox(
