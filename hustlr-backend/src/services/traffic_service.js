@@ -120,9 +120,61 @@ function detectTrafficTrigger(trafficData) {
 }
 
 function _congestionLevel(dropPct) {
-  if (dropPct < 0.20) return 'Normal';
-  if (dropPct < 0.40) return 'Moderate';
+  if (dropPct < 0.15) return 'Normal';
+  if (dropPct < 0.30) return 'Inconclusive_Mild';
+  if (dropPct < 0.45) return 'Inconclusive_Moderate';
   return 'Severe';
 }
 
-module.exports = { getTrafficSpeed, detectTrafficTrigger };
+// ── Blueprint additions: INCONCLUSIVE sub-bands ───────────────────────────────
+/**
+ * classifyTrafficIncident — splits old INCONCLUSIVE into two actionable bands.
+ * Heavy rain amplifies effective speed drop by 35%.
+ */
+function classifyTrafficIncident(speedDropPct, weather, incidentType, corridor) {
+  // Rain amplification: heavy rain makes congestion 35% worse
+  const effectiveDrop = weather === 'heavy_rain'
+    ? Math.min(speedDropPct * 1.35, 1.0)
+    : speedDropPct;
+
+  if (effectiveDrop < 0.15) {
+    return { classification: 'NORMAL',                action: 'route_normally',      delayBuffer: 0 };
+  } else if (effectiveDrop <= 0.30) {
+    return { classification: 'INCONCLUSIVE_MILD',     action: 'route_with_buffer',   delayBuffer: 0.10 };
+  } else if (effectiveDrop <= 0.45) {
+    return { classification: 'INCONCLUSIVE_MODERATE', action: 'flag_for_sla_review', delayBuffer: 0.25 };
+  } else {
+    return { classification: 'ACCIDENT_BLACKSPOT',    action: 'check_reroute',       delayBuffer: null };
+  }
+}
+
+/**
+ * applyTTMCaps — Travel Time Multiplier hard caps.
+ * Above 2.9 → trigger reroute instead of extending SLA.
+ */
+function applyTTMCaps(baseTTM, isPeakHour, isMonsoon) {
+  let ttm = baseTTM;
+  if (isPeakHour) ttm = Math.min(ttm, 2.5);
+  if (isMonsoon)  ttm += 0.4;
+  return Math.min(ttm, 2.9);  // Hard cap
+}
+
+// ── Chennai Metro Phase 2 construction zones (lack training data — apply caution buffer) ──
+const METRO_CONSTRUCTION_ZONES = {
+  OMR_Sholinganallur: { corridor: 'Corridor 3 — SRP Tools to Navalur', speedReductionFactor: 0.70, active: true },
+  Velachery:          { corridor: 'Corridor 5 — near Velachery station', speedReductionFactor: 0.75, diversionActive: true, active: true },
+  Perumbakkam:        { corridor: 'Phase 2 station — post-2023',         speedReductionFactor: 0.80, active: true },
+};
+
+function isMetroConstructionZone(locationName) {
+  return METRO_CONSTRUCTION_ZONES[locationName] || null;
+}
+
+module.exports = {
+  getTrafficSpeed,
+  detectTrafficTrigger,
+  classifyTrafficIncident,
+  applyTTMCaps,
+  isMetroConstructionZone,
+  METRO_CONSTRUCTION_ZONES,
+};

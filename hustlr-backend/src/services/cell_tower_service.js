@@ -126,4 +126,71 @@ async function estimateLocation(payload) {
   );
 }
 
-module.exports = { estimateLocation, tryOpenCellId };
+// ── Blueprint additions: M5 Blackout improvements ────────────────────────────────
+
+/**
+ * Network-adaptive speed thresholds.
+ * Old single 2Mbps threshold flagged 4G degradation as blackout (14% FPR).
+ * New thresholds per connection type target <10% FPR.
+ */
+const BLACKOUT_THRESHOLDS = {
+  '2G':   1.0,   // Mbps
+  '3G':   1.0,   // Mbps
+  '4G':   2.5,   // Mbps (raised from 2.0 for 4G infrastructure)
+  '5G':   5.0,   // Mbps
+  'WiFi': 5.0,   // Mbps
+};
+
+/**
+ * BlackoutDetector — EWMA-based duration smoothing.
+ * Replaces the hard 20-min cutoff with a 15-min EWMA window to eliminate
+ * threshold oscillation at the boundary (was causing false +ve surges).
+ */
+class BlackoutDetector {
+  constructor(connectionType = '4G') {
+    this.connectionType = connectionType;
+    this.ewma           = null;
+    this.alpha          = 0.3;   // EWMA smoothing factor
+    this.threshold      = BLACKOUT_THRESHOLDS[connectionType] ?? 2.5;
+    this._readings      = [];    // circular buffer for isCriticalBlackout
+  }
+
+  /**
+   * update — call once per minute with current speed measurement.
+   * @param {number} speedMbps
+   * @returns {{ ewmaSpeed: number, isWeak: boolean, weakSignalPct: number }}
+   */
+  update(speedMbps) {
+    this.ewma = this.ewma === null
+      ? speedMbps
+      : this.alpha * speedMbps + (1 - this.alpha) * this.ewma;
+
+    const isWeak = this.ewma < this.threshold;
+    this._readings.push({ isWeak, ts: Date.now() });
+    if (this._readings.length > 30) this._readings.shift(); // keep 30 min
+
+    return {
+      ewmaSpeed:     Math.round(this.ewma * 100) / 100,
+      isWeak,
+      weakSignalPct: isWeak ? 1.0 : 0.0,
+    };
+  }
+
+  /**
+   * isCriticalBlackout — true when EWMA is weak for >28% of last 18 readings.
+   * Replaces hard >20min cutoff.
+   */
+  isCriticalBlackout() {
+    const recent = this._readings.slice(-18);
+    if (recent.length < 10) return false;  // insufficient data
+    const weakCount = recent.filter(r => r.isWeak).length;
+    return weakCount / recent.length > 0.28;
+  }
+}
+
+module.exports = {
+  estimateLocation,
+  tryOpenCellId,
+  BlackoutDetector,
+  BLACKOUT_THRESHOLDS,
+};
