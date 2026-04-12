@@ -1,6 +1,7 @@
 // Mirrors hustlr-backend/src/config/constants.js exactly
 
 export const API_BASE = 'https://hustlr-ad32.onrender.com';
+export const ML_API_BASE = 'https://hustlr-2ppj.onrender.com';
 
 export const PLAN_CONFIG = {
   basic: {

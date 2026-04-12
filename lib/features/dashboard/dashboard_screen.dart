@@ -413,6 +413,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       const SizedBox(height: 32),
                       _buildTitleSection(l10n, displayUserName),
                       const SizedBox(height: 20),
+                      if (nudgeData != null) ...[
+                        _buildPredictiveNudgeCard(l10n),
+                        const SizedBox(height: 16),
+                      ],
                       _buildRainAlertCard(l10n),
                       if (workAdvisorData != null) ...[
                         const SizedBox(height: 16),
@@ -932,6 +936,80 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     size: 14),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPredictiveNudgeCard(AppLocalizations l10n) {
+    if (nudgeData == null) return const SizedBox.shrink();
+    
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF0D1410) : const Color(0xFFE8F5E9);
+    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    
+    final date = nudgeData!['nudge_date'] as String? ?? 'Friday';
+    final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
+    final desc = nudgeData!['description'] as String? ?? 'Heavy rain expected.';
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: mintColor.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: mintColor.withOpacity(0.1),
+            blurRadius: 15,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, color: mintColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'PROPHET AI NUDGE',
+                style: TextStyle(
+                  color: mintColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                  fontFamily: 'Manrope',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '🌧️ $prob% Risk of Heavy Rain on $date',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Manrope',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            policyData != null
+                ? '$desc\nYour active ${policyData!['plan_name']} will auto-cover any washout shifts.'
+                : '$desc\nCoverage starts next Monday — activate quarterly plan now to secure your income.',
+            style: TextStyle(
+              color: textColor.withOpacity(0.8),
+              fontSize: 13,
+              height: 1.4,
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

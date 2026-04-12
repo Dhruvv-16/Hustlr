@@ -1,4 +1,4 @@
-import { API_BASE } from './constants';
+import { API_BASE, ML_API_BASE } from './constants';
 
 export type PoolHealth = {
   city: string;
@@ -74,4 +74,24 @@ export async function fetchZoneDisruption(zone: string) {
     disruptions: Array<{ trigger_type: string; display_name: string }>;
     weather?: { temp_celsius: number; rainfall_mm_1h: number };
   }>(`/disruptions/${encodeURIComponent(zone)}`);
+}
+
+/** ML GET /forecast/:zone — Python FastAPI Prophet endpoint */
+export async function fetchProphetForecast(zoneId: string, days: number = 7) {
+  const res = await fetch(`${ML_API_BASE}/forecast/${encodeURIComponent(zoneId)}?days=${days}`, {
+    signal: AbortSignal.timeout(10000),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+/** ML GET /fraud/model-health — Python FastAPI model diagnostic endpoint */
+export async function fetchFraudModelHealth() {
+  const res = await fetch(`${ML_API_BASE}/fraud/model-health`, {
+    signal: AbortSignal.timeout(10000),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
 }
