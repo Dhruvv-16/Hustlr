@@ -4,7 +4,7 @@ import '../../../services/api_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../core/router/app_router.dart';
 
-void showDemoPanel(BuildContext context) {
+void showDemoPanel(BuildContext context, {VoidCallback? onSubmit}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.white,
@@ -51,6 +51,7 @@ void showDemoPanel(BuildContext context) {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 await _fileClaim(context, 'rain');
+                if (onSubmit != null) onSubmit();
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -73,6 +74,7 @@ void showDemoPanel(BuildContext context) {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 await _fileClaim(context, 'platform_downtime');
+                if (onSubmit != null) onSubmit();
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -95,6 +97,7 @@ void showDemoPanel(BuildContext context) {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 await _fileClaim(context, 'extreme_heat');
+                if (onSubmit != null) onSubmit();
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(

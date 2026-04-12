@@ -15,6 +15,27 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   int _selectedMethod = 0; // 0 = UPI, 1 = Wallet
   bool _loading = false;
+  int _walletBalance = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBalance();
+  }
+
+  void _loadBalance() async {
+    try {
+      final userId = await StorageService.instance.getUserId();
+      if (userId == null) return;
+      final data = await ApiService.instance.getWallet(userId);
+      if (mounted) {
+        setState(() {
+          _walletBalance = (data['balance'] as num?)?.toInt() ?? 0;
+          if (_walletBalance < 0) _walletBalance = 0;
+        });
+      }
+    } catch (_) {}
+  }
 
   void _confirm() async {
     setState(() => _loading = true);
@@ -31,7 +52,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
           await StorageService.instance.savePolicyId(policyId);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Payment mock error: $e', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+        );
+        setState(() => _loading = false);
+      }
+      return; // Do not go to dashboard if payment fails, let them see the error
+    }
 
     if (!mounted) return;
     setState(() => _loading = false);
@@ -64,7 +93,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
     final planCost = widget.checkoutData?['planCost'] ?? 49;
-    final riders = widget.checkoutData?['riders'] as List<Map<String, dynamic>>? ?? [];
+    
+    // Safely cast riders to prevent type errors from GoRouter extras
+    final rawRiders = widget.checkoutData?['riders'];
+    final List<Map<String, dynamic>> riders = [];
+    if (rawRiders is List) {
+      for (var r in rawRiders) {
+        if (r is Map) riders.add(Map<String, dynamic>.from(r));
+      }
+    }
+    
     final total = widget.checkoutData?['total'] ?? 49;
 
     return Scaffold(
@@ -171,7 +209,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   _PaymentMethodRow(
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'Hustlr Wallet',
-                    subtitle: 'Balance: ₹2,340',
+                    subtitle: 'Balance: ₹${_walletBalance.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},")}',
                     selected: _selectedMethod == 1,
                     onTap: () => setState(() => _selectedMethod = 1),
                   ),

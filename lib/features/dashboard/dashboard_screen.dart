@@ -469,7 +469,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () => showDemoPanel(context),
+          onLongPress: () => showDemoPanel(context, onSubmit: _loadDashboardData),
           child: Container(
             width: 52,
             height: 52,
@@ -1300,7 +1300,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           _DebugRow('STATUS', policyData?['status']?.toString() ?? 'NULL'),
 
           _DebugHeader('--- WALLET STATE ---'),
-          _DebugRow('BALANCE', walletData?['balance']?.toString() ?? 'NULL'),
+          Builder(builder: (context) {
+            final rawBal = (walletData?['balance'] as num?)?.toInt();
+            String balStr = 'NULL';
+            if (rawBal != null) {
+              balStr = rawBal < 0 ? '0 (paid: ${rawBal.abs()})' : rawBal.toString();
+            }
+            return _DebugRow('BALANCE', balStr);
+          }),
           _DebugRow('TOTAL PAYOUTS', walletData?['total_payouts']?.toString() ?? 'NULL'),
           _DebugRow('TOTAL PREMIUMS', walletData?['total_premiums']?.toString() ?? 'NULL'),
           _DebugRow('TRANSACTION COUNT', (walletData?['transactions'] as List?)?.length.toString() ?? '0'),
