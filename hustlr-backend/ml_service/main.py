@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from industrial_logic import DataTrustEngine, EconomicCircuitBreaker
-from ml_cherry_picks import (
+from ml_intelligence import (
     CHENNAI_NLP_RULE_ZONE_HINTS,
     CHENNAI_ZONES,
     EXTRA_KEYWORD_RULES,
