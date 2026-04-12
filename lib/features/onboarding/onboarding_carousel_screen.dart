@@ -29,8 +29,8 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
     },
     {
       'icon': Icons.savings_rounded,
-      'title': 'Starts at ₹29/week.',
-      'subtitle': 'Less than a cup of chai. Cancel anytime.',
+      'title': 'Starts at ₹35/week.',
+      'subtitle': 'Affordable, transparent, and cancel anytime.',
       'chip': 'Pricing',
     },
     {

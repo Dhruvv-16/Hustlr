@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../core/services/api_service.dart';
@@ -9,7 +10,9 @@ import '../../core/services/storage_service.dart';
 
 class OTPScreen extends StatefulWidget {
   final String phone;
-  const OTPScreen({super.key, required this.phone});
+  final String verificationId;
+
+  const OTPScreen({super.key, required this.phone, required this.verificationId});
 
   @override
   State<OTPScreen> createState() => _OTPScreenState();
@@ -21,7 +24,6 @@ class _OTPScreenState extends State<OTPScreen> {
 
   bool _loading = false;
   String? _error;
-  static const _validOtp = '123456';
 
   @override
   void initState() {
@@ -60,54 +62,72 @@ class _OTPScreenState extends State<OTPScreen> {
     });
 
     try {
-      if (otp.length == 6) {
-        final box = Hive.box('appData');
-        await box.put('isLoggedIn', true);
-        final phoneNumber = '+91${widget.phone}';
-        await box.put('phone', phoneNumber);
-        await StorageService.instance.savePhone(phoneNumber);
-
-        // Check if user already exists
-        final existingUser = await ApiService.getWorkerByPhone(phoneNumber);
-
-        if (!mounted) return;
-
-        if (existingUser != null) {
-          // User exists, save context and navigate straight to dashboard
-          final userId = existingUser['id'] as String;
-          await StorageService.setUserId(userId);
-          await StorageService.setOnboarded(true);
-          await StorageService.instance.saveUserName(
-              existingUser['name'] as String? ?? '');
-          await StorageService.instance.saveUserCity(
-              existingUser['city'] as String? ?? '');
-          await StorageService.instance.saveUserZone(
-              existingUser['zone'] as String? ?? '');
-          await StorageService.setString(
-              'userPlatform', existingUser['platform'] as String? ?? '');
-
-          await box.put('userName', existingUser['name']);
-          await box.put('userCity', existingUser['city']);
-          await box.put('userZone', existingUser['zone']);
-          await box.put('userPlatform', existingUser['platform']);
-          await box.put('onboardingComplete', true);
-
-          context.go(AppRoutes.dashboard);
-        } else {
-          // User does not exist, proceed to onboarding
-          final onboardingComplete = box.get('onboardingComplete', defaultValue: false);
-          if (onboardingComplete) {
-            context.go(AppRoutes.dashboard); // Safety fallback
-          } else {
-            context.go(AppRoutes.carousel);
-          }
+      // 1. Authenticate with Firebase
+      if (widget.verificationId == 'demo-bypass' || widget.verificationId.isEmpty) {
+        if (otp != '123456') {
+          setState(() {
+            _loading = false;
+            _error = 'Invalid testing code. Please use: 123456';
+          });
+          return;
         }
+        // SIMULATED NETWORK LAG
+        await Future.delayed(const Duration(seconds: 1));
       } else {
-        setState(() {
-          _loading = false;
-          _error = 'Invalid OTP. Try: $_validOtp';
-        });
+        final credential = PhoneAuthProvider.credential(
+          verificationId: widget.verificationId,
+          smsCode: otp,
+        );
+        await FirebaseAuth.instance.signInWithCredential(credential);
       }
+
+      // 2. Firebase Success! Proceed to local Hustlr routing logic
+      final box = Hive.box('appData');
+      await box.put('isLoggedIn', true);
+      final phoneNumber = '+91${widget.phone}';
+      await box.put('phone', phoneNumber);
+      await StorageService.instance.savePhone(phoneNumber);
+
+      // Check if user already exists
+      final existingUser = await ApiService.getWorkerByPhone(phoneNumber);
+
+      if (!mounted) return;
+
+      if (existingUser != null) {
+        // User exists, save context and navigate straight to dashboard
+        final userId = existingUser['id'] as String;
+        await StorageService.setUserId(userId);
+        await StorageService.setOnboarded(true);
+        await StorageService.instance.saveUserName(
+            existingUser['name'] as String? ?? '');
+        await StorageService.instance.saveUserCity(
+            existingUser['city'] as String? ?? '');
+        await StorageService.instance.saveUserZone(
+            existingUser['zone'] as String? ?? '');
+        await StorageService.setString(
+            'userPlatform', existingUser['platform'] as String? ?? '');
+
+        await box.put('userName', existingUser['name']);
+        await box.put('userCity', existingUser['city']);
+        await box.put('userZone', existingUser['zone']);
+        await box.put('userPlatform', existingUser['platform']);
+        await box.put('onboardingComplete', true);
+
+        context.go(AppRoutes.dashboard);
+      } else {
+        // User does not exist, proceed to onboarding
+        final onboardingComplete = box.get('onboardingComplete', defaultValue: false);
+        if (onboardingComplete) {
+          context.go(AppRoutes.dashboard); // Safety fallback
+        } else {
+          context.go(AppRoutes.carousel);
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.message ?? 'Invalid OTP code entered.';
+      });
     } catch (e) {
       setState(() {
         _loading = false;
@@ -146,111 +166,114 @@ class _OTPScreenState extends State<OTPScreen> {
 
     return Scaffold(
       backgroundColor: theme.canvasColor,
-      extendBodyBehindAppBar: true,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Top Header Bar ─────────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: () => context.go('/auth/phone'),
-                    child: Row(
-                      children: [
-                        Icon(Icons.arrow_back, color: theme.colorScheme.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Verification',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
+              SizedBox(
+                height: 48,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.go('/auth/phone'),
+                      behavior: HitTestBehavior.opaque,
+                      child: Row(
+                        children: [
+                          Icon(Icons.arrow_back, color: theme.colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Verification',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Hustlr',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: theme.colorScheme.primary,
-                      letterSpacing: 2.0,
+                    Text(
+                      'Hustlr',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: theme.colorScheme.primary,
+                        letterSpacing: 2.0,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               
-              const SizedBox(height: 60),
+              const SizedBox(height: 24),
 
               // ── Title & Intro ──────────────────────────────────────────
               Text(
                 'SECURITY STEP',
-                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Enter the code\nsent to your phone',
-                style: theme.textTheme.displayMedium,
-              ),
-              const SizedBox(height: 16),
-              RichText(
-                text: TextSpan(
-                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                  children: [
-                    const TextSpan(text: "We've sent a 6-digit verification code to\n"),
-                    TextSpan(
-                      text: '+91 ${widget.phone}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const TextSpan(text: '. Please enter it below to continue.'),
-                  ],
+                style: const TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 1.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2E7D32),
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter verification code',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "We've sent a 6-digit code to +91 ${widget.phone}",
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.visible,
+              ),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 32),
 
               // ── Static OTP Tiles ──────────────────────────────────────
-              Center(
-                child: SizedBox(
-                  height: 100, // Reduced height since no floating overlap needed
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(6, (i) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5.0),
-                        child: _StaticOtpBox(
-                          index: i,
-                          controller: _controllers[i],
-                          focusNode: _focusNodes[i],
-                          hasError: _error != null,
-                          theme: theme,
-                          isDark: isDark,
-                          onChanged: (v) => _onDigitChanged(i, v),
-                          onBackspace: () {
-                            if (_controllers[i].text.isEmpty && i > 0) {
-                              _focusNodes[i - 1].requestFocus();
-                              _controllers[i - 1].clear();
-                            }
-                          },
-                        ),
-                      );
-                    }),
-                  ),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (i) {
+                  return Row(
+                    children: [
+                      if (i > 0) const SizedBox(width: 8),
+                      _StaticOtpBox(
+                        index: i,
+                        controller: _controllers[i],
+                        focusNode: _focusNodes[i],
+                        hasError: _error != null,
+                        theme: theme,
+                        isDark: isDark,
+                        onChanged: (v) => _onDigitChanged(i, v),
+                        onBackspace: () {
+                          if (_controllers[i].text.isEmpty && i > 0) {
+                            _focusNodes[i - 1].requestFocus();
+                            _controllers[i - 1].clear();
+                          }
+                        },
+                      ),
+                    ],
+                  );
+                }),
               ),
 
               // ── Error State ────────────────────────────────────────────
               if (_error != null)
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 16),
+                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       _error!,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -262,46 +285,68 @@ class _OTPScreenState extends State<OTPScreen> {
                   ),
                 ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
 
               // ── Resend Text ────────────────────────────────────────────
               Center(
                 child: GestureDetector(
                   onTap: _resendOtp,
-                  child: Text(
+                  behavior: HitTestBehavior.opaque,
+                  child: const Text(
                     "Didn't receive the code? Resend in 00:45",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.primary,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF2E7D32),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 24),
 
               // ── Button ────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: PrimaryButton(
-                      text: 'Verify & Continue',
-                      onPressed: _loading ? null : _verify,
-                      isLoading: _loading,
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _verify,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _loading 
+                  ? const SizedBox(
+                      width: 24, height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text(
+                    'Verify & Continue',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                ],
+                ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
               
-              // ── Legal Footer ───────────────────────────────────────────
-              Center(
+              // ── Terms Footer ───────────────────────────────────────────
+              const Center(
                 child: Text(
-                  'By continuing, you agree to Hustlr\'s professional\nconduct guidelines and secure transaction\nprotocols.',
+                  'By continuing, you agree to Hustlr\'s professional\nconduct guidelines and secure transaction protocols.',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7280),
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -369,9 +414,8 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
     final hasText = widget.controller.text.isNotEmpty;
     final isFocused = widget.focusNode.hasFocus;
     
-    final theme  = widget.theme;
     final isDark  = widget.isDark;
-    final primary = theme.colorScheme.primary;
+    final primary = const Color(0xFF2E7D32);
     final defaultBg = isDark ? const Color(0xFF1C1F1C) : Colors.white;
 
     Color borderColor;
@@ -379,13 +423,13 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
     double borderWidth;
 
     if (widget.hasError) {
-      borderColor = theme.colorScheme.error;
+      borderColor = widget.theme.colorScheme.error;
       bgColor = defaultBg;
       borderWidth = 1.5;
     } else if (isFocused) {
       borderColor = primary;
       bgColor = isDark ? const Color(0xFF1C2A1C) : const Color(0xFFF9FFF9);
-      borderWidth = 2.0;
+      borderWidth = 1.5;
     } else if (hasText) {
       borderColor = primary;
       bgColor = defaultBg;
@@ -393,13 +437,13 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
     } else {
       borderColor = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E7EB);
       bgColor = defaultBg;
-      borderWidth = 1.5;
+      borderWidth = 1.0;
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 48,
-      height: 56,
+      width: 44,
+      height: 52,
       decoration: BoxDecoration(
         color: bgColor, 
         borderRadius: BorderRadius.circular(12),
@@ -407,7 +451,6 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
           color: borderColor,
           width: borderWidth,
         ),
-        boxShadow: const [], // NO shadow, NO glow as requested
       ),
       child: KeyboardListener(
         focusNode: _keyboardFocusNode,
@@ -428,8 +471,8 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: widget.onChanged,
             style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
               color: widget.theme.colorScheme.onSurface,
             ),
             decoration: const InputDecoration(

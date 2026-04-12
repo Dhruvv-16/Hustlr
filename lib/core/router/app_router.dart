@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../models/claim.dart';
 
 import '../../features/splash/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_screen.dart';
+import '../../features/auth/step_up_auth_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/onboarding/onboarding_complete_screen.dart';
 import '../../features/onboarding/onboarding_carousel_screen.dart';
@@ -20,6 +22,7 @@ import '../../features/claims/claim_detail_screen.dart';
 import '../../features/claims/manual_evidence_screen.dart';
 import '../../features/claims/claim_submitted_screen.dart';
 import '../../features/claims/auto_explanation_screen.dart';
+import '../../features/claims/appeal_claim_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/wallet/analytics_dashboard_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -59,6 +62,7 @@ class AppRoutes {
   static const support = '/support';
   static const admin = '/admin';
   static const mlTester = '/admin/ml-tester';
+  static const stepUpAuth = '/step-up-auth';
 }
 
 // ─── Initial Route Logic ─────────────────────────────────────────────────────
@@ -109,7 +113,8 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.otp,
       builder: (context, state) {
         final phone = state.uri.queryParameters['phone'] ?? '';
-        return OTPScreen(phone: phone);
+        final verificationId = state.uri.queryParameters['verificationId'] ?? '';
+        return OTPScreen(phone: phone, verificationId: verificationId);
       },
     ),
     GoRoute(
@@ -140,7 +145,10 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.payment,
-          builder: (_, __) => const PaymentScreen(),
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return PaymentScreen(checkoutData: extra);
+          },
         ),
         GoRoute(
           path: AppRoutes.claims,
@@ -191,6 +199,13 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
+          path: '/claims/:id/appeal',
+          builder: (context, state) {
+            final claim = state.extra as Claim;
+            return AppealClaimScreen(rejectedClaim: claim);
+          },
+        ),
+        GoRoute(
           path: AppRoutes.wallet,
           builder: (_, __) => const WalletScreen(),
         ),
@@ -225,6 +240,15 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.mlTester,
       builder: (_, __) => const MlTesterScreen(),
+    ),
+
+    // ── Step-Up Biometric Auth ───────────────────────────────────────────────
+    GoRoute(
+      path: AppRoutes.stepUpAuth,
+      builder: (context, state) {
+        final reason = state.uri.queryParameters['reason'];
+        return StepUpAuthScreen(triggerReason: reason);
+      },
     ),
   ],
 );

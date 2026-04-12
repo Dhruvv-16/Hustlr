@@ -1,0 +1,222 @@
+"""
+fraud_model.py — Isolation Forest anomaly scoring for Hustlr claim events (Phase 4).
+
+Features include Poisson p-values and an expanded array of actuarial telemetry.
+"""
+
+import os
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional, List
+
+import joblib
+import numpy as np
+import pandas as pd
+from scipy.stats import poisson
+from sklearn.ensemble import IsolationForest
+
+# ── Configuration ─────────────────────────────────────────────────────────
+MODEL_PATH          = Path(__file__).parent / "fraud_model.pkl"
+ANOMALY_THRESHOLD   = 0.65   
+CONTAMINATION_RATE  = 0.08   # 8% global contamination as requested
+TRAINING_SAMPLES    = 50_000
+RANDOM_STATE        = 42     
+
+# ── Feature schema ────────────────────────────────────────────────────────
+@dataclass
+class ClaimEvent:
+    claim_latency_seconds: float
+    simultaneous_zone_claims: int
+    account_age_days: int
+    historical_clean_claim_ratio: float
+    shift_gap_count_today: int
+    device_shared_with_n_accounts: int
+    zone_depth_score: float
+    orders_completed_during_disruption: int
+    is_mock_location_ever: bool
+    poisson_p_value: float
+
+
+# ── Poisson test ────────────────────────────────────────────────────────
+def poisson_timing_test(worker_id: str, claim_timestamp: datetime, zone_id: str) -> float:
+    """
+    Simulates fetching last 2 hours of zone claims and returning an inter-arrival p-value.
+    In Python, we'll mock the DB hit by returning a uniformly safe p-value unless triggered
+    (in real life, the Node API would pass this pre-calculated, or we fetch it via Supabase).
+    For training, we explicitly build these features into the DataFrame.
+    """
+    # Fallback / Mock behavior if calculated locally.
+    return 1.0
+
+
+# ── Synthetic training data ───────────────────────────────────────────────
+def generate_training_data(
+    n_samples: int = TRAINING_SAMPLES,
+    random_state: int = RANDOM_STATE,
+) -> pd.DataFrame:
+    rng = np.random.default_rng(random_state)
+    n_fraud = int(n_samples * CONTAMINATION_RATE)
+    n_clean = n_samples - n_fraud
+
+    # ── Clean samples ──────────────────────────────────────────────────
+    clean = {
+        "claim_latency_seconds": rng.uniform(30, 300, n_clean),
+        "simultaneous_zone_claims": rng.integers(1, 4, n_clean),
+        "account_age_days": rng.integers(10, 365, n_clean),
+        "historical_clean_claim_ratio": rng.uniform(0.5, 1.0, n_clean),
+        "shift_gap_count_today": rng.integers(0, 2, n_clean),
+        "device_shared_with_n_accounts": np.ones(n_clean, dtype=int),
+        "zone_depth_score": rng.uniform(0.4, 1.0, n_clean),
+        "orders_completed_during_disruption": np.zeros(n_clean, dtype=int),
+        "is_mock_location_ever": np.zeros(n_clean, dtype=int),
+        "poisson_p_value": rng.uniform(0.1, 1.0, n_clean),
+    }
+
+    # ── Fraud samples (Patterns A, B, C) ──────────────────────────────
+    n_a = int(n_fraud * 0.4)
+    n_b = int(n_fraud * 0.3)
+    n_c = n_fraud - n_a - n_b
+
+    # Pattern A: Fast latency + many claims
+    fraud_a = {
+        "claim_latency_seconds": rng.uniform(0.1, 4.9, n_a),
+        "simultaneous_zone_claims": rng.integers(11, 40, n_a),
+        "account_age_days": rng.integers(0, 5, n_a),
+        "historical_clean_claim_ratio": np.zeros(n_a),
+        "shift_gap_count_today": rng.integers(0, 3, n_a),
+        "device_shared_with_n_accounts": np.ones(n_a, dtype=int),
+        "zone_depth_score": rng.uniform(0.0, 0.5, n_a),
+        "orders_completed_during_disruption": np.zeros(n_a, dtype=int),
+        "is_mock_location_ever": np.zeros(n_a, dtype=int),
+        "poisson_p_value": rng.uniform(0.0, 0.04, n_a), # very low p-value
+    }
+
+    # Pattern B: Heavily shared device (Sybil)
+    fraud_b = {
+        "claim_latency_seconds": rng.uniform(10, 100, n_b),
+        "simultaneous_zone_claims": rng.integers(1, 5, n_b),
+        "account_age_days": rng.integers(0, 60, n_b),
+        "historical_clean_claim_ratio": rng.uniform(0.0, 0.3, n_b),
+        "shift_gap_count_today": rng.integers(2, 6, n_b),
+        "device_shared_with_n_accounts": rng.integers(4, 12, n_b), # > 3
+        "zone_depth_score": rng.uniform(0.1, 0.8, n_b),
+        "orders_completed_during_disruption": np.zeros(n_b, dtype=int),
+        "is_mock_location_ever": rng.choice([0, 1], n_b, p=[0.2, 0.8]),
+        "poisson_p_value": rng.uniform(0.05, 0.5, n_b),
+    }
+
+    # Pattern C: Fake disruption
+    fraud_c = {
+        "claim_latency_seconds": rng.uniform(50, 300, n_c),
+        "simultaneous_zone_claims": rng.integers(1, 3, n_c),
+        "account_age_days": rng.integers(30, 300, n_c),
+        "historical_clean_claim_ratio": rng.uniform(0.5, 0.8, n_c),
+        "shift_gap_count_today": np.zeros(n_c, dtype=int),
+        "device_shared_with_n_accounts": np.ones(n_c, dtype=int),
+        "zone_depth_score": rng.uniform(0.5, 1.0, n_c),
+        "orders_completed_during_disruption": rng.integers(3, 8, n_c), # > 2
+        "is_mock_location_ever": np.zeros(n_c, dtype=int),
+        "poisson_p_value": rng.uniform(0.1, 0.9, n_c),
+    }
+
+    df_clean = pd.DataFrame(clean)
+    df_fraud = pd.concat([pd.DataFrame(fraud_a), pd.DataFrame(fraud_b), pd.DataFrame(fraud_c)], ignore_index=True)
+    df = pd.concat([df_clean, df_fraud], ignore_index=True)
+    df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
+    return df
+
+
+def prepare_features(df: pd.DataFrame) -> np.ndarray:
+    feature_cols = [
+        "claim_latency_seconds",
+        "simultaneous_zone_claims",
+        "account_age_days",
+        "historical_clean_claim_ratio",
+        "shift_gap_count_today",
+        "device_shared_with_n_accounts",
+        "zone_depth_score",
+        "orders_completed_during_disruption",
+        "is_mock_location_ever",
+        "poisson_p_value"
+    ]
+    return df[feature_cols].values.astype(float)
+
+
+# ── Training ───────────────────────────────────────────────────────────────
+def train_model(save: bool = True) -> IsolationForest:
+    print("[FraudModel] Generating synthetic training data …")
+    df = generate_training_data()
+    X  = prepare_features(df)
+
+    print(f"[FraudModel] Training IsolationForest on {len(X):,} samples with CONTAMINATION={CONTAMINATION_RATE} …")
+    model = IsolationForest(
+        n_estimators  = 200,
+        max_samples   = 256,
+        contamination = CONTAMINATION_RATE,
+        random_state  = RANDOM_STATE,
+        n_jobs        = -1,
+    )
+    model.fit(X)
+
+    if save:
+        joblib.dump(
+            {
+                "model":           model,
+                "trained_at":      datetime.now(timezone.utc).isoformat(),
+                "n_samples":       len(X),
+                "contamination":   CONTAMINATION_RATE,
+                "threshold":       ANOMALY_THRESHOLD,
+            },
+            MODEL_PATH,
+        )
+        print(f"[FraudModel] Model saved → {MODEL_PATH}")
+
+    return model
+
+
+def load_model() -> dict:
+    if not MODEL_PATH.exists():
+        print("[FraudModel] No cached model found — training now …")
+        train_model(save=True)
+    return joblib.load(MODEL_PATH)
+
+
+# ── Scoring ────────────────────────────────────────────────────────────────
+def score_claim(event: ClaimEvent, bundle: Optional[dict] = None) -> dict:
+    if bundle is None:
+        bundle = load_model()
+
+    model: IsolationForest = bundle["model"]
+
+    row = pd.DataFrame([{
+        "claim_latency_seconds": event.claim_latency_seconds,
+        "simultaneous_zone_claims": event.simultaneous_zone_claims,
+        "account_age_days": event.account_age_days,
+        "historical_clean_claim_ratio": event.historical_clean_claim_ratio,
+        "shift_gap_count_today": event.shift_gap_count_today,
+        "device_shared_with_n_accounts": event.device_shared_with_n_accounts,
+        "zone_depth_score": event.zone_depth_score,
+        "orders_completed_during_disruption": event.orders_completed_during_disruption,
+        "is_mock_location_ever": 1 if event.is_mock_location_ever else 0,
+        "poisson_p_value": event.poisson_p_value,
+    }])
+
+    X = prepare_features(row)
+    raw = model.decision_function(X)[0]
+    score = float(1.0 - (1.0 / (1.0 + np.exp(-raw * 4.0))))
+    
+    is_anomaly = score > ANOMALY_THRESHOLD
+
+    # Identify top features driving the score loosely by distance from median
+    from statistics import median
+    # For a real system we would use SHAP values. Here we mock feature attribution easily:
+    top_features = ["claim_latency_seconds", "simultaneous_zone_claims", "device_shared_with_n_accounts"]
+
+    return {
+        "is_anomalous": is_anomaly,
+        "anomaly_score": score,
+        "top_features": top_features,
+        "poisson_p_value": event.poisson_p_value
+    }

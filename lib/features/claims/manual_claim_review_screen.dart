@@ -216,9 +216,10 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
+            color: Colors.black, // Dark background for letterboxing
             image: DecorationImage(
               image: FileImage(_images[idx]),
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
             ),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),

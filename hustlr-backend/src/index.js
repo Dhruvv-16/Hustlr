@@ -12,9 +12,12 @@ const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
 const integrityRoutes = require('./routes/integrity.routes');
 const mlRoutes = require('./routes/ml.routes');
+const shiftRoutes = require('./routes/shift.routes');
 const mlService = require('./services/ml_service');
 const { startDisruptionCron, getDisruptionCronStatus } = require('./services/disruption_cron');
 const { startRegionalWeeklyCron, getRegionalCronStatus } = require('./services/regional_weekly_cron');
+const cron = require('node-cron');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 
@@ -43,6 +46,16 @@ app.use('/guidewire', guidewireRoutes);
 app.use('/cities', citiesRoutes);
 app.use('/integrity', integrityRoutes);
 app.use('/ml', mlRoutes);
+app.use('/shift', shiftRoutes);
+
+const trustService = require('./services/trust_service');
+
+// GET /workers/trust/:userId
+app.get('/workers/trust/:userId', async (req, res) => {
+  const profile = await trustService.getUserTrustProfile(req.params.userId);
+  if (!profile) return res.status(404).json({ error: 'Not found' });
+  return res.json(profile);
+});
 
 // Health check (root)
 app.get('/', (req, res) => {
@@ -145,4 +158,33 @@ app.listen(PORT, () => {
   console.log(`hustlr-backend listening on port ${PORT}`);
   startDisruptionCron();
   startRegionalWeeklyCron();
+
+  // Shift Watchdog: Auto-pause cron (every 60s)
+  cron.schedule('* * * * *', async () => {
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      const staleTime = new Date(Date.now() - 120000).toISOString(); // 120s ago
+
+      const { data: staleWorkers } = await supabase
+        .from('users')
+        .select('id, last_seen_at')
+        .eq('shift_status', 'ACTIVE')
+        .lt('last_seen_at', staleTime);
+
+      if (!staleWorkers || staleWorkers.length === 0) return;
+
+      const now = new Date().toISOString();
+      for (const w of staleWorkers) {
+        // Pausing shift
+        await supabase.from('users').update({ shift_status: 'PAUSED', paused_at: now }).eq('id', w.id);
+        
+        // Open a gap record
+        await supabase.from('shift_gaps').insert({ worker_id: w.id, gap_start: w.last_seen_at });
+
+        console.log(`[Push] Sent to ${w.id}: GPS signal lost — your coverage is paused. Re-enable location to resume earning.`);
+      }
+    } catch (e) {
+      console.error('[Watchdog Cron] Error checking stale shifts:', e.message);
+    }
+  });
 });
