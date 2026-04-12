@@ -22,6 +22,7 @@ import '../../core/utils/pdf_generator.dart';
 import '../../features/shared/widgets/demo_control_panel.dart';
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
+import '../../services/fraud_sensor_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -1264,6 +1265,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
                 onPressed: () => _checkLocationPermission(),
                 child: const Text('GPS', style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: FraudSensorService.mockFraudSpoofing ? Colors.green : Colors.grey[800],
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () {
+                  if (mounted) {
+                    setState(() {
+                      FraudSensorService.mockFraudSpoofing = !FraudSensorService.mockFraudSpoofing;
+                    });
+                  }
+                },
+                child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
