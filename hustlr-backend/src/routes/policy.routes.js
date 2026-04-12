@@ -1,7 +1,7 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
-const { calculatePremium } = require('../services/premiumCalculator');
 const { PLAN_CONFIG } = require('../config/constants');
+const mlService = require('../services/ml_service');
 const router = express.Router();
 const { getShadowSummary } = require('../services/shadow_policy_service');
 
@@ -36,46 +36,15 @@ router.post('/create', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    // Calculate dynamic premium with activity loading
-    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, {
-      active_days_last_30: user.active_days_last_30 ?? 25,
+    // Calculate premium via Python ML service
+    const premiumResult = await mlService.getPremium({
+      plan_tier,
+      zone: user.zone,
+      iss_score: 50,
+      previous_premium: 0
     });
 
-    // ── Dynamic Temporal Surcharging ──
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    let monsoonSurchargePct = 0;
-    
-    if (currentMonth >= 6 && currentMonth <= 9) {
-      monsoonSurchargePct = 0.15;
-    } else if (currentMonth >= 10 && currentMonth <= 12) {
-      monsoonSurchargePct = 0.22; // Cyclone season
-    }
-
-    // ── Forward-Risk Surcharge via Prophet ──
-    let forwardRiskPct = 0;
-    try {
-      const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
-      const zoneStr = user.zone || 'TN_CHENNAI';
-      const forecastRes = await fetch(`${ML_URL}/forecast/${zoneStr}?days=7`, { signal: AbortSignal.timeout(3000) });
-      
-      if (forecastRes.ok) {
-        const forecastData = await forecastRes.json();
-        const highRisk = forecastData.forecasts?.some(f => (f.disruption_probability || 0) > 0.7);
-        if (highRisk) {
-          forwardRiskPct = 0.08;
-          console.log(`[Policy] High risk weather forecast detected for ${zoneStr}. Applying +8% forward risk.`);
-        }
-      }
-    } catch (_) {
-      console.warn('[Policy] ML Forecast unavailable, defaulting to 0% forward risk.');
-    }
-
-    const baseForSurcharge = breakdown.final_premium;
-    const monsoonAmount = Math.round(baseForSurcharge * monsoonSurchargePct);
-    const forwardRiskAmount = Math.round(baseForSurcharge * forwardRiskPct);
-    
-    const finalPremiumWithSurcharge = baseForSurcharge + monsoonAmount + forwardRiskAmount;
+    const finalPremium = premiumResult.final_premium || 49;
 
     // Deactivate any existing active policy for this user first
     await supabase
@@ -84,18 +53,16 @@ router.post('/create', async (req, res) => {
       .eq('user_id', user_id)
       .eq('status', 'active');
 
-    // Make sure 'surcharge_breakdown' exists or just put it in a known column if not.
-    // For now we will insert the updated premium.
     const { data: policy, error: policyError } = await supabase
       .from('policies')
       .insert([{
         user_id,
         plan_tier,
-        base_premium:     breakdown.base_premium,
-        zone_adjustment:  breakdown.zone_adjustment,
-        iss_adjustment:   breakdown.iss_adjustment,
-        weekly_premium:   finalPremiumWithSurcharge,
-        max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout,
+        base_premium:     premiumResult.base_premium || 49,
+        zone_adjustment:  premiumResult.zone_adjustment || 0,
+        iss_adjustment:   0,
+        weekly_premium:   finalPremium,
+        max_weekly_payout: PLAN_CONFIG[plan_tier]?.max_payout || 150,
         status: 'active'
       }])
       .select()
@@ -107,24 +74,25 @@ router.post('/create', async (req, res) => {
       .from('wallet_transactions')
       .insert([{
         user_id,
-        amount: finalPremiumWithSurcharge,
+        amount: finalPremium,
         type: 'debit',
         description: `Premium for ${plan_tier} Shield`,
         reference: `policy_${policy.id}`,
       }]);
 
-    // Log the surcharge breakdown explicitly
-    console.log(`[Policy] Created policy ${policy.id} w/ Monsoon: ₹${monsoonAmount}, ForwardRisk: ₹${forwardRiskAmount}`);
+    console.log(`[Policy] Created policy ${policy.id}. Premium calculated via Python AI: ₹${finalPremium}`);
 
     res.json({
       policy,
       premium_breakdown: {
-        ...breakdown,
-        monsoon_surcharge_pct: monsoonSurchargePct,
-        monsoon_surcharge: monsoonAmount,
-        forward_risk_pct: forwardRiskPct,
-        forward_risk_surcharge: forwardRiskAmount,
-        final_with_surcharge: finalPremiumWithSurcharge,
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        monsoon_surcharge_pct: 0,
+        monsoon_surcharge: 0,
+        forward_risk_pct: 0,
+        forward_risk_surcharge: 0,
+        final_with_surcharge: finalPremium,
       },
     });
   } catch (error) {
@@ -169,19 +137,22 @@ router.patch('/:id/upgrade', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, {
-      active_days_last_30: user.active_days_last_30 ?? 25,
+    const premiumResult = await mlService.getPremium({
+      plan_tier: new_plan_tier,
+      zone: user.zone,
+      iss_score: 50,
+      previous_premium: existingPolicy.weekly_premium || 0
     });
 
     const { data: updated_policy, error: updateError } = await supabase
       .from('policies')
       .update({
         plan_tier: new_plan_tier,
-        base_premium: breakdown.base_premium,
-        zone_adjustment: breakdown.zone_adjustment,
-        iss_adjustment: breakdown.iss_adjustment,
-        weekly_premium: breakdown.final_premium,
-        max_weekly_payout: PLAN_CONFIG[new_plan_tier].max_payout
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        weekly_premium: premiumResult.final_premium,
+        max_weekly_payout: PLAN_CONFIG[new_plan_tier]?.max_payout || 150
       })
       .eq('id', id)
       .select()
@@ -189,7 +160,20 @@ router.patch('/:id/upgrade', async (req, res) => {
 
     if (updateError) throw updateError;
 
-    res.json({ updated_policy, premium_breakdown: breakdown });
+    res.json({ 
+      updated_policy, 
+      premium_breakdown: {
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        final_premium: premiumResult.final_premium,
+        monsoon_surcharge_pct: 0,
+        monsoon_surcharge: 0,
+        forward_risk_pct: 0,
+        forward_risk_surcharge: 0,
+        final_with_surcharge: premiumResult.final_premium,
+      } 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
