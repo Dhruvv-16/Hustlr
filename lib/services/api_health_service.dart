@@ -77,7 +77,7 @@ class ApiHealthService extends ChangeNotifier {
       final sw = Stopwatch()..start();
       final res = await http
           .get(Uri.parse('${ApiService.baseUrl}/health'))
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 65)); // Render free-tier cold start up to 60s
       sw.stop();
       backendLatency = sw.elapsedMilliseconds;
 
@@ -88,7 +88,7 @@ class ApiHealthService extends ChangeNotifier {
         try {
           final svcRes = await http
               .get(Uri.parse('${ApiService.baseUrl}/health/services'))
-              .timeout(const Duration(seconds: 8));
+              .timeout(const Duration(seconds: 65)); // same cold-start buffer
           if (svcRes.statusCode == 200) {
             backendStatus = jsonDecode(svcRes.body) as Map<String, dynamic>;
           }
