@@ -157,6 +157,11 @@ replay_pid*.log
 # hustlr_ml/outputs/ contains dev scratch; production models are in outputs/trained_models/
 hustlr-ml/outputs/scratch/
 
+# Heavyweight LLM Models
+*.gguf
+**/*.gguf
+**/.cache/huggingface/
+
 # OS junk
 .DS_Store
 **/.DS_Store
