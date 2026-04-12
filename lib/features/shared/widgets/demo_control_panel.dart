@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-// If your services are directly inside lib/services:
-import '../../../services/mock_data_service.dart';
+import 'package:go_router/go_router.dart';
+import '../../../services/api_service.dart';
+import '../../../services/storage_service.dart';
+import '../../../core/router/app_router.dart';
 
 void showDemoPanel(BuildContext context) {
   showModalBottomSheet(
@@ -10,10 +11,7 @@ void showDemoPanel(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (context) {
-      final mockData = Provider.of<MockDataService>(
-        context, listen: false);
-
+    builder: (sheetCtx) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
         child: Column(
@@ -35,14 +33,10 @@ void showDemoPanel(BuildContext context) {
             // Title
             const Text(
               "Demo Controls",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A2E),
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E)),
             ),
             const Text(
-              "Internal use only — tap to simulate disruptions",
+              "Internal use only — file simulated disruption claims via backend",
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -51,16 +45,16 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.water_drop,
               label: "Trigger Rain Disruption",
-              subtitle: "Simulates 67mm rainfall → ₹120 payout",
+              subtitle: "Files rain claim → ₹120 payout",
               color: const Color(0xFF1976D2),
               bgColor: const Color(0xFFE3F2FD),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerRainDisruption();
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _fileClaim(context, 'rain');
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      "🌧 Rain disruption detected — claim processing"),
+                    content: Text("🌧 Rain claim filed — processing"),
                     backgroundColor: Color(0xFF1976D2),
                     duration: Duration(seconds: 3),
                   ),
@@ -73,16 +67,16 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.cloud_off,
               label: "Trigger Platform Downtime",
-              subtitle: "Simulates Zepto outage → ₹140 payout",
+              subtitle: "Files downtime claim → ₹140 payout",
               color: const Color(0xFF00897B),
               bgColor: const Color(0xFFE0F2F1),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerPlatformDowntime();
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _fileClaim(context, 'platform_downtime');
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      "📵 Platform downtime detected — claim processing"),
+                    content: Text("📵 Downtime claim filed — processing"),
                     backgroundColor: Color(0xFF00897B),
                     duration: Duration(seconds: 3),
                   ),
@@ -95,16 +89,16 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.thermostat,
               label: "Trigger Extreme Heat",
-              subtitle: "Simulates 43°C heatwave → ₹130 payout",
+              subtitle: "Files heat claim → ₹130 payout",
               color: const Color(0xFFF57C00),
               bgColor: const Color(0xFFFFF8E1),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerExtremeHeat();
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _fileClaim(context, 'extreme_heat');
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      "🌡 Extreme heat detected — claim processing"),
+                    content: Text("🌡 Heat claim filed — processing"),
                     backgroundColor: Color(0xFFF57C00),
                     duration: Duration(seconds: 3),
                   ),
@@ -113,21 +107,17 @@ void showDemoPanel(BuildContext context) {
             ),
             const SizedBox(height: 8),
 
-            // Reset button
+            // Face Liveness button
             _DemoButton(
-              icon: Icons.refresh,
-              label: "Reset Demo",
-              subtitle: "Restores all data to default state",
-              color: Colors.grey,
-              bgColor: const Color(0xFFF3F4F6),
+              icon: Icons.face_unlock_outlined,
+              label: "Step-Up Identity Check",
+              subtitle: "Demo AWS Rekognition face liveness (Phase 3)",
+              color: const Color(0xFF6A1B9A),
+              bgColor: const Color(0xFFF3E5F5),
               onTap: () {
-                Navigator.pop(context);
-                mockData.resetDemo();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Demo reset to default state"),
-                    backgroundColor: Colors.grey,
-                  ),
+                Navigator.pop(sheetCtx);
+                context.push(
+                  '${AppRoutes.stepUpAuth}?reason=Demo+triggered+by+judge+review',
                 );
               },
             ),
@@ -137,6 +127,17 @@ void showDemoPanel(BuildContext context) {
       );
     },
   );
+}
+
+/// Files a simulated claim via ApiService
+Future<void> _fileClaim(BuildContext context, String triggerType) async {
+  try {
+    final userId = await StorageService.instance.getUserId();
+    if (userId == null) return;
+    await ApiService.instance.fileClaim(userId: userId, triggerType: triggerType);
+  } catch (_) {
+    // Silently fail — demo panel only
+  }
 }
 
 class _DemoButton extends StatelessWidget {
@@ -182,19 +183,8 @@ class _DemoButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: color,
-                    ),
-                  ),
-                  Text(subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
+                  Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),

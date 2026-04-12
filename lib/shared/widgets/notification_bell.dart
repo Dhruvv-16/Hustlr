@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../services/notification_service.dart';
+import '../../services/notification_service.dart';
 
 class NotificationBell extends StatelessWidget {
   const NotificationBell({super.key});

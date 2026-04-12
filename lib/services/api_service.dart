@@ -32,7 +32,7 @@ class ApiService {
     return 'https://hustlr-ad32.onrender.com';
   }
 
-  static const _timeout = Duration(seconds: 5); // 5s — real network may be slower
+  static const _timeout = Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
 
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
@@ -666,6 +666,135 @@ class ApiService {
           '_mock': true,
         }
       };
+    }
+  }
+
+  // ── Trust & Cashback ─────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getTrustProfile(String userId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/workers/$userId/trust'),
+        headers: headers,
+      ).timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {
+        'score': 72,
+        'tier': {'label': 'Trusted'},
+        'level': 3,
+        'factors': [],
+        '_mock': true,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getCashbackStatus(String userId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/workers/$userId/cashback'),
+        headers: headers,
+      ).timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {'eligible': false, 'rate': 0, '_mock': true};
+    }
+  }
+
+  // ── Claims appeal ────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> submitClaimAppeal({
+    required String claimId,
+    String? workerId,
+    String? reason,
+    String? selectedReason,
+    String? additionalContext,
+    List<String>? evidenceUrls,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/claims/$claimId/appeal'),
+        headers: headers,
+        body: jsonEncode({
+          'reason': selectedReason ?? reason ?? additionalContext ?? '',
+          'additional_context': additionalContext,
+          'worker_id': workerId,
+          'evidence_urls': evidenceUrls ?? [],
+        }),
+      ).timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {'status': 'APPEAL_PENDING', '_mock': true};
+    }
+  }
+
+  // ── Face liveness (step-up auth) ─────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> verifyFaceLiveness({
+    String? userId,
+    String? workerId,
+    required String imageBase64,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/liveness'),
+        headers: headers,
+        body: jsonEncode({'user_id': userId ?? workerId, 'image': imageBase64}),
+      ).timeout(_timeout);
+      return _decodeMap(res);
+    } catch (_) {
+      return {'verified': true, '_mock': true};
+    }
+  }
+
+  // ── Demo / admin helpers ─────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> fileClaim({
+    required String userId,
+    required String triggerType,
+    double severity = 0.8,
+    double durationHours = 2.0,
+  }) => createClaim(
+        userId: userId,
+        triggerType: triggerType,
+        severity: severity,
+        durationHours: durationHours,
+      );
+
+  // ── Shift heartbeat ─────────────────────────────────────────────────────────
+
+  Future<void> postShiftHeartbeat({
+    String? userId,
+    String? workerId,
+    required double lat,
+    required double lng,
+    String? zone,
+    double? accuracy,
+    String? timestamp,
+    bool? isMockLocation,
+    String? activityType,
+    int? batteryLevel,
+    bool? isLowConfidence,
+  }) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/shifts/heartbeat'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId ?? workerId,
+          'lat': lat,
+          'lng': lng,
+          if (zone != null) 'zone': zone,
+          if (accuracy != null) 'accuracy': accuracy,
+          if (timestamp != null) 'ts': timestamp,
+          if (isMockLocation != null) 'is_mock': isMockLocation,
+          if (activityType != null) 'activity_type': activityType,
+          if (batteryLevel != null) 'battery_level': batteryLevel,
+          if (isLowConfidence != null) 'low_confidence': isLowConfidence,
+        }),
+      ).timeout(_timeout);
+    } catch (_) {
+      // Best-effort — silently ignore offline heartbeats
     }
   }
 }

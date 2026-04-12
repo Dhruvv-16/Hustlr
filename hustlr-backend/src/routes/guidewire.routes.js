@@ -132,4 +132,46 @@ router.post('/forward/:claimId', async (req, res) => {
   }
 });
 
+// Simulate Guidewire PolicyCenter webhook
+router.post('/policycenter/policy-created', async (req, res) => {
+  const { policy_id, confirmation_number } = req.body;
+  console.log('[Guidewire] PolicyCenter policy confirmed:', confirmation_number);
+
+  await supabase
+    .from('policies')
+    .update({ guidewire_policy_number: confirmation_number })
+    .eq('id', policy_id);
+
+  return res.json({ received: true });
+});
+
+// Simulate Guidewire ClaimCenter webhook
+router.post('/claimcenter/claim-routed', async (req, res) => {
+  const { claim_id, routing_decision, adjuster_id } = req.body;
+  console.log('[Guidewire] ClaimCenter routing:', routing_decision);
+
+  await supabase
+    .from('claims')
+    .update({
+      guidewire_routing: routing_decision,
+      adjuster_id:       adjuster_id || null,
+    })
+    .eq('id', claim_id);
+
+  return res.json({ received: true });
+});
+
+// GET /guidewire/sample-payload — for judge testing
+router.get('/sample-payload', (req, res) => {
+  res.json(require('../../guidewire-marketplace/sample-payloads/claimcenter-claim-create.json'));
+});
+
+router.get('/sample-policy', (req, res) => {
+  res.json(require('../../guidewire-marketplace/sample-payloads/policycenter-policy-create.json'));
+});
+
+router.get('/marketplace-manifest', (req, res) => {
+  res.json(require('../../guidewire-marketplace/manifest.json'));
+});
+
 module.exports = router;

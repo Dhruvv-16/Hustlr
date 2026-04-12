@@ -514,16 +514,24 @@ EXTRA_KEYWORD_RULES: Dict[str, Dict[str, Any]] = {
     },
     "platform_outage_nlp": {
         "keywords": [
-            "app outage",
-            "platform down",
-            "delivery app crash",
-            "server error widespread",
-            "zepto outage",
-            "blinkit down",
-            "swiggy down",
-            "zomato outage",
+            # Official / news language
+            "app outage", "platform down", "platform outage", "delivery app crash",
+            "server error widespread", "service disruption",
+            # Platform names + state (news + worker slang)
+            "zepto outage", "zepto down", "zepto not working", "zepto app down",
+            "blinkit down", "blinkit outage", "blinkit not working",
+            "swiggy down", "swiggy outage", "swiggy not working",
+            "zomato outage", "zomato down", "zomato not working",
+            "dunzo down", "dunzo not working",
+            # Worker informal language
+            "app completely down", "app crashed", "app crash", "app down",
+            "cannot accept orders", "not accepting orders", "cannot accept any",
+            "no orders coming", "orders stopped", "platform not working",
+            "tech issue", "technical issue", "backend down",
+            "app not loading", "app stuck", "app frozen",
         ],
-        "zone_keywords": ["india", "chennai", "bengaluru", "mumbai", "metro"],
+        "zone_keywords": ["india", "chennai", "bengaluru", "mumbai", "metro",
+                          "zepto", "blinkit", "swiggy", "zomato", "dunzo"],
         "hourly_rate_inr": 48,
     },
 }

@@ -11,7 +11,9 @@ import 'core/theme/theme_provider.dart';
 
 import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'firebase_options.dart';
 import 'services/api_service.dart';
+import 'services/location_service.dart';
 import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
 import 'services/notification_service.dart';
@@ -43,20 +45,19 @@ Future<void> main() async {
     anonKey: 'YOUR_SUPABASE_ANON_KEY', // Placeholder to be replaced
   );
 
-  // Firebase (messaging)
-  // Skip on Web and Windows because DefaultFirebaseOptions are missing for this demo
-  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
-    try {
-      await Firebase.initializeApp();
-      NotificationService.initialize();
+  // Firebase (messaging & cross platform)
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    NotificationService.initialize();
 
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
       String? token = await FirebaseMessaging.instance.getToken();
       print("FCM TOKEN: $token");
-    } catch (e) {
-      print("Firebase initialization error: $e");
     }
-  } else {
-    print("Skipped Firebase initialization (Running on Web/Desktop for testing)");
+  } catch (e) {
+    print("Firebase initialization error: $e");
   }
 
   final claimsBloc = ClaimsBloc(
@@ -92,6 +93,7 @@ Future<void> main() async {
       ],
       child: MultiProvider(
         providers: [
+          ChangeNotifierProvider.value(value: LocationService.instance),
           ChangeNotifierProvider.value(value: mockService),
           ChangeNotifierProvider(create: (_) => ThemeProvider(appBox: appBox)),
           ChangeNotifierProvider.value(value: localeProvider),

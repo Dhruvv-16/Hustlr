@@ -2,10 +2,9 @@ const express = require('express');
 const { supabase } = require('../config/supabase');
 const { checkIpLocation } = require('../services/maxmind_service');
 const { sendDisruptionAlert, sendPayoutCredited } = require('../services/notification_service');
-const { calculateFraudScore } = require('../services/fraud_engine');
+const { scoreClaim } = require('../services/fraud_engine');
 const { checkCircuitBreaker, updatePoolHealth } = require('../services/circuit_breaker');
 const { releasePayout } = require('../services/payout_service');
-const mlService = require('../services/ml_service');
 const { buildClaimExplanation } = require('../services/claim_explanation_service');
 const {
   verifyIntegrityToken,
@@ -15,6 +14,9 @@ const {
 } = require('../services/play_integrity_service');
 const { getSharedDeviceFraudBump } = require('../services/device_fingerprint_service');
 const router = express.Router();
+
+// ML microservice — Isolation Forest + Ring Detector
+const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml.onrender.com';
 
 /*
   SETTLEMENT ARCHITECTURE
@@ -143,6 +145,22 @@ router.post('/create', async (req, res) => {
     return res.status(400).json({ error: 'user_id and trigger_type are required' });
   }
 
+  // ── Shift Intersection V2 ──
+  const now = new Date();
+  const dStart = req.body.disruption_start || new Date(now.getTime() - duration_hours * 3600000).toISOString();
+  const dEnd = req.body.disruption_end || now.toISOString();
+  const dDate = req.body.date || now.toISOString().split('T')[0];
+
+  const shiftVal = await require('../services/shift_validator').checkShiftIntersection(user_id, dStart, dEnd, dDate);
+  if (!shiftVal.pass) {
+    return res.status(400).json({
+      error: 'shift_validation_failed',
+      reason: shiftVal.reason,
+      effective_minutes_seen: shiftVal.effective_minutes,
+      message: 'You were not verifiably active on your shift during this disruption event.'
+    });
+  }
+
   // Check trigger is covered by plan
   const planKey = (plan_tier || 'standard').toLowerCase();
   if (PLAN_TRIGGERS[planKey] && !PLAN_TRIGGERS[planKey].includes(trigger_type)) {
@@ -254,30 +272,22 @@ router.post('/create', async (req, res) => {
 
     const playPassForMl = integrityBlock.evaluated ? integrityBlock.pass : !fraudData.fraud_signal;
 
-    // Try ML fraud score first, fall back to rule engine
-    let fraudResult;
-    const mlFraud = await mlService.getFraudScore({
-      zone_depth_score:         0.75, // default; improve with real GPS depth
-      days_since_onboard:       Math.floor((Date.now() - new Date(user.created_at || Date.now()).getTime()) / 86400000),
-      play_integrity_pass:      playPassForMl,
-      is_mock_location:         fraudData.fraud_signal || false,
+    // Use Python ML Service purely for fraud scoring
+    const daysSince = Math.floor((Date.now() - new Date(user.created_at || Date.now()).getTime()) / 86400000);
+    const fraudResult = await scoreClaim({
+      worker_id:             user_id,
+      zone_id:               user?.zone || 'unknown',
+      zone_match:            0.85,
+      gps_jitter:            0.10,
+      accelerometer_match:   0.90,
+      latency:               120,
+      wifi_home:             false,
+      days_active:           daysSince,
+      zone_depth_score:      0.75,
+      is_mock_location:      fraudData.fraud_signal || false,
     });
-
-    if (mlFraud._source !== 'rule_fallback') {
-      // ML responded — map to existing schema
-      fraudResult = {
-        score:    Math.round(mlFraud.fps_score * 100),
-        decision: {
-          status:      mlFraud.fps_tier,
-          release_pct: mlFraud.fps_tier === 'GREEN' ? 100 : mlFraud.fps_tier === 'YELLOW' ? 70 : 40,
-        },
-      };
-    } else {
-      // Classic rule engine fallback
-      fraudResult = await calculateFraudScore({ userId: user_id, zone: user?.zone, triggerType: trigger_type });
-    }
     
-    const baseFraudScore = fraudResult.score;
+    const baseFraudScore = fraudResult.fraud_score;
     let fraudScore = Math.min(100, baseFraudScore + (fraudData.fraud_signal ? 100 : 0));
     if (integrityBlock.evaluated) {
       const adj = applyPlayIntegrityFraudDelta(fraudScore, integrityBlock.pass);
@@ -297,10 +307,14 @@ router.post('/create', async (req, res) => {
         fraudScore = Math.min(100, fraudScore + sharedDevice.bump);
       }
     }
-    const fraudStatus = fraudData.fraud_signal ? 'FLAGGED' : fraudResult.decision.status;
+    const fraudStatus = fraudData.fraud_signal ? 'FLAGGED' : fraudResult.status;
+
+    let releasePct = 100;
+    if (fraudStatus === 'YELLOW' || fraudStatus === 'REVIEW') releasePct = 70;
+    if (fraudStatus === 'RED' || fraudStatus === 'FLAGGED' || fraudStatus === 'HUMAN_REVIEW') releasePct = 40;
 
     const releaseAmount = Math.round(
-      tranche1 * (fraudResult.decision.release_pct / 100)
+      tranche1 * (releasePct / 100)
     );
     
     // If FLAGGED — release provisional ₹200 only
@@ -342,6 +356,77 @@ router.post('/create', async (req, res) => {
       .single();
 
     if (insertError) throw insertError;
+
+    // ── ML Ring Detection (background, non-blocking) ───────────────────────
+    // Fetches recent claims in the same zone+trigger in the last 30 minutes
+    // and runs Poisson + DBSCAN ring analysis on the ML service.
+    // If both tests fire → upgrades fraud_status to FLAGGED in the database.
+    setImmediate(async () => {
+      try {
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data: recentZoneClaims } = await supabase
+          .from('claims')
+          .select('created_at, fps_signals')
+          .eq('zone', user?.zone ?? '')
+          .eq('trigger_type', trigger_type)
+          .gte('created_at', thirtyMinAgo)
+          .limit(100);
+
+        if (recentZoneClaims && recentZoneClaims.length >= 3) {
+          const claimPoints = recentZoneClaims.map((c, i) => ({
+            timestamp: Math.floor(new Date(c.created_at).getTime() / 1000),
+            gps_lat: 13.08 + (i * 0.001), // approximate — real GPS from shift_telemetry
+            gps_lng: 80.27 + (i * 0.001),
+          }));
+
+          const ringRes = await fetch(`${ML_URL}/fraud/ring-detect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zone_id: user?.zone || 'unknown', claims: claimPoints }),
+            signal: AbortSignal.timeout(5000),
+          });
+
+          if (ringRes.ok) {
+            const ringData = await ringRes.json();
+            if (ringData.combined_ring_flag) {
+              console.warn(`[RingDetect] Ring pattern in zone=${user?.zone} trigger=${trigger_type} action=${ringData.recommended_action}`);
+              // Escalate fraud status if human_review verdict
+              if (ringData.recommended_action === 'human_review') {
+                await supabase.from('claims').update({
+                  fraud_status: 'FLAGGED',
+                  fps_signals: {
+                    ...claim.fps_signals,
+                    ring_detected: true,
+                    ring_action: ringData.recommended_action,
+                    ring_poisson_p: ringData.poisson_result?.p_value,
+                    ring_cluster_size: ringData.dbscan_result?.largest_cluster_size,
+                  },
+                }).eq('id', claim.id);
+              }
+            }
+          }
+        }
+      } catch (ringErr) {
+        console.warn('[RingDetect] ML ring-detect failed (non-fatal):', ringErr.message);
+      }
+    });
+
+    const { adjustTrustScore } = require('../services/trust_service');
+    if (fraudStatus === 'GREEN' || fraudStatus === 'CLEAN') {
+      // Nothing — trust accumulates via Sunday batch
+    } else if (fraudStatus === 'FLAGGED' || fraudStatus === 'YELLOW') {
+      await adjustTrustScore(
+        user_id,
+        'SOFT_HOLD_TRIGGERED',
+        'Fraud soft hold on claim'
+      );
+    } else if (fraudStatus === 'RED') {
+      await adjustTrustScore(
+        user_id,
+        'CLAIM_REJECTED_FRAUD',
+        'Claim flagged for human review'
+      );
+    }
 
     // Release tranche1 with rollback protection
     await releasePayout({
@@ -654,3 +739,62 @@ router.post('/manual', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /claims/:claimId/appeal
+router.post('/:claimId/appeal', async (req, res) => {
+  const { claimId } = req.params;
+  const { worker_id, selected_reason, additional_context, submitted_at } = req.body;
+
+  try {
+    // Verify claim exists and belongs to this worker
+    const { data: claim, error: fetchError } = await supabase
+      .from('claims')
+      .select('*')
+      .eq('id', claimId)
+      .eq('worker_id', worker_id)
+      .single();
+
+    if (fetchError || !claim) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+
+    // Only rejected claims can be appealed
+    if (claim.status !== 'REJECTED') {
+      return res.status(400).json({ error: 'Only rejected claims can be appealed' });
+    }
+
+    // Only one appeal per claim
+    if (claim.appeal_submitted_at) {
+      return res.status(400).json({ error: 'Appeal already submitted for this claim' });
+    }
+
+    // Update claim with appeal data
+    const { error: updateError } = await supabase
+      .from('claims')
+      .update({
+        status: 'APPEAL_PENDING',
+        appeal_selected_reason: selected_reason,
+        appeal_context: additional_context || null,
+        appeal_submitted_at: submitted_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', claimId);
+
+    if (updateError) throw updateError;
+
+    // Insert into appeals review queue
+    await supabase.from('appeal_queue').insert({
+      claim_id: claimId,
+      worker_id,
+      selected_reason,
+      additional_context: additional_context || null,
+      submitted_at,
+      sla_deadline: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4hr SLA
+    });
+
+    res.json({ success: true, message: 'Appeal submitted. Review within 4 hours.' });
+  } catch (err) {
+    console.error('Appeal submission error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});

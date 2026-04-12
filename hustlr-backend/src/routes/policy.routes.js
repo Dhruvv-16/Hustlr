@@ -1,7 +1,7 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
-const { calculatePremium } = require('../services/premiumCalculator');
 const { PLAN_CONFIG } = require('../config/constants');
+const mlService = require('../services/ml_service');
 const router = express.Router();
 const { getShadowSummary } = require('../services/shadow_policy_service');
 
@@ -36,10 +36,15 @@ router.post('/create', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    // Calculate dynamic premium with monsoon surcharge + activity loading
-    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, {
-      active_days_last_30: user.active_days_last_30 ?? 25,
+    // Calculate premium via Python ML service
+    const premiumResult = await mlService.getPremium({
+      plan_tier,
+      zone: user.zone,
+      iss_score: 50,
+      previous_premium: 0
     });
+
+    const finalPremium = premiumResult.final_premium || 49;
 
     // Deactivate any existing active policy for this user first
     await supabase
@@ -48,24 +53,48 @@ router.post('/create', async (req, res) => {
       .eq('user_id', user_id)
       .eq('status', 'active');
 
-    // Insert the new policy
     const { data: policy, error: policyError } = await supabase
       .from('policies')
       .insert([{
         user_id,
         plan_tier,
-        base_premium: breakdown.base_premium,
-        zone_adjustment: breakdown.zone_adjustment,
-        iss_adjustment: breakdown.iss_adjustment,
-        weekly_premium: breakdown.final_premium,
-        max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout,
+        base_premium:     premiumResult.base_premium || 49,
+        zone_adjustment:  premiumResult.zone_adjustment || 0,
+        iss_adjustment:   0,
+        weekly_premium:   finalPremium,
+        max_weekly_payout: PLAN_CONFIG[plan_tier]?.max_payout || 150,
         status: 'active'
       }])
       .select()
       .single();
     if (policyError) throw policyError;
 
-    res.json({ policy, premium_breakdown: breakdown });
+    // Deduct the final premium from the user's wallet
+    await supabase
+      .from('wallet_transactions')
+      .insert([{
+        user_id,
+        amount: finalPremium,
+        type: 'debit',
+        description: `Premium for ${plan_tier} Shield`,
+        reference: `policy_${policy.id}`,
+      }]);
+
+    console.log(`[Policy] Created policy ${policy.id}. Premium calculated via Python AI: ₹${finalPremium}`);
+
+    res.json({
+      policy,
+      premium_breakdown: {
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        monsoon_surcharge_pct: 0,
+        monsoon_surcharge: 0,
+        forward_risk_pct: 0,
+        forward_risk_surcharge: 0,
+        final_with_surcharge: finalPremium,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -81,7 +110,7 @@ router.get('/:user_id', async (req, res) => {
       .select('*')
       .eq('user_id', user_id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
     if (error) throw error;
     res.json({ policy });
   } catch (error) {
@@ -108,19 +137,22 @@ router.patch('/:id/upgrade', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, {
-      active_days_last_30: user.active_days_last_30 ?? 25,
+    const premiumResult = await mlService.getPremium({
+      plan_tier: new_plan_tier,
+      zone: user.zone,
+      iss_score: 50,
+      previous_premium: existingPolicy.weekly_premium || 0
     });
 
     const { data: updated_policy, error: updateError } = await supabase
       .from('policies')
       .update({
         plan_tier: new_plan_tier,
-        base_premium: breakdown.base_premium,
-        zone_adjustment: breakdown.zone_adjustment,
-        iss_adjustment: breakdown.iss_adjustment,
-        weekly_premium: breakdown.final_premium,
-        max_weekly_payout: PLAN_CONFIG[new_plan_tier].max_payout
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        weekly_premium: premiumResult.final_premium,
+        max_weekly_payout: PLAN_CONFIG[new_plan_tier]?.max_payout || 150
       })
       .eq('id', id)
       .select()
@@ -128,7 +160,20 @@ router.patch('/:id/upgrade', async (req, res) => {
 
     if (updateError) throw updateError;
 
-    res.json({ updated_policy, premium_breakdown: breakdown });
+    res.json({ 
+      updated_policy, 
+      premium_breakdown: {
+        base_premium: premiumResult.base_premium || 49,
+        zone_adjustment: premiumResult.zone_adjustment || 0,
+        iss_adjustment: 0,
+        final_premium: premiumResult.final_premium,
+        monsoon_surcharge_pct: 0,
+        monsoon_surcharge: 0,
+        forward_risk_pct: 0,
+        forward_risk_surcharge: 0,
+        final_with_surcharge: premiumResult.final_premium,
+      } 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

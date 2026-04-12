@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { supabase } = require('../config/supabase');
 const { listCityRiskProfiles } = require('./city_risk_service');
+const { processSundayTrustUpdate } = require('./trust_service');
 
 let lastWeeklyRunAt = null;
 let lastWeeklyError = null;
@@ -71,6 +72,53 @@ function startRegionalWeeklyCron() {
       console.error('[RegionalCron] failed:', e.message);
     });
   });
+  
+  // Sunday 11 PM — trust score settlement
+  cron.schedule('0 23 * * 0', async () => {
+    try {
+      await processSundayTrustUpdate();
+      console.log('[Cron] Trust scores updated');
+    } catch (e) {
+      console.error('[Cron] Trust scores failed:', e.message);
+    }
+  });
+
+  // Wednesday 10:00 AM IST (04:30 UTC) — Prophet risk nudges to workers
+  // Calls GET /nudge/{zone}/{plan_tier} on ML service for each active worker
+  // and logs the nudge recommendations (FCM push can be added here)
+  cron.schedule('30 4 * * 3', async () => {
+    const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml.onrender.com';
+    try {
+      const { data: activeWorkers } = await supabase
+        .from('users')
+        .select('id, zone, plan_tier')
+        .not('zone', 'is', null)
+        .limit(500);
+
+      if (!activeWorkers?.length) return;
+
+      for (const worker of activeWorkers) {
+        try {
+          const zone = encodeURIComponent(worker.zone || 'Chennai');
+          const plan = encodeURIComponent(worker.plan_tier || 'Standard');
+          const nudgeRes = await fetch(`${ML_URL}/nudge/${zone}/${plan}`, {
+            signal: AbortSignal.timeout(6000),
+          });
+          if (nudgeRes.ok) {
+            const { nudges } = await nudgeRes.json();
+            if (nudges?.length) {
+              console.log(`[WedNudge] worker=${worker.id} zone=${worker.zone} nudges=${JSON.stringify(nudges)}`);
+              // TODO: fan out via FCM — sendDisruptionAlert(worker.fcm_token, nudges[0])
+            }
+          }
+        } catch (_) { /* skip individual worker failures */ }
+      }
+      console.log(`[WedNudge] completed for ${activeWorkers.length} workers`);
+    } catch (e) {
+      console.error('[WedNudge] Failed:', e.message);
+    }
+  });
+  
   console.log(`[RegionalCron] scheduled ${schedule}`);
 
   if (process.env.RUN_REGIONAL_CRON_ON_BOOT === 'true') {

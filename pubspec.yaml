@@ -44,7 +44,13 @@ dependencies:
   equatable: ^2.0.5
   supabase_flutter: ^2.8.3
   image_picker: ^1.2.1
+  permission_handler: ^12.0.1
+  firebase_auth: ^6.3.0
   # Android Play Integrity token (server verifies via Google API)
+
+  # Background Geolocation + Anti-Spoofing (Phase 3)
+  flutter_foreground_task: ^8.15.0  # Native Android Foreground Service (MIT, free)
+  app_settings: ^5.1.1              # Deep-links to battery optimization settings
 
 dev_dependencies:
   flutter_test:

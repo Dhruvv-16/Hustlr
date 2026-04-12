@@ -15,14 +15,12 @@ class ManualClaimCameraScreen extends StatefulWidget {
   State<ManualClaimCameraScreen> createState() => _ManualClaimCameraScreenState();
 }
 
-class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
+class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
     
     // Auto-progress internet outages
     if (widget.disruptionType == 'internet_outage') {
@@ -45,7 +43,6 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> with 
 
   @override
   void dispose() {
-    _animController.dispose();
     super.dispose();
   }
 
@@ -181,40 +178,18 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> with 
             right: 0,
             child: Column(
               children: [
-                // AI anim
-                Text(l10n.camera_scanning, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
                 GestureDetector(
                   onTap: _capturePhoto,
-                  child: AnimatedBuilder(
-                    animation: _animController,
-                    builder: (context, child) {
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Transform.rotate(
-                            angle: _animController.value * 2 * math.pi,
-                            child: SizedBox(
-                              width: 100, height: 100,
-                              child: CustomPaint(
-                                painter: _DashedCirclePainter(color: primaryColor.withOpacity(0.8)),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 72, height: 72,
-                            decoration: BoxDecoration(
-                              color: primaryColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: primaryColor.withOpacity(0.4), blurRadius: 20, spreadRadius: 5),
-                              ],
-                            ),
-                            child: const Icon(Icons.camera_alt_rounded, color: Colors.black, size: 32),
-                          ),
-                        ],
-                      );
-                    },
+                  child: Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: primaryColor.withOpacity(0.4), blurRadius: 20, spreadRadius: 5),
+                      ],
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: Colors.black, size: 32),
                   ),
                 ),
                 const SizedBox(height: 48), // Padding added to match bottom inset without the gallery button
@@ -227,35 +202,3 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> with 
   }
 }
 
-class _DashedCirclePainter extends CustomPainter {
-  final Color color;
-  _DashedCirclePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final radius = size.width / 2;
-    const dashLength = 4.0;
-    const gapLength = 6.0;
-    const totalLength = dashLength + gapLength;
-    final totalDashes = (2 * math.pi * radius) / totalLength;
-
-    for (int i = 0; i < totalDashes; i++) {
-      final angle = i * (2 * math.pi / totalDashes);
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(radius, radius), radius: radius),
-        angle,
-        dashLength / radius,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

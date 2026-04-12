@@ -54,17 +54,6 @@ router.post('/register', async (req, res) => {
 
     if (error) throw error;
 
-    // Seed first premium debit in wallet
-    await supabase
-      .from('wallet_transactions')
-      .insert([{
-        user_id:     user.id,
-        amount:      49,
-        type:        'debit',
-        description: 'Standard Shield Premium — Week 1',
-        reference:   'onboarding',
-      }]);
-
     return res.status(201).json({ user });
 
   } catch (e) {
