@@ -54,8 +54,8 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dotColor = apiStatus === 'live' ? '#3FFF8B' : apiStatus === 'degraded' ? '#FF9800' : '#E24B4A';
-  const dotPulse = apiStatus === 'live' ? 'pulse-green' : apiStatus === 'offline' ? 'pulse-red' : '';
+  const dotColor = apiStatus === 'live' ? '#3FFF8B' : apiStatus === 'degraded' ? '#FF9800' : apiStatus === 'connecting' ? '#60a5fa' : '#E24B4A';
+  const dotPulse = apiStatus === 'live' ? 'pulse-green' : apiStatus === 'offline' ? 'pulse-red' : apiStatus === 'connecting' ? 'pulse-blue' : '';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -95,7 +95,7 @@ export default function Dashboard() {
               style={{ background: dotColor }}
             />
             <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              {apiStatus === 'live' ? 'Live' : apiStatus === 'degraded' ? 'Degraded' : 'Offline'}
+              {apiStatus === 'live' ? 'Live' : apiStatus === 'degraded' ? 'Degraded' : apiStatus === 'connecting' ? 'Waking up…' : 'Offline'}
             </span>
           </div>
           <button
