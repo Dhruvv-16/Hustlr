@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MetricCard } from '@/components/ui';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Dot } from 'recharts';
 import { ChevronDown, ChevronUp, MapPin, AlertTriangle, ShieldCheck, CheckCircle2, UserCircle2, Clock, Camera } from 'lucide-react';
+import { fetchFraudModelHealth } from '@/lib/api';
 
 type ActionState = 'Approve' | 'Reject' | 'Reduce' | 'Evidence' | null;
 
@@ -96,6 +97,17 @@ const slaBadge = (mins: number) => {
 export default function FraudQueue() {
   const [queue, setQueue] = useState(QUEUE_DATA.map(f => ({ ...f, decision: null as ActionState })));
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [modelHealth, setModelHealth] = useState<any>(null);
+  const [healthStatus, setHealthStatus] = useState('connecting');
+  
+  useEffect(() => {
+    fetchFraudModelHealth()
+      .then(res => {
+        setModelHealth(res);
+        setHealthStatus(res.status === 'ok' ? 'live' : 'degraded');
+      })
+      .catch(() => setHealthStatus('offline'));
+  }, []);
   
   // Modals
   const [activeModal, setActiveModal] = useState<'Reject' | 'Reduce' | null>(null);
@@ -136,10 +148,19 @@ export default function FraudQueue() {
       </div>
 
       <div className="card overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-        <div className="px-6 py-4 border-b bg-white/[0.01]" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+        <div className="px-6 py-4 border-b bg-white/[0.01] flex justify-between items-center" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
           <p className="text-xs font-bold tracking-widest uppercase" style={{ color: '#91938D' }}>
             MANUAL FRAUD REVIEW QUEUE
           </p>
+          <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest font-bold">
+             {healthStatus === 'live' && modelHealth ? (
+               <span className="text-emerald-400">✅ ML Engine: {modelHealth.model_version}</span>
+             ) : healthStatus === 'connecting' ? (
+               <span className="text-orange-400">⏳ Connecting to AI...</span>
+             ) : (
+               <span className="text-red-400">❌ AI Engine Offline</span>
+             )}
+          </div>
         </div>
         
         <div className="overflow-x-auto">
