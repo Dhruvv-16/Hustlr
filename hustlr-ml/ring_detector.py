@@ -1,20 +1,20 @@
 """
-ring_detector.py — Statistical ring-fraud detection for Hustlr.
+ring_detector.py ??? Statistical ring-fraud detection for Hustlr.
 
 Two independent tests are run on every zone claim event batch:
 
 1. Poisson Distribution Test (timestamp analysis)
    Genuine disruption claims arrive stochastically throughout the first
-   20–40 minutes following an event, forming a Poisson inter-arrival
+   20???40 minutes following an event, forming a Poisson inter-arrival
    distribution.  Coordinated rings fire uniformly within seconds of
-   each other.  We use the dispersion index D = Var(Δt)/Mean(Δt) and
+   each other.  We use the dispersion index D = Var(??t)/Mean(??t) and
    a chi-squared goodness-of-fit test to classify the pattern.
 
 2. DBSCAN Geographic Clustering (GPS analysis)
    Legitimate workers are spatially spread across a delivery zone
    (hundreds to thousands of meters apart).  Ring participants claiming
    from the same physical location produce implausibly tight clusters.
-   We flag any cluster with ≥ 5 workers within a 50m radius.
+   We flag any cluster with ??? 5 workers within a 50m radius.
 """
 
 from __future__ import annotations
@@ -27,26 +27,26 @@ from scipy import stats
 from sklearn.cluster import DBSCAN
 
 
-# ── Haversine distance (meters) ────────────────────────────────────────────
+# ?????? Haversine distance (meters) ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Return the great-circle distance in metres between two WGS-84 coordinates.
 
-    Uses the haversine formula — accurate to < 0.5% for distances < 1 km,
+    Uses the haversine formula ??? accurate to < 0.5% for distances < 1 km,
     which is the relevant scale for dark-store delivery zones.
     """
     R = 6_371_000.0  # Earth radius in metres
-    φ1, φ2 = math.radians(lat1), math.radians(lat2)
-    Δφ = math.radians(lat2 - lat1)
-    Δλ = math.radians(lon2 - lon1)
-    a = math.sin(Δφ / 2) ** 2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) ** 2
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lam = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2
     return R * 2 * math.asin(math.sqrt(a))
 
 
-# ── Poisson inter-arrival test ──────────────────────────────────────────────
+# ?????? Poisson inter-arrival test ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
-RING_P_VALUE_THRESHOLD = 0.05   # p < 0.05 → reject Poisson → coordinated ring
-BURST_WINDOW_SECONDS   = 30     # ≤ 30s spread across all claims = "burst"
+RING_P_VALUE_THRESHOLD = 0.05   # p < 0.05 ??? reject Poisson ??? coordinated ring
+BURST_WINDOW_SECONDS   = 30     # ??? 30s spread across all claims = "burst"
 
 
 def test_poisson_arrivals(timestamps: List[int]) -> dict:
@@ -55,12 +55,12 @@ def test_poisson_arrivals(timestamps: List[int]) -> dict:
     Poisson inter-arrival distribution expected from genuine disruptions.
 
     Algorithm:
-      1. Sort timestamps and compute inter-arrival gaps (Δt).
-      2. Compute the dispersion index D = Var(Δt) / Mean(Δt).
-         D ≈ Mean(Δt) for a Poisson process (memoryless).
-         D ≪ Mean(Δt) indicates uniform/burst arrivals (ring).
-      3. Run a one-sample KS test of Δt against an Exponential distribution
-         with λ = 1/Mean(Δt) — the null hypothesis is Poisson arrivals.
+      1. Sort timestamps and compute inter-arrival gaps (??t).
+      2. Compute the dispersion index D = Var(??t) / Mean(??t).
+         D ??? Mean(??t) for a Poisson process (memoryless).
+         D ??? Mean(??t) indicates uniform/burst arrivals (ring).
+      3. Run a one-sample KS test of ??t against an Exponential distribution
+         with ?? = 1/Mean(??t) ??? the null hypothesis is Poisson arrivals.
          A low p-value rejects the null (ring confirmed).
 
     Args:
@@ -85,7 +85,7 @@ def test_poisson_arrivals(timestamps: List[int]) -> dict:
             "filing_pattern": "poisson",
             "sample_size": len(timestamps),
             "mean_inter_arrival_s": 0.0,
-            "note": "Insufficient data (< 3 claims) — cannot evaluate ring pattern",
+            "note": "Insufficient data (< 3 claims) ??? cannot evaluate ring pattern",
         }
 
     ts = np.sort(np.array(timestamps, dtype=float))
@@ -100,7 +100,7 @@ def test_poisson_arrivals(timestamps: List[int]) -> dict:
         ks_stat, p_value = stats.kstest(
             deltas,
             "expon",
-            args=(0.0, mean_delta),    # loc=0, scale=mean (= 1/λ)
+            args=(0.0, mean_delta),    # loc=0, scale=mean (= 1/??)
             N=len(deltas),
         )
     else:
@@ -128,9 +128,9 @@ def test_poisson_arrivals(timestamps: List[int]) -> dict:
     }
 
 
-# ── DBSCAN GPS clustering ───────────────────────────────────────────────────
+# ?????? DBSCAN GPS clustering ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
-RING_MIN_CLUSTER_SIZE    = 5      # ≥ 5 workers in a tight cluster = ring
+RING_MIN_CLUSTER_SIZE    = 5      # ??? 5 workers in a tight cluster = ring
 RING_CLUSTER_RADIUS_M    = 50.0   # 50m radius threshold (per spec)
 EARTH_RADIUS_M           = 6_371_000.0
 
@@ -163,7 +163,7 @@ def detect_gps_clusters(gps_coords: List[Tuple[float, float]]) -> dict:
          Points within 50m of at least 4 neighbours form a core cluster.
       3. For each identified cluster compute its radius (half the max
          pairwise distance within the cluster).
-      4. Flag if any cluster has ≥ 5 workers within 50m.
+      4. Flag if any cluster has ??? 5 workers within 50m.
 
     Args:
         gps_coords: List of (latitude, longitude) tuples for each claim in
@@ -246,17 +246,17 @@ def detect_gps_clusters(gps_coords: List[Tuple[float, float]]) -> dict:
     }
 
 
-# ── Combined ring verdict ───────────────────────────────────────────────────
+# ?????? Combined ring verdict ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 def combined_ring_verdict(poisson_result: dict, dbscan_result: dict) -> str:
     """
     Produce a recommended_action by combining both ring-detection signals.
 
     Decision matrix:
-      Both positive  → human_review   (high confidence ring)
-      Poisson only   → soft_hold      (temporal anomaly, await GPS confirm)
-      DBSCAN only    → soft_hold      (spatial anomaly, may be dark-store queue)
-      Neither        → auto_approve   (no ring signal)
+      Both positive  ??? human_review   (high confidence ring)
+      Poisson only   ??? soft_hold      (temporal anomaly, await GPS confirm)
+      DBSCAN only    ??? soft_hold      (spatial anomaly, may be dark-store queue)
+      Neither        ??? auto_approve   (no ring signal)
     """
     p_ring = poisson_result.get("is_coordinated_ring", False)
     g_ring = dbscan_result.get("ring_detected", False)
@@ -266,3 +266,4 @@ def combined_ring_verdict(poisson_result: dict, dbscan_result: dict) -> str:
     if p_ring or g_ring:
         return "soft_hold"
     return "auto_approve"
+

@@ -12,7 +12,7 @@ const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
 const integrityRoutes = require('./routes/integrity.routes');
 const mlRoutes = require('./routes/ml.routes');
-const shiftRoutes = require('./routes/shift.routes');
+// const shiftRoutes = require('./routes/shift.routes');
 const mlService = require('./services/ml_service');
 const { startDisruptionCron, getDisruptionCronStatus } = require('./services/disruption_cron');
 const { startRegionalWeeklyCron, getRegionalCronStatus } = require('./services/regional_weekly_cron');
@@ -46,7 +46,7 @@ app.use('/guidewire', guidewireRoutes);
 app.use('/cities', citiesRoutes);
 app.use('/integrity', integrityRoutes);
 app.use('/ml', mlRoutes);
-app.use('/shift', shiftRoutes);
+// app.use('/shift', shiftRoutes);
 
 const trustService = require('./services/trust_service');
 

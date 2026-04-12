@@ -9,7 +9,7 @@ def calculate_surcharge(base_premium: int, policy_creation_date: date):
     
     if month in [10, 11, 12]:
         surcharge_pct = 0.22
-        reason = "Monsoon season pricing (Oct–Dec). Rain trigger probability raised from 12% baseline to 32%."
+        reason = "Monsoon season pricing (Oct?Dec). Rain trigger probability raised from 12% baseline to 32%."
     else:
         surcharge_pct = 0.0
         reason = "Standard pricing."
