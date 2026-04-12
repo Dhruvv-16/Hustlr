@@ -102,6 +102,17 @@ router.post('/create', async (req, res) => {
       .single();
     if (policyError) throw policyError;
 
+    // Deduct the final premium from the user's wallet
+    await supabase
+      .from('wallet_transactions')
+      .insert([{
+        user_id,
+        amount: finalPremiumWithSurcharge,
+        type: 'debit',
+        description: `Premium for ${plan_tier} Shield`,
+        reference: `policy_${policy.id}`,
+      }]);
+
     // Log the surcharge breakdown explicitly
     console.log(`[Policy] Created policy ${policy.id} w/ Monsoon: ₹${monsoonAmount}, ForwardRisk: ₹${forwardRiskAmount}`);
 
