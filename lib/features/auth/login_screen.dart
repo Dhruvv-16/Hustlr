@@ -61,7 +61,6 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // ── Headline Top-Left ──────────────────────────────
               Text(
                 'Hustlr',
                 style: theme.textTheme.displayLarge?.copyWith(

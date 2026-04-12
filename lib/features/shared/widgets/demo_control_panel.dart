@@ -51,7 +51,7 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.water_drop,
               label: "Trigger Rain Disruption",
-              subtitle: "Simulates 67mm rainfall → ₹595 payout",
+              subtitle: "Simulates 67mm rainfall → ₹120 payout",
               color: const Color(0xFF1976D2),
               bgColor: const Color(0xFFE3F2FD),
               onTap: () {
@@ -73,7 +73,7 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.cloud_off,
               label: "Trigger Platform Downtime",
-              subtitle: "Simulates Zepto outage → ₹280 payout",
+              subtitle: "Simulates Zepto outage → ₹140 payout",
               color: const Color(0xFF00897B),
               bgColor: const Color(0xFFE0F2F1),
               onTap: () {
@@ -95,7 +95,7 @@ void showDemoPanel(BuildContext context) {
             _DemoButton(
               icon: Icons.thermostat,
               label: "Trigger Extreme Heat",
-              subtitle: "Simulates 43°C heatwave → ₹210 payout",
+              subtitle: "Simulates 43°C heatwave → ₹130 payout",
               color: const Color(0xFFF57C00),
               bgColor: const Color(0xFFFFF8E1),
               onTap: () {

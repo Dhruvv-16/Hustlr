@@ -20,18 +20,26 @@ router.get('/shadow/:user_id', async (req, res) => {
 
 router.post('/create', async (req, res) => {
   try {
-    const { user_id, plan_tier, risk_score = 0.5 } = req.body;
-    
-    // Fetch user to get zone and iss_score
+    const { user_id, plan_tier } = req.body;
+
+    // Guard: mock IDs (offline onboarding) are not valid UUIDs — skip DB and return empty
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(user_id)) {
+      return res.status(400).json({ error: 'Invalid user_id — please re-register with a live backend connection.' });
+    }
+
+    // Fetch user to get zone, iss_score, and active_days for loading
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('zone, iss_score')
+      .select('zone, iss_score, active_days_last_30')
       .eq('id', user_id)
       .single();
     if (userError) throw userError;
 
-    // Calculate dynamic premium
-    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, risk_score);
+    // Calculate dynamic premium with monsoon surcharge + activity loading
+    const breakdown = calculatePremium(plan_tier, user.iss_score, user.zone, {
+      active_days_last_30: user.active_days_last_30 ?? 25,
+    });
 
     // Deactivate any existing active policy for this user first
     await supabase
@@ -50,7 +58,7 @@ router.post('/create', async (req, res) => {
         zone_adjustment: breakdown.zone_adjustment,
         iss_adjustment: breakdown.iss_adjustment,
         weekly_premium: breakdown.final_premium,
-        max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout, 
+        max_weekly_payout: PLAN_CONFIG[plan_tier].max_payout,
         status: 'active'
       }])
       .select()
@@ -66,6 +74,8 @@ router.post('/create', async (req, res) => {
 router.get('/:user_id', async (req, res) => {
   try {
     const { user_id } = req.params;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(user_id)) return res.status(200).json({ policy: null });
     const { data: policy, error } = await supabase
       .from('policies')
       .select('*')
@@ -98,7 +108,9 @@ router.patch('/:id/upgrade', async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, risk_score);
+    const breakdown = calculatePremium(new_plan_tier, user.iss_score, user.zone, {
+      active_days_last_30: user.active_days_last_30 ?? 25,
+    });
 
     const { data: updated_policy, error: updateError } = await supabase
       .from('policies')
@@ -115,7 +127,7 @@ router.patch('/:id/upgrade', async (req, res) => {
       .single();
 
     if (updateError) throw updateError;
-    
+
     res.json({ updated_policy, premium_breakdown: breakdown });
   } catch (error) {
     res.status(500).json({ error: error.message });

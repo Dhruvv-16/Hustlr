@@ -79,10 +79,13 @@ class _SplashScreenState extends State<SplashScreen> {
                       borderRadius: BorderRadius.circular(32),
                     ),
                     alignment: Alignment.center,
-                    child: Icon(
-                      Icons.shield_rounded,
-                      size: 72,
-                      color: green,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/icon.png',
+                        width: 72,
+                        height: 72,
+                      ),
                     ),
                   ),
                 ),
