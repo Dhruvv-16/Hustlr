@@ -198,9 +198,21 @@ function _localPremiumFallback(data) {
   };
 }
 
+// ── Health Check ───────────────────────────────────────────
+async function isMlOnline() {
+  if (!ML_URL) return false;
+  try {
+    const res = await axios.get(`${ML_URL}/health`, { timeout: 2000 });
+    return res.data?.status === 'ok';
+  } catch (e) {
+    return false;
+  }
+}
+
 module.exports = {
   getFraudScore,
   getISSScore,
   getPremium,
   getForecast,
+  isMlOnline,
 };
