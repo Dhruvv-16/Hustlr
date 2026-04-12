@@ -1,4 +1,4 @@
-﻿import os
+import os
 import time
 import requests
 import pandas as pd
@@ -98,9 +98,9 @@ ZONE_MODEL_MAP = {
 def _normalize_zone_key(zone_id: str) -> str:
     """
     Convert any zone string to the key used in ZONE_MODEL_MAP.
-    'Adyar Dark Store Zone' ΓåÆ 'adyar'
-    'adyar' ΓåÆ 'adyar'
-    'ADYAR' ΓåÆ 'adyar'
+    'Adyar Dark Store Zone' ??? 'adyar'
+    'adyar' ??? 'adyar'
+    'ADYAR' ??? 'adyar'
     """
     return (zone_id
         .lower()
@@ -128,14 +128,14 @@ def load_zone_model(zone_id: str):
         except Exception as e:
             print(f"[Prophet] Failed to load {filename}: {e}")
 
-    # Fallback ΓÇö try Adyar as generic Chennai model
+    # Fallback ??? try Adyar as generic Chennai model
     adyar_path = MODELS_DIR / "model7_prophet_adyar.pkl"
     if adyar_path.exists():
-        print(f"[Prophet] Zone '{zone_id}' not found ΓÇö using Adyar fallback")
+        print(f"[Prophet] Zone '{zone_id}' not found ??? using Adyar fallback")
         return joblib.load(adyar_path)
 
-    # Last resort ΓÇö train fresh (slow, only on first cold start)
-    print(f"[Prophet] No pkl found ΓÇö training fresh model for '{zone_id}'")
+    # Last resort ??? train fresh (slow, only on first cold start)
+    print(f"[Prophet] No pkl found ??? training fresh model for '{zone_id}'")
     return load_model()
 
 def generate_forecast(zone_id: str, days: int = 7) -> dict:

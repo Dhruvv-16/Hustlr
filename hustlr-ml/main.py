@@ -1,13 +1,13 @@
-﻿"""
-main.py ΓÇö FastAPI microservice for Hustlr Phase 3 ML Fraud Detection.
+"""
+main.py ??? FastAPI microservice for Hustlr Phase 3 ML Fraud Detection.
 
 Run with:
     uvicorn main:app --reload
 
 Endpoints:
-    POST /fraud/score          ΓÇö Isolation Forest anomaly scoring
-    POST /fraud/ring-detect    ΓÇö Poisson + DBSCAN ring detection
-    GET  /fraud/model-health   ΓÇö Model metadata and health
+    POST /fraud/score          ??? Isolation Forest anomaly scoring
+    POST /fraud/ring-detect    ??? Poisson + DBSCAN ring detection
+    GET  /fraud/model-health   ??? Model metadata and health
 
 Integrates into the existing fraud_engine.js pipeline by appending one
 HTTP call to /fraud/score whose isolation_forest_score feeds into the
@@ -42,7 +42,7 @@ from ring_detector import (
     test_poisson_arrivals,
 )
 
-# ΓöÇΓöÇ Model bundle cache (loaded once at startup) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????
 _MODEL_BUNDLE: dict | None = None
 _ISS_BUNDLE: dict | None = None
 MODELS_DIR = Path(__file__).parent.parent / "trained_models" / "trained_models"
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
         }
         print("[Startup] ISS XGBoost model loaded")
     else:
-        print("[Startup] ISS model not found ΓÇö will use rule engine fallback")
+        print("[Startup] ISS model not found ??? will use rule engine fallback")
 
     yield
 
@@ -100,18 +100,18 @@ app.add_middleware(
 )
 
 
-# ΓöÇΓöÇ Pydantic schemas ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# ?????? Pydantic schemas ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 class FeatureVector(BaseModel):
-    # ΓöÇΓöÇ Fields Node.js currently sends ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ?????? Fields Node.js currently sends ??????????????????????????????????????????
     zone_match:            float = 0.85
     gps_jitter:            float = 0.10
     accelerometer_match:   float = 0.90
     wifi_home_ssid:        bool  = False
     days_since_onboarding: int   = 30
 
-    # ΓöÇΓöÇ Fields Python model natively expects ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    # These are optional ΓÇö defaults used if Node doesn't send them
+    # ?????? Fields Python model natively expects ???????????????????????????
+    # These are optional ??? defaults used if Node doesn't send them
     claim_latency_seconds:               float        = 120.0
     simultaneous_zone_claims:            int          = 1
     account_age_days:                    Optional[int] = None
@@ -192,7 +192,7 @@ class RingDetectResponse(BaseModel):
     latency_ms:           float
 
 
-# ΓöÇΓöÇ Endpoints ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# ?????? Endpoints ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 class ISSRequest(BaseModel):
     zone_flood_risk: float = 0.60
@@ -308,15 +308,15 @@ async def premium(req: PremiumRequest):
         base_premium=base,
         zone_adjustment=zone_adj,
         final_premium=final,
-        note="Fixed pricing ΓÇö same for all workers on this plan",
-        formula="P = P(event) ├ù avg_income ├ù exposure_days",
+        note="Fixed pricing ??? same for all workers on this plan",
+        formula="P = P(event) ?? avg_income ?? exposure_days",
     )
 
 @app.post("/fraud-score", response_model=ClaimScoreResponse, tags=["Fraud"])
 @app.post("/ml/fraud-score", response_model=ClaimScoreResponse, tags=["Fraud"])
 async def fraud_score(req: ClaimScoreRequest):
     if _MODEL_BUNDLE is None:
-        raise HTTPException(status_code=503, detail="Model not loaded ΓÇö server starting up")
+        raise HTTPException(status_code=503, detail="Model not loaded ??? server starting up")
 
     from fraud_model import poisson_timing_test
     if len(req.claim_timestamp) > 10:
@@ -348,7 +348,7 @@ async def fraud_score(req: ClaimScoreRequest):
 
     anomaly_score = result["anomaly_score"]
     
-    # Hard override ΓÇö zero GPS jitter = definitive spoofing
+    # Hard override ??? zero GPS jitter = definitive spoofing
     if req.feature_vector.gps_jitter < 0.000001:
         anomaly_score = max(anomaly_score, 0.85)
         result["is_anomalous"] = True
@@ -360,7 +360,7 @@ async def fraud_score(req: ClaimScoreRequest):
         poisson_p_value = result["poisson_p_value"],
     )
 
-# ΓöÇΓöÇ Prophet Actuarial Pricing ΓöÇΓöÇ
+# ?????? Prophet Actuarial Pricing ??????
 
 @app.get("/forecast/{zone_id}", tags=["Forecast"])
 async def get_forecast(zone_id: str, days: int = 7):
@@ -387,17 +387,17 @@ async def ring_detect(req: RingDetectRequest):
 
     Runs two independent tests in parallel:
 
-    1. **Poisson inter-arrival test** ΓÇö checks whether filing timestamps
+    1. **Poisson inter-arrival test** ??? checks whether filing timestamps
        follow the stochastic Poisson distribution of genuine disruptions.
        Rings fail this at p < 0.05.
 
-    2. **DBSCAN geographic clustering** ΓÇö finds workers claiming from the
-       same GPS location (< 50m radius, ΓëÑ 5 workers).
+    2. **DBSCAN geographic clustering** ??? finds workers claiming from the
+       same GPS location (< 50m radius, ??? 5 workers).
 
     The ``recommended_action`` is the combined verdict:
-      - ``human_review``  ΓÇö both tests positive (high confidence ring)
-      - ``soft_hold``     ΓÇö one test positive (investigate further)
-      - ``auto_approve``  ΓÇö both tests negative (no ring signal detected)
+      - ``human_review``  ??? both tests positive (high confidence ring)
+      - ``soft_hold``     ??? one test positive (investigate further)
+      - ``auto_approve``  ??? both tests negative (no ring signal detected)
     """
     t0 = time.perf_counter()
 
@@ -495,7 +495,7 @@ async def health():
         },
         "notes": [
             "fraud-score accepts both Node.js and Python feature shapes",
-            "ISS score is backend-only ΓÇö never sent to Flutter app",
+            "ISS score is backend-only ??? never sent to Flutter app",
             "Zone depth scoring runs in Node.js (Haversine), not here",
         ],
     }
@@ -509,3 +509,4 @@ async def root():
         "health":       "/health",
         "model_health": "/fraud/model-health",
     }
+
