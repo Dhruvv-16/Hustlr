@@ -103,6 +103,16 @@ flutter run -d chrome          # Web browser (sensor features limited)
 
 ---
 
+## 🚀 Phase 3 Updates (Latest)
+
+| Area | What's Implemented |
+|------|--------------------|
+| **Biometric Auth (Two-Tier)** | **Tier 1:** Native OS Fingerprint/Face ID (local_auth). **Tier 2 (Fallback):** AWS Rekognition camera-based liveness + profile matching. Dynamically fails over if no biometric enrolled, bypassing Android OEM "Smart mode" bugs. |
+| **Resilient Background GPS** | Complete refactor of `ShiftTrackingService` isolates. Position stream now runs physically *inside* the Android OS Protected Foreground Task (via `enableWakeLock: true`), bypassing Xiaomi/OnePlus background kills. Watchdog now gracefully attempts auto-restart before pausing coverage. |
+| **Location Degradation UX** | "While Using App" (foreground) location is no longer a hard lock. Workers can go online (with an amber warning banner) and keep shift protection active for the foreground session. |
+
+---
+
 ## ✅ Phase 2 Highlights — What's Live
 
 | Area | What's Implemented |
