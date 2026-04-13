@@ -30,6 +30,7 @@ import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/ml_tester_screen.dart';
+import '../../features/ml_live/ml_live_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../shared/widgets/bottom_nav_bar.dart';
 import '../services/storage_service.dart';
@@ -62,6 +63,7 @@ class AppRoutes {
   static const support = '/support';
   static const admin = '/admin';
   static const mlTester = '/admin/ml-tester';
+  static const mlLive = '/ml-live';
   static const stepUpAuth = '/step-up-auth';
 }
 
@@ -240,6 +242,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.mlTester,
       builder: (_, __) => const MlTesterScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.mlLive,
+      builder: (_, __) => const MLLiveScreen(),
     ),
 
     // ── Step-Up Biometric Auth ───────────────────────────────────────────────

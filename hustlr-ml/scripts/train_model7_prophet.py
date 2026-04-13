@@ -112,6 +112,8 @@ def train_prophet_all_zones():
             daily_seasonality=True,
             weekly_seasonality=True,
             yearly_seasonality=True,
+            interval_width=0.95,                   # Widen confidence interval
+            uncertainty_samples=1000,              # Better uncertainty sampling
             mcmc_samples=0,                        # MAP estimation — required for Render
         )
 

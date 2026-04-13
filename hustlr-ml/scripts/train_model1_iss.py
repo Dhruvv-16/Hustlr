@@ -8,8 +8,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 from xgboost import XGBRegressor
+
+from model_data_utils import grouped_train_test_indices, month_groups
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
@@ -45,7 +47,16 @@ def train_iss_model():
     X = df[ISS_FEATURE_NAMES].astype(float).values
     y = df["iss_score"].astype(float).clip(0, 100).values
 
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
+    if "onboard_date" not in df.columns:
+        raise ValueError("worker_profiles.csv must include onboard_date for leakage-safe ISS splitting")
+
+    train_idx, test_idx = grouped_train_test_indices(
+        month_groups(df["onboard_date"]),
+        test_size=0.2,
+        random_state=42,
+    )
+    X_tr, X_te = X[train_idx], X[test_idx]
+    y_tr, y_te = y[train_idx], y[test_idx]
 
     model = XGBRegressor(
         n_estimators=300,
@@ -58,9 +69,13 @@ def train_iss_model():
         device="cpu",
     )
     model.fit(X_tr, y_tr)
+    pred_tr = np.clip(model.predict(X_tr), 0, 100)
     pred = np.clip(model.predict(X_te), 0, 100)
-    print(f"Test MAE (ISS): {mean_absolute_error(y_te, pred):.3f}")
-    print(f"Workers: {len(df)} | Chennai zones: {df['zone'].nunique()}")
+    print(f"Train MAE (ISS): {mean_absolute_error(y_tr, pred_tr):.3f}")
+    print(f"Test MAE (ISS):  {mean_absolute_error(y_te, pred):.3f}")
+    print(f"Train R^2 (ISS): {r2_score(y_tr, pred_tr):.4f}")
+    print(f"Test R^2 (ISS):  {r2_score(y_te, pred):.4f}")
+    print(f"Workers: {len(df)} | Chennai zones: {df['zone'].nunique()} | onboard months: {month_groups(df['onboard_date']).nunique()}")
 
     joblib.dump(model, MODELS_DIR / "model1_iss_xgboost.pkl")
     joblib.dump(ISS_FEATURE_NAMES, MODELS_DIR / "model1_features.pkl")
