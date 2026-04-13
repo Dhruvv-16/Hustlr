@@ -88,7 +88,7 @@ def train_iss_model():
     print(f"Test R^2 (ISS):  {r2_score(y_te, pred):.4f}")
     print(f"Baseline Ridge Test MAE: {mean_absolute_error(y_te, ridge_pred):.3f}")
     print(f"Baseline Ridge Test R^2: {r2_score(y_te, ridge_pred):.4f}")
-    print(f"Workers: {len(df)} | Chennai zones: {df['zone'].nunique()} | onboard months: {month_groups(df['onboard_date']).nunique()}")
+    print(f"Workers: {len(df)} | zones: {df['zone'].nunique()} | onboard months: {month_groups(df['onboard_date']).nunique()}")
 
     joblib.dump(model, MODELS_DIR / "model1_iss_xgboost.pkl")
     joblib.dump(ISS_FEATURE_NAMES, MODELS_DIR / "model1_features.pkl")

@@ -1,5 +1,5 @@
 """
-Train NLP classifier from nlp_disruption_events.csv (Chennai zones, dated feed text).
+Train NLP classifier from nlp_disruption_events.csv (multi-city, dated feed text).
 No hand-generated synthetic corpus — only rows from the dataset.
 """
 

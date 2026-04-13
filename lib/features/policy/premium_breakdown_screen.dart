@@ -100,7 +100,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium),
+            _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium, policyData),
             const SizedBox(height: 16),
             _buildCalculationCard(breakdown, theme, isDark, userZone, userPlatform),
             const SizedBox(height: 16),
@@ -116,7 +116,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
     );
   }
 
-  Widget _buildCurrentPlanCard(ThemeData theme, bool isDark, String activePlan, int weeklyPremium) {
+  Widget _buildCurrentPlanCard(ThemeData theme, bool isDark, String activePlan, int weeklyPremium, Map<String, dynamic>? policyData) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -142,12 +142,12 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Policy #${MockData.policyNumber}',
+            'Policy #${policyData?['id']?.toString().toUpperCase() ?? "HS-98234-AX"}',
             style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
           Text(
-            'VALID UNTIL: ${MockData.policyValidity}',
+            'VALID UNTIL: ${policyData?['valid_until'] ?? "26 Oct 2026"}',
             style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.8) : theme.colorScheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
           ),
           const SizedBox(height: 32),

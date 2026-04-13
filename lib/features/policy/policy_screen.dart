@@ -775,6 +775,31 @@ class _StickyBottomBar extends StatelessWidget {
     // dark-mode: mint text on dark bg; light-mode: white text on green bg
     final btnTextColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
+    int getRank(String? p) {
+      if (p == null) return 0;
+      if (p.contains('Full')) return 3;
+      if (p.contains('Standard')) return 2;
+      if (p.contains('Basic')) return 1;
+      return 0;
+    }
+    
+    final currentRank = getRank(activePolicy?['plan_name'] as String?);
+    final selectedRank = getRank(selectedPlan);
+
+    final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
+    final bool isSame = selectedRank == currentRank && currentRank > 0;
+    final bool isDisabled = isDowngrade || isSame;
+
+    String btnText = 'Proceed to\nPayment';
+    IconData btnIcon = Icons.arrow_forward_rounded;
+    if (isSame) {
+      btnText = 'Already Active';
+      btnIcon = Icons.check_circle_rounded;
+    } else if (isDowngrade) {
+      btnText = 'Downgrade\nUnavailable';
+      btnIcon = Icons.block_rounded;
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       decoration: BoxDecoration(
@@ -815,7 +840,7 @@ class _StickyBottomBar extends StatelessWidget {
           child: SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: onProceed,
+              onPressed: isDisabled ? null : onProceed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: btnTextColor,
@@ -827,13 +852,13 @@ class _StickyBottomBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Proceed to\nPayment',
+                  Text(btnText,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.bold,
-                          color: btnTextColor, height: 1.3)),
+                          color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
                   const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 18, color: btnTextColor),
+                  Icon(btnIcon, size: 18, color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor),
                 ],
               ),
             ),
