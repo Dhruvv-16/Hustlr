@@ -102,7 +102,13 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
       setState(() => _isSubmitting = false);
       // Navigate to Success
       // Passing claim data down to the submitted screen via extra.
-      context.pushReplacement('/claims/submitted', extra: response['claim']);
+      context.pushReplacement(
+        '/claims/submitted',
+        extra: {
+          'claim': response['claim'],
+          'imagePaths': _images.map((f) => f.path).toList(),
+        },
+      );
     }
   }
 

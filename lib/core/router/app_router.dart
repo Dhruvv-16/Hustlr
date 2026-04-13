@@ -180,8 +180,20 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.claimSubmitted,
           builder: (context, state) {
-            final data = state.extra as Map<String, dynamic>?;
-            return ClaimSubmittedScreen(claimData: data);
+            final extra = state.extra;
+            Map<String, dynamic>? claimData;
+            List<String>? imagePaths;
+            if (extra is Map<String, dynamic>) {
+              // New format: {'claim': {...}, 'imagePaths': [...]}
+              if (extra.containsKey('claim')) {
+                claimData = extra['claim'] as Map<String, dynamic>?;
+                imagePaths = (extra['imagePaths'] as List?)?.cast<String>();
+              } else {
+                // Old format: the claim map directly
+                claimData = extra;
+              }
+            }
+            return ClaimSubmittedScreen(claimData: claimData, imagePaths: imagePaths);
           },
         ),
         GoRoute(

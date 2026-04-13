@@ -383,11 +383,16 @@ class _ChatScreenState extends State<ChatScreen> {
       _isTyping = true;
     });
     _scrollToBottom();
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      if (!mounted) return;
+      final replyData = await ApiService.instance.sendChat(message);
+      final isMock = replyData['_mock'] == true;
+      final isGenericDefault = replyData['intent'] == 'default' && replyData['response']?.toString().startsWith('I\'m here to help!') == true;
+      final replyMsg = (isMock || isGenericDefault) ? _getAutoReply(message) : (replyData['response'] ?? _getAutoReply(message));
       if (!mounted) return;
       setState(() {
         _isTyping = false;
-        _messages.add({'isUser': false, 'text': _getAutoReply(message), 'time': 'Just now'});
+        _messages.add({'isUser': false, 'text': replyMsg, 'time': 'Just now'});
       });
       _scrollToBottom();
     });

@@ -150,11 +150,16 @@ def train_fraud_model():
     best_threshold = 0.50
     best_utility = float("-inf")
     best_stats = {"precision": 0.0, "recall": 0.0, "f2": 0.0}
+    fallback_threshold = 0.50
+    fallback_f2 = float("-inf")
     for threshold in np.arange(0.18, 0.72, 0.02):
         pred = (val_prob >= threshold).astype(int)
         prec = precision_score(y_val, pred, zero_division=0)
         rec = recall_score(y_val, pred, zero_division=0)
         f2 = fbeta_score(y_val, pred, beta=2, zero_division=0)
+        if f2 > fallback_f2:
+            fallback_f2 = f2
+            fallback_threshold = float(round(threshold, 2))
         tp = float(((pred == 1) & (y_val == 1)).sum())
         fp = float(((pred == 1) & (y_val == 0)).sum())
         fn = float(((pred == 0) & (y_val == 1)).sum())
@@ -163,6 +168,18 @@ def train_fraud_model():
             best_threshold = float(round(threshold, 2))
             best_utility = utility
             best_stats = {"precision": prec, "recall": rec, "f2": f2}
+
+    if best_utility == float("-inf"):
+        best_threshold = fallback_threshold
+        pred = (val_prob >= best_threshold).astype(int)
+        prec = precision_score(y_val, pred, zero_division=0)
+        rec = recall_score(y_val, pred, zero_division=0)
+        f2 = fbeta_score(y_val, pred, beta=2, zero_division=0)
+        tp = float(((pred == 1) & (y_val == 1)).sum())
+        fp = float(((pred == 1) & (y_val == 0)).sum())
+        fn = float(((pred == 0) & (y_val == 1)).sum())
+        best_utility = tp * business_tp_gain - fp * business_fp_cost - fn * business_fn_cost
+        best_stats = {"precision": prec, "recall": rec, "f2": f2}
 
     xgb_clf.fit(X_tr_s, y_tr)
 

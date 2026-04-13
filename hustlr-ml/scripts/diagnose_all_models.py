@@ -135,6 +135,11 @@ header("MODEL 3 — Fraud Detection (claims_fraud.csv)")
 IF_FEATURES = joblib.load(MODELS_DIR / "model3_features.pkl")
 iso_model   = joblib.load(MODELS_DIR / "model3_isolation_forest.pkl")
 scaler      = joblib.load(MODELS_DIR / "model3_scaler.pkl")
+prob_calibrator = None
+try:
+    prob_calibrator = joblib.load(MODELS_DIR / "model3_probability_calibrator.pkl")
+except Exception:
+    prob_calibrator = None
 
 from xgboost import XGBClassifier
 xgb_fraud = XGBClassifier()
@@ -143,7 +148,7 @@ xgb_fraud.load_model(MODELS_DIR / "model3_fraud_classifier.json")
 df_fraud = pd.read_csv(DATA_DIR / "claims_fraud.csv")
 print(f"Dataset: {len(df_fraud):,} rows | fraud rate: {df_fraud['is_fraud'].mean():.3f} | {df_fraud['zone'].nunique()} zones")
 
-X_f  = df_fraud[IF_FEATURES].astype(float).values
+X_f  = prepare_fraud_features(df_fraud).values
 y_f  = df_fraud["is_fraud"].astype(int).values
 
 fraud_train_idx, fraud_test_idx = grouped_train_test_indices(
@@ -158,13 +163,23 @@ X_ftr_s = scaler.transform(X_ftr)
 X_fte_s = scaler.transform(X_fte)
 
 # -- XGBoost Classifier (supervised)
-prob_tr = xgb_fraud.predict_proba(X_ftr_s)[:, 1]
-prob_te = xgb_fraud.predict_proba(X_fte_s)[:, 1]
+prob_tr_raw = xgb_fraud.predict_proba(X_ftr_s)[:, 1]
+prob_te_raw = xgb_fraud.predict_proba(X_fte_s)[:, 1]
+if prob_calibrator is not None:
+    prob_tr = prob_calibrator.predict_proba(prob_tr_raw.reshape(-1, 1))[:, 1]
+    prob_te = prob_calibrator.predict_proba(prob_te_raw.reshape(-1, 1))[:, 1]
+else:
+    prob_tr = prob_tr_raw
+    prob_te = prob_te_raw
 
 auc_tr = roc_auc_score(y_ftr, prob_tr)
 auc_te = roc_auc_score(y_fte, prob_te)
 ap_tr  = average_precision_score(y_ftr, prob_tr)
 ap_te  = average_precision_score(y_fte, prob_te)
+brier_tr = brier_score_loss(y_ftr, prob_tr)
+brier_te = brier_score_loss(y_fte, prob_te)
+ece_tr = expected_calibration_error(y_ftr, prob_tr)
+ece_te = expected_calibration_error(y_fte, prob_te)
 
 try:
     fraud_threshold = float(joblib.load(MODELS_DIR / "model3_thresholds.pkl")["threshold"])
@@ -191,11 +206,39 @@ print(f"  {'Metric':<22} {'Train':>10} {'Test':>10}  {'Gap':>8}")
 print("  " + "-" * 52)
 print(f"  {'ROC-AUC':<22} {auc_tr:>10.4f} {auc_te:>10.4f}  {abs(auc_tr-auc_te):>8.4f}")
 print(f"  {'PR-AUC':<22} {ap_tr:>10.4f} {ap_te:>10.4f}  {abs(ap_tr-ap_te):>8.4f}")
+print(f"  {'Brier score':<22} {brier_tr:>10.4f} {brier_te:>10.4f}")
+print(f"  {'ECE (10 bins)':<22} {ece_tr:>10.4f} {ece_te:>10.4f}")
 print(f"  {'Recall (fraud)':<22} {rec_tr:>10.1%} {rec_te:>10.1%}")
 print(f"  {'Precision (fraud)':<22} {prec_tr:>10.1%} {prec_te:>10.1%}")
 print(f"  {'F1 (fraud)':<22} {f1_tr:>10.4f} {f1_te:>10.4f}")
 print(f"  {'TN/FP/FN/TP (train)':<22} {tn_tr}/{fp_tr}/{fn_tr}/{tp_tr}")
 print(f"  {'TN/FP/FN/TP (test)':<22}            {tn_te}/{fp_te}/{fn_te}/{tp_te}")
+
+print("\n  Test recall by tenure cohort:")
+tenure_days = pd.to_numeric(df_fraud.iloc[fraud_test_idx]["days_since_onboard"], errors="coerce").fillna(0)
+tenure_bins = pd.cut(
+    tenure_days,
+    bins=[-1, 30, 90, 180, 3660],
+    labels=["new_0_30d", "ramp_31_90d", "active_91_180d", "tenured_181d_plus"],
+)
+for cohort in tenure_bins.astype("string").fillna("unknown").unique():
+    mask = tenure_bins.astype("string").fillna("unknown") == cohort
+    if mask.sum() == 0 or y_fte[mask].sum() == 0:
+        continue
+    cohort_rec = recall_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+    cohort_prec = precision_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+    print(f"    {cohort:<18} recall={cohort_rec:>6.1%} precision={cohort_prec:>6.1%} samples={int(mask.sum()):>5}")
+
+if "claim_date" in df_fraud.columns:
+    print("\n  Test recall by claim month:")
+    claim_month = pd.to_datetime(df_fraud.iloc[fraud_test_idx]["claim_date"], errors="coerce").dt.to_period("M").astype("string")
+    for month in sorted(claim_month.dropna().unique()):
+        mask = claim_month == month
+        if mask.sum() == 0 or y_fte[mask].sum() == 0:
+            continue
+        month_rec = recall_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+        month_prec = precision_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+        print(f"    {month:<10} recall={month_rec:>6.1%} precision={month_prec:>6.1%} samples={int(mask.sum()):>5}")
 
 # -- Isolation Forest (unsupervised — evaluate against labels for reference)
 iso_scores_tr = -iso_model.decision_function(X_ftr_s)  # higher = more anomalous
@@ -319,12 +362,15 @@ except Exception as e:
 # MODEL 7 — Prophet Forecaster (backtesting: hold out last 20% of time)
 # ══════════════════════════════════════════════════════════════════════════════
 header("MODEL 7 — Prophet Disruption Forecaster (prophet_training.csv)")
-print("  Backtest: train on first 80% of timesteps, evaluate on last 20%")
+print("  Backtest: rolling temporal windows with the same regressors used in training")
 print("  Metrics: MAE, MAPE, 80% Coverage Interval Hit Rate")
 
 try:
     df_pr = pd.read_csv(DATA_DIR / "prophet_training.csv")
     df_pr["ds"] = pd.to_datetime(df_pr["ds"])
+    df_pr = enrich_with_real_aqi(df_pr)
+    df_pr = enrich_with_real_precipitation(df_pr)
+    df_pr = add_event_calendar_features(df_pr)
 
     if "zone" in df_pr.columns and "city_type" not in df_pr.columns:
         df_pr["city_type"] = df_pr["zone"]
@@ -340,12 +386,8 @@ try:
         "Tier 1":    "chennai",
     }
 
-    REGRESSORS = [c for c in ["festival_multiplier","precip_mm",
-                               "temperature_c","traffic_index",
-                               "salary_week_flag"] if c in df_pr.columns]
-
-    print(f"\n  {'City':<16} {'Train rows':>10} {'Test rows':>10} {'MAE':>8} {'MAPE':>8} {'Coverage':>10}")
-    print("  " + "-" * 70)
+    print(f"\n  {'City':<16} {'Windows':>8} {'Avg MAE':>10} {'Avg MAPE':>10} {'Coverage':>10}")
+    print("  " + "-" * 66)
 
     for city_type in sorted(df_pr["city_type"].astype(str).unique()):
         slug = CITY_SLUG_MAP.get(city_type)
@@ -355,43 +397,45 @@ try:
             print(f"  {city_type:<16} -- no .pkl found, skipping")
             continue
 
-        model = joblib.load(pkl)
         sub   = df_pr[df_pr["city_type"].astype(str) == city_type].copy()
-        sub   = sub.rename(columns={"precip_mm": "precipitation_mm", "traffic_index": "traffic_profile_index"})
-        
-        agg_d = {"y": "mean"}
-        # ensure regressors match training
-        model_regs = ["festival_multiplier", "precipitation_mm", "temperature_c", "traffic_profile_index", "salary_week_flag"]
-        for r in model_regs:
-            if r in sub.columns:
-                agg_d[r] = "mean"
-                
-        sub   = sub.groupby("ds").agg(agg_d).reset_index().dropna(subset=["y"])
-        sub["y"] = np.log(sub["y"].clip(lower=0.1))
+        sub = build_prophet_frame(sub)
 
-        if len(sub) < 50:
+        if len(sub) < 240:
             print(f"  {city_type:<16} -- only {len(sub)} rows, skipping")
             continue
 
-        split_idx = int(len(sub) * 0.8)
-        test_df   = sub.iloc[split_idx:].copy()
-
-        if len(test_df) < 5:
-            print(f"  {city_type:<16} -- test split too small, skipping")
-            continue
+        model = joblib.load(pkl)
+        all_mae = []
+        all_mape = []
+        all_cov = []
+        total_test_rows = 0
+        window = max(48, int(len(sub) * 0.10))
+        starts = [int(len(sub) * 0.60), int(len(sub) * 0.70), int(len(sub) * 0.80)]
 
         try:
-            forecast = model.predict(test_df)
-            y_true   = test_df["y"].values
-            y_pred   = forecast["yhat"].values
-            y_lo     = forecast["yhat_lower"].values
-            y_hi     = forecast["yhat_upper"].values
+            for start in starts:
+                test_df = sub.iloc[start:min(start + window, len(sub))].copy()
+                if len(test_df) < 24:
+                    continue
+                feature_df = test_df[["ds"] + [r for r in PROPHET_REGRESSORS if r in test_df.columns]].copy()
+                forecast = model.predict(feature_df)
+                y_true   = test_df["y"].values
+                y_pred   = forecast["yhat"].values
+                y_lo     = forecast["yhat_lower"].values
+                y_hi     = forecast["yhat_upper"].values
 
-            mae      = mean_absolute_error(y_true, y_pred)
-            mape     = np.mean(np.abs((y_true - y_pred) / (np.abs(y_true) + 1e-6))) * 100
-            coverage = np.mean((y_true >= y_lo) & (y_true <= y_hi)) * 100
+                all_mae.append(mean_absolute_error(y_true, y_pred))
+                all_mape.append(np.mean(np.abs((y_true - y_pred) / (np.abs(y_true) + 1e-6))) * 100)
+                all_cov.append(np.mean((y_true >= y_lo) & (y_true <= y_hi)) * 100)
+                total_test_rows += len(test_df)
 
-            print(f"  {city_type:<16} {split_idx:>10,} {len(test_df):>10,} {mae:>8.3f} {mape:>7.1f}% {coverage:>9.1f}%")
+            if not all_mae:
+                print(f"  {city_type:<16} -- windows too small, skipping")
+                continue
+            print(
+                f"  {city_type:<16} {len(all_mae):>8} {np.mean(all_mae):>10.3f} "
+                f"{np.mean(all_mape):>9.1f}% {np.mean(all_cov):>9.1f}%"
+            )
 
         except Exception as e:
             print(f"  {city_type:<16} -- predict failed: {e}")
@@ -401,7 +445,7 @@ try:
     MAE      — mean absolute error in log(disruption_units)
     MAPE     — mean absolute % error (< 20% good, < 10% excellent)
     Coverage — % of actuals within the 80% confidence interval
-               (should be ~80-85% for a well-calibrated Prophet)""")
+               (should be ~75-85% for a well-calibrated Prophet)""")
 
 except Exception as e:
     print(f"  SKIP — {e}")

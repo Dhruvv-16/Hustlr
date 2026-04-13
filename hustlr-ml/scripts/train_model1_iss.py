@@ -3,12 +3,16 @@ Train ISS regressor — feature order must match hustlr-backend/ml_service/main.
 """
 
 import joblib
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 from model_data_utils import grouped_train_test_indices, month_groups
@@ -72,14 +76,36 @@ def train_iss_model():
     model.fit(X_tr, y_tr)
     pred_tr = np.clip(model.predict(X_tr), 0, 100)
     pred = np.clip(model.predict(X_te), 0, 100)
+    ridge = Pipeline([
+        ("scale", StandardScaler()),
+        ("ridge", Ridge(alpha=2.0, random_state=42)),
+    ])
+    ridge.fit(X_tr, y_tr)
+    ridge_pred = np.clip(ridge.predict(X_te), 0, 100)
     print(f"Train MAE (ISS): {mean_absolute_error(y_tr, pred_tr):.3f}")
     print(f"Test MAE (ISS):  {mean_absolute_error(y_te, pred):.3f}")
     print(f"Train R^2 (ISS): {r2_score(y_tr, pred_tr):.4f}")
     print(f"Test R^2 (ISS):  {r2_score(y_te, pred):.4f}")
+    print(f"Baseline Ridge Test MAE: {mean_absolute_error(y_te, ridge_pred):.3f}")
+    print(f"Baseline Ridge Test R^2: {r2_score(y_te, ridge_pred):.4f}")
     print(f"Workers: {len(df)} | Chennai zones: {df['zone'].nunique()} | onboard months: {month_groups(df['onboard_date']).nunique()}")
 
     joblib.dump(model, MODELS_DIR / "model1_iss_xgboost.pkl")
     joblib.dump(ISS_FEATURE_NAMES, MODELS_DIR / "model1_features.pkl")
+    joblib.dump(ridge, MODELS_DIR / "model1_baseline_ridge.pkl")
+    (MODELS_DIR / "model1_diagnostics.json").write_text(
+        json.dumps(
+            {
+                "test_size": TEST_SIZE,
+                "xgboost_test_mae": mean_absolute_error(y_te, pred),
+                "xgboost_test_r2": r2_score(y_te, pred),
+                "ridge_test_mae": mean_absolute_error(y_te, ridge_pred),
+                "ridge_test_r2": r2_score(y_te, ridge_pred),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(f"Saved {MODELS_DIR / 'model1_iss_xgboost.pkl'}")
 
 

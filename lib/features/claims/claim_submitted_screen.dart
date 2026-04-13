@@ -1,11 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 
 class ClaimSubmittedScreen extends StatelessWidget {
   final Map<String, dynamic>? claimData;
+  final List<String>? imagePaths; // local File paths or network URLs
 
-  const ClaimSubmittedScreen({super.key, this.claimData});
+  const ClaimSubmittedScreen({super.key, this.claimData, this.imagePaths});
 
   @override
   Widget build(BuildContext context) {
@@ -80,13 +82,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       clipBehavior: Clip.hardEdge,
-                                      child: (claimData != null && claimData!['evidence_urls'] != null && claimData!['evidence_urls'] is List && (claimData!['evidence_urls'] as List).length > i)
-                                          ? Image.network(
-                                              claimData!['evidence_urls'][i],
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Center(child: Icon(Icons.broken_image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
-                                            )
-                                          : Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
+                                      child: _buildThumbnail(i),
                                     ),
                                   ),
                                   if (i == 0) const SizedBox(width: 16),
@@ -152,6 +148,41 @@ class ClaimSubmittedScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(int i) {
+    // Priority 1: local file paths passed from camera
+    if (imagePaths != null && imagePaths!.length > i) {
+      final path = imagePaths![i];
+      if (path.startsWith('http')) {
+        return Image.network(path, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+      } else {
+        return Image.file(File(path), fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+      }
+    }
+    // Priority 2: network URLs from server response
+    final urls = claimData?['evidence_urls'];
+    if (urls is List && urls.length > i) {
+      return Image.network(urls[i].toString(), fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+    }
+    return _brokenImagePlaceholder();
+  }
+
+  Widget _brokenImagePlaceholder() {
+    return Container(
+      color: const Color(0xFF1A1A1A),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported_outlined, color: Colors.grey, size: 32),
+          SizedBox(height: 4),
+          Text('Photo uploaded', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
       ),
     );
   }
