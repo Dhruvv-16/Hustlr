@@ -308,16 +308,18 @@ class PremiumResponse(BaseModel):
 
 PLAN_BASE = { "basic": 35, "standard": 49, "full": 79 }
 ZONE_ADJ = {
-    "Adyar Dark Store Zone": 5,
-    "Velachery Dark Store Zone": 7,
-    "Tambaram Dark Store Zone": 4,
-    "Anna Nagar Dark Store Zone": 2,
-    "T Nagar Dark Store Zone": 2,
-    "OMR Dark Store Zone": 3,
-    "Koramangala Dark Store Zone": 3,
-    "Electronic City Dark Store Zone": 4,
-    "Andheri Dark Store Zone": 6,
-    "Bandra Dark Store Zone": 5,
+    # Set all to 0 ??? zone risk reflected in ISS tier recommendation
+    # NOT in the displayed premium price (keeps it clean for workers)
+    "Adyar Dark Store Zone": 0,
+    "Velachery Dark Store Zone": 0,
+    "Tambaram Dark Store Zone": 0,
+    "Anna Nagar Dark Store Zone": 0,
+    "T Nagar Dark Store Zone": 0,
+    "OMR Dark Store Zone": 0,
+    "Koramangala Dark Store Zone": 0,
+    "Electronic City Dark Store Zone": 0,
+    "Andheri Dark Store Zone": 0,
+    "Bandra Dark Store Zone": 0,
 }
 
 @app.post("/premium", response_model=PremiumResponse, tags=["Pricing"])

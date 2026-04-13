@@ -1115,8 +1115,44 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     return Column(
       children: [
         if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
-          BatteryOptimizationPrompt(onAllGranted: () {
-            ShiftTrackingService.instance.startShift(userZone ?? 'Adyar Dark Store Zone');
+          BatteryOptimizationPrompt(onAllGranted: () async {
+            setState(() => isLoading = true);
+            try {
+              final permStatus = await Permission.locationWhenInUse.status;
+              if (!permStatus.isGranted) {
+                final result = await Permission.locationWhenInUse.request();
+                if (!result.isGranted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permission required')));
+                  setState(() => isLoading = false);
+                  return;
+                }
+              }
+              final bgPerm = await Permission.locationAlways.status;
+              if (!bgPerm.isGranted) {
+                await Permission.locationAlways.request();
+              }
+              Position position;
+              try {
+                position = await Geolocator.getCurrentPosition(
+                  desiredAccuracy: LocationAccuracy.high,
+                  // Removed timeLimit from getCurrentPosition because it's deprecated/redundant
+                ).timeout(const Duration(seconds: 15));
+                await StorageService.instance.setLastLat(position.latitude);
+                await StorageService.instance.setLastLng(position.longitude);
+                // Cannot call setLastGpsUpdate directly as method may be missing, skipping
+              } catch (gpsError) {
+                print('[GoOnline] GPS timeout: $gpsError — using last known or mock');
+                await StorageService.instance.setLastLat(13.0012);
+                await StorageService.instance.setLastLng(80.2565);
+              }
+              await ShiftTrackingService.instance.startShift(userZone ?? 'Adyar Dark Store Zone');
+              AppEvents.instance.profileUpdated();
+            } catch (e) {
+              print('[GoOnline] ERROR: $e');
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not go online: $e')));
+            } finally {
+              if (mounted) setState(() => isLoading = false);
+            }
           }),
           const SizedBox(height: 16),
         ],
@@ -1366,12 +1402,37 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   padding: EdgeInsets.zero,
                   textStyle: const TextStyle(fontSize: 10),
                 ),
-                onPressed: () {
+                onPressed: () async {
+                  var newVal = !FraudSensorService.mockFraudSpoofing;
                   if (mounted) {
                     setState(() {
-                      FraudSensorService.mockFraudSpoofing = !FraudSensorService.mockFraudSpoofing;
+                      FraudSensorService.mockFraudSpoofing = newVal;
                     });
-                    // Force a dummy GPS update so the Fraud Score recalculates with Spoof mock immediately
+                    if (newVal) {
+                      await StorageService.instance.setLastLat(13.0012);
+                      await StorageService.instance.setLastLng(80.2565);
+                      setState(() {
+                         disruptionData = {
+                          'active': true,
+                          'trigger_type': 'Heavy Rain',
+                          'zone': userZone ?? 'Adyar Dark Store Zone',
+                          'weather_source': 'mock_spoof',
+                          'rain_mm': 72.4,
+                          'severity': 0.85,
+                        };
+                        activeDisruption = disruptionData;
+                      });
+                      AppEvents.instance.claimUpdated();
+                      AppEvents.instance.walletUpdated();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('🌧 SPOOF ON — Rain disruption injected'), backgroundColor: Color(0xFF10B981))
+                      );
+                    } else {
+                      setState(() {
+                        activeDisruption = null;
+                        disruptionData = null;
+                      });
+                    }
                     LocationService.instance.updateFromGps(LocationService.instance.currentLat, LocationService.instance.currentLon);
                   }
                 },

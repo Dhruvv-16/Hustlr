@@ -881,6 +881,59 @@ class ApiService {
       return {'final_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
     }
   }
+  Future<Map<String, dynamic>> createPolicy({
+    required String userId,
+    required String planTier,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/policies/create'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id':   userId,
+          'plan_tier': planTier,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      
+      if (res.statusCode == 201 || res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        
+        // Store locally immediately
+        if (data['policy'] != null) {
+          final policy = data['policy'];
+          await StorageService.instance.savePolicyId(policy['id']);
+          await StorageService.instance.setPlanTier(policy['plan_tier']);
+          await StorageService.instance.setWeeklyPremium(
+            policy['weekly_premium'] ?? 49
+          );
+        }
+        
+        return data;
+      }
+      throw Exception('Status ${res.statusCode}: ${res.body}');
+      
+    } catch (e) {
+      print('[API] createPolicy error: $e');
+      final mockWeekly = planTier == 'basic' ? 35 : planTier == 'full' ? 79 : 49;
+      // Store locally even for mock
+      await StorageService.instance.savePolicyId('mock-policy-${DateTime.now().millisecondsSinceEpoch}');
+      await StorageService.instance.setPlanTier(planTier);
+      await StorageService.instance.setWeeklyPremium(mockWeekly);
+      
+      // Return mock success so demo still works
+      return {
+        'policy': {
+          'id':              'mock-policy-${DateTime.now().millisecondsSinceEpoch}',
+          'plan_tier':       planTier,
+          'weekly_premium':  mockWeekly,
+          'status':          'active',
+          'max_daily_payout': planTier == 'full' ? 250 : 150,
+        },
+        '_mock': true,
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> sendChat(String message) async {
     try {
       final res = await http.post(

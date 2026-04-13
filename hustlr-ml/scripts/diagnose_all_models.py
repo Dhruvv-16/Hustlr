@@ -26,6 +26,8 @@ import pandas as pd
 from pathlib import Path
 from sklearn.metrics import (
     brier_score_loss,
+    precision_score,
+    recall_score,
     mean_absolute_error, r2_score,
     roc_auc_score, average_precision_score,
     classification_report, confusion_matrix, accuracy_score,

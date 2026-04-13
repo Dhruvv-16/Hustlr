@@ -105,6 +105,7 @@ def enrich_with_real_precipitation(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_prophet_frame(sub: pd.DataFrame) -> pd.DataFrame:
     sub = sub.sort_values("ds").copy()
+    sub["ds"] = pd.to_datetime(sub["ds"])
     agg_cols = {"y": "mean"}
     for reg in REGRESSORS:
         src = reg if reg in sub.columns else REGRESSOR_ALIASES.get(reg)

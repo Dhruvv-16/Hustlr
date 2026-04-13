@@ -16,6 +16,8 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
   Map<String, dynamic> _premiumResult = {};
   Map<String, dynamic> _forecastResult = {};
   bool _loading = false;
+  bool _issLoading = false;
+  bool _forecastLoading = false;
   
   final _mlUrl = 'https://hustlr-ml-complete.onrender.com'; // your ML service
 
@@ -39,28 +41,74 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
   }
 
   Future<void> _runISS() async {
-    try {
-      final res = await http.post(
-        Uri.parse('$_mlUrl/iss'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'zone_flood_risk':       0.75,
-          'avg_daily_income':      600.0,
-          'disruption_freq_12mo':  8,
-          'platform_tenure_weeks': 4,
-          'city':                  'Chennai',
-        }),
-      ).timeout(const Duration(seconds: 10));
-      
-      if (res.statusCode == 200) {
-        setState(() => _issResult = jsonDecode(res.body));
+    setState(() => _issLoading = true);
+    
+    // Try multiple possible endpoint paths
+    final endpoints = [
+      '$_mlUrl/iss',
+      '$_mlUrl/ml/iss',
+      '$_mlUrl/api/iss',
+    ];
+    
+    for (final endpoint in endpoints) {
+      try {
+        final res = await http.post(
+          Uri.parse(endpoint),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'zone_flood_risk':       0.75,
+            'avg_daily_income':      600.0,
+            'disruption_freq_12mo':  8,
+            'platform_tenure_weeks': 4,
+            'city':                  'Chennai',
+          }),
+        ).timeout(const Duration(seconds: 8));
+        
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          setState(() {
+            _issResult = data;
+            _issLoading = false;
+          });
+          print('[ML] ISS from $endpoint: $data');
+          return;
+        }
+        print('[ML] ISS endpoint $endpoint returned ${res.statusCode}');
+      } catch (e) {
+        print('[ML] ISS endpoint $endpoint failed: $e');
       }
-    } catch (e) {
-      setState(() => _issResult = {
-        'iss_score': 62, 'tier': 'AMBER',
-        'recommendation': 'standard', '_mock': true,
-      });
     }
+    
+    // All endpoints failed — use computed mock
+    // Run the rule engine locally in Dart as fallback
+    final score = _calculateISSLocally();
+    setState(() {
+      _issResult = {
+        'iss_score':      score,
+        'tier':           score >= 70 ? 'GREEN' : score >= 50 ? 'AMBER' : 'RED',
+        'recommendation': score >= 70 ? 'basic' : score >= 50 ? 'standard' : 'full',
+        'breakdown': {
+          'zone_penalty':       15.0,
+          'disruption_penalty': 8,
+          'income_bonus':       3.0,
+          'tenure_bonus':       2.4,
+        },
+        '_mock': true,
+        '_source': 'local_rule_engine',
+      };
+      _issLoading = false;
+    });
+  }
+
+  int _calculateISSLocally() {
+    // Same formula as Python service — run locally as fallback
+    double score = 100;
+    score -= 0.75 * 20;    // zone_flood_risk
+    score -= 8;            // disruption_freq (min 15)
+    score += 600 / 200;    // income bonus
+    score += 4 / 10;       // tenure bonus
+    score -= 3;            // Chennai city adjustment
+    return score.clamp(0, 100).round();
   }
 
   Future<void> _runFraud() async {
@@ -124,28 +172,57 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
   }
 
   Future<void> _runForecast() async {
-    try {
-      final res = await http.get(
-        Uri.parse('$_mlUrl/forecast/adyar?days=3'),
-      ).timeout(const Duration(seconds: 15));
-      
-      if (res.statusCode == 200) {
-        setState(() => _forecastResult = jsonDecode(res.body));
+    setState(() => _forecastLoading = true);
+    
+    final endpoints = [
+      '$_mlUrl/forecast/adyar?days=3',
+      '$_mlUrl/forecast/Adyar?days=3',
+      '$_mlUrl/forecast/adyar-dark-store-zone?days=3',
+    ];
+    
+    for (final endpoint in endpoints) {
+      try {
+        final res = await http.get(Uri.parse(endpoint))
+          .timeout(const Duration(seconds: 12));
+        
+        if (res.statusCode == 200) {
+          setState(() {
+            _forecastResult = jsonDecode(res.body);
+            _forecastLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        print('[ML] Forecast endpoint failed: $e');
       }
-    } catch (e) {
-      setState(() => _forecastResult = {
-        'zone_id': 'adyar',
-        'forecasts': [
-          {'date': '2026-04-14', 'disruption_probability': 0.72,
-           'trigger_type': 'heavy_rain', 'predicted_rainfall_mm': 68.4},
-          {'date': '2026-04-15', 'disruption_probability': 0.08,
-           'trigger_type': 'none', 'predicted_rainfall_mm': 2.1},
-          {'date': '2026-04-16', 'disruption_probability': 0.61,
-           'trigger_type': 'heavy_rain', 'predicted_rainfall_mm': 54.2},
-        ],
-        '_mock': true,
-      });
     }
+    
+    // Compute mock forecast based on current month
+    final now = DateTime.now();
+    final isNEMonsoon = [10, 11, 12].contains(now.month);
+    final isMonsoon = [6, 7, 8, 9].contains(now.month);
+    
+    final baseProb = isNEMonsoon ? 0.65 : isMonsoon ? 0.45 : 0.15;
+    
+    setState(() {
+      _forecastResult = {
+        'zone_id': 'adyar',
+        'forecasts': List.generate(3, (i) {
+          final date = now.add(Duration(days: i + 1));
+          final prob = baseProb + (i == 1 ? 0.1 : 0.0);
+          return {
+            'date': date.toString().split(' ')[0],
+            'disruption_probability': prob,
+            'predicted_rainfall_mm':  prob > 0.4 ? 58.0 + i * 8 : 3.2,
+            'trigger_type':           prob > 0.15 ? 'heavy_rain' : 'none',
+            'expected_payout_standard_shield': prob > 0.15 ? 40.0 : 0.0,
+          };
+        }),
+        '_mock': true,
+        '_source': 'seasonal_heuristic',
+      };
+      _forecastLoading = false;
+    });
   }
 
   @override
@@ -185,6 +262,7 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
                 'XGBoost — Income Stability',
                 const Color(0xFF10B981),
                 _issResult,
+                isLoading: _issLoading,
                 [
                   _resultRow('ISS Score', '${_issResult['iss_score'] ?? "—"} / 100'),
                   _resultRow('Risk Tier', _issResult['tier'] ?? '—'),
@@ -212,6 +290,7 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
                 'Facebook Prophet — 10 Chennai zones',
                 const Color(0xFF3B82F6),
                 _forecastResult,
+                isLoading: _forecastLoading,
                 [
                   if ((_forecastResult['forecasts'] as List?)?.isNotEmpty == true)
                     ...(_forecastResult['forecasts'] as List)
@@ -269,9 +348,9 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
     String subtitle,
     Color color,
     Map<String, dynamic> data,
-    List<Widget> rows,
-  ) {
-    final isMock = data['_mock'] == true;
+    List<Widget> rows, {
+    bool isLoading = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF161B22),
@@ -292,7 +371,8 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
                   width: 8, height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isMock ? Colors.orange : color,
+                    color: isLoading ? Colors.orange :
+                           (data['_mock'] == true ? Colors.orange : color),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -302,17 +382,30 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
                   Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 10)),
                 ]),
                 const Spacer(),
-                if (isMock)
+                if (isLoading)
+                  SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(color: color, strokeWidth: 2))
+                else if (data['_mock'] == true)
                   const Text('MOCK', style: TextStyle(color: Colors.orange, fontSize: 9))
                 else
                   Text('LIVE', style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(children: rows),
-          ),
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('Querying model...',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: rows.isEmpty
+                ? const Text('No data returned',
+                    style: TextStyle(color: Colors.grey, fontSize: 12))
+                : Column(children: rows),
+            ),
         ],
       ),
     );
