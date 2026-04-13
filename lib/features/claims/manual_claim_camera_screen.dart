@@ -38,6 +38,11 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
           );
         }
       });
+    } else {
+      // Auto-launch the camera immediately instead of waiting for a button tap
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _capturePhoto();
+      });
     }
   }
 
@@ -60,9 +65,12 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
             )
           )
         );
+      } else if (mounted) {
+        // User cancelled camera, go back
+        Navigator.pop(context);
       }
     } catch (e) {
-      // Handle camera permissions or errors
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -102,103 +110,9 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Simulated Camera View (would be CameraPreview ordinarily)
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.4,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.black, Color(0xFF1c1f1c)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  )
-                ),
-              ),
-            ),
-          ),
-          
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 20,
-            child: InkWell(
-              onTap: () => context.pop(),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-                ),
-                child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
-              ),
-            ),
-          ),
-
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 80,
-            left: 24,
-            right: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.camera_title,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    height: 1.1,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 100),
-                  child: Text(
-                    l10n.camera_subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Actions
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: _capturePhoto,
-                  child: Container(
-                    width: 72, height: 72,
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: primaryColor.withOpacity(0.4), blurRadius: 20, spreadRadius: 5),
-                      ],
-                    ),
-                    child: const Icon(Icons.camera_alt_rounded, color: Colors.black, size: 32),
-                  ),
-                ),
-                const SizedBox(height: 48), // Padding added to match bottom inset without the gallery button
-              ],
-            ),
-          ),
-        ],
+      body: Center(
+        child: CircularProgressIndicator(color: primaryColor),
       ),
     );
   }
 }
-
