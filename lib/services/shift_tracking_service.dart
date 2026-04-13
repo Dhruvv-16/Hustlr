@@ -51,48 +51,52 @@ class ShiftTrackingService extends ChangeNotifier {
     _initialized = true;
 
     // Configure BEFORE starting
-    await bg.BackgroundGeolocation.ready(bg.Config(
-      // Core tracking
-      desiredAccuracy:        bg.Config.DESIRED_ACCURACY_HIGH,
-      distanceFilter:         10.0,      // fire every 10m movement
-      stopTimeout:            5,         // minutes before stop detection
-      
-      // CRITICAL: Foreground service keeps OS from killing
-      enableHeadless:         true,
-      startOnBoot:            false,
-      stopOnTerminate:        false,
-      foregroundService:      true,      // Android foreground service
-      
-      // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
-      // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
-      heartbeatInterval:      60,        // ping every 60s even if not moving
-      
-      // Notification (required for foreground service on Android)
-      notification: bg.Notification(
-        title:    '⚡ Hustlr Active',
-        text:     'Zone protection running — shift active',
-        color:    '#1B5E20',
-        smallIcon: 'mipmap/ic_launcher',
-        sticky:   true,        // cannot be dismissed
-      ),
+    try {
+      await bg.BackgroundGeolocation.ready(bg.Config(
+        // Core tracking
+        desiredAccuracy:        bg.Config.DESIRED_ACCURACY_HIGH,
+        distanceFilter:         10.0,      // fire every 10m movement
+        stopTimeout:            5,         // minutes before stop detection
+        
+        // CRITICAL: Foreground service keeps OS from killing
+        enableHeadless:         true,
+        startOnBoot:            false,
+        stopOnTerminate:        false,
+        foregroundService:      true,      // Android foreground service
+        
+        // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
+        // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
+        heartbeatInterval:      60,        // ping every 60s even if not moving
+        
+        // Notification (required for foreground service on Android)
+        notification: bg.Notification(
+          title:    '⚡ Hustlr Active',
+          text:     'Zone protection running — shift active',
+          color:    '#1B5E20',
+          smallIcon: 'mipmap/ic_launcher',
+          sticky:   true,        // cannot be dismissed
+        ),
 
-      // Location permission
-      locationAuthorizationRequest: 'Always',
-      backgroundPermissionRationale: bg.PermissionRationale(
-        title:   'Allow background location for shift protection',
-        message: 'Hustlr needs background location to detect when you\'re in your zone during disruptions. This ensures you receive your payout.',
-        positiveAction: 'Allow Always',
-        negativeAction: 'Cancel',
-      ),
+        // Location permission
+        locationAuthorizationRequest: 'Always',
+        backgroundPermissionRationale: bg.PermissionRationale(
+          title:   'Allow background location for shift protection',
+          message: 'Hustlr needs background location to detect when you\'re in your zone during disruptions. This ensures you receive your payout.',
+          positiveAction: 'Allow Always',
+          negativeAction: 'Cancel',
+        ),
 
-      // Battery optimization
-      pausesLocationUpdatesAutomatically: false,
-      activityRecognitionInterval:        5000,
+        // Battery optimization
+        pausesLocationUpdatesAutomatically: false,
+        activityRecognitionInterval:        5000,
 
-      // Debug (turn off for production)
-      debug:   false,
-      logLevel: bg.Config.LOG_LEVEL_OFF,
-    ));
+        // Debug (turn off for production)
+        debug:   false,
+        logLevel: bg.Config.LOG_LEVEL_OFF,
+      ));
+    } catch (e) {
+      print('[ShiftTrackingService] Error configuring bg location: $e');
+    }
 
     // Position listener — fires on every location update
     bg.BackgroundGeolocation.onLocation((bg.Location location) {

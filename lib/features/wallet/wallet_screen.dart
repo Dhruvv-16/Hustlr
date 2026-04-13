@@ -471,8 +471,8 @@ class _WeeklySummarySection extends StatelessWidget {
           ))
         else
           ...recentTx.map((tx) {
-            final amount = (tx['amount'] as num?)?.toInt() ?? 0;
-            final isCredit = amount > 0;
+            final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
+            final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
             final rawDate = tx['created_at'] as String? ?? '';
             final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
             return Padding(
@@ -483,7 +483,7 @@ class _WeeklySummarySection extends StatelessWidget {
                 iconColor: isCredit ? green : red,
                 title: tx['description'] ?? 'Transaction',
                 date: dateStr,
-                amount: amount > 0 ? '+₹$amount' : '−₹${amount.abs()}',
+                amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                 amountColor: isCredit ? green : red,
                 cardBg: cardWhite,
                 primary: primary,
@@ -624,17 +624,17 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               ),
               itemBuilder: (context, index) {
                 final tx = transactions[index];
-                final amount = (tx['amount'] as num?)?.toInt() ?? 0;
-                final isCredit = amount > 0;
+                final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
+                final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
                 final rawDate = tx['created_at'] as String? ?? '';
                 final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
                 return _buildTransactionRow(
                   icon: isCredit ? Icons.card_giftcard_rounded : Icons.shield_rounded,
-                  iconColor: isCredit ? blue : const Color(0xFF607D8B),
-                  iconBg: isCredit ? lightBlue : const Color(0xFFECEFF1),
+                  iconColor: isCredit ? blue : red,
+                  iconBg: isCredit ? lightBlue : const Color(0xFFFFEBEE),
                   title: tx['description'] ?? 'Transaction',
                   subtitle: dateStr,
-                  amount: amount > 0 ? '+₹$amount' : '−₹${amount.abs()}',
+                  amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                   amountColor: isCredit ? green : red,
                   primary: primary,
                   grey: grey,

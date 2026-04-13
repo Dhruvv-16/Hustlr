@@ -54,10 +54,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- flutter_background_geolocation: Required for persistent shift tracking -->
-        <meta-data
-            android:name="com.transistorsoft.locationmanager.license"
-            android:value="HACKATHON_DEMO_LICENSE_PLACEHOLDER_12345" />
+        <!-- flutter_background_geolocation tracking service -->
         <service
             android:name="com.transistorsoft.locationmanager.service.TrackingService"
             android:foregroundServiceType="location" />
