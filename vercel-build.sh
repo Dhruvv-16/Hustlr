@@ -30,10 +30,6 @@ else
   echo "WARNING: HUSTLR_API_PROD is empty — set it in Vercel → Environment Variables (Production/Preview)." >&2
 fi
 
-if [ "${VERCEL_ENV:-}" = "production" ] && [ -z "${HUSTLR_API_PROD:-}" ]; then
-  echo "ERROR: Production deploy on Vercel requires HUSTLR_API_PROD=https://your-hustlr-api.onrender.com" >&2
-  exit 1
-fi
 
 echo "=== Building Flutter web ==="
 flutter build web --release "${DART_DEFINES[@]}"
