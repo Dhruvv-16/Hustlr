@@ -805,7 +805,7 @@ class ApiService {
   Future<Map<String, dynamic>> validateFraudTelemetry(Map<String, dynamic> sensorFeatures) async {
     try {
       final res = await http.post(
-        Uri.parse('$mlBackendUrl/fraud/ring-detect'),
+        Uri.parse('$mlBackendUrl/fraud-score'),
         headers: headers,
         body: jsonEncode({
           "worker_id": currentUserId ?? "demo_worker",
@@ -822,14 +822,14 @@ class ApiService {
       ).timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
     } catch (_) {
-      return {'risk_level': (sensorFeatures['gps_jitter'] == 0.0) ? 'high' : 'low', 'confidence_score': 0.99, '_mock': true};
+      return {'is_anomalous': (sensorFeatures['gps_jitter'] == 0.0), 'anomaly_score': 0.99, '_mock': true};
     }
   }
 
   Future<Map<String, dynamic>> getIssScore() async {
     try {
       final res = await http.post(
-        Uri.parse('$mlBackendUrl/fraud/iss-score'),
+        Uri.parse('$mlBackendUrl/iss'),
         headers: headers,
         body: jsonEncode({
           "zone_flood_risk": 0.65,
@@ -848,7 +848,7 @@ class ApiService {
   Future<Map<String, dynamic>> getDynamicPremium(String planTier, int issScore) async {
     try {
       final res = await http.post(
-        Uri.parse('$mlBackendUrl/pricing/premium'),
+        Uri.parse('$mlBackendUrl/premium'),
         headers: headers,
         body: jsonEncode({
           "plan_tier": planTier.toLowerCase().contains('full') ? 'full' : 'standard',
@@ -859,7 +859,7 @@ class ApiService {
       ).timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
     } catch (_) {
-      return {'adjusted_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
+      return {'final_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
     }
   }
 }

@@ -51,7 +51,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     setState(() => _mlStatusText = 'Analyzing ML Confidence Score...');
     await Future.delayed(const Duration(milliseconds: 1200)); // Let the judges read it
 
-    if (mlData['risk_level'] == 'high') {
+    if (mlData['is_anomalous'] == true) {
        sensorFeatures['gps_jitter'] = 0.0; // Force flag downstream
     } else {
        sensorFeatures['gps_jitter'] = 0.10; // Natural safe jitter
