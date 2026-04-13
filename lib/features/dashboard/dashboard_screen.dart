@@ -45,6 +45,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   bool isLoading = true;
   Timer? _disruptionRefreshTimer;
   StreamSubscription<Position>? _locationStream;
+  
+  // Realtime Gen ML Status
+  int? liveIssScore;
+  double? liveDynamicPrice;
 
   // Debug variables
   bool _debugMode = false;
@@ -227,6 +231,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         };
       }
 
+      // ── Organic ML Data Fetch (Live Dashboard) ──
+      try {
+        final issData = await ApiService.instance.getIssScore();
+        liveIssScore = issData['iss_score'] as int?;
+        if (liveIssScore != null) {
+          final premData = await ApiService.instance.getDynamicPremium(tier ?? 'standard', liveIssScore!);
+          liveDynamicPrice = (premData['adjusted_premium'] as num?)?.toDouble();
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           walletData = walletRes;
@@ -387,10 +401,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     
     final displayUserName = titleCase(userName ?? 'Karthik');
     final rawPremium = policyData?['weekly_premium']?.toString();
-    final premium = rawPremium == '50' ? '49' : rawPremium ?? 
+    final String premium = liveDynamicPrice != null ? liveDynamicPrice!.toStringAsFixed(0) : (rawPremium == '50' ? '49' : rawPremium ?? 
         (planName == 'Basic Shield' ? '29' : 
          planName == 'Standard Shield' ? '49' : 
-          planName == 'Full Shield' ? '79' : '109');
+          planName == 'Full Shield' ? '79' : '109'));
     
     // Fallback to MockData shadowMissed or a positive value, never wallet balance!
     final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
@@ -634,16 +648,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     TextSpan(
                       text: '₹$premium',
                       style: TextStyle(
-                        color: mintColor,
-                        fontSize: 26,
+                        color: liveDynamicPrice != null ? Colors.amberAccent : mintColor,
+                        fontSize: liveDynamicPrice != null ? 30 : 26,
                         fontWeight: FontWeight.w900,
                         fontFamily: 'Manrope',
                       ),
                     ),
                     TextSpan(
-                      text: l10n.policy_per_week,
+                      text: liveDynamicPrice != null ? ' (ML Adjusted)' : l10n.policy_per_week,
                       style: TextStyle(
-                        color: subtleText,
+                        color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Manrope',
@@ -665,6 +679,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               fontFamily: 'Manrope',
             ),
           ),
+          if (liveIssScore != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blueAccent)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.psychology_alt_rounded, color: Colors.blueAccent, size: 14),
+                  const SizedBox(width: 6),
+                  Text('LIVE AI TRUST SCORE: $liveIssScore', style: const TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 28),
           Wrap(
             spacing: 10,
