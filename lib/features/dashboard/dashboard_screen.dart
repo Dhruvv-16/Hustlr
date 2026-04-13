@@ -102,7 +102,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   /// Run a live health check against each key API endpoint and store results.
-  Future<void> _checkApiHealth() async {
+  bool _isMLFetching = false;
+  Future<void> _fetchLiveMLData(String tier) async {
+    if (!mounted) return;
+    setState(() => _isMLFetching = true);
+    try {
+      final issData = await ApiService.instance.getIssScore();
+      if (!mounted) return;
+      final score = issData['iss_score'] as int?;
+      if (score != null) {
+        liveIssScore = score;
+        final premData = await ApiService.instance.getDynamicPremium(tier, score);
+        if (mounted) {
+          setState(() {
+            liveDynamicPrice = (premData['adjusted_premium'] as num?)?.toDouble();
+            _isMLFetching = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isMLFetching = false);
+    }
+  }
+
+  void _checkApiHealth() async {
     setState(() => _apiHealthStatus = {'_loading': 'true'});
     final base = ApiService.baseUrl;
     final results = <String, String>{};
@@ -231,16 +254,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         };
       }
 
-      // ── Organic ML Data Fetch (Live Dashboard) ──
-      try {
-        final issData = await ApiService.instance.getIssScore();
-        liveIssScore = issData['iss_score'] as int?;
-        if (liveIssScore != null) {
-          final premData = await ApiService.instance.getDynamicPremium(tier ?? 'standard', liveIssScore!);
-          liveDynamicPrice = (premData['adjusted_premium'] as num?)?.toDouble();
-        }
-      } catch (_) {}
-
+      // The dashboard data has landed! Render it instantly.
       if (mounted) {
         setState(() {
           walletData = walletRes;
@@ -251,6 +265,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           isLoading = false;
         });
       }
+
+      // ── Organic ML Data Fetch (Detached Background Task) ──
+      // This prevents the app from freezing if Render is experiencing a cold start.
+      _fetchLiveMLData(tier ?? 'standard');
 
       // Trigger notifications based on policy status and disruptions
       final hasActivePolicy = policyData != null;
@@ -633,20 +651,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                l10n.dashboard_current_active,
+                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? l10n.wallet_title : l10n.policy_card_premium),
                 style: TextStyle(
-                  color: mintColor,
+                  color: _isMLFetching ? Colors.orangeAccent : (liveDynamicPrice != null ? Colors.amberAccent : subtleText),
                   fontSize: 11,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.bold,
                   fontFamily: 'Manrope',
                 ),
               ),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '₹$premium',
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  if (_isMLFetching)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8.0, bottom: 4.0),
+                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
+                    )
+                  else
+                    Text(
+                      '₹$premium',
                       style: TextStyle(
                         color: liveDynamicPrice != null ? Colors.amberAccent : mintColor,
                         fontSize: liveDynamicPrice != null ? 30 : 26,
@@ -654,8 +679,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         fontFamily: 'Manrope',
                       ),
                     ),
-                    TextSpan(
-                      text: liveDynamicPrice != null ? ' (ML Adjusted)' : l10n.policy_per_week,
+                  if (!_isMLFetching)
+                    Text(
+                      liveDynamicPrice != null ? ' (ML Adjusted)' : l10n.policy_per_week,
                       style: TextStyle(
                         color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
                         fontSize: 13,
@@ -663,8 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         fontFamily: 'Manrope',
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
