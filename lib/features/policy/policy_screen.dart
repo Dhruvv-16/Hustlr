@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../shared/widgets/hustlr_bottom_nav.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 
 // Dark mode palette
 const _darkGreen       = Color(0xFF3FFF8B);
@@ -72,11 +74,28 @@ class PolicyScreen extends StatefulWidget {
 class _PolicyScreenState extends State<PolicyScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Map<String, dynamic>? activePolicy;
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    _loadPolicy();
+  }
+
+  Future<void> _loadPolicy() async {
+    final uid = await StorageService.instance.getUserId();
+    if (uid != null) {
+      try {
+        final data = await ApiService.instance.getPolicyInstance(uid);
+        if (mounted) setState(() { activePolicy = data; isLoading = false; });
+      } catch (e) {
+        if (mounted) setState(() => isLoading = false);
+      }
+    } else {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
   @override
@@ -139,11 +158,11 @@ class _PolicyScreenState extends State<PolicyScreen>
         children: [
           Positioned.fill(
             child: MobileContainer(
-              child: TabBarView(
+              child: isLoading ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) : TabBarView(
                 controller: _tabController,
                 children: [
-                  _CurrentPlanTab(),
-                  _UpgradeTab(onProceed: () => context.push('/policy/payment')),
+                  _CurrentPlanTab(activePolicy: activePolicy),
+                  _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
                   _HistoryTab(),
                 ],
               ),
@@ -173,6 +192,9 @@ class _PolicyScreenState extends State<PolicyScreen>
 
 // ─── Tab 1: Current Plan ──────────────────────────────────────────────────────
 class _CurrentPlanTab extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  const _CurrentPlanTab({this.activePolicy});
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -180,7 +202,7 @@ class _CurrentPlanTab extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel(context, 'ACTIVE COVERAGE'),
         const SizedBox(height: 12),
-        _ActiveCoverageCard(),
+        _ActiveCoverageCard(activePolicy: activePolicy),
         const SizedBox(height: 24),
         _sectionLabel(context, 'COVERAGE DETAILS'),
         const SizedBox(height: 12),
@@ -237,6 +259,9 @@ Widget _coverageItem(BuildContext context, IconData icon, String title, String s
 
 // ─── Active Coverage Card ─────────────────────────────────────────────────────
 class _ActiveCoverageCard extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  const _ActiveCoverageCard({this.activePolicy});
+
   @override
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context)!;
@@ -256,7 +281,7 @@ class _ActiveCoverageCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Text(l10n.policy_standard, style: TextStyle(
+            child: Text(activePolicy?['plan_name'] ?? l10n.policy_standard, style: TextStyle(
               fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           ),
           Container(
@@ -269,7 +294,7 @@ class _ActiveCoverageCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Policy #HS-98234-AX',
+        Text('Policy #${activePolicy?['id']?.toString().toUpperCase() ?? "HS-98234-AX"}',
             style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7))),
         const SizedBox(height: 12),
         Text('VALIDITY', style: TextStyle(
@@ -358,7 +383,8 @@ class _GhostButton extends StatelessWidget {
 // ─── Tab 2: Upgrade ───────────────────────────────────────────────────────────
 class _UpgradeTab extends StatefulWidget {
   final VoidCallback onProceed;
-  const _UpgradeTab({required this.onProceed});
+  final Map<String, dynamic>? activePolicy;
+  const _UpgradeTab({required this.onProceed, this.activePolicy});
 
   @override
   State<_UpgradeTab> createState() => _UpgradeTabState();
@@ -410,7 +436,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _sectionLabel(context, 'ACTIVE COVERAGE'),
           const SizedBox(height: 12),
-          _ActiveCoverageCard(),
+          _ActiveCoverageCard(activePolicy: widget.activePolicy),
           const SizedBox(height: 24),
           _sectionLabel(context, 'UPGRADE YOUR PROTECTION'),
           const SizedBox(height: 12),
@@ -467,6 +493,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         left: 0, right: 0, bottom: 0,
         child: _StickyBottomBar(
           total: _totalCost,
+          activePolicy: widget.activePolicy,
+          selectedPlan: _selectedPlan,
           onProceed: () {
             final planPrices = {'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79};
             final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
@@ -729,8 +757,10 @@ class _RiderRow extends StatelessWidget {
 class _StickyBottomBar extends StatelessWidget {
   final int total;
   final VoidCallback onProceed;
+  final Map<String, dynamic>? activePolicy;
+  final String? selectedPlan;
 
-  const _StickyBottomBar({required this.total, required this.onProceed});
+  const _StickyBottomBar({required this.total, required this.onProceed, this.activePolicy, this.selectedPlan});
 
   @override
   Widget build(BuildContext context) {

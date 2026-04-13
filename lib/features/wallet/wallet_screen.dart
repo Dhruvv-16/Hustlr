@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../../services/demo_state_service.dart';
 
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
@@ -56,12 +58,23 @@ class _WalletScreenState extends State<WalletScreen> {
       } catch (_) {}
       
       setState(() {
-        _balance        = res['balance'] ?? 0;
-        _totalPayouts   = res['total_payouts'] ?? 0;
+        _balance        = (res['balance'] ?? 0) + DemoStateService.instance.walletBalance;
+        _totalPayouts   = (res['total_payouts'] ?? 0) + DemoStateService.instance.totalPayouts;
         _totalPremiums  = res['total_premiums'] ?? 0;
-        _transactions   = List<Map<String, dynamic>>.from(
-          res['transactions'] ?? []
-        );
+        
+        final combinedTx = [
+          ...DemoStateService.instance.transactions,
+          ...(res['transactions'] ?? [])
+        ];
+        
+        // sort combinedTx by created_at descending
+        combinedTx.sort((a, b) {
+          final dateA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final dateB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return dateB.compareTo(dateA);
+        });
+
+        _transactions   = List<Map<String, dynamic>>.from(combinedTx);
         _cashbackStatus = cashbackData;
         _loading        = false;
         _isMock         = res['_mock'] == true;

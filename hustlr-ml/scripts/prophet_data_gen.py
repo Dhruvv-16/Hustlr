@@ -333,7 +333,7 @@ def generate_dataset() -> None:
 
         total_written += len(df_zone)
         pct = (z_idx + 1) / N_ZONES * 100
-        bar = "█" * int(pct / 2) + "░" * (50 - int(pct / 2))
+        bar = "#" * int(pct / 2) + "-" * (50 - int(pct / 2))
         print(f"\r  [{bar}] {pct:5.1f}%  Zone {z_idx+1:03d}/{N_ZONES}  ({city})", end="", flush=True)
 
     print(f"\n\n[DONE] Total rows written : {total_written:,}")
@@ -347,7 +347,7 @@ def validate_dataset() -> None:
     with open(OUTPUT_FILE, "r") as f:
         row_count = sum(1 for _ in f) - 1
     expected = 26_280 * N_ZONES
-    status   = "PASS ✓" if abs(row_count - expected) / expected < 0.02 else "WARN △"
+    status   = "PASS" if abs(row_count - expected) / expected < 0.02 else "WARN"
     print(f"  Rows: expected ~{expected:,}  |  actual {row_count:,}  [{status}]")
 
     checks = {
@@ -360,7 +360,7 @@ def validate_dataset() -> None:
     }
     for col, (lo, hi) in checks.items():
         ok = df[col].between(lo, hi).all()
-        print(f"  {col:<30} [{lo}, {hi}]  {'PASS ✓' if ok else 'FAIL ✗'}")
+        print(f"  {col:<30} [{lo}, {hi}]  {'PASS' if ok else 'FAIL'}")
 
     ipl_rate = df["ipl_match_flag"].mean() * 100
     print(f"  IPL flag rate = {ipl_rate:.2f}%  (expected 3–8%)")
