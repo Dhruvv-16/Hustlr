@@ -822,13 +822,14 @@ class ApiService {
   // ── Native ML Direct Endpoints (Phase 3 Organic Demo) ──────────────────────
 
   Future<Map<String, dynamic>> validateFraudTelemetry(Map<String, dynamic> sensorFeatures) async {
+    final zone = await StorageService.instance.getUserZone() ?? "Adyar Dark Store Zone";
     try {
       final res = await http.post(
         Uri.parse('$mlBackendUrl/fraud-score'),
         headers: headers,
         body: jsonEncode({
           "worker_id": currentUserId ?? "demo_worker",
-          "zone_id": "Adyar Dark Store Zone",
+          "zone_id": zone,
           "claim_timestamp": DateTime.now().toIso8601String(),
           "feature_vector": {
             "zone_match": 0.95,
@@ -865,13 +866,14 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getDynamicPremium(String planTier, int issScore) async {
+    final zone = await StorageService.instance.getUserZone() ?? "Adyar Dark Store Zone";
     try {
       final res = await http.post(
         Uri.parse('$mlBackendUrl/premium'),
         headers: headers,
         body: jsonEncode({
           "plan_tier": planTier.toLowerCase().contains('full') ? 'full' : 'standard',
-          "zone": "Adyar Dark Store Zone",
+          "zone": zone,
           "iss_score": issScore,
           "previous_premium": planTier.toLowerCase().contains('full') ? 79.0 : 49.0
         }),

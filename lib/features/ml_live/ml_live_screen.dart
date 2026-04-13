@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../services/storage_service.dart';
 
 class MLLiveScreen extends StatefulWidget {
   const MLLiveScreen({super.key});
@@ -148,13 +149,14 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
   }
 
   Future<void> _runPremium() async {
+    final userZone = await StorageService.instance.getUserZone() ?? 'Adyar Dark Store Zone';
     try {
       final res = await http.post(
         Uri.parse('$_mlUrl/premium'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'plan_tier': 'standard',
-          'zone': 'Adyar Dark Store Zone',
+          'zone': userZone,
           'iss_score': _issResult['iss_score'] ?? 62,
           'previous_premium': 0.0,
         }),
@@ -173,11 +175,13 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
 
   Future<void> _runForecast() async {
     setState(() => _forecastLoading = true);
+    final userZone = await StorageService.instance.getUserZone() ?? 'adyar';
+    final safeZone = Uri.encodeComponent(userZone.toLowerCase().replaceAll(' ', '-'));
     
     final endpoints = [
-      '$_mlUrl/forecast/adyar?days=3',
-      '$_mlUrl/forecast/Adyar?days=3',
-      '$_mlUrl/forecast/adyar-dark-store-zone?days=3',
+      '$_mlUrl/forecast/$safeZone?days=3',
+      '$_mlUrl/forecast/${Uri.encodeComponent(userZone)}?days=3',
+      '$_mlUrl/forecast/adyar-dark-store-zone?days=3', // Fallback
     ];
     
     for (final endpoint in endpoints) {

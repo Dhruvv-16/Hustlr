@@ -15,6 +15,7 @@ class PremiumBreakdownScreen extends StatefulWidget {
 class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
   Map<String, dynamic>? policyData;
   String? userId;
+  String userZone = 'Adyar Dark Store Zone';
   bool isLoading = true;
 
   @override
@@ -25,6 +26,8 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
 
   Future<void> _loadPolicyData() async {
     userId = await StorageService.instance.getUserId();
+    userZone = await StorageService.instance.getUserZone() ?? 'Adyar Dark Store Zone';
+    
     if (userId == null) {
       if (mounted) setState(() => isLoading = false);
       return;
@@ -78,7 +81,6 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
     };
     final activePlan = policyData?['plan_name'] ?? 'Standard Shield';
     final weeklyPremium = policyData?['weekly_premium'] ?? 49;
-    final userZone = 'Adyar Dark Store Zone'; // Ideally from StorageService, mocking for UI
     final userPlatform = 'Platform';
 
 
@@ -279,7 +281,8 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           const SizedBox(height: 24),
           ...zones.map((z) {
             final double ratio = (z['rate'] as int) / maxRate;
-            final bool isAdyar = z['zone'] == 'Adyar';
+            final String currentZ = z['zone'] as String;
+            final bool isAdyar = userZone.contains(currentZ) || currentZ == userZone;
             final String note = isAdyar ? 'YOUR ZONE' : '${z['risk']} RISK';
 
             return Padding(
@@ -289,7 +292,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
                 children: [
                   SizedBox(
                     width: 76,
-                    child: Text(z['zone'], style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
+                    child: Text(currentZ, style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
                   ),
                   const SizedBox(width: 12),
                   SizedBox(
