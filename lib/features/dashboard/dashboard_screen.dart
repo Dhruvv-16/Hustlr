@@ -23,6 +23,7 @@ import '../../features/shared/widgets/demo_control_panel.dart';
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
+import '../../services/dynamic_translator.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -593,7 +594,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (userZone ?? 'BENGALURU, KA').toUpperCase(),
+                    (DynamicTranslator.of(context).translate(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
                       fontSize: 10,
@@ -760,10 +761,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subColor = textColor.withOpacity(0.65);
 
+    final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
-    final band = a['stability_band_label'] as String? ?? 'Earning outlook';
-    final headline = a['headline'] as String? ?? '';
-    final nudge = a['coverage_nudge'] as String? ?? '';
+    final band = t.translate(a['stability_band_label'] as String? ?? 'Earning outlook');
+    final headline = t.translate(a['headline'] as String? ?? '');
+    final nudge = t.translate(a['coverage_nudge'] as String? ?? '');
     final suggest = a['suggest_activate_coverage'] == true;
     final windows = a['recommended_shift_windows'] as List<dynamic>? ?? [];
 
@@ -847,7 +849,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ...windows.take(2).map((w) {
               final m = w is Map<String, dynamic> ? w : null;
               if (m == null) return const SizedBox.shrink();
-              final label = m['label'] as String? ?? '';
+              final label = t.translate(m['label'] as String? ?? '');
               final hours = m['hours'] as String? ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -992,9 +994,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
     
-    final date = nudgeData!['nudge_date'] as String? ?? 'Friday';
+    final t = DynamicTranslator.of(context);
+    final date = t.translate(nudgeData!['nudge_date'] as String? ?? 'Friday');
     final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
-    final desc = nudgeData!['description'] as String? ?? 'Heavy rain expected.';
+    final desc = t.translate(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
     
     return Container(
       width: double.infinity,
