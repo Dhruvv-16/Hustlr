@@ -26,6 +26,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/live_activity_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,25 +113,27 @@ class HustlrApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
     
-    return MaterialApp.router(
-      title: 'Hustlr',
-      debugShowCheckedModeBanner: false,
-      locale: localeProvider.locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ta'),
-        Locale('hi'),
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeProvider.themeMode,
-      routerConfig: appRouter,
+    return LiveActivityOverlay(
+      child: MaterialApp.router(
+        title: 'Hustlr',
+        debugShowCheckedModeBanner: false,
+        locale: localeProvider.locale,
+        supportedLocales: const [
+          Locale('en'),
+          Locale('ta'),
+          Locale('hi'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeProvider.themeMode,
+        routerConfig: appRouter,
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/app_events.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Map<String, dynamic>? checkoutData;
@@ -50,6 +51,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         final policyId = result['policy']?['id'] as String?;
         if (policyId != null) {
           await StorageService.instance.savePolicyId(policyId);
+          AppEvents.instance.policyUpdated();
+          AppEvents.instance.walletUpdated(); // Premium deducted
         }
       }
     } catch (e) {

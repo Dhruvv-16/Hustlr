@@ -9,8 +9,9 @@ from pathlib import Path
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
+
+from model_data_utils import cap_group_rows, grouped_train_test_indices, template_text_groups
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
@@ -31,6 +32,18 @@ def train_nlp_model():
     df = df.dropna(subset=["raw_text", "trigger_label"])
     df["raw_text"] = df["raw_text"].astype(str).str.strip()
     df = df[df["raw_text"].str.len() > 0]
+    df["text_group"] = template_text_groups(df["raw_text"], df["zone"].dropna().unique())
+    df = cap_group_rows(df, "text_group", max_rows_per_group=3, random_state=42)
+
+    labels = df["trigger_label"].astype(str)
+    label_map = {lab: i for i, lab in enumerate(sorted(labels.unique()))}
+    y_encoded = labels.map(label_map).astype(int).values
+    train_idx, test_idx = grouped_train_test_indices(df["text_group"], test_size=0.2, random_state=42)
+
+    train_text = df.iloc[train_idx]["raw_text"]
+    test_text = df.iloc[test_idx]["raw_text"]
+    y_tr = y_encoded[train_idx]
+    y_te = y_encoded[test_idx]
 
     tfidf = TfidfVectorizer(
         max_features=4000,
@@ -40,17 +53,8 @@ def train_nlp_model():
         strip_accents="unicode",
         analyzer="word",
     )
-    X = tfidf.fit_transform(df["raw_text"])
-    labels = df["trigger_label"].astype(str)
-    label_map = {lab: i for i, lab in enumerate(sorted(labels.unique()))}
-    y_encoded = labels.map(label_map)
-
-    # Stratify only if every class has enough samples
-    counts = labels.value_counts()
-    strat = y_encoded if counts.min() >= 5 else None
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y_encoded, test_size=0.2, random_state=42, stratify=strat
-    )
+    X_tr = tfidf.fit_transform(train_text)
+    X_te = tfidf.transform(test_text)
 
     xgb_clf = XGBClassifier(
         n_estimators=300,
@@ -65,8 +69,14 @@ def train_nlp_model():
     )
     xgb_clf.fit(X_tr, y_tr)
 
-    print(f"Test Accuracy: {accuracy_score(y_te, xgb_clf.predict(X_te)):.4f}")
-    print(f"Rows: {len(df)} | zones: {df['zone'].nunique()} | labels: {list(label_map.keys())}")
+    train_acc = accuracy_score(y_tr, xgb_clf.predict(X_tr))
+    test_acc = accuracy_score(y_te, xgb_clf.predict(X_te))
+    print(f"Train Accuracy: {train_acc:.4f}")
+    print(f"Test Accuracy:  {test_acc:.4f}")
+    print(
+        f"Rows: {len(df)} | unique text groups: {df['text_group'].nunique()} | "
+        f"zones: {df['zone'].nunique()} | labels: {list(label_map.keys())}"
+    )
 
     joblib.dump(label_map, MODELS_DIR / "model4_label_map.pkl")
     xgb_clf.save_model(MODELS_DIR / "model4_rf_nlp.json")

@@ -24,6 +24,7 @@ import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
 import '../../services/dynamic_translator.dart';
+import '../../services/app_events.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -46,6 +47,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   bool isLoading = true;
   Timer? _disruptionRefreshTimer;
   StreamSubscription<Position>? _locationStream;
+  
+  // Stream subscriptions
+  StreamSubscription? _policySub;
+  StreamSubscription? _walletSub;
+  StreamSubscription? _claimSub;
   
   // Realtime Gen ML Status
   int? liveIssScore;
@@ -84,6 +90,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (!mounted) return;
       _loadDashboardData();
     });
+
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadDashboardData());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -199,6 +209,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     WidgetsBinding.instance.removeObserver(this);
     _disruptionRefreshTimer?.cancel();
     _locationStream?.cancel();
+    _policySub?.cancel();
+    _walletSub?.cancel();
+    _claimSub?.cancel();
     super.dispose();
   }
 
@@ -434,11 +447,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       body: Stack(
         children: [
           Positioned.fill(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 24),
-              physics: const BouncingScrollPhysics(),
-              child: SafeArea(
-                bottom: false,
+            child: RefreshIndicator(
+              color: const Color(0xFF10B981),
+              backgroundColor: const Color(0xFF161B22),
+              onRefresh: _loadDashboardData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 24),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SafeArea(
+                  bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Column(
@@ -482,6 +499,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   ),
                 ),
               ),
+            ),
             ),
           ),
         ],
