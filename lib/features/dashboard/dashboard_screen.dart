@@ -116,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         final premData = await ApiService.instance.getDynamicPremium(tier, score);
         if (mounted) {
           setState(() {
-            liveDynamicPrice = (premData['adjusted_premium'] as num?)?.toDouble();
+            liveDynamicPrice = (premData['final_premium'] as num?)?.toDouble();
             _isMLFetching = false;
           });
         }
@@ -652,7 +652,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? l10n.wallet_title : l10n.policy_card_premium),
+                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? 'ML ADJUSTED PREMIUM' : 'YOUR WEEKLY PREMIUM'),
                 style: TextStyle(
                   color: _isMLFetching ? Colors.orangeAccent : (liveDynamicPrice != null ? Colors.amberAccent : subtleText),
                   fontSize: 11,
@@ -682,7 +682,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ),
                   if (!_isMLFetching)
                     Text(
-                      liveDynamicPrice != null ? ' (ML Adjusted)' : l10n.policy_per_week,
+                      liveDynamicPrice != null ? ' (ML Adjusted)' : '/ week',
                       style: TextStyle(
                         color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
                         fontSize: 13,
