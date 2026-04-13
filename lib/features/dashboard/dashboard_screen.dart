@@ -396,7 +396,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       );
     }
 
-    final isLocationDenied = _locationPermissionStatus.contains('denied');
+    final isLocationDenied = _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
     if (isLocationDenied || isGpsOff) {
@@ -1130,6 +1130,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               final bgPerm = await Permission.locationAlways.status;
               if (!bgPerm.isGranted) {
                 await Permission.locationAlways.request();
+              }
+              final notifPerm = await Permission.notification.status;
+              if (!notifPerm.isGranted) {
+                await Permission.notification.request();
+              }
+              final actPerm = await Permission.activityRecognition.status;
+              if (!actPerm.isGranted) {
+                await Permission.activityRecognition.request();
               }
               Position position;
               try {

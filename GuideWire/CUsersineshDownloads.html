@@ -1,0 +1,92 @@
+
+<style>
+  .phone { background:#0A0B0A; border-radius:32px; width:320px; margin:0 auto; padding:20px 16px 32px; border:1px solid rgba(255,255,255,0.08); }
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+  .back { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; }
+  .back svg { width:12px; height:12px; }
+  .screen-title { font-size:15px; font-weight:500; color:#fff; }
+  .rejected-card { background:#1A1B1A; border-radius:12px; border:0.5px solid rgba(226,75,74,0.4); padding:14px; margin-bottom:18px; }
+  .badge-red { background:#FCEBEB; color:#A32D2D; font-size:10px; font-weight:500; padding:2px 7px; border-radius:4px; display:inline-block; }
+  .claim-title { font-size:14px; font-weight:500; color:#fff; margin:8px 0 2px; }
+  .claim-sub { font-size:12px; color:rgba(255,255,255,0.45); }
+  .reason-box { background:rgba(255,255,255,0.04); border-radius:8px; padding:9px 10px; margin-top:10px; font-size:11px; color:rgba(255,255,255,0.45); }
+  .section-label { font-size:12px; font-weight:500; color:rgba(255,255,255,0.5); letter-spacing:0.3px; margin-bottom:8px; }
+  .reason-item { background:#1A1B1A; border-radius:10px; border:0.5px solid rgba(255,255,255,0.08); padding:11px 12px; margin-bottom:7px; display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .reason-item.selected { background:rgba(63,255,139,0.08); border:1px solid rgba(63,255,139,0.5); }
+  .radio { width:16px; height:16px; border-radius:50%; border:1.5px solid rgba(255,255,255,0.25); flex-shrink:0; }
+  .radio.checked { background:#3FFF8B; border-color:transparent; display:flex; align-items:center; justify-content:center; }
+  .radio.checked::after { content:''; width:6px; height:6px; background:#0A0B0A; border-radius:50%; }
+  .reason-text { font-size:12px; color:#fff; line-height:1.4; }
+  .reason-text.selected { font-weight:500; }
+  .info-banner { background:rgba(255,255,255,0.04); border-radius:10px; border-left:3px solid rgba(63,255,139,0.4); border-radius:0; padding:11px 12px; margin:14px 0; }
+  .info-title { font-size:12px; font-weight:500; color:#fff; margin-bottom:5px; }
+  .info-row { font-size:11px; color:rgba(255,255,255,0.55); margin-bottom:3px; display:flex; gap:7px; }
+  .dot { width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.4); margin-top:5px; flex-shrink:0; }
+  .submit-btn { background:#3FFF8B; border-radius:12px; height:48px; display:flex; align-items:center; justify-content:center; margin-top:14px; }
+  .submit-text { font-size:14px; font-weight:500; color:#0A0B0A; }
+  .submit-btn.disabled { background:rgba(255,255,255,0.08); }
+  .submit-text.disabled { color:rgba(255,255,255,0.25); }
+  .date-right { font-size:11px; color:rgba(255,255,255,0.35); margin-left:auto; }
+</style>
+
+<div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:2rem;display:flex;justify-content:center;">
+  <div class="phone">
+
+    <div class="topbar">
+      <div class="back">
+        <svg viewBox="0 0 10 16" fill="none"><path d="M8 2L2 8L8 14" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="screen-title">Appeal claim</div>
+    </div>
+
+    <div class="rejected-card">
+      <div style="display:flex;align-items:center;">
+        <span class="badge-red">Rejected</span>
+        <span class="date-right">12 Nov · 11:02 AM</span>
+      </div>
+      <div class="claim-title">Heavy rain disruption</div>
+      <div class="claim-sub">Claim #CR8821 · Adyar zone</div>
+      <div class="reason-box">System reason: GPS zone mismatch detected (score: 0.67)</div>
+    </div>
+
+    <div class="section-label">What went wrong?</div>
+
+    <div class="reason-item selected">
+      <div class="radio checked"></div>
+      <div class="reason-text selected">I was in the zone but GPS signal dropped</div>
+    </div>
+
+    <div class="reason-item">
+      <div class="radio"></div>
+      <div class="reason-text">IMD data correct but shift overlap not recognised</div>
+    </div>
+
+    <div class="reason-item">
+      <div class="radio"></div>
+      <div class="reason-text">The disruption lasted longer than recorded</div>
+    </div>
+
+    <div class="reason-item">
+      <div class="radio"></div>
+      <div class="reason-text">Dark store was closed — orders were impossible</div>
+    </div>
+
+    <div class="reason-item">
+      <div class="radio"></div>
+      <div class="reason-text">Other — see explanation below</div>
+    </div>
+
+    <div class="info-banner">
+      <div class="info-title">What happens next</div>
+      <div class="info-row"><div class="dot"></div><span>Reviewed within 4 hours</span></div>
+      <div class="info-row"><div class="dot"></div><span>Push notification with decision</span></div>
+      <div class="info-row"><div class="dot"></div><span>If approved, payout credited immediately</span></div>
+      <div class="info-row"><div class="dot"></div><span>Only one appeal per claim</span></div>
+    </div>
+
+    <div class="submit-btn">
+      <div class="submit-text">Submit appeal</div>
+    </div>
+
+  </div>
+</div>

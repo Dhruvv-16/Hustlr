@@ -11,18 +11,56 @@ DATASETS_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets"
 NLP_CSV = DATASETS_DIR / "nlp_disruption_events.csv"
 RANDOM_STATE = 42
 
-ZONES = [
-    "Adyar",
-    "Anna Nagar",
-    "Chromepet",
-    "Guindy",
-    "Perambur",
-    "Porur",
-    "Sholinganallur",
-    "T Nagar",
-    "Tambaram",
-    "Velachery",
-]
+CITY_ZONES = {
+    "Chennai": [
+        "Adyar",
+        "Anna Nagar",
+        "Chromepet",
+        "Guindy",
+        "Perambur",
+        "Porur",
+        "Sholinganallur",
+        "T Nagar",
+        "Tambaram",
+        "Velachery",
+    ],
+    "Mumbai": [
+        "Andheri",
+        "Bandra",
+        "Borivali",
+        "Chembur",
+        "Dadar",
+        "Ghatkopar",
+        "Lower Parel",
+        "Powai",
+        "Thane",
+        "Vashi",
+    ],
+    "Bengaluru": [
+        "BTM Layout",
+        "Electronic City",
+        "HSR Layout",
+        "Indiranagar",
+        "Jayanagar",
+        "Koramangala",
+        "Marathahalli",
+        "Rajajinagar",
+        "Whitefield",
+        "Yelahanka",
+    ],
+    "Kolkata": [
+        "Behala",
+        "Dum Dum",
+        "Esplanade",
+        "Garia",
+        "Howrah",
+        "New Town",
+        "Park Street",
+        "Salt Lake",
+        "Sealdah",
+        "Tollygunge",
+    ],
+}
 
 LABEL_COUNTS = {
     "normal": 13121,
@@ -58,10 +96,10 @@ def noisy_join(parts: list[str], rng: random.Random) -> str:
     return text.strip()
 
 
-def normal_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
+def normal_text(city: str, zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
     lead = rng.choice([
         f"{zone} side",
-        "ops update",
+        f"{city.lower()} ops update",
         "imd note",
         "delivery status",
         "morning run",
@@ -90,12 +128,12 @@ def normal_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, f
     return noisy_join([lead, body, tail], rng), 0.92
 
 
-def heavy_rain_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
+def heavy_rain_text(city: str, zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
     lead = rng.choice([
         f"{zone} getting hit badly",
         f"waterlogging in {zone}",
         "rider update",
-        "imd alert",
+        f"{city.lower()} weather alert",
         "customers are calling nonstop",
         "",
     ])
@@ -118,7 +156,7 @@ def heavy_rain_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[st
     return noisy_join([lead, body, tail], rng), round(rng.uniform(0.78, 0.96), 2)
 
 
-def extreme_rain_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
+def extreme_rain_text(city: str, zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
     lead = rng.choice([
         "ndma emergency advisory",
         "red alert update",
@@ -145,9 +183,9 @@ def extreme_rain_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[
     return noisy_join([lead, body, tail], rng), round(rng.uniform(0.88, 0.99), 2)
 
 
-def bandh_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
+def bandh_text(city: str, zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
     lead = rng.choice([
-        "city shutdown update",
+        f"{city.lower()} shutdown update",
         "police diversion note",
         f"{zone} market side",
         "field ops alert",
@@ -170,10 +208,10 @@ def bandh_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, fl
     return noisy_join([lead, body, tail], rng), round(rng.uniform(0.76, 0.95), 2)
 
 
-def heat_wave_text(zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
+def heat_wave_text(city: str, zone: str, dt: pd.Timestamp, rng: random.Random) -> tuple[str, float]:
     lead = rng.choice([
         "rider health note",
-        f"{zone} feels like an oven",
+        f"{zone} in {city} feels like an oven",
         "imd summer alert",
         "",
     ])
@@ -221,17 +259,18 @@ def build_dataset() -> pd.DataFrame:
     for label, count in LABEL_COUNTS.items():
         builder = TEXT_BUILDERS[label]
         for _ in range(count):
-            zone = rng.choice(ZONES)
+            city = rng.choice(list(CITY_ZONES))
+            zone = rng.choice(CITY_ZONES[city])
             dt = pd.Timestamp(rng.choice(DATES))
-            text, confidence = builder(zone, dt, rng)
+            text, confidence = builder(city, zone, dt, rng)
 
             if label == "normal" and rng.random() < 0.22:
                 text = noisy_join(
                     [
                         text,
                         rng.choice([
-                            "heard rain in another area but not here",
-                            "warning looked scary but this pocket is fine",
+                            f"heard rain in another {city.lower()} area but not here",
+                            f"{city} warning looked scary but this pocket is fine",
                             "temperature is high though still workable",
                             "minor slowdown only",
                         ]),
@@ -243,8 +282,8 @@ def build_dataset() -> pd.DataFrame:
                     [
                         text,
                         rng.choice([
-                            "saw water in another lane but here it is still rideable",
-                            "protest talk is floating around but no hard road closure yet",
+                            f"saw water in another {city.lower()} lane but here it is still rideable",
+                            f"protest talk is floating around in {city} but no hard road closure yet",
                             "very hot, still not enough to disrupt the shift",
                             "warning exists, ground reality here is mostly okay",
                         ]),
@@ -304,6 +343,7 @@ def build_dataset() -> pd.DataFrame:
                 {
                     "event_id": f"EVT{event_num:06d}",
                     "date": dt.strftime("%Y-%m-%d"),
+                    "city": city,
                     "zone": zone,
                     "raw_text": text,
                     "trigger_label": label,

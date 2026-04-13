@@ -1,0 +1,61 @@
+I am building Hustlr, an AI-powered parametric income insurance platform for Zepto delivery workers in India, for the Guidewire DEVTrails 2026 hackathon. Write the complete 5-minute demo video script.
+
+FORMAT: Shark Tank style. One presenter. Fast-paced. No filler. Every second earns its place.
+
+STRUCTURE:
+
+00:00–00:30 — THE HOOK (30 seconds)
+Open on the problem. Do not introduce the app yet.
+Script the exact words to say about Karthik, the rain, and the zero-income day.
+End with: "Not one insurance product in India covers this. Until now."
+
+00:30–01:00 — WHAT HUSTLR IS (30 seconds)
+One sentence on what Hustlr is (underwriting intelligence engine, not insurer).
+Show the app dashboard — Standard Shield active, ₹49/week.
+"When a disruption fires — Karthik does nothing."
+
+01:00–02:00 — THE CORE DEMO (60 seconds — this is the money shot)
+Live trigger sequence:
+- Open Demo Controls
+- Tap Trigger Rain Disruption
+- Navigate to Claims — show PENDING
+- Watch APPROVED appear (3 seconds)
+- Navigate to Wallet — show balance credited
+- Tap Withdraw to UPI — enter demo@ybl — show Transfer Initiated
+Script the narration for each step.
+Emphasize: "No form. No adjuster. No claim filed. 3 seconds."
+
+02:00–02:45 — THE FRAUD ENGINE (45 seconds)
+Briefly show the 7-layer FPS system.
+Focus on two differentiators: Play Integrity API as Layer 0 ("Every GPS spoofing app needs developer mode — we block it before a single coordinate is trusted.") and Zone Depth Scoring ("There is no single coordinate to stand on.")
+Show FPS score: 14/100 — GREEN — auto-approved.
+
+02:45–03:15 — GUIDEWIRE INTEGRATION (30 seconds)
+Show the 3 API calls: PolicyCenter (weekly policy created Monday), ClaimCenter (FRS score attached to claim payload), BillingCenter (70% tranche dispatched).
+"Hustlr is a Guidewire Marketplace integration. Any insurer on PolicyCenter can onboard our parametric trigger engine."
+
+03:15–04:00 — THE BUSINESS MODEL (45 seconds)
+This is the credibility section. Do not skip or rush it.
+Hard MPL: "₹500. No exceptions. Compound multipliers accelerate payouts, never the ceiling."
+Multiplier discipline: "6–7× across all tiers. Consistent exposure per rupee of premium."
+B2B2C: "Zepto pays ₹150/worker/month. ₹2,000 replacement cost vs ₹150 insurance cost — 13× ROI."
+Reinsurance: "We don't absorb catastrophic risk. We route it to the insurer's existing treaty."
+
+04:00–04:30 — SHADOW POLICY (30 seconds)
+Show the shadow policy notification: "You missed ₹680 in payouts this fortnight."
+"This is our acquisition engine. Zero cost. Zero ads. The product sells itself by showing workers exactly what they lost."
+Show conversion flow: one tap → quarterly commitment → coverage starts Monday.
+
+04:30–05:00 — CLOSE (30 seconds)
+The scale slide: 10K workers → ₹4.4L/mo for Hustlr. 5L workers → ₹2.2Cr/mo.
+"We don't eliminate risk. We structure it correctly."
+Final frame: the Karthik quote.
+"Hustlr — Because every minute you can't deliver is a minute your income disappears."
+
+REQUIREMENTS:
+- Write the exact words the presenter says, not just bullet points
+- Include [SCREEN: what to show on screen] markers throughout
+- Mark timing to the second
+- Flag any moments where the presenter should slow down vs speed up
+- The core demo (01:00–02:00) should be written as if narrating live screen recording
+- Tone: confident, specific, no marketing fluff — actuarial honesty is the differentiator

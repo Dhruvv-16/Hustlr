@@ -1,0 +1,81 @@
+  Widget _buildSkeletonLoader() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Skeleton for greeting
+          const _SkeletonBox(width: 200, height: 28, radius: 8),
+          const SizedBox(height: 8),
+          const _SkeletonBox(width: 150, height: 16, radius: 8),
+          const SizedBox(height: 32),
+          
+          // Skeleton for Title section
+          const _SkeletonBox(width: 100, height: 20, radius: 4),
+          const SizedBox(height: 8),
+          const _SkeletonBox(width: double.infinity, height: 40, radius: 8),
+          
+          const SizedBox(height: 20),
+          
+          // Skeleton for alert card
+          const _SkeletonBox(width: double.infinity, height: 72, radius: 16),
+          const SizedBox(height: 12),
+          
+          // Skeleton for policy card
+          const _SkeletonBox(width: double.infinity, height: 100, radius: 16),
+        ],
+      ),
+    );
+  }
+}
+
+// Shimmer skeleton box widget:
+class _SkeletonBox extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double radius;
+  const _SkeletonBox({this.width, required this.height, this.radius = 8});
+  @override
+  State<_SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<_SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Container(
+            width: widget.width,
+            height: widget.height,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2A2E2A) : const Color(0xFFDCE8DC),
+              borderRadius: BorderRadius.circular(widget.radius),
+            ),
+          ),
+        );
+      },
+    );

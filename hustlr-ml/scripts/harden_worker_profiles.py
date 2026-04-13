@@ -14,6 +14,12 @@ CLAIMS_CSV = DATASETS_DIR / "claims_fraud.csv"
 RANDOM_STATE = 42
 REFERENCE_DATE = pd.Timestamp("2026-01-01")
 EXTERNAL_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "external_data"
+CITY_ENV_PRIORS = {
+    "Chennai": -1.2,
+    "Mumbai": -1.5,
+    "Bengaluru": -0.7,
+    "Kolkata": -1.0,
+}
 
 
 def _stable_uniform(ids: pd.Series, salt: str) -> np.ndarray:
@@ -35,7 +41,10 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
     zone_wave = np.sin((zone_codes + 1) * 0.9) * 1.5
     seasonal_tenure = np.sin((tenure_months % 12) / 12.0 * 2 * math.pi) * 1.8
 
-    env_term = load_city_environment_term()
+    if "city" in out.columns:
+        env_term = out["city"].astype(str).map(load_city_environment_term).fillna(-0.8).to_numpy()
+    else:
+        env_term = np.full(len(out), load_city_environment_term("Chennai"))
 
     income_term = 12.5 * np.tanh((out["avg_daily_income"].to_numpy() - 575.0) / 210.0)
     flood_term = -24.0 * out["zone_flood_risk"].to_numpy()
@@ -95,12 +104,12 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def load_city_environment_term() -> float:
+def load_city_environment_term(city: str) -> float:
     rain_path = EXTERNAL_DIR / "chennai_rainfall_1991_2023.csv"
     air_path = EXTERNAL_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
-    bonus = 0.0
+    bonus = CITY_ENV_PRIORS.get(str(city), -0.8)
 
-    if rain_path.is_file():
+    if str(city) == "Chennai" and rain_path.is_file():
         rain = pd.read_csv(rain_path)
         if {"District", "Rainfall"}.issubset(rain.columns):
             chennai = rain[rain["District"].astype(str).str.contains("chennai", case=False, na=False)]
@@ -108,7 +117,7 @@ def load_city_environment_term() -> float:
                 mean_rain = float(pd.to_numeric(chennai["Rainfall"], errors="coerce").dropna().mean())
                 bonus -= min(mean_rain / 25.0, 2.0)
 
-    if air_path.is_file():
+    if str(city) == "Chennai" and air_path.is_file():
         try:
             air = pd.read_json(air_path)
         except ValueError:
