@@ -66,17 +66,6 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
           icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
-            },
-            child: Text(
-              l10n.manual_claim_need_help,
-              style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
-            ),
-          )
-        ],
       ),
       body: SafeArea(
         child: Column(

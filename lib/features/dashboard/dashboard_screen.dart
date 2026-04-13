@@ -22,6 +22,9 @@ import '../../core/utils/pdf_generator.dart';
 import '../../features/shared/widgets/demo_control_panel.dart';
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
+import '../../services/fraud_sensor_service.dart';
+import '../../services/dynamic_translator.dart';
+import '../../services/app_events.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -44,9 +47,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   bool isLoading = true;
   Timer? _disruptionRefreshTimer;
   StreamSubscription<Position>? _locationStream;
+  
+  // Stream subscriptions
+  StreamSubscription? _policySub;
+  StreamSubscription? _walletSub;
+  StreamSubscription? _claimSub;
+  
+  // Realtime Gen ML Status
+  int? liveIssScore;
+  double? liveDynamicPrice;
 
   // Debug variables
   bool _debugMode = false;
+  bool _enableLiveML = false;
   String _locationPermissionStatus = 'unknown';
   bool _backgroundTrackingActive = false;
 
@@ -77,6 +90,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (!mounted) return;
       _loadDashboardData();
     });
+
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadDashboardData());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -97,7 +114,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   /// Run a live health check against each key API endpoint and store results.
-  Future<void> _checkApiHealth() async {
+  bool _isMLFetching = false;
+  Future<void> _fetchLiveMLData(String tier) async {
+    if (!mounted || !_enableLiveML) return;
+    setState(() => _isMLFetching = true);
+    try {
+      final issData = await ApiService.instance.getIssScore();
+      if (!mounted) return;
+      final score = issData['iss_score'] as int?;
+      if (score != null) {
+        liveIssScore = score;
+        final premData = await ApiService.instance.getDynamicPremium(tier, score);
+        if (mounted) {
+          setState(() {
+            liveDynamicPrice = (premData['final_premium'] as num?)?.toDouble();
+            _isMLFetching = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isMLFetching = false);
+    }
+  }
+
+  void _checkApiHealth() async {
     setState(() => _apiHealthStatus = {'_loading': 'true'});
     final base = ApiService.baseUrl;
     final results = <String, String>{};
@@ -169,6 +209,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     WidgetsBinding.instance.removeObserver(this);
     _disruptionRefreshTimer?.cancel();
     _locationStream?.cancel();
+    _policySub?.cancel();
+    _walletSub?.cancel();
+    _claimSub?.cancel();
     super.dispose();
   }
 
@@ -226,6 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         };
       }
 
+      // The dashboard data has landed! Render it instantly.
       if (mounted) {
         setState(() {
           walletData = walletRes;
@@ -236,6 +280,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           isLoading = false;
         });
       }
+
+      // ── Organic ML Data Fetch (Detached Background Task) ──
+      // This prevents the app from freezing if Render is experiencing a cold start.
+      _fetchLiveMLData(tier ?? 'standard');
 
       // Trigger notifications based on policy status and disruptions
       final hasActivePolicy = policyData != null;
@@ -386,10 +434,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     
     final displayUserName = titleCase(userName ?? 'Karthik');
     final rawPremium = policyData?['weekly_premium']?.toString();
-    final premium = rawPremium == '50' ? '49' : rawPremium ?? 
+    final String premium = liveDynamicPrice != null ? liveDynamicPrice!.toStringAsFixed(0) : (rawPremium == '50' ? '49' : rawPremium ?? 
         (planName == 'Basic Shield' ? '29' : 
          planName == 'Standard Shield' ? '49' : 
-          planName == 'Full Shield' ? '79' : '109');
+          planName == 'Full Shield' ? '79' : '109'));
     
     // Fallback to MockData shadowMissed or a positive value, never wallet balance!
     final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
@@ -399,11 +447,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       body: Stack(
         children: [
           Positioned.fill(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 24),
-              physics: const BouncingScrollPhysics(),
-              child: SafeArea(
-                bottom: false,
+            child: RefreshIndicator(
+              color: const Color(0xFF10B981),
+              backgroundColor: const Color(0xFF161B22),
+              onRefresh: _loadDashboardData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 24),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SafeArea(
+                  bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Column(
@@ -448,6 +500,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
               ),
             ),
+            ),
           ),
         ],
       ),
@@ -469,7 +522,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () => showDemoPanel(context),
+          onLongPress: () => showDemoPanel(context, onSubmit: _loadDashboardData),
           child: Container(
             width: 52,
             height: 52,
@@ -559,7 +612,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (userZone ?? 'BENGALURU, KA').toUpperCase(),
+                    (DynamicTranslator.of(context).translate(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
                       fontSize: 10,
@@ -618,38 +671,45 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                l10n.dashboard_current_active,
+                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? 'ML ADJUSTED PREMIUM' : 'YOUR WEEKLY PREMIUM'),
                 style: TextStyle(
-                  color: mintColor,
+                  color: _isMLFetching ? Colors.orangeAccent : (liveDynamicPrice != null ? Colors.amberAccent : subtleText),
                   fontSize: 11,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.bold,
                   fontFamily: 'Manrope',
                 ),
               ),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '₹$premium',
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  if (_isMLFetching)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8.0, bottom: 4.0),
+                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
+                    )
+                  else
+                    Text(
+                      '₹$premium',
                       style: TextStyle(
-                        color: mintColor,
-                        fontSize: 26,
+                        color: liveDynamicPrice != null ? Colors.amberAccent : mintColor,
+                        fontSize: liveDynamicPrice != null ? 30 : 26,
                         fontWeight: FontWeight.w900,
                         fontFamily: 'Manrope',
                       ),
                     ),
-                    TextSpan(
-                      text: l10n.policy_per_week,
+                  if (!_isMLFetching)
+                    Text(
+                      liveDynamicPrice != null ? ' (ML Adjusted)' : '/ week',
                       style: TextStyle(
-                        color: subtleText,
+                        color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Manrope',
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
@@ -719,10 +779,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subColor = textColor.withOpacity(0.65);
 
+    final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
-    final band = a['stability_band_label'] as String? ?? 'Earning outlook';
-    final headline = a['headline'] as String? ?? '';
-    final nudge = a['coverage_nudge'] as String? ?? '';
+    final band = t.translate(a['stability_band_label'] as String? ?? 'Earning outlook');
+    final headline = t.translate(a['headline'] as String? ?? '');
+    final nudge = t.translate(a['coverage_nudge'] as String? ?? '');
     final suggest = a['suggest_activate_coverage'] == true;
     final windows = a['recommended_shift_windows'] as List<dynamic>? ?? [];
 
@@ -806,7 +867,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ...windows.take(2).map((w) {
               final m = w is Map<String, dynamic> ? w : null;
               if (m == null) return const SizedBox.shrink();
-              final label = m['label'] as String? ?? '';
+              final label = t.translate(m['label'] as String? ?? '');
               final hours = m['hours'] as String? ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -951,9 +1012,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
     
-    final date = nudgeData!['nudge_date'] as String? ?? 'Friday';
+    final t = DynamicTranslator.of(context);
+    final date = t.translate(nudgeData!['nudge_date'] as String? ?? 'Friday');
     final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
-    final desc = nudgeData!['description'] as String? ?? 'Heavy rain expected.';
+    final desc = t.translate(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
     
     return Container(
       width: double.infinity,
@@ -1267,6 +1329,43 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: FraudSensorService.mockFraudSpoofing ? Colors.green : Colors.grey[800],
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () {
+                  if (mounted) {
+                    setState(() {
+                      FraudSensorService.mockFraudSpoofing = !FraudSensorService.mockFraudSpoofing;
+                    });
+                  }
+                },
+                child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _enableLiveML ? Colors.amber[800] : Colors.grey[800],
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () {
+                  if (mounted) {
+                    setState(() {
+                      _enableLiveML = !_enableLiveML;
+                    });
+                    if (_enableLiveML) {
+                       _fetchLiveMLData(policyData?['plan_tier'] ?? 'Standard Shield');
+                    } else {
+                       setState(() { liveDynamicPrice = null; liveIssScore = null; });
+                    }
+                  }
+                },
+                child: Text(_enableLiveML ? 'ML SYNC (ON)' : 'ML SYNC (OFF)', style: const TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   minimumSize: const Size(60, 28),
                   padding: EdgeInsets.zero,
@@ -1300,7 +1399,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           _DebugRow('STATUS', policyData?['status']?.toString() ?? 'NULL'),
 
           _DebugHeader('--- WALLET STATE ---'),
-          _DebugRow('BALANCE', walletData?['balance']?.toString() ?? 'NULL'),
+          Builder(builder: (context) {
+            final rawBal = (walletData?['balance'] as num?)?.toInt();
+            String balStr = 'NULL';
+            if (rawBal != null) {
+              balStr = rawBal < 0 ? '0 (paid: ${rawBal.abs()})' : rawBal.toString();
+            }
+            return _DebugRow('BALANCE', balStr);
+          }),
           _DebugRow('TOTAL PAYOUTS', walletData?['total_payouts']?.toString() ?? 'NULL'),
           _DebugRow('TOTAL PREMIUMS', walletData?['total_premiums']?.toString() ?? 'NULL'),
           _DebugRow('TRANSACTION COUNT', (walletData?['transactions'] as List?)?.length.toString() ?? '0'),

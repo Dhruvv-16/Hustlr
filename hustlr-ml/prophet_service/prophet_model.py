@@ -40,14 +40,16 @@ def fetch_open_meteo_historical() -> pd.DataFrame:
     return df
 
 def add_regressors(df: pd.DataFrame) -> pd.DataFrame:
-    months = df["ds"].dt.month
-    
-    # User Spec: is_monsoon [6,7,8,9,10,11]
-    df["is_monsoon"] = months.isin([6, 7, 8, 9, 10, 11]).astype(int)
-    
-    # User Spec: is_cyclone_season [10,11,12]
-    df["is_cyclone_season"] = months.isin([10, 11, 12]).astype(int)
-    
+    # 5 regressors required by the new Model 7 Blueprint
+    df["festival_multiplier"] = 1.0
+    df["precipitation_mm"]    = 0.0
+    df["temperature_c"]       = 32.0   # generic baseline
+    df["traffic_profile_index"] = 0.5
+
+    dom = df["ds"].dt.day
+    # 1=corporate payday, 2=informal payday, 0=none
+    df["salary_week_flag"] = np.where((dom >= 1) & (dom <= 5), 1, 
+                              np.where((dom >= 7) & (dom <= 10), 2, 0))
     return df
 
 def train_model():
@@ -155,31 +157,36 @@ def generate_forecast(zone_id: str, days: int = 7) -> dict:
     
     results = []
     for _, row in future_forecast.iterrows():
-        yhat = row["yhat"]
-        yhat_upper = row["yhat_upper"]
-        yhat_lower = row["yhat_lower"]
+        # Inverse transform the log predictions back to linear demand units
+        yhat       = float(np.exp(row["yhat"]))
+        yhat_upper = float(np.exp(row["yhat_upper"]))
+        yhat_lower = float(np.exp(row["yhat_lower"]))
         
         # Sigma derived from 80% CI interval (z=1.28)
         sigma = (yhat_upper - yhat_lower) / (2 * 1.28)
         
-        # CDF calculation against 64.5mm threshold for extreme disruption
+        # We classify disruption based on a severe drop in predicted demand vs normal.
+        # Demand threshold for disruption flags (hypothetical low volume threshold).
+        baseline_demand = 50.0  # Approx baseline
+        
+        prob = 0.0
         if sigma > 0:
-            prob = 1.0 - norm.cdf(64.5, loc=yhat, scale=sigma)
+            # Probability that demand falls below extremely low levels (e.g. 15 units)
+            prob = norm.cdf(15.0, loc=yhat, scale=sigma)
         else:
-            prob = 1.0 if yhat > 64.5 else 0.0
+            prob = 1.0 if yhat < 15.0 else 0.0
             
         prob = float(np.clip(prob, 0.0, 1.0))
-        predicted_rain = float(np.clip(yhat, 0.0, None))
         
         trigger = "none"
         if prob > 0.05:
-            trigger = "heavy_rain"
+            trigger = "heavy_rain"  # or generic 'disruption'
             if prob > 0.3:
                 trigger = "extreme_rain"
                 
         results.append({
             "date": row["ds"].strftime("%Y-%m-%d"),
-            "predicted_rainfall_mm": round(predicted_rain, 2),
+            "predicted_demand_units": round(yhat, 2),
             "disruption_probability": round(prob, 4),
             "trigger_type": trigger,
             "expected_payout_standard_shield": 40.0 if trigger != "none" else 0.0

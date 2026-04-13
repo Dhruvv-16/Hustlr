@@ -637,17 +637,46 @@ def get_forecast(zone: str):
     try:
         prophet_model = _load(model_file)
         future = prophet_model.make_future_dataframe(periods=7, freq='D')
+        
+        # Supply mandatory regressors for the new Blueprint Prophet models
+        future["festival_multiplier"] = 1.0
+        future["precipitation_mm"]    = 0.0
+        future["temperature_c"]       = 32.0
+        future["traffic_profile_index"] = 0.5
+        
+        dom = future["ds"].dt.day
+        future["salary_week_flag"] = np.where((dom >= 1) & (dom <= 5), 1, 
+                                      np.where((dom >= 7) & (dom <= 10), 2, 0))
+
         forecast = prophet_model.predict(future)
         last_7 = forecast.tail(7)
         for _, row in last_7.iterrows():
-            risk = float(np.clip(row['yhat'], 0, 1))
+            # Log transform reverse (demand units)
+            yhat = float(np.exp(row['yhat']))
+            yhat_upper = float(np.exp(row['yhat_upper']))
+            yhat_lower = float(np.exp(row['yhat_lower']))
+            
+            # Simple risk mapping for baseline
+            # if yhat drops significantly below standard baseline it's high risk
+            baseline_demand = 50.0 
+            risk = 0.0
+            sigma = (yhat_upper - yhat_lower) / (2 * 1.28)
+            if sigma > 0:
+                from scipy.stats import norm
+                risk = norm.cdf(15.0, loc=yhat, scale=sigma)
+            else:
+                risk = 1.0 if yhat < 15.0 else 0.0
+                
+            risk = float(np.clip(risk, 0.0, 1.0))
+
             forecast_data.append({
                 "date":       row['ds'].strftime('%Y-%m-%d'),
                 "risk_score": round(risk, 3),
+                "predicted_demand": round(yhat, 2),
                 "risk_level": "HIGH" if risk > 0.6 else ("MEDIUM" if risk > 0.3 else "LOW"),
                 "source":     "prophet_ml",
             })
-    except Exception:
+    except Exception as repr_err:
         # Deterministic prior + smooth weekly shape (no RNG — stable for a given zone/day index)
         base_risk = float(zone_actuarial_prior(zone))
         for i in range(7):

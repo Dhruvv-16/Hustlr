@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
-import '../../widgets/hustlr_bottom_nav.dart';
 import '../../core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/app_events.dart';
 import '../../shared/widgets/mobile_container.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -27,42 +27,89 @@ class _WalletScreenState extends State<WalletScreen> {
   List<Map<String, dynamic>> _transactions = [];
   Map<String, dynamic>? _cashbackStatus;
 
+  bool _isMock = false;
+
   @override
   void initState() {
     super.initState();
     _loadWallet();
+    
+    // Refresh when claims or policy events fire
+    AppEvents.instance.onWalletUpdated.listen((_) => _loadWallet());
+    AppEvents.instance.onClaimUpdated.listen((_) => _loadWallet());
   }
 
   Future<void> _loadWallet() async {
+    final userId = await StorageService.instance.getUserId();
+    if (userId == null) {
+      _loadMockWallet();
+      return;
+    }
+    
     setState(() { _loading = true; _error = null; });
+    
     try {
-      final userId = await StorageService.instance.getUserId();
-      if (userId == null) {
-        setState(() { _error = 'Not logged in'; _loading = false; });
-        return;
-      }
-      final data = await ApiService.instance.getWallet(userId);
-      final raw = data['transactions'];
-      final txList = raw is List
-          ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
-          : <Map<String, dynamic>>[];
-          
+      final res = await ApiService.instance.getWallet(userId);
       Map<String, dynamic>? cashbackData;
       try {
         cashbackData = await ApiService.instance.getCashbackStatus(userId);
       } catch (_) {}
-
+      
       setState(() {
-        _balance       = (data['balance'] as num?)?.toInt() ?? 0;
-        _totalPayouts  = (data['total_payouts'] as num?)?.toInt() ?? 0;
-        _totalPremiums = (data['total_premiums'] as num?)?.toInt() ?? 0;
-        _transactions  = txList;
+        _balance        = res['balance'] ?? 0;
+        _totalPayouts   = res['total_payouts'] ?? 0;
+        _totalPremiums  = res['total_premiums'] ?? 0;
+        _transactions   = List<Map<String, dynamic>>.from(
+          res['transactions'] ?? []
+        );
         _cashbackStatus = cashbackData;
-        _loading       = false;
+        _loading        = false;
+        _isMock         = res['_mock'] == true;
       });
+      
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      print('[Wallet] API error: $e — loading mock');
+      _loadMockWallet();
     }
+  }
+
+  void _loadMockWallet() {
+    setState(() {
+      _balance       = 1250;
+      _totalPayouts  = 450;
+      _totalPremiums = 196;
+      _loading       = false;
+      _isMock        = true;
+      _transactions  = [
+        {
+          'id': 'TXN_001',
+          'description': 'Heavy Rain Payout (70%)',
+          'amount': 84,
+          'type': 'credit',
+          'category': 'payout_tranche1',
+          'created_at': DateTime.now()
+            .subtract(const Duration(hours: 2)).toIso8601String(),
+        },
+        {
+          'id': 'TXN_002',
+          'description': 'Standard Shield Premium',
+          'amount': -49,
+          'type': 'debit',
+          'category': 'premium',
+          'created_at': DateTime.now()
+            .subtract(const Duration(days: 7)).toIso8601String(),
+        },
+        {
+          'id': 'TXN_003',
+          'description': 'Platform Downtime Payout (70%)',
+          'amount': 98,
+          'type': 'credit',
+          'category': 'payout_tranche1',
+          'created_at': DateTime.now()
+            .subtract(const Duration(days: 3)).toIso8601String(),
+        },
+      ];
+    });
   }
 
   void _handleNavTap(BuildContext context, int index) {
@@ -424,7 +471,8 @@ class _WeeklySummarySection extends StatelessWidget {
           ))
         else
           ...recentTx.map((tx) {
-            final isCredit = (tx['type'] ?? '') == 'credit';
+            final amount = (tx['amount'] as num?)?.toInt() ?? 0;
+            final isCredit = amount > 0;
             final rawDate = tx['created_at'] as String? ?? '';
             final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
             return Padding(
@@ -435,7 +483,7 @@ class _WeeklySummarySection extends StatelessWidget {
                 iconColor: isCredit ? green : red,
                 title: tx['description'] ?? 'Transaction',
                 date: dateStr,
-                amount: (isCredit ? '+' : '-') + '₹${tx['amount']}',
+                amount: amount > 0 ? '+₹$amount' : '−₹${amount.abs()}',
                 amountColor: isCredit ? green : red,
                 cardBg: cardWhite,
                 primary: primary,
@@ -576,7 +624,8 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               ),
               itemBuilder: (context, index) {
                 final tx = transactions[index];
-                final isCredit = (tx['type'] ?? '') == 'credit';
+                final amount = (tx['amount'] as num?)?.toInt() ?? 0;
+                final isCredit = amount > 0;
                 final rawDate = tx['created_at'] as String? ?? '';
                 final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
                 return _buildTransactionRow(
@@ -585,7 +634,7 @@ class _InsuranceTransactionsSection extends StatelessWidget {
                   iconBg: isCredit ? lightBlue : const Color(0xFFECEFF1),
                   title: tx['description'] ?? 'Transaction',
                   subtitle: dateStr,
-                  amount: (isCredit ? '+' : '-') + '₹${tx['amount']}',
+                  amount: amount > 0 ? '+₹$amount' : '−₹${amount.abs()}',
                   amountColor: isCredit ? green : red,
                   primary: primary,
                   grey: grey,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 class FraudSensorService {
+  static bool mockFraudSpoofing = false;
 
   /// Captures a sensor payload including GPS coordinates, GPS jitter (std div), 
   /// and barometric pressure if available. Also gathers basic device spoofing heuristics.
@@ -13,6 +14,17 @@ class FraudSensorService {
       'timestamp': DateTime.now().toIso8601String(),
       'platform': kIsWeb ? 'web' : 'native',
     };
+
+    if (mockFraudSpoofing) {
+      payload['latitude'] = 13.0827; // Mock fixed location
+      payload['longitude'] = 80.2707;
+      payload['altitude'] = 0.0;
+      payload['accuracy'] = 1.0;
+      payload['is_mocked'] = true;
+      payload['gps_jitter'] = 0.0; // 0.0 triggers FRAUD in backend
+      payload['samples'] = 4;
+      return payload;
+    }
 
     if (kIsWeb) {
       // Web can't really access Barometer and Jitter is restricted.

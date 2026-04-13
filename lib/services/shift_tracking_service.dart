@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:flutter_background_geolocation/flutter_background_geolocation.dart' as bg;
 import 'api_service.dart';
 import 'storage_service.dart';
 import 'notification_service.dart';
+import 'shift_tracking_notifier.dart';
 
 // ─── Shift Status ─────────────────────────────────────────────────────────────
 enum ShiftStatus { offline, active, paused }
@@ -19,7 +18,7 @@ class FrsSignal {
 }
 
 // ─── ShiftTrackingService ─────────────────────────────────────────────────────
-/// Orchestrates the native Android Foreground Service (via flutter_foreground_task),
+/// Orchestrates native Android tracking via flutter_background_geolocation,
 /// heartbeat telemetry to backend, and anti-spoofing signal detection.
 class ShiftTrackingService extends ChangeNotifier {
   static final ShiftTrackingService instance = ShiftTrackingService._internal();
@@ -28,9 +27,8 @@ class ShiftTrackingService extends ChangeNotifier {
   ShiftStatus _status = ShiftStatus.offline;
   double _lastAccuracy = 0.0;
   DateTime? _lastHeartbeatAt;
-  StreamSubscription<Position>? _positionSub;
-  Timer? _heartbeatWatchdog;
   final List<FrsSignal> _frsSignals = [];
+  bool _initialized = false;
 
   ShiftStatus get status => _status;
   double get lastAccuracy => _lastAccuracy;
@@ -48,61 +46,150 @@ class ShiftTrackingService extends ChangeNotifier {
 
   // ─── PUBLIC API ────────────────────────────────────────────────────────────
 
-  Future<void> startShift(String zone) async {
-    await _initForegroundTask();
-    await FlutterForegroundTask.startService(
-      serviceId: 1001,
-      notificationTitle: 'Hustlr is protecting your shift',
-      notificationText: 'Location active • Coverage is live in $zone',
-      callback: _foregroundCallback,
-    );
+  Future<void> _initialize() async {
+    if (_initialized) return;
+    _initialized = true;
 
-    _status = ShiftStatus.active;
-    notifyListeners();
-
-    // Start GPS stream with anti-spoofing checks
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
+    // Configure BEFORE starting
+    await bg.BackgroundGeolocation.ready(bg.Config(
+      // Core tracking
+      desiredAccuracy:        bg.Config.DESIRED_ACCURACY_HIGH,
+      distanceFilter:         10.0,      // fire every 10m movement
+      stopTimeout:            5,         // minutes before stop detection
+      
+      // CRITICAL: Foreground service keeps OS from killing
+      enableHeadless:         true,
+      startOnBoot:            false,
+      stopOnTerminate:        false,
+      foregroundService:      true,      // Android foreground service
+      
+      // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
+      // CRITICAL: Wake lock prevents Xiaomi/OnePlus kill
+      heartbeatInterval:      60,        // ping every 60s even if not moving
+      
+      // Notification (required for foreground service on Android)
+      notification: bg.Notification(
+        title:    '⚡ Hustlr Active',
+        text:     'Zone protection running — shift active',
+        color:    '#1B5E20',
+        smallIcon: 'mipmap/ic_launcher',
+        sticky:   true,        // cannot be dismissed
       ),
-    ).listen(_onPosition);
 
-    // Heartbeat watchdog: if no ping for 120s → pause shift
-    _heartbeatWatchdog = Timer.periodic(const Duration(seconds: 30), (_) {
-      _checkHeartbeat();
+      // Location permission
+      locationAuthorizationRequest: 'Always',
+      backgroundPermissionRationale: bg.PermissionRationale(
+        title:   'Allow background location for shift protection',
+        message: 'Hustlr needs background location to detect when you\'re in your zone during disruptions. This ensures you receive your payout.',
+        positiveAction: 'Allow Always',
+        negativeAction: 'Cancel',
+      ),
+
+      // Battery optimization
+      pausesLocationUpdatesAutomatically: false,
+      activityRecognitionInterval:        5000,
+
+      // Debug (turn off for production)
+      debug:   false,
+      logLevel: bg.Config.LOG_LEVEL_OFF,
+    ));
+
+    // Position listener — fires on every location update
+    bg.BackgroundGeolocation.onLocation((bg.Location location) {
+      _handleLocation(location);
+    }, (bg.LocationError error) {
+      if (kDebugMode) print('[GPS] Location error: ${error.code}');
+    });
+
+    // Heartbeat listener — fires every 60s even when stationary
+    bg.BackgroundGeolocation.onHeartbeat((bg.HeartbeatEvent event) {
+      if (kDebugMode) print('[GPS] Heartbeat — still tracking');
+      if (event.location != null) {
+        _handleLocation(event.location!);
+      }
+    });
+
+    // Detect if tracking stopped unexpectedly
+    bg.BackgroundGeolocation.onProviderChange((bg.ProviderChangeEvent event) {
+      if (!event.enabled) {
+        ShiftTrackingNotifier.instance.notifyLocationDisabled();
+        if (_status == ShiftStatus.active) {
+          _status = ShiftStatus.paused;
+          notifyListeners();
+          NotificationService.instance.addShiftPaused();
+        }
+      }
     });
   }
 
+  Future<void> startShift(String zone) async {
+    await _initialize();
+    
+    // Update notification text with zone
+    await bg.BackgroundGeolocation.setConfig(bg.Config(
+      notification: bg.Notification(
+         title:    '⚡ Hustlr Active',
+         text:     'Coverage is live in $zone',
+         color:    '#1B5E20',
+         smallIcon: 'mipmap/ic_launcher',
+         sticky:   true,
+      )
+    ));
+
+    final state = await bg.BackgroundGeolocation.start();
+    if (kDebugMode) print('[GPS] Tracking started: ${state.trackingMode}');
+    
+    _status = ShiftStatus.active;
+    notifyListeners();
+
+    // Request current location immediately (don't wait for movement)
+    try {
+      final location = await bg.BackgroundGeolocation.getCurrentPosition(
+        timeout:  30,
+        persist:  true,
+        samples:  3,
+      );
+      _handleLocation(location);
+    } catch(e) {
+       if (kDebugMode) print('[GPS] Start shift initial location failed: $e');
+    }
+  }
+
   Future<void> stopShift() async {
-    await FlutterForegroundTask.stopService();
-    await _positionSub?.cancel();
-    _heartbeatWatchdog?.cancel();
+    await bg.BackgroundGeolocation.stop();
+    if (kDebugMode) print('[GPS] Tracking stopped');
     _status = ShiftStatus.offline;
     _frsSignals.clear();
     notifyListeners();
   }
 
-  void resumeShift() {
+  void resumeShift() async {
     if (_status == ShiftStatus.paused) {
       _status = ShiftStatus.active;
+      await bg.BackgroundGeolocation.start();
       notifyListeners();
     }
   }
 
   // ─── POSITION HANDLER + ANTI-SPOOFING ─────────────────────────────────────
 
-  Future<void> _onPosition(Position position) async {
-    _lastAccuracy = position.accuracy;
+  Future<void> _handleLocation(bg.Location location) async {
+    final lat = location.coords.latitude;
+    final lng = location.coords.longitude;
+    final accuracy = location.coords.accuracy;
+
+    _lastAccuracy = accuracy;
     _lastHeartbeatAt = DateTime.now();
+
+    if (kDebugMode) print('[GPS] Position: $lat, $lng (accuracy: ${accuracy}m)');
 
     if (_status == ShiftStatus.paused) {
       _status = ShiftStatus.active;
       NotificationService.instance.addShiftResumed();
     }
 
-    // Signal A — isMockLocation (manual check via geolocator flag)
-    final isMock = position.isMocked;
+    // Signal A — isMockLocation (manual check via bg flag)
+    final isMock = location.mock;
     if (isMock) {
       _addFrsSignal('mock_location_detected', 100); // AUTO_REJECT tier
       NotificationService.instance.addFraudAlert();
@@ -111,54 +198,46 @@ class ShiftTrackingService extends ChangeNotifier {
     }
 
     // Signal C — GPS accuracy degradation
-    final isLowConfidence = position.accuracy > 50;
+    final isLowConfidence = accuracy > 50;
 
     // Signal E — Speed anomaly (>25 m/s = 90 km/h on a delivery bike)
-    final speed = position.speed; // m/s
+    final speed = location.coords.speed; // m/s
     if (speed > 25.0) {
       _addFrsSignal('impossible_speed_detected', 15);
     }
 
-    // Signal D — Battery (we can't get charging state from geolocator;
-    // this signal is surfaced in the heartbeat payload from device_info).
-    // Placeholder — backend evaluates charging_during_outdoor_shift.
-
     notifyListeners();
+    ShiftTrackingNotifier.instance.notify(lat, lng, accuracy);
 
     // Send heartbeat to backend
-    await _sendHeartbeat(position, isMock, isLowConfidence);
+    await _sendHeartbeat(location, isMock, isLowConfidence);
   }
 
   // ─── HEARTBEAT ─────────────────────────────────────────────────────────────
 
-  Future<void> _sendHeartbeat(Position pos, bool isMock, bool lowConf) async {
+  Future<void> _sendHeartbeat(bg.Location pos, bool isMock, bool lowConf) async {
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null) return;
 
+      int? batteryLevel;
+      if (pos.battery.level != null) {
+         batteryLevel = (pos.battery.level! * 100).toInt();
+      }
+
       await ApiService.instance.postShiftHeartbeat(
         workerId: userId,
-        lat: pos.latitude,
-        lng: pos.longitude,
-        accuracy: pos.accuracy,
-        timestamp: pos.timestamp.toIso8601String(),
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        timestamp: pos.timestamp,
         isMockLocation: isMock,
         activityType: 'in_vehicle',
-        batteryLevel: null, // enriched by backend
+        batteryLevel: batteryLevel, // enriched by backend
         isLowConfidence: lowConf,
       );
     } catch (_) {
-      // Fail silently — SQLite buffer in foreground task will catch up
-    }
-  }
-
-  void _checkHeartbeat() {
-    if (_lastHeartbeatAt == null) return;
-    final elapsed = DateTime.now().difference(_lastHeartbeatAt!).inSeconds;
-    if (elapsed > 120 && _status == ShiftStatus.active) {
-      _status = ShiftStatus.paused;
-      NotificationService.instance.addShiftPaused();
-      notifyListeners();
+      // Fail silently
     }
   }
 
@@ -168,47 +247,4 @@ class ShiftTrackingService extends ChangeNotifier {
     _frsSignals.add(FrsSignal(flag: flag, score: score, timestamp: DateTime.now()));
     if (kDebugMode) debugPrint('[FRS] +$score — $flag');
   }
-
-  // ─── FOREGROUND TASK SETUP ─────────────────────────────────────────────────
-
-  Future<void> _initForegroundTask() async {
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'hustlr_location',
-        channelName: 'Hustlr Location',
-        channelDescription: 'Keeps your shift coverage active in the background',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(30000), // heartbeat every 30s
-        autoRunOnBoot: false,
-        allowWifiLock: true,
-      ),
-    );
-  }
-}
-
-// ─── Headless Foreground Task Callback ─────────────────────────────────────
-@pragma('vm:entry-point')
-void _foregroundCallback() {
-  FlutterForegroundTask.setTaskHandler(_ShiftTaskHandler());
-}
-
-class _ShiftTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
-
-  @override
-  void onRepeatEvent(DateTime timestamp) {
-    // Heartbeat tick — main isolate handles actual GPS via Geolocator stream
-    FlutterForegroundTask.updateService(
-      notificationTitle: 'Hustlr is protecting your shift',
-      notificationText: 'Coverage active • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}',
-    );
-  }
-
-  @override
-  Future<void> onDestroy(DateTime timestamp) async {}
 }
