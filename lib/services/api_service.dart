@@ -37,6 +37,8 @@ class ApiService {
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
 
+  static String get mlBackendUrl => const String.fromEnvironment('HUSTLR_ML_PROD', defaultValue: 'https://hustlr-ml-complete.onrender.com');
+
   String? currentUserId;
   String? currentPolicyId;
   String? accessToken;
@@ -798,28 +800,66 @@ class ApiService {
     }
   }
 
-  // ── NLP Support Chatbot (Phase 3 Custom ML) ──────────────────────────────────
-  
-  static String get mlBackendUrl => const String.fromEnvironment('HUSTLR_ML_PROD', defaultValue: 'https://hustlr-ml-complete.onrender.com');
+  // ── Native ML Direct Endpoints (Phase 3 Organic Demo) ──────────────────────
 
-  Future<Map<String, dynamic>> sendChatMessage(String message) async {
+  Future<Map<String, dynamic>> validateFraudTelemetry(Map<String, dynamic> sensorFeatures) async {
     try {
       final res = await http.post(
-        Uri.parse('$mlBackendUrl/chat'),
+        Uri.parse('$mlBackendUrl/fraud/ring-detect'),
         headers: headers,
-        body: jsonEncode({'message': message}),
+        body: jsonEncode({
+          "worker_id": currentUserId ?? "demo_worker",
+          "zone_id": "Adyar Dark Store Zone",
+          "claim_timestamp": DateTime.now().toIso8601String(),
+          "feature_vector": {
+            "zone_match": 0.95,
+            "gps_jitter": sensorFeatures['gps_jitter'] ?? 0.10,
+            "accelerometer_match": 0.90,
+            "wifi_home_ssid": false,
+            "days_since_onboarding": 30
+          }
+        }),
       ).timeout(const Duration(seconds: 15));
-      
-      final data = jsonDecode(res.body);
-      if (res.statusCode == 200) return data;
-      throw Exception('Chat API returned ${res.statusCode}');
+      return jsonDecode(res.body);
     } catch (_) {
-      // Fallback for offline or unreachable ML server
-      return {
-        'intent': 'default',
-        'response': 'Network error! But my hardcoded fallback says: I am here to help with Hustlr policies.',
-        'confidence': 0.0,
-      };
+      return {'risk_level': (sensorFeatures['gps_jitter'] == 0.0) ? 'high' : 'low', 'confidence_score': 0.99, '_mock': true};
+    }
+  }
+
+  Future<Map<String, dynamic>> getIssScore() async {
+    try {
+      final res = await http.post(
+        Uri.parse('$mlBackendUrl/fraud/iss-score'),
+        headers: headers,
+        body: jsonEncode({
+          "zone_flood_risk": 0.65,
+          "avg_daily_income": 650.0,
+          "disruption_freq_12mo": 3,
+          "platform_tenure_weeks": 12,
+          "city": "Chennai"
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'iss_score': 720, 'trust_tier': 'High Trust', '_mock': true};
+    }
+  }
+
+  Future<Map<String, dynamic>> getDynamicPremium(String planTier, int issScore) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$mlBackendUrl/pricing/premium'),
+        headers: headers,
+        body: jsonEncode({
+          "plan_tier": planTier.toLowerCase().contains('full') ? 'full' : 'standard',
+          "zone": "Adyar Dark Store Zone",
+          "iss_score": issScore,
+          "previous_premium": planTier.toLowerCase().contains('full') ? 79.0 : 49.0
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'adjusted_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
     }
   }
 }
