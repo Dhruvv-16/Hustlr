@@ -52,6 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // Debug variables
   bool _debugMode = false;
+  bool _enableLiveML = false;
   String _locationPermissionStatus = 'unknown';
   bool _backgroundTrackingActive = false;
 
@@ -104,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   /// Run a live health check against each key API endpoint and store results.
   bool _isMLFetching = false;
   Future<void> _fetchLiveMLData(String tier) async {
-    if (!mounted) return;
+    if (!mounted || !_enableLiveML) return;
     setState(() => _isMLFetching = true);
     try {
       final issData = await ApiService.instance.getIssScore();
@@ -1320,6 +1321,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   }
                 },
                 child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _enableLiveML ? Colors.amber[800] : Colors.grey[800],
+                  minimumSize: const Size(60, 28),
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 10),
+                ),
+                onPressed: () {
+                  if (mounted) {
+                    setState(() {
+                      _enableLiveML = !_enableLiveML;
+                    });
+                    if (_enableLiveML) {
+                       _fetchLiveMLData(policyData?['plan_tier'] ?? 'Standard Shield');
+                    } else {
+                       setState(() { liveDynamicPrice = null; liveIssScore = null; });
+                    }
+                  }
+                },
+                child: Text(_enableLiveML ? 'ML SYNC (ON)' : 'ML SYNC (OFF)', style: const TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
