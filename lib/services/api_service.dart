@@ -841,7 +841,7 @@ class ApiService {
       ).timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
     } catch (_) {
-      return {'iss_score': 720, 'trust_tier': 'High Trust', '_mock': true};
+      return {'iss_score': 72, 'trust_tier': 'High Trust', '_mock': true};
     }
   }
 
