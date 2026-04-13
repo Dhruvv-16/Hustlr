@@ -8,14 +8,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
 TRAFFIC_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "traffic_accidents.csv"
+TEST_SIZE = 0.30
 
 TRAFFIC_FEAT = [
     "congestion_probability",
@@ -62,9 +62,9 @@ def train_traffic_model():
     le = LabelEncoder()
     y = le.fit_transform(df_fit["blockspot_classification"].astype(str))
 
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+    split_idx = int(len(df_fit) * (1.0 - TEST_SIZE))
+    X_tr, X_te = X[:split_idx], X[split_idx:]
+    y_tr, y_te = y[:split_idx], y[split_idx:]
 
     xgb_traffic = XGBClassifier(
         n_estimators=200,
@@ -80,13 +80,13 @@ def train_traffic_model():
     )
     xgb_traffic.fit(X_tr, y_tr)
     print(f"Test Accuracy: {accuracy_score(y_te, xgb_traffic.predict(X_te)):.4f}")
+    print(classification_report(y_te, xgb_traffic.predict(X_te), target_names=le.classes_, zero_division=0))
     print(f"Zones in source data: {df['zone'].nunique()}")
 
     X_base = df_fit[BASELINE_FEAT].astype(float).values
     y_base = (df_fit["congestion_probability"].astype(float) > 0.60).astype(int)
-    X_tr_b, _, y_tr_b, _ = train_test_split(
-        X_base, y_base, test_size=0.2, random_state=42
-    )
+    X_tr_b = X_base[:split_idx]
+    y_tr_b = y_base[:split_idx]
     xgb_baseline = XGBClassifier(
         n_estimators=120,
         max_depth=5,

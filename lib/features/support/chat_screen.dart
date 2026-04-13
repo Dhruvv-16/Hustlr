@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/api_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -66,13 +67,25 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      if (!mounted) return;
+      final replyData = await ApiService.instance.sendChat(userText);
+      // Use the live ML response when real. Fall back to local keyword matching
+      // when the backend is cold-starting or returned the generic default.
+      String replyMsg;
+      final isMock = replyData['_mock'] == true;
+      final isGenericDefault = replyData['intent'] == 'default' && replyData['response']?.toString().startsWith('I\'m here to help!') == true;
+      if (isMock || isGenericDefault) {
+        replyMsg = _getAutoReply(userText);
+      } else {
+        replyMsg = replyData['response'] ?? _getAutoReply(userText);
+      }
       if (!mounted) return;
       setState(() {
         _isTyping = false;
         _messages.add({
           'isUser': false,
-          'text': _getAutoReply(userText),
+          'text': replyMsg,
           'time': 'Just now',
         });
       });

@@ -91,9 +91,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       _loadDashboardData();
     });
 
-    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadDashboardData());
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) async {
+      await _loadDashboardData();
+      if (policyData != null) {
+        final premiumRaw = policyData!['policy_card_premium'];
+        final premium = (premiumRaw is num) ? premiumRaw.toDouble() : double.tryParse(premiumRaw.toString()) ?? 60.0;
+        NotificationService.instance.addPremiumDeducted(premium.round());
+      }
+    });
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
+    // Note: DemoStateService does not extend ChangeNotifier.
+    // The dashboard reacts to DemoStateService changes via ShiftTrackingService
+    // and AppEvents streams already wired above.
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -1339,6 +1349,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     setState(() {
                       FraudSensorService.mockFraudSpoofing = !FraudSensorService.mockFraudSpoofing;
                     });
+                    // Force a dummy GPS update so the Fraud Score recalculates with Spoof mock immediately
+                    LocationService.instance.updateFromGps(LocationService.instance.currentLat, LocationService.instance.currentLon);
                   }
                 },
                 child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),

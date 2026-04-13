@@ -881,4 +881,16 @@ class ApiService {
       return {'final_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
     }
   }
+  Future<Map<String, dynamic>> sendChat(String message) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$mlBackendUrl/chat'),
+        headers: headers,
+        body: jsonEncode({"message": message}),
+      ).timeout(const Duration(seconds: 15));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'response': 'I\'m currently offline, but I can help you with your claims when I reconnect!', 'intent': 'default', '_mock': true};
+    }
+  }
 }

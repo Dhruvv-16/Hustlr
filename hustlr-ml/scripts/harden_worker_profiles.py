@@ -13,6 +13,7 @@ WORKER_CSV = DATASETS_DIR / "worker_profiles.csv"
 CLAIMS_CSV = DATASETS_DIR / "claims_fraud.csv"
 RANDOM_STATE = 42
 REFERENCE_DATE = pd.Timestamp("2026-01-01")
+EXTERNAL_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "external_data"
 
 
 def _stable_uniform(ids: pd.Series, salt: str) -> np.ndarray:
@@ -27,21 +28,23 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
 
     u1 = _stable_uniform(out["worker_id"], ":latent1")
     u2 = _stable_uniform(out["worker_id"], ":latent2")
-    worker_latent = (u1 - 0.5) * 18.0
-    worker_noise = (u2 - 0.5) * 8.0
+    worker_latent = (u1 - 0.5) * 10.0
+    worker_noise = (u2 - 0.5) * 4.0
 
     zone_codes = out["zone"].astype("category").cat.codes.to_numpy()
-    zone_wave = np.sin((zone_codes + 1) * 0.9) * 2.5
+    zone_wave = np.sin((zone_codes + 1) * 0.9) * 1.5
     seasonal_tenure = np.sin((tenure_months % 12) / 12.0 * 2 * math.pi) * 1.8
 
-    income_term = 11.0 * np.tanh((out["avg_daily_income"].to_numpy() - 575.0) / 220.0)
-    flood_term = -21.0 * out["zone_flood_risk"].to_numpy()
-    disruption_term = -10.0 * np.log1p(out["disruption_freq_12mo"].to_numpy()) / np.log(20)
-    claims_term = -1.9 * np.power(out["claims_history_penalty"].to_numpy(), 0.95)
+    env_term = load_city_environment_term()
+
+    income_term = 12.5 * np.tanh((out["avg_daily_income"].to_numpy() - 575.0) / 210.0)
+    flood_term = -24.0 * out["zone_flood_risk"].to_numpy()
+    disruption_term = -12.0 * np.log1p(out["disruption_freq_12mo"].to_numpy()) / np.log(20)
+    claims_term = -2.3 * np.power(out["claims_history_penalty"].to_numpy(), 0.98)
     bandh_term = -0.55 * out["bandh_freq_zone"].to_numpy()
-    outage_term = -0.9 * out["platform_outage_per_mo"].to_numpy()
-    coastal_term = -3.5 * out["coastal_zone"].astype(float).to_numpy()
-    tenure_term = 6.5 * np.tanh((tenure_months - 18.0) / 18.0)
+    outage_term = -1.2 * out["platform_outage_per_mo"].to_numpy()
+    coastal_term = -2.8 * out["coastal_zone"].astype(float).to_numpy()
+    tenure_term = 7.2 * np.tanh((tenure_months - 18.0) / 18.0)
 
     nonlinear_bonus = np.where(
         (out["avg_daily_income"].to_numpy() > 700) & (out["claims_history_penalty"].to_numpy() <= 2),
@@ -66,6 +69,7 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
         + tenure_term
         + seasonal_tenure
         + zone_wave
+        + env_term
         + worker_latent
         + worker_noise
         + nonlinear_bonus
@@ -89,6 +93,33 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
     premium_disruption = np.where(out["disruption_freq_12mo"].to_numpy() > 18, 4, 0)
     out["weekly_premium"] = (base_premium + premium_risk + premium_disruption).astype(int)
     return out
+
+
+def load_city_environment_term() -> float:
+    rain_path = EXTERNAL_DIR / "chennai_rainfall_1991_2023.csv"
+    air_path = EXTERNAL_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
+    bonus = 0.0
+
+    if rain_path.is_file():
+        rain = pd.read_csv(rain_path)
+        if {"District", "Rainfall"}.issubset(rain.columns):
+            chennai = rain[rain["District"].astype(str).str.contains("chennai", case=False, na=False)]
+            if not chennai.empty:
+                mean_rain = float(pd.to_numeric(chennai["Rainfall"], errors="coerce").dropna().mean())
+                bonus -= min(mean_rain / 25.0, 2.0)
+
+    if air_path.is_file():
+        try:
+            air = pd.read_json(air_path)
+        except ValueError:
+            import json
+            payload = json.loads(air_path.read_text(encoding="utf-8"))
+            aqi = payload.get("hourly", {}).get("european_aqi", [])
+            valid = [float(x) for x in aqi if x is not None]
+            if valid:
+                bonus -= min(np.mean(valid) / 120.0, 1.5)
+
+    return bonus
 
 
 def sync_claim_scores(worker_df: pd.DataFrame, claims_df: pd.DataFrame) -> pd.DataFrame:

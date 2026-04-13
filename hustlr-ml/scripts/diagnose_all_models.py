@@ -25,9 +25,10 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.metrics import (
+    brier_score_loss,
     mean_absolute_error, r2_score,
     roc_auc_score, average_precision_score,
-    classification_report, confusion_matrix,
+    classification_report, confusion_matrix, accuracy_score,
 )
 
 from model_data_utils import (
@@ -36,12 +37,21 @@ from model_data_utils import (
     month_groups,
     template_text_groups,
 )
+from train_model3_fraud import prepare_fraud_features
+from train_model7_prophet import (
+    REGRESSORS as PROPHET_REGRESSORS,
+    add_event_calendar_features,
+    build_prophet_frame,
+    enrich_with_real_aqi,
+    enrich_with_real_precipitation,
+)
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 ML_DIR      = Path(__file__).parent.parent
 MODELS_DIR  = ML_DIR.parent / "outputs" / "trained_models"
 DATA_DIR    = ML_DIR / "outputs" / "datasets"
 RANDOM_STATE = 42
+TEST_SIZE = 0.30
 
 SEP = "=" * 70
 
@@ -49,6 +59,21 @@ def header(title):
     print(f"\n{SEP}")
     print(f"  {title}")
     print(SEP)
+
+
+def expected_calibration_error(y_true, y_prob, bins: int = 10) -> float:
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    edges = np.linspace(0.0, 1.0, bins + 1)
+    ece = 0.0
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        mask = (y_prob >= lo) & (y_prob < hi if hi < 1.0 else y_prob <= hi)
+        if not mask.any():
+            continue
+        acc = y_true[mask].mean()
+        conf = y_prob[mask].mean()
+        ece += (mask.mean()) * abs(acc - conf)
+    return float(ece)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MODEL 1 — ISS XGBoost Regressor
@@ -67,7 +92,7 @@ y_iss = df_iss["iss_score"].astype(float).clip(0, 100).values
 
 iss_train_idx, iss_test_idx = grouped_train_test_indices(
     month_groups(df_iss["onboard_date"]),
-    test_size=0.2,
+    test_size=TEST_SIZE,
     random_state=RANDOM_STATE,
 )
 X_tr, X_te = X_iss[iss_train_idx], X_iss[iss_test_idx]
@@ -123,7 +148,7 @@ y_f  = df_fraud["is_fraud"].astype(int).values
 
 fraud_train_idx, fraud_test_idx = grouped_train_test_indices(
     df_fraud["worker_id"].astype(str),
-    test_size=0.2,
+    test_size=TEST_SIZE,
     random_state=RANDOM_STATE,
 )
 X_ftr, X_fte = X_f[fraud_train_idx], X_f[fraud_test_idx]
@@ -141,9 +166,12 @@ auc_te = roc_auc_score(y_fte, prob_te)
 ap_tr  = average_precision_score(y_ftr, prob_tr)
 ap_te  = average_precision_score(y_fte, prob_te)
 
-# Use 0.5 threshold for classification
-pred_tr_xgb = (prob_tr >= 0.5).astype(int)
-pred_te_xgb = (prob_te >= 0.5).astype(int)
+try:
+    fraud_threshold = float(joblib.load(MODELS_DIR / "model3_thresholds.pkl")["threshold"])
+except Exception:
+    fraud_threshold = 0.5
+pred_tr_xgb = (prob_tr >= fraud_threshold).astype(int)
+pred_te_xgb = (prob_te >= fraud_threshold).astype(int)
 
 cm_tr = confusion_matrix(y_ftr, pred_tr_xgb)
 cm_te = confusion_matrix(y_fte, pred_te_xgb)
@@ -216,7 +244,7 @@ try:
     groups = df_nlp.loc[valid.values, "text_group"]
     nlp_train_idx, nlp_test_idx = grouped_train_test_indices(
         groups,
-        test_size=0.2,
+        test_size=TEST_SIZE,
         random_state=RANDOM_STATE,
     )
     X_ntr, X_nte = X_nlp[nlp_train_idx], X_nlp[nlp_test_idx]
@@ -229,12 +257,61 @@ try:
     print("  " + "-" * 52)
     print(f"  {'Accuracy':<22} {acc_tr:>10.4f} {acc_te:>10.4f}  {abs(acc_tr-acc_te):>8.4f}")
     print(f"  {'Samples':<22} {X_ntr.shape[0]:>10,} {X_nte.shape[0]:>10,}")
+    rev_map = {v: k for k, v in label_map.items()}
+    target_names = [rev_map[i] for i in sorted(rev_map)]
+    print("\n  Test classification report:")
+    print(classification_report(y_nte, nlp_clf.predict(X_nte), target_names=target_names, zero_division=0))
 
     if abs(acc_tr - acc_te) > 0.08:
         print("  WARNING: Train-test gap > 8% — possible overfitting or class imbalance")
     else:
         print("  Generalisation: stable")
 
+except Exception as e:
+    print(f"  SKIP — {e}")
+
+# MODEL 5 — Blackout
+header("MODEL 5 — Blackout Detection (connectivity_dataset.csv)")
+try:
+    from sklearn.metrics import roc_auc_score
+    df_b = pd.read_csv(DATA_DIR / "connectivity_dataset.csv")
+    feat_b = ["ookla_avg_speed", "device_pct_weak", "sustained_minutes"]
+    y_b = df_b["is_blackout"].astype(int).values
+    split_idx = int(len(df_b) * 0.7)
+    X_btr = df_b.iloc[:split_idx][feat_b].astype(float).values
+    X_bte = df_b.iloc[split_idx:][feat_b].astype(float).values
+    y_btr = y_b[:split_idx]
+    y_bte = y_b[split_idx:]
+    scaler_b = joblib.load(MODELS_DIR / "model5_scaler.pkl")
+    iso_b = joblib.load(MODELS_DIR / "model5_iso_connectivity.pkl")
+    auc_btr = roc_auc_score(y_btr, -iso_b.decision_function(scaler_b.transform(X_btr)))
+    auc_bte = roc_auc_score(y_bte, -iso_b.decision_function(scaler_b.transform(X_bte)))
+    print(f"  ROC-AUC train: {auc_btr:.4f}")
+    print(f"  ROC-AUC test : {auc_bte:.4f}")
+except Exception as e:
+    print(f"  SKIP — {e}")
+
+# MODEL 6 — Traffic
+header("MODEL 6 — Traffic Classifier (traffic_accidents.csv)")
+try:
+    from xgboost import XGBClassifier as XGB6
+    df_t = pd.read_csv(DATA_DIR / "traffic_accidents.csv")
+    feat_t = ["congestion_probability","speed_pct_drop","accident_duration_min","news_confidence","is_peak_hour","is_weekend"]
+    split_idx = int(len(df_t) * 0.7)
+    X_ttr = df_t.iloc[:split_idx][feat_t].astype(float).values
+    X_tte = df_t.iloc[split_idx:][feat_t].astype(float).values
+    le_t = joblib.load(MODELS_DIR / "model6_label_encoder.pkl")
+    y_t = le_t.transform(df_t["blockspot_classification"].astype(str))
+    y_ttr = y_t[:split_idx]
+    y_tte = y_t[split_idx:]
+    clf_t = XGB6()
+    clf_t.load_model(MODELS_DIR / "model6_traffic_classifier.json")
+    pred_ttr = clf_t.predict(X_ttr)
+    pred_tte = clf_t.predict(X_tte)
+    print(f"  Accuracy train: {accuracy_score(y_ttr, pred_ttr):.4f}")
+    print(f"  Accuracy test : {accuracy_score(y_tte, pred_tte):.4f}")
+    print("\n  Test classification report:")
+    print(classification_report(y_tte, pred_tte, target_names=le_t.classes_, zero_division=0))
 except Exception as e:
     print(f"  SKIP — {e}")
 

@@ -67,32 +67,30 @@ class ClaimSubmittedScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 2 columns (simulated)
                           Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(
                               children: [
-                                Expanded(
-                                  child: Container(
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.onSurface.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(12),
+                                for (var i = 0; i < 2; i++) ...[
+                                  Expanded(
+                                    child: Container(
+                                      height: 120,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      clipBehavior: Clip.hardEdge,
+                                      child: (claimData != null && claimData!['evidence_urls'] != null && claimData!['evidence_urls'] is List && (claimData!['evidence_urls'] as List).length > i)
+                                          ? Image.network(
+                                              claimData!['evidence_urls'][i],
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Center(child: Icon(Icons.broken_image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
+                                            )
+                                          : Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
                                     ),
-                                    child: Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Container(
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.onSurface.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Center(child: Icon(Icons.image_rounded, color: theme.colorScheme.onSurface.withOpacity(0.4), size: 36)),
-                                  ),
-                                )
+                                  if (i == 0) const SizedBox(width: 16),
+                                ],
                               ],
                             ),
                           ),

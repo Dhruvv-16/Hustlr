@@ -95,13 +95,16 @@ async def lifespan(app: FastAPI):
         print("[Startup] NLP Classifier loaded.")
 
     global _LLM_BUNDLE
-    try:
-        from transformers import pipeline
-        print("[Startup] Caching TinyLlama Generative LLM via Transformers (~2.2GB). This may take a moment...")
-        _LLM_BUNDLE = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.0", max_new_tokens=60)
-        print("[Startup] Generative LLM natively loaded via CPU/Torch!")
-    except Exception as e:
-        print(f"[Startup] Generative LLM Failed: {e}")
+    if os.environ.get("ENABLE_LLM", "false").lower() == "true":
+        try:
+            from transformers import pipeline
+            print("[Startup] Caching TinyLlama Generative LLM via Transformers (~2.2GB). This may take a moment...")
+            _LLM_BUNDLE = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.0", max_new_tokens=60)
+            print("[Startup] Generative LLM natively loaded via CPU/Torch!")
+        except Exception as e:
+            print(f"[Startup] Generative LLM Failed: {e}")
+    else:
+        print("[Startup] LLM skipped — ENABLE_LLM not set. TF-IDF chatbot is active.")
 
     yield
 

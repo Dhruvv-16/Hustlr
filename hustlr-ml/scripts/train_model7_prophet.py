@@ -16,6 +16,7 @@ Improvements over v1:
 import joblib
 import warnings
 from pathlib import Path
+import json
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,15 @@ REGRESSORS = [
     "temperature_c",
     "traffic_profile_index",
     "salary_week_flag",
+    "european_aqi",
+    "flood_event_flag",
+    "ipl_event_flag",
+    "festival_peak_flag",
 ]
+REGRESSOR_ALIASES = {
+    "precipitation_mm": "precip_mm",
+    "traffic_profile_index": "traffic_index",
+}
 
 # For backwards-compat: these slugs are loaded by the forecast endpoints.
 # All map to the Chennai Prophet model.
@@ -42,14 +51,99 @@ CHENNAI_SLUG_ALIASES = [
     "t_nagar", "omr", "guindy", "chromepet",
     "perambur", "sholinganallur",
 ]
+EXTERNAL_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "external_data"
 
 
 def zone_file_slug(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("-", "_")
 
 
+def add_event_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    ds = pd.to_datetime(out["ds"])
+    out["flood_event_flag"] = (
+        ((ds >= pd.Timestamp("2024-10-14")) & (ds <= pd.Timestamp("2024-10-18"))) |
+        ((ds >= pd.Timestamp("2024-11-27")) & (ds <= pd.Timestamp("2024-12-06")))
+    ).astype(int)
+    out["ipl_event_flag"] = ((ds >= pd.Timestamp("2024-03-22")) & (ds <= pd.Timestamp("2024-05-26"))).astype(int)
+    out["festival_peak_flag"] = (
+        ((ds >= pd.Timestamp("2024-10-29")) & (ds <= pd.Timestamp("2024-11-02"))) |
+        ((ds >= pd.Timestamp("2024-01-14")) & (ds <= pd.Timestamp("2024-01-16")))
+    ).astype(int)
+    return out
+
+
+def enrich_with_real_precipitation(df: pd.DataFrame) -> pd.DataFrame:
+    rain_path = EXTERNAL_DIR / "chennai_rainfall_1991_2023.csv"
+    if not rain_path.is_file():
+        return df
+    try:
+        rain = pd.read_csv(rain_path)
+        if rain.empty or "Date" not in rain.columns or "Rainfall" not in rain.columns:
+            return df
+        rain["Date"] = pd.to_datetime(rain["Date"], format="%d-%m-%Y", errors="coerce")
+        rain["Rainfall"] = pd.to_numeric(rain["Rainfall"], errors="coerce")
+        rain = rain.dropna(subset=["Date", "Rainfall"])
+        if rain.empty:
+            return df
+        rain["month_day"] = rain["Date"].dt.strftime("%m-%d")
+        climatology = rain.groupby("month_day", as_index=False)["Rainfall"].mean()
+        out = df.copy()
+        out["month_day"] = pd.to_datetime(out["ds"]).dt.strftime("%m-%d")
+        out = out.merge(climatology, on="month_day", how="left")
+        if "precip_mm" in out.columns:
+            out["precipitation_mm"] = (
+                0.65 * pd.to_numeric(out["precip_mm"], errors="coerce").fillna(0.0) +
+                0.35 * pd.to_numeric(out["Rainfall"], errors="coerce").fillna(0.0)
+            )
+        else:
+            out["precipitation_mm"] = pd.to_numeric(out["Rainfall"], errors="coerce").fillna(0.0)
+        return out.drop(columns=["month_day", "Rainfall"], errors="ignore")
+    except Exception:
+        return df
+
+
+def build_prophet_frame(sub: pd.DataFrame) -> pd.DataFrame:
+    sub = sub.sort_values("ds").copy()
+    agg_cols = {"y": "mean"}
+    for reg in REGRESSORS:
+        src = reg if reg in sub.columns else REGRESSOR_ALIASES.get(reg)
+        if src in sub.columns:
+            if src != reg:
+                sub[reg] = sub[src]
+            agg_cols[reg] = "mean"
+    frame = sub.groupby("ds").agg(agg_cols).reset_index()
+    frame = frame.dropna(subset=["ds", "y"]).copy()
+    frame["y"] = np.log(frame["y"].clip(lower=0.1))
+    return frame
+
+
+def make_prophet_model():
+    from prophet import Prophet
+
+    m = Prophet(
+        seasonality_mode="multiplicative",
+        changepoint_prior_scale=0.10,
+        seasonality_prior_scale=10,
+        daily_seasonality=True,
+        weekly_seasonality=True,
+        yearly_seasonality=True,
+        interval_width=0.80,
+        uncertainty_samples=500,
+        mcmc_samples=0,
+    )
+    for reg in REGRESSORS:
+        standardize = reg not in ("salary_week_flag", "flood_event_flag", "ipl_event_flag", "festival_peak_flag")
+        mode = "additive" if reg in ("salary_week_flag", "flood_event_flag", "ipl_event_flag", "festival_peak_flag") else "multiplicative"
+        m.add_regressor(reg, standardize=standardize, mode=mode)
+    m.add_seasonality(name="monthly", period=30.5, fourier_order=5)
+    return m
+
+
 def train_prophet_all_zones():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    for stale in MODELS_DIR.glob("model7_prophet_*.pkl"):
+        stale.unlink(missing_ok=True)
 
     if not PROPHET_CSV.is_file():
         raise FileNotFoundError(f"Missing dataset: {PROPHET_CSV}")
@@ -73,59 +167,39 @@ def train_prophet_all_zones():
         raise ValueError("prophet_training.csv needs either (zone, ds) or (zone_id, city_type, ds) columns")
 
     df["ds"] = pd.to_datetime(df["ds"])
+    df = enrich_with_real_aqi(df)
+    df = enrich_with_real_precipitation(df)
+    df = add_event_calendar_features(df)
 
     city_types = sorted(df["city_type"].astype(str).unique())
-    print(f"Training Model 7 - Prophet for {len(city_types)} city types: {city_types}")
+    zone_ids = sorted(df["zone_id"].astype(str).unique()) if "zone_id" in df.columns else []
+    print(f"Training Model 7 - Prophet for {len(city_types)} city types and {len(zone_ids)} zones")
 
     city_models = {}
 
+    for zone_id in zone_ids:
+        sub = df[df["zone_id"].astype(str) == zone_id].copy()
+        sub_frame = build_prophet_frame(sub)
+        if len(sub_frame) < 120:
+            print(f"  skip zone {zone_id}: only {len(sub_frame)} rows after aggregation")
+            continue
+        model = make_prophet_model()
+        fit_df = sub_frame[["ds", "y"] + [r for r in REGRESSORS if r in sub_frame.columns]].copy()
+        model.fit(fit_df)
+        out = MODELS_DIR / f"model7_prophet_{zone_file_slug(zone_id)}.pkl"
+        joblib.dump(model, out)
+        print(f"  saved {out.name}")
+
     for city in city_types:
         sub = df[df["city_type"] == city].copy()
-
-        # Aggregate to daily by taking the mean across all zones of that city per timestamp
-        # (Prophet works best on daily or lower frequency for 3-year spans)
-        sub = sub.sort_values("ds")
-
-        # Drop duplicates per timestamp by averaging
-        agg_cols = {"y": "mean"}
-        for reg in REGRESSORS:
-            if reg in sub.columns:
-                agg_cols[reg] = "mean"
-
-        sub_daily = sub.groupby("ds").agg(agg_cols).reset_index()
-        sub_daily = sub_daily.dropna(subset=["ds", "y"])
-
+        sub_daily = build_prophet_frame(sub)
         if len(sub_daily) < 100:
             print(f"  skip {city}: only {len(sub_daily)} rows after aggregation")
             continue
 
         print(f"  fitting {city}: {len(sub_daily):,} hourly rows ...")
-
-        # Log-transform target: demand_units = exp(log-space composite)
-        # Prophet sees a near-additive series in log(y)
-        sub_daily["y"] = np.log(sub_daily["y"].clip(lower=0.1))
-
-        m = Prophet(
-            seasonality_mode="multiplicative",    # CRITICAL: multiplicative for India
-            changepoint_prior_scale=0.15,
-            seasonality_prior_scale=12,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-            interval_width=0.95,                   # Widen confidence interval
-            uncertainty_samples=1000,              # Better uncertainty sampling
-            mcmc_samples=0,                        # MAP estimation — required for Render
-        )
-
-        # Add regressors that exist in the data
+        m = make_prophet_model()
         available_regs = [r for r in REGRESSORS if r in sub_daily.columns]
-        for reg in available_regs:
-            standardize = reg not in ("salary_week_flag", "ipl_match_flag")
-            mode = "additive" if reg in ("salary_week_flag",) else "multiplicative"
-            m.add_regressor(reg, standardize=standardize, mode=mode)
-
-        m.add_seasonality(name="monthly", period=30.5, fourier_order=5)
-
         fit_df = sub_daily[["ds", "y"] + available_regs].copy()
         m.fit(fit_df)
 
@@ -136,15 +210,36 @@ def train_prophet_all_zones():
         city_models[slug] = out
 
     # Backward-compat: create Chennai slug aliases so existing endpoints don't break
-    if "chennai" in city_models:
-        src = city_models["chennai"]
+    chennai_src = city_models.get("chennai") or city_models.get("tier_1") or city_models.get("tier1")
+    if chennai_src:
+        src = chennai_src
         m_chennai = joblib.load(src)
+        joblib.dump(m_chennai, MODELS_DIR / "model7_prophet_chennai.pkl")
         for alias in CHENNAI_SLUG_ALIASES:
             alias_path = MODELS_DIR / f"model7_prophet_{alias}.pkl"
             joblib.dump(m_chennai, alias_path)
         print(f"  Created {len(CHENNAI_SLUG_ALIASES)} Chennai zone aliases -> chennai model")
 
     print("Prophet training finished.")
+
+
+def enrich_with_real_aqi(df: pd.DataFrame) -> pd.DataFrame:
+    air_path = EXTERNAL_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
+    if not air_path.is_file():
+        return df
+    try:
+        payload = json.loads(air_path.read_text(encoding="utf-8"))
+        hourly = pd.DataFrame(payload.get("hourly", {}))
+        if hourly.empty or "time" not in hourly.columns or "european_aqi" not in hourly.columns:
+            return df
+        hourly["ds"] = pd.to_datetime(hourly["time"])
+        hourly["european_aqi"] = pd.to_numeric(hourly["european_aqi"], errors="coerce")
+        aqi_map = hourly[["ds", "european_aqi"]].dropna().copy()
+        out = df.merge(aqi_map, on="ds", how="left")
+        out["european_aqi"] = out["european_aqi"].fillna(out["european_aqi"].median() if "european_aqi" in out else 70.0)
+        return out
+    except Exception:
+        return df
 
 
 if __name__ == "__main__":

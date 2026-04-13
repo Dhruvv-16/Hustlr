@@ -4,7 +4,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/services/storage_service.dart';
-import '../../services/location_permission_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../screens/location_permission_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -15,10 +16,81 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  Future<void> requestAllPermissions(BuildContext context) async {
+    // Step 1 — Notification permission (Android 13+)
+    final notifStatus = await Permission.notification.status;
+    if (notifStatus.isDenied) {
+      await Permission.notification.request();
+    }
+
+    // Step 2 — Physical activity permission
+    final activityStatus = await Permission.activityRecognition.status;
+    if (activityStatus.isDenied) {
+      await Permission.activityRecognition.request();
+    }
+
+    // Step 3 — Foreground location (while using)
+    LocationPermission locationPerm = await Geolocator.checkPermission();
+    if (locationPerm == LocationPermission.denied) {
+      locationPerm = await Geolocator.requestPermission();
+    }
+
+    // Step 4 — Background location (always allow)
+    if (locationPerm == LocationPermission.whileInUse) {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Enable background location'),
+          content: const Text(
+            'Hustlr monitors your zone while you work, even when the app is in the background. '
+            'This is required to validate claims and protect your income. '
+            'On the next screen, please select "Allow all the time".'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+      await Permission.locationAlways.request();
+    }
+
+    // Step 5 — If permanently denied, show settings prompt
+    if (await Permission.locationAlways.isPermanentlyDenied) {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Location required'),
+          content: const Text(
+            'Please open Settings → Apps → Hustlr → Permissions → Location '
+            'and select "Allow all the time" to enable zone protection.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2500), _navigate);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await requestAllPermissions(context);
+      Future.delayed(const Duration(seconds: 2), _navigate);
+    });
   }
 
   Future<void> _navigate() async {
@@ -27,35 +99,11 @@ class _SplashScreenState extends State<SplashScreen> {
     bool isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
     final isComplete = await StorageService.instance.isOnboardingComplete();
     final userId = await StorageService.instance.getUserId();
-    final permissionShown =
-        box.get('locationPermissionShown', defaultValue: false) as bool;
 
-    // ── Fix: validate Firebase session still exists ──────────────────────────
-    // Demo users (9999999999) never create a Firebase user, so skip Firebase
-    // validation for them. For real users, if Firebase has no current user,
-    // the session is stale (e.g. uninstall+reinstall) — force re-login.
     if (isLoggedIn) {
-      final isLoggedIn = box.get('isLoggedIn', defaultValue: false);
-
-      if (!isLoggedIn) {
+      final loggedInFlag = box.get('isLoggedIn', defaultValue: false);
+      if (!loggedInFlag) {
         if (mounted) context.go('/login');
-        return;
-      }
-    }
-
-    if (!mounted) return;
-
-    // If we haven't shown the permission screen yet, do it first
-    if (!permissionShown) {
-      box.put('locationPermissionShown', true);
-      // Check if permission already granted (reinstall edge case)
-      final alreadyGranted =
-          await LocationPermissionService.hasLocationPermission();
-      if (!alreadyGranted && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-              builder: (_) => const LocationPermissionScreen()),
-        );
         return;
       }
     }

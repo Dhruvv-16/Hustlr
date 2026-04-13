@@ -17,6 +17,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
 DATASETS_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets"
 WORKER_CSV = DATASETS_DIR / "worker_profiles.csv"
+TEST_SIZE = 0.30
 
 # Same order as main.py calculate_iss X row (after flood blending, training uses zone_flood_risk proxy).
 ISS_FEATURE_NAMES = [
@@ -52,7 +53,7 @@ def train_iss_model():
 
     train_idx, test_idx = grouped_train_test_indices(
         month_groups(df["onboard_date"]),
-        test_size=0.2,
+        test_size=TEST_SIZE,
         random_state=42,
     )
     X_tr, X_te = X[train_idx], X[test_idx]

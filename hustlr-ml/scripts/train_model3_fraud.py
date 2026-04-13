@@ -9,7 +9,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import roc_auc_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
@@ -18,6 +26,7 @@ from model_data_utils import grouped_train_test_indices
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
 CLAIMS_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "claims_fraud.csv"
+TEST_SIZE = 0.30
 
 IF_FEATURES = [
     "gps_zone_mismatch",
@@ -39,6 +48,25 @@ IF_FEATURES = [
 ]
 
 
+def prepare_fraud_features(df: pd.DataFrame) -> pd.DataFrame:
+    feat = df[IF_FEATURES].astype(float).copy()
+
+    # Compress the strongest label-proxy columns so the classifier has to rely
+    # more on interaction patterns than on a couple of nearly deterministic cuts.
+    feat["days_since_onboard"] = np.log1p(feat["days_since_onboard"].clip(lower=7, upper=365))
+    feat["simultaneous_zone_claims"] = np.log1p(
+        feat["simultaneous_zone_claims"].clip(lower=0, upper=12)
+    )
+    feat["zone_depth_score"] = feat["zone_depth_score"].clip(lower=0.05, upper=0.95)
+    feat["iss_score"] = feat["iss_score"].clip(lower=10, upper=95)
+    return feat
+
+
+def calibrate_probabilities(calibrator: LogisticRegression, raw_prob: np.ndarray) -> np.ndarray:
+    raw_prob = np.asarray(raw_prob, dtype=float).reshape(-1, 1)
+    return calibrator.predict_proba(raw_prob)[:, 1]
+
+
 def train_fraud_model():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     print("Training Model 3 — Fraud (from claims_fraud.csv)")
@@ -51,27 +79,43 @@ def train_fraud_model():
         if c not in df.columns:
             raise ValueError(f"claims_fraud.csv missing column: {c}")
 
-    X = df[IF_FEATURES].astype(float).values
+    X = prepare_fraud_features(df).values
     y = df["is_fraud"].astype(int).values
+    groups = df["worker_id"].astype(str)
 
-    if "worker_id" in df.columns:
-        train_idx, test_idx = grouped_train_test_indices(
-            df["worker_id"].astype(str),
-            test_size=0.2,
-            random_state=42,
-        )
-    else:
+    if "worker_id" not in df.columns:
         raise ValueError("claims_fraud.csv must include worker_id for leakage-safe splitting")
 
+    train_idx, test_idx = grouped_train_test_indices(
+        groups,
+        test_size=TEST_SIZE,
+        random_state=42,
+    )
     X_tr, X_te = X[train_idx], X[test_idx]
     y_tr, y_te = y[train_idx], y[test_idx]
+    groups_tr = groups.iloc[train_idx]
 
     scaler = StandardScaler()
-    X_tr_s = scaler.fit_transform(X_tr)
-    X_te_s = scaler.transform(X_te)
-
     fraud_rate = float(np.mean(y_tr))
     contamination = float(np.clip(max(fraud_rate, 0.02), 0.02, 0.2))
+    scale_pos_weight = float(max((len(y_tr) - y_tr.sum()) / max(y_tr.sum(), 1), 1.0))
+
+    inner_train_idx, val_idx = grouped_train_test_indices(
+        groups_tr,
+        test_size=0.20,
+        random_state=43,
+    )
+
+    X_fit = X_tr[inner_train_idx]
+    y_fit = y_tr[inner_train_idx]
+    X_val = X_tr[val_idx]
+    y_val = y_tr[val_idx]
+
+    scaler = StandardScaler()
+    X_fit_s = scaler.fit_transform(X_fit)
+    X_val_s = scaler.transform(X_val)
+    X_tr_s = scaler.transform(X_tr)
+    X_te_s = scaler.transform(X_te)
 
     iso = IsolationForest(
         n_estimators=200,
@@ -82,21 +126,70 @@ def train_fraud_model():
     iso.fit(X_tr_s)
 
     xgb_clf = XGBClassifier(
-        n_estimators=200,
-        max_depth=3,
-        learning_rate=0.05,
-        subsample=0.7,
+        n_estimators=320,
+        max_depth=4,
+        learning_rate=0.04,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        scale_pos_weight=scale_pos_weight,
         random_state=42,
         tree_method="hist",
         n_jobs=-1,
         device="cpu",
     )
+    xgb_clf.fit(X_fit_s, y_fit)
+
+    val_prob_raw = xgb_clf.predict_proba(X_val_s)[:, 1]
+    calibrator = LogisticRegression(solver="lbfgs", max_iter=500)
+    calibrator.fit(val_prob_raw.reshape(-1, 1), y_val)
+    val_prob = calibrate_probabilities(calibrator, val_prob_raw)
+
+    business_tp_gain = 6.0
+    business_fp_cost = 1.5
+    business_fn_cost = 8.0
+    best_threshold = 0.50
+    best_utility = float("-inf")
+    best_stats = {"precision": 0.0, "recall": 0.0, "f2": 0.0}
+    for threshold in np.arange(0.18, 0.72, 0.02):
+        pred = (val_prob >= threshold).astype(int)
+        prec = precision_score(y_val, pred, zero_division=0)
+        rec = recall_score(y_val, pred, zero_division=0)
+        f2 = fbeta_score(y_val, pred, beta=2, zero_division=0)
+        tp = float(((pred == 1) & (y_val == 1)).sum())
+        fp = float(((pred == 1) & (y_val == 0)).sum())
+        fn = float(((pred == 0) & (y_val == 1)).sum())
+        utility = tp * business_tp_gain - fp * business_fp_cost - fn * business_fn_cost
+        if rec >= 0.55 and prec >= 0.20 and (utility > best_utility or (utility == best_utility and f2 > best_stats["f2"])):
+            best_threshold = float(round(threshold, 2))
+            best_utility = utility
+            best_stats = {"precision": prec, "recall": rec, "f2": f2}
+
     xgb_clf.fit(X_tr_s, y_tr)
 
-    train_auc = roc_auc_score(y_tr, xgb_clf.predict_proba(X_tr_s)[:, 1])
-    test_auc = roc_auc_score(y_te, xgb_clf.predict_proba(X_te_s)[:, 1])
+    train_prob_raw = xgb_clf.predict_proba(X_tr_s)[:, 1]
+    test_prob_raw = xgb_clf.predict_proba(X_te_s)[:, 1]
+    train_prob = calibrate_probabilities(calibrator, train_prob_raw)
+    test_prob = calibrate_probabilities(calibrator, test_prob_raw)
+    train_auc = roc_auc_score(y_tr, train_prob)
+    test_auc = roc_auc_score(y_te, test_prob)
+    train_pr_auc = average_precision_score(y_tr, train_prob)
+    test_pr_auc = average_precision_score(y_te, test_prob)
+    train_pred = (train_prob >= best_threshold).astype(int)
+    test_pred = (test_prob >= best_threshold).astype(int)
+    train_rec = recall_score(y_tr, train_pred, zero_division=0)
+    test_rec = recall_score(y_te, test_pred, zero_division=0)
+    train_prec = precision_score(y_tr, train_pred, zero_division=0)
+    test_prec = precision_score(y_te, test_pred, zero_division=0)
+    train_brier = brier_score_loss(y_tr, train_prob)
+    test_brier = brier_score_loss(y_te, test_prob)
     print(f"Train AUC: {train_auc:.4f}")
     print(f"Test AUC:  {test_auc:.4f}")
+    print(f"Train PR-AUC: {train_pr_auc:.4f}")
+    print(f"Test PR-AUC:  {test_pr_auc:.4f}")
+    print(f"Decision threshold: {best_threshold:.2f}")
+    print(f"Train recall/precision: {train_rec:.1%} / {train_prec:.1%}")
+    print(f"Test recall/precision:  {test_rec:.1%} / {test_prec:.1%}")
+    print(f"Train/Test Brier: {train_brier:.4f} / {test_brier:.4f}")
     print(
         f"Rows: {len(df)} | workers: {df['worker_id'].nunique()} | "
         f"zones: {df['zone'].nunique()} | fraud rate: {fraud_rate:.3f}"
@@ -106,6 +199,22 @@ def train_fraud_model():
     xgb_clf.save_model(MODELS_DIR / "model3_fraud_classifier.json")
     joblib.dump(scaler, MODELS_DIR / "model3_scaler.pkl")
     joblib.dump(IF_FEATURES, MODELS_DIR / "model3_features.pkl")
+    joblib.dump(calibrator, MODELS_DIR / "model3_probability_calibrator.pkl")
+    joblib.dump(
+        {
+            "threshold": best_threshold,
+            "scale_pos_weight": scale_pos_weight,
+            "test_size": TEST_SIZE,
+            "business_tp_gain": business_tp_gain,
+            "business_fp_cost": business_fp_cost,
+            "business_fn_cost": business_fn_cost,
+            "validation_precision": best_stats["precision"],
+            "validation_recall": best_stats["recall"],
+            "validation_f2": best_stats["f2"],
+            "validation_utility": best_utility,
+        },
+        MODELS_DIR / "model3_thresholds.pkl",
+    )
     print("Saved fraud models successfully.")
 
 

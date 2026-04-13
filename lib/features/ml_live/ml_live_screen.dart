@@ -17,7 +17,7 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
   Map<String, dynamic> _forecastResult = {};
   bool _loading = false;
   
-  final _mlUrl = 'https://hustlr-ai.onrender.com'; // your ML service
+  final _mlUrl = 'https://hustlr-ml-complete.onrender.com'; // your ML service
 
   @override
   void initState() {
@@ -117,8 +117,8 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
       }
     } catch (e) {
       setState(() => _premiumResult = {
-        'final_premium': 49, 'base_premium': 49,
-        'zone_adjustment': 5, '_mock': true,
+        'final_premium': 60, 'base_premium': 49,
+        'zone_adjustment': 11, '_mock': true,
       });
     }
   }

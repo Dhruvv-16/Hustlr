@@ -10,6 +10,7 @@ import math
 import datetime as dt
 import numpy as np
 import joblib
+import json
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -48,6 +49,7 @@ MODELS_SEARCH_PATHS: List[Path] = [
     REPO_ROOT / "outputs" / "trained_models",          # local monorepo dev
     REPO_ROOT / "hustlr-ml" / "outputs" / "trained_models",  # alternate dev path
 ]
+EXTERNAL_DATA_DIR = REPO_ROOT / "hustlr-ml" / "outputs" / "external_data"
 
 app = FastAPI(title="Hustlr ML Service", version="1.0.0")
 
@@ -119,6 +121,8 @@ MODEL_FILES = {
         "model3_fraud_classifier.json",
         "model3_scaler.pkl",
         "model3_isolation_forest.pkl",
+        "model3_probability_calibrator.pkl",
+        "model3_thresholds.pkl",
     ],
     "model4_nlp":        ["model4_rf_nlp.json", "model4_tfidf.pkl", "model4_label_map.pkl"],
     "model5_blackout":   ["model5_iso_connectivity.pkl", "model5_scaler.pkl", "model5_thresholds.pkl"],
@@ -367,9 +371,19 @@ def compute_fraud(req: FraudRequest):
 
         ml_boost = 0.0
         clf = _load("model3_fraud_classifier.json")
-        proba_fraud = float(clf.predict_proba(X_scaled)[0, 1])
-        if proba_fraud > 0.5:
-            ml_boost += 0.12 * min(1.0, (proba_fraud - 0.5) / 0.5)
+        raw_proba = float(clf.predict_proba(X_scaled)[0, 1])
+        try:
+            calibrator = _load("model3_probability_calibrator.pkl")
+            proba_fraud = float(calibrator.predict_proba(np.array([[raw_proba]]))[0, 1])
+        except Exception:
+            proba_fraud = raw_proba
+        try:
+            ml_threshold = float(_load("model3_thresholds.pkl").get("threshold", 0.5))
+        except Exception:
+            ml_threshold = 0.5
+        if proba_fraud > ml_threshold:
+            denom = max(1e-6, 1.0 - ml_threshold)
+            ml_boost += 0.12 * min(1.0, (proba_fraud - ml_threshold) / denom)
 
         fps = min(1.0, fps + min(ml_boost, 0.22))
     except Exception:
@@ -643,6 +657,7 @@ def get_forecast(zone: str):
         future["precipitation_mm"]    = 0.0
         future["temperature_c"]       = 32.0
         future["traffic_profile_index"] = 0.5
+        future["european_aqi"] = _recent_chennai_aqi_default()
         
         dom = future["ds"].dt.day
         future["salary_week_flag"] = np.where((dom >= 1) & (dom <= 5), 1, 
@@ -694,6 +709,21 @@ def get_forecast(zone: str):
         "zone":     zone,
         "forecast": forecast_data,
     }
+
+
+def _recent_chennai_aqi_default() -> float:
+    air_path = EXTERNAL_DATA_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
+    if not air_path.is_file():
+        return 70.0
+    try:
+        payload = json.loads(air_path.read_text(encoding="utf-8"))
+        vals = [float(x) for x in payload.get("hourly", {}).get("european_aqi", []) if x is not None]
+        if not vals:
+            return 70.0
+        tail = vals[-24:] if len(vals) >= 24 else vals
+        return float(round(sum(tail) / len(tail), 2))
+    except Exception:
+        return 70.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

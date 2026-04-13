@@ -16,6 +16,7 @@ from model_data_utils import cap_group_rows, grouped_train_test_indices, templat
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
 NLP_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "nlp_disruption_events.csv"
+TEST_SIZE = 0.30
 
 
 def train_nlp_model():
@@ -38,7 +39,7 @@ def train_nlp_model():
     labels = df["trigger_label"].astype(str)
     label_map = {lab: i for i, lab in enumerate(sorted(labels.unique()))}
     y_encoded = labels.map(label_map).astype(int).values
-    train_idx, test_idx = grouped_train_test_indices(df["text_group"], test_size=0.2, random_state=42)
+    train_idx, test_idx = grouped_train_test_indices(df["text_group"], test_size=TEST_SIZE, random_state=42)
 
     train_text = df.iloc[train_idx]["raw_text"]
     test_text = df.iloc[test_idx]["raw_text"]
