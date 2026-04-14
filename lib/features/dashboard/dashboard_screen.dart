@@ -574,13 +574,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded, () => context.push(AppRoutes.support), mintColor, isDark),
         const SizedBox(width: 12),
-        // 3D Risk Map shortcut
-        _buildMintIconBtn(
-          Icons.hexagon_outlined,
-          () => context.push(AppRoutes.riskMap),
-          mintColor, isDark,
-        ),
-        const SizedBox(width: 12),
         IconButton(
           icon: Icon(
             _debugMode ? Icons.bug_report : Icons.bug_report_outlined,
