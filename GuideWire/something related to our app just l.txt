@@ -1,2 +1,0 @@
-something related to our app just like swiggy
-the suggestions to improve remove the page of it  and instead keep it as tips giving and in the backend we can monitor the score instead
