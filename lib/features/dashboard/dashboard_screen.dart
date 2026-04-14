@@ -54,6 +54,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   StreamSubscription? _policySub;
   StreamSubscription? _walletSub;
   StreamSubscription? _claimSub;
+
+  // Guard: prevents concurrent _loadDashboardData calls
+  bool _isDashboardLoading = false;
+
+  // Debounce timestamps for event-driven reloads
+  int _lastWalletReload = 0;
+  int _lastClaimReload = 0;
   
   // Realtime Gen ML Status
   int? liveIssScore;
@@ -101,9 +108,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         NotificationService.instance.addPremiumDeducted(premium.round());
       }
     });
-    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
-    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
-    // AppEvents streams already wired above.
+    // Debounced: only reload wallet/claim data at most once every 5 seconds
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastWalletReload > 5000) {
+        _lastWalletReload = now;
+        _loadDashboardData();
+      }
+    });
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastClaimReload > 5000) {
+        _lastClaimReload = now;
+        _loadDashboardData();
+      }
+    });
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows

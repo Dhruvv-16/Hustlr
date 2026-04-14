@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../l10n/app_localizations.dart';
-import 'chat_screen.dart';
 
 Future<void> _launch(String url) async {
   final uri = Uri.parse(url);
@@ -321,7 +320,7 @@ class _FaqItemState extends State<_FaqItem> {
           collapsedIconColor: chevron,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          onExpansionChanged: (val) => setState(() => _expanded = val),
+          onExpansionChanged: (_) {},
           children: [
             Text(widget.answer, style: TextStyle(fontSize: 13, color: aColor, height: 1.5)),
           ],

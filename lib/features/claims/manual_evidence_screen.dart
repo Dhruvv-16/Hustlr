@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
-import '../support/chat_screen.dart';
-import 'manual_claim_camera_screen.dart';
 
 class ManualEvidenceScreen extends StatefulWidget {
   const ManualEvidenceScreen({super.key});

@@ -7,7 +7,6 @@ import '../../services/api_service.dart';
 import '../../services/play_integrity_helper.dart';
 import '../../services/storage_service.dart';
 import '../../services/fraud_sensor_service.dart';
-import 'manual_claim_camera_screen.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
   final String disruptionType;
