@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/demo_state_service.dart';
 
 import '../../services/api_service.dart';
@@ -72,8 +73,12 @@ class _WalletScreenState extends State<WalletScreen> {
       } catch (_) {}
       
       setState(() {
-        _balance        = (res['balance'] ?? 0) + DemoStateService.instance.walletBalance;
-        _totalPayouts   = (res['total_payouts'] ?? 0) + DemoStateService.instance.totalPayouts;
+        // Mix with demo data only when demo mode is active
+        final box = Hive.box('appData');
+        final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
+        
+        _balance        = (res['balance'] ?? 0) + (isDemoMode ? DemoStateService.instance.walletBalance : 0);
+        _totalPayouts   = (res['total_payouts'] ?? 0) + (isDemoMode ? DemoStateService.instance.totalPayouts : 0);
         _totalPremiums  = res['total_premiums'] ?? 0;
         
         final combinedTx = [

@@ -5,6 +5,7 @@ import '../../core/router/app_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/claims/claims_bloc.dart';
+import '../../blocs/claims/claims_event.dart';
 import '../../models/claim.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
@@ -41,6 +42,12 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Load claims data when analytics screen opens
+    final userId = StorageService.userId;
+    if (userId != null) {
+      context.read<ClaimsBloc>().add(LoadClaims(userId));
+    }
+    
     StorageService.instance.getUserZone().then((z) {
       if (mounted) setState(() => _zone = z ?? '');
     });
