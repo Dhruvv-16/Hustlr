@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/demo_state_service.dart';
@@ -30,6 +31,9 @@ class _WalletScreenState extends State<WalletScreen> {
   Map<String, dynamic>? _cashbackStatus;
 
   bool _isMock = false;
+  
+  StreamSubscription? _walletSub;
+  StreamSubscription? _claimSub;
 
   @override
   void initState() {
@@ -37,8 +41,15 @@ class _WalletScreenState extends State<WalletScreen> {
     _loadWallet();
     
     // Refresh when claims or policy events fire
-    AppEvents.instance.onWalletUpdated.listen((_) => _loadWallet());
-    AppEvents.instance.onClaimUpdated.listen((_) => _loadWallet());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadWallet());
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadWallet());
+  }
+
+  @override
+  void dispose() {
+    _walletSub?.cancel();
+    _claimSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadWallet() async {

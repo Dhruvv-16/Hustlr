@@ -8,7 +8,7 @@
 -- POST /shift/heartbeat inserts one row per ping (~every 30 seconds).
 CREATE TABLE IF NOT EXISTS shift_telemetry (
   id                  uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  worker_id           uuid NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_id           uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   lat                 float8 NOT NULL,
   lng                 float8 NOT NULL,
   accuracy            float4,          -- metres; readings > 50m marked low_confidence
@@ -40,7 +40,7 @@ CREATE POLICY "Workers can read their own telemetry"
 -- Gaps > 600s add +10 FRS, gaps > 1800s add +20 FRS.
 CREATE TABLE IF NOT EXISTS shift_gaps (
   id                    uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  worker_id             uuid NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_id             uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   gap_start             timestamptz NOT NULL,
   gap_end               timestamptz,   -- null until GPS resumes
   gap_duration_seconds  int,           -- computed when gap_end is set
@@ -60,7 +60,7 @@ CREATE POLICY "Workers can read their own gaps"
 -- Auto-appended by the heartbeat endpoint when is_mock_location = true
 CREATE TABLE IF NOT EXISTS fraud_flags (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  worker_id   uuid NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   claim_id    uuid,                    -- null if detected before claim is filed
   reason      text NOT NULL,           -- 'mock_location_detected', 'impossible_speed', etc.
   frs_score   int NOT NULL DEFAULT 0,  -- score contribution from this flag
@@ -135,7 +135,7 @@ $$;
 -- Consumed by the fraud engine on the next claim submission
 CREATE TABLE IF NOT EXISTS pending_frs_adjustments (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  worker_id   uuid NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   adjustment  int NOT NULL,
   reason      text NOT NULL,
   is_consumed boolean DEFAULT false,

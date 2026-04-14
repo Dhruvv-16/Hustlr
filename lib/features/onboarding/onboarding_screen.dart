@@ -120,7 +120,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) return;
 
       Provider.of<MockDataService>(context, listen: false).syncWithStorage();
-      context.go(AppRoutes.onboardingComplete);
+      
+      // Biometric Enrollment Gateway
+      final reason = Uri.encodeComponent('Please complete biometric setup to secure your account.');
+      final authResult = await context.push<Map<String, dynamic>>('${AppRoutes.stepUpAuth}?reason=$reason');
+      
+      if (!mounted) return;
+      if (authResult != null && authResult['verified'] == true) {
+        context.go(AppRoutes.onboardingComplete);
+      } else {
+        // If they bypass or fail, we still consider onboarding 'complete' but they will be challenged on login next time.
+        // Or we could force it. Let's let them through for now since onboardingComplete=true is set.
+        context.go(AppRoutes.onboardingComplete);
+      }
     } catch (e) {
       print('Onboarding error: $e'); // Debug print
       if (mounted) {

@@ -1,0 +1,1599 @@
+'use client';
+
+import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
+import { PlatformLogo } from '@/components/ui/PlatformLogo';
+import { createClient } from '@/lib/supabase/client';
+import type { PlatformType } from '@/lib/types/database';
+import { isMobileForGps } from '@/lib/utils/device';
+import { gooeyToast } from 'goey-toast';
+import {
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  FileCheck,
+  MapPin,
+  Search,
+  Upload,
+  User,
+  X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+interface GeoResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  admin1?: string;
+  country?: string;
+}
+
+export default function OnboardingPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [platform, setPlatform] = useState<PlatformType | null>(null);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [zone, setZone] = useState('');
+  const [govIdFile, setGovIdFile] = useState<File | null>(null);
+  const [govIdType] = useState<'aadhaar'>('aadhaar');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [zoneLat, setZoneLat] = useState<number | null>(null);
+  const [zoneLng, setZoneLng] = useState<number | null>(null);
+  const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [captureReady, setCaptureReady] = useState(false);
+  const [capturingGovId, setCapturingGovId] = useState(false);
+  const autoCaptureTriggeredRef = useRef(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [govIdVerified, setGovIdVerified] = useState(false);
+  const [govIdVerifying, setGovIdVerifying] = useState(false);
+  const [govIdVerificationPath, setGovIdVerificationPath] = useState<string | null>(null);
+  const [govIdVerificationReason, setGovIdVerificationReason] = useState<string | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<unknown>(null);
+  const markerRef = useRef<unknown>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const zoneSearchAbortRef = useRef<AbortController | null>(null);
+  const govIdInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const faceVideoRef = useRef<HTMLVideoElement | null>(null);
+  const faceStreamRef = useRef<MediaStream | null>(null);
+
+  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'granted' | 'denied' | 'unavailable'>('idle');
+  const [cameraStatus, setCameraStatus] = useState<'idle' | 'granted' | 'denied' | 'unavailable'>('idle');
+  const [locationRequesting, setLocationRequesting] = useState(false);
+  const [cameraRequesting, setCameraRequesting] = useState(false);
+  const [isSecureContext, setIsSecureContext] = useState(true);
+  const [gesture, setGesture] = useState<string | null>(null);
+  const [showFaceCamera, setShowFaceCamera] = useState(false);
+  const [faceCameraError, setFaceCameraError] = useState<string | null>(null);
+  const [faceVerified, setFaceVerified] = useState(false);
+  const [faceVerifying, setFaceVerifying] = useState(false);
+  const [faceVerificationPath, setFaceVerificationPath] = useState<string | null>(null);
+  const [faceError, setFaceError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prefill name from auth metadata if available
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata?.full_name) {
+        setFullName((prev) => prev || user.user_metadata.full_name);
+      }
+    });
+  }, [supabase]);
+
+  // Secure context required for geolocation/camera on desktop
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const secure =
+      window.isSecureContext ||
+      window.location?.hostname === 'localhost' ||
+      window.location?.hostname === '127.0.0.1';
+    setIsSecureContext(!!secure);
+  }, []);
+
+  // Optional: pre-check permission state when Permissions API is available (e.g. desktop)
+  useEffect(() => {
+    if (step !== 0 || typeof window === 'undefined') return;
+    const query = (navigator as { permissions?: { query: (o: { name: string }) => Promise<{ state: string }> } }).permissions?.query;
+    if (!query) return;
+    query({ name: 'geolocation' })
+      .then((r) => {
+        if (r.state === 'granted') setLocationStatus('granted');
+        if (r.state === 'denied') setLocationStatus('denied');
+      })
+      .catch(() => {});
+    query({ name: 'camera' })
+      .then((r) => {
+        if (r.state === 'granted') setCameraStatus('granted');
+        if (r.state === 'denied') setCameraStatus('denied');
+      })
+      .catch(() => {});
+  }, [step]);
+
+  async function prefillZoneFromCurrentLocation() {
+    if (zoneLat != null || zoneLng != null || zone.trim().length > 0) return;
+    if (typeof window === 'undefined' || !navigator.geolocation) return;
+    if (!isMobileForGps(navigator.userAgent)) {
+      gooeyToast.info('Use a mobile device to set your zone from current location.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setZoneLat(latitude);
+        setZoneLng(longitude);
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+          );
+          if (!res.ok) return;
+          const data: any = await res.json();
+          const display =
+            (data?.address?.suburb ||
+              data?.address?.neighbourhood ||
+              data?.address?.quarter ||
+              data?.address?.city_district) &&
+            (data?.address?.city || data?.address?.town || data?.address?.village)
+              ? `${
+                  data.address.suburb ||
+                  data.address.neighbourhood ||
+                  data.address.quarter ||
+                  data.address.city_district
+                }, ${data.address.city || data.address.town || data.address.village}`
+              : data?.display_name
+                ? String(data.display_name).split(',').slice(0, 2).join(',').trim()
+                : null;
+
+          if (display) {
+            setZone((prev) => (prev.trim().length > 0 ? prev : display));
+          }
+        } catch {
+          // Ignore geocoding failures; user can search manually
+        }
+      },
+      () => {
+        // User denied or GPS unavailable – silently ignore
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+    );
+  }
+
+  function requestLocationPermission() {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('unavailable');
+      return;
+    }
+    if (!isMobileForGps(navigator.userAgent)) {
+      setLocationStatus('unavailable');
+      gooeyToast.info('Location is only used on mobile for precise zone. Use a phone to set your zone.');
+      return;
+    }
+    setLocationRequesting(true);
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setLocationStatus('granted');
+        setLocationRequesting(false);
+      },
+      () => {
+        setLocationStatus('denied');
+        setLocationRequesting(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  }
+
+  async function requestCameraPermission() {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus('unavailable');
+      return;
+    }
+    setCameraRequesting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setCameraStatus('granted');
+    } catch {
+      setCameraStatus('denied');
+    } finally {
+      setCameraRequesting(false);
+    }
+  }
+
+  // Initialize map when coordinates are set
+  useEffect(() => {
+    if (!mapRef.current || !zoneLat || !zoneLng) return;
+    if (mapLoaded && mapInstance.current) {
+      // Update existing map
+      const map = mapInstance.current as {
+        setCenter: (c: { lng: number; lat: number }) => void;
+        setZoom: (z: number) => void;
+      };
+      map.setCenter({ lng: zoneLng, lat: zoneLat });
+      map.setZoom(13);
+      return;
+    }
+
+    let cancelled = false;
+
+    import('maplibre-gl').then((maplibre) => {
+      if (cancelled || !mapRef.current) return;
+      const map = new maplibre.Map({
+        container: mapRef.current,
+        // Locked hybrid basemap (satellite + labels) for a richer preview.
+        // Uses public Esri raster tiles (no key) to avoid vendor setup in demo mode.
+        style: {
+          version: 8,
+          sources: {
+            esri: {
+              type: 'raster',
+              tiles: [
+                'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              ],
+              tileSize: 256,
+              attribution:
+                'Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+            },
+            esriLabels: {
+              type: 'raster',
+              tiles: [
+                'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+              ],
+              tileSize: 256,
+            },
+          },
+          layers: [
+            {
+              id: 'imagery',
+              type: 'raster',
+              source: 'esri',
+              paint: {
+                // Tone down the satellite so it doesn't feel visually "too alive"
+                'raster-saturation': -0.55,
+                'raster-brightness-min': 0.22,
+                'raster-brightness-max': 0.85,
+                'raster-contrast': -0.1,
+                'raster-opacity': 0.9,
+              },
+            },
+            {
+              id: 'labels',
+              type: 'raster',
+              source: 'esriLabels',
+              paint: { 'raster-opacity': 0.55 },
+            },
+          ],
+        } as any,
+        center: [zoneLng, zoneLat],
+        zoom: 13,
+        attributionControl: false,
+        interactive: false,
+      });
+
+      const marker = new maplibre.Marker({ color: '#10b981' })
+        .setLngLat([zoneLng, zoneLat])
+        .addTo(map);
+
+      // Lock the map completely (no pan/zoom/rotate) so it behaves like a static preview.
+      try {
+        map.scrollZoom.disable();
+        map.boxZoom.disable();
+        map.dragRotate.disable();
+        map.dragPan.disable();
+        map.keyboard.disable();
+        map.doubleClickZoom.disable();
+        map.touchZoomRotate.disable();
+      } catch {
+        // ignore
+      }
+
+      mapInstance.current = map;
+      markerRef.current = marker;
+      setMapLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [zoneLat, zoneLng, mapLoaded]);
+
+  // Resize map when container size changes (e.g. Aadhaar section expands)
+  useEffect(() => {
+    const container = mapRef.current;
+    const map = mapInstance.current as { resize: () => void } | null;
+    if (!container || !map) return;
+    const ro = new ResizeObserver(() => {
+      try {
+        map.resize();
+      } catch {
+        // ignore
+      }
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [mapLoaded]);
+
+  // Cleanup on unmount only — must NOT depend on previewUrl or the map gets destroyed when Aadhaar upload changes previewUrl
+  useEffect(() => {
+    return () => {
+      if (mapInstance.current) {
+        const map = mapInstance.current as { remove?: () => void } | null;
+        if (map && typeof map.remove === 'function') {
+          try {
+            map.remove();
+          } catch {
+            // Safely ignore map cleanup errors
+          }
+        }
+        mapInstance.current = null;
+      }
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+        cameraStreamRef.current = null;
+      }
+      if (faceStreamRef.current) {
+        faceStreamRef.current.getTracks().forEach((t) => t.stop());
+        faceStreamRef.current = null;
+      }
+      // previewUrl is revoked in the govIdFile effect's cleanup when it changes
+    };
+  }, []);
+
+  useEffect(() => {
+    if (step !== 2 || gesture) return;
+    console.log('[face-verify] Fetching random gesture...');
+    fetch('/api/onboarding/verify-face')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.gesture) {
+          console.log('[face-verify] Gesture:', d.gesture);
+          setGesture(d.gesture);
+        }
+      })
+      .catch(() => {
+        console.warn('[face-verify] Gesture fetch failed, using fallback');
+        setGesture('smile with teeth visible');
+      });
+  }, [step, gesture]);
+
+  // Face camera lifecycle (front-facing for selfie)
+  useEffect(() => {
+    if (!showFaceCamera) {
+      if (faceStreamRef.current) {
+        faceStreamRef.current.getTracks().forEach((t) => t.stop());
+        faceStreamRef.current = null;
+      }
+      return;
+    }
+    let cancelled = false;
+    async function enableFaceCamera() {
+      try {
+        setFaceCameraError(null);
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setFaceCameraError('Camera not supported.');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        faceStreamRef.current = stream;
+        if (faceVideoRef.current) {
+          faceVideoRef.current.srcObject = stream;
+          await faceVideoRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        setFaceCameraError(err instanceof Error ? err.message : 'Could not access camera.');
+      }
+    }
+    void enableFaceCamera();
+    return () => {
+      cancelled = true;
+      if (faceStreamRef.current) {
+        faceStreamRef.current.getTracks().forEach((t) => t.stop());
+        faceStreamRef.current = null;
+      }
+    };
+  }, [showFaceCamera]);
+
+  function stopFaceCamera() {
+    if (faceStreamRef.current) {
+      faceStreamRef.current.getTracks().forEach((t) => t.stop());
+      faceStreamRef.current = null;
+    }
+    setShowFaceCamera(false);
+  }
+
+  async function captureFacePhoto() {
+    if (!faceVideoRef.current || !gesture) return;
+    const video = faceVideoRef.current;
+    console.log('[face-verify] Capturing frame...');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return new Promise<void>((resolve) => {
+      canvas.toBlob(
+        async (blob) => {
+          if (!blob) {
+            resolve();
+            return;
+          }
+          const file = new File([blob], 'face-verification.jpg', { type: 'image/jpeg' });
+          stopFaceCamera();
+          setFaceVerifying(true);
+          setFaceError(null);
+          setFaceVerified(false);
+          setFaceVerificationPath(null);
+          console.log('[face-verify] Captured', (file.size / 1024).toFixed(1), 'KB');
+          console.log('[face-verify] Expected gesture:', gesture);
+          try {
+            console.log('[face-verify] Sending to verification service...');
+            const formData = new FormData();
+            formData.set('face_photo', file);
+            formData.set('expected_gesture', gesture);
+            const res = await fetch('/api/onboarding/verify-face', {
+              method: 'POST',
+              body: formData,
+            });
+            console.log('[face-verify] Response:', res.status);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              const errMsg = data.error ?? 'Face verification failed';
+              setFaceError(errMsg);
+              console.error('[face-verify] Error:', errMsg);
+              gooeyToast.error('Face verification failed', {
+                description: errMsg,
+                action: {
+                  label: 'Try again',
+                  onClick: () => {
+                    try {
+                      setFaceError(null);
+                      fetch('/api/onboarding/verify-face')
+                        .then((r) => r.json())
+                        .then((d) => d.gesture && setGesture(d.gesture))
+                        .catch(() => setGesture('smile with teeth visible'));
+                    } catch (err) {
+                      console.error('[face-verify] Try again error:', err);
+                    }
+                  },
+                },
+              });
+              resolve();
+              return;
+            }
+            if (data.verified) {
+              setFaceVerified(true);
+              setFaceVerificationPath(data.path ?? null);
+              console.log('[face-verify] Verified — live photo confirmed');
+              gooeyToast.success('Face verified', { description: 'Live photo confirmed.' });
+            } else {
+              const reason =
+                data.reason ?? 'Could not verify. Please try again with a clear live photo.';
+              setFaceError(reason);
+              console.warn('[face-verify] Rejected:', reason);
+              gooeyToast.error('Verification failed', {
+                description: reason,
+                action: {
+                  label: 'Try again',
+                  onClick: () => {
+                    try {
+                      setFaceError(null);
+                      setGesture(null);
+                      fetch('/api/onboarding/verify-face')
+                        .then((r) => r.json())
+                        .then((d) => d.gesture && setGesture(d.gesture))
+                        .catch(() => setGesture('smile with teeth visible'));
+                    } catch (err) {
+                      console.error('[face-verify] Try again error:', err);
+                    }
+                  },
+                },
+              });
+              setGesture(null);
+            }
+          } catch (e) {
+            const errMsg = e instanceof Error ? e.message : 'Verification failed';
+            setFaceError('Verification failed. Please try again.');
+            console.error('[face-verify] Exception:', errMsg);
+            gooeyToast.error('Verification failed', {
+              description: 'Please try again.',
+              action: {
+                label: 'Try again',
+                onClick: () => {
+                  try {
+                    setFaceError(null);
+                    fetch('/api/onboarding/verify-face')
+                      .then((r) => r.json())
+                      .then((d) => d.gesture && setGesture(d.gesture))
+                      .catch(() => setGesture('smile with teeth visible'));
+                  } catch (err) {
+                    console.error('[face-verify] Try again error:', err);
+                  }
+                },
+              },
+            });
+          }
+          setFaceVerifying(false);
+          resolve();
+        },
+        'image/jpeg',
+        0.9,
+      );
+    });
+  }
+
+  // Camera lifecycle: start stream when showCamera is true
+  useEffect(() => {
+    if (!showCamera) {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+        cameraStreamRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    async function enableCamera() {
+      try {
+        setCameraError(null);
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError('Camera not supported on this device/browser.');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        cameraStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        setCameraError(
+          err instanceof Error ? err.message : 'Could not access camera. Please check permissions.',
+        );
+      }
+    }
+
+    void enableCamera();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCamera]);
+
+  function stopCamera() {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
+    setShowCamera(false);
+    setCaptureReady(false);
+    autoCaptureTriggeredRef.current = false;
+  }
+
+  /** Analyze frame for sharpness (blur) and brightness; returns true if clear enough to auto-capture */
+  function isFrameClearEnough(video: HTMLVideoElement): boolean {
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return false;
+    // Evaluate only the center ROI that matches the on-screen Aadhaar frame.
+    // This makes auto-capture respond to what the user is aligning, not the whole scene.
+    const ROI_W_RATIO = 0.86;
+    const ROI_ASPECT = 1.58; // Aadhaar-like card ratio (width / height)
+    const srcW = video.videoWidth;
+    const srcH = video.videoHeight;
+
+    const roiW = Math.max(1, Math.floor(srcW * ROI_W_RATIO));
+    const roiH = Math.max(1, Math.floor(roiW / ROI_ASPECT));
+    const sx = Math.max(0, Math.floor((srcW - roiW) / 2));
+    const sy = Math.max(0, Math.floor((srcH - roiH) / 2));
+
+    // Downscale for fast per-frame checks
+    const w = 200;
+    const h = 126;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.drawImage(video, sx, sy, roiW, roiH, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const len = data.length;
+    const gray: number[] = [];
+    for (let i = 0; i < len; i += 4) {
+      gray.push(0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!);
+    }
+    let mean = 0;
+    for (let i = 0; i < gray.length; i++) mean += gray[i]!;
+    mean /= gray.length;
+    if (mean < 50 || mean > 220) return false; // too dark or overexposed
+    let variance = 0;
+    for (let i = 0; i < gray.length; i++) {
+      const d = gray[i]! - mean;
+      variance += d * d;
+    }
+    variance /= gray.length;
+    const std = Math.sqrt(variance);
+    if (std < 25) return false; // too flat (blurry or blank)
+    let laplacianSum = 0;
+    const kernel = [0, -1, 0, -1, 4, -1, 0, -1, 0];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        let v = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const idx = ((y + dy) * w + (x + dx))!;
+            v += gray[idx]! * kernel[(dy + 1) * 3 + (dx + 1)]!;
+          }
+        }
+        laplacianSum += Math.abs(v);
+      }
+    }
+    const lapVar = laplacianSum / ((w - 2) * (h - 2));
+    return lapVar > 80 && lapVar < 2000;
+  }
+
+  // Auto-capture when frame is clear for a few consecutive checks
+  useEffect(() => {
+    if (!showCamera || !videoRef.current) return;
+    autoCaptureTriggeredRef.current = false;
+    setCaptureReady(false);
+    let consecutiveGood = 0;
+    // Faster loop so it feels realtime while aligning the card.
+    const NEED_GOOD = 2;
+    const CHECK_MS = 180;
+    const id = window.setInterval(() => {
+      if (autoCaptureTriggeredRef.current) return;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return;
+      const ok = isFrameClearEnough(video);
+      setCaptureReady(ok);
+      if (ok) {
+        consecutiveGood++;
+        if (consecutiveGood >= NEED_GOOD) {
+          autoCaptureTriggeredRef.current = true;
+          window.clearInterval(id);
+          capturePhoto();
+        }
+      } else {
+        consecutiveGood = 0;
+      }
+    }, CHECK_MS);
+    return () => window.clearInterval(id);
+  }, [showCamera]);
+
+  async function capturePhoto() {
+    if (!videoRef.current || capturingGovId) return;
+    const video = videoRef.current;
+    if (video.readyState < 2) {
+      setCameraError('Camera is still loading. Hold steady for a second and try again.');
+      return;
+    }
+    setCameraError(null);
+    setCapturingGovId(true);
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setCapturingGovId(false);
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCapturingGovId(false);
+          setCameraError('Could not capture image. Please try again.');
+          return;
+        }
+        const file = new File([blob], 'government-id-camera.jpg', {
+          type: 'image/jpeg',
+        });
+        setGovIdFile(file);
+        void verifyGovernmentId(file);
+        stopCamera();
+        setCapturingGovId(false);
+      },
+      'image/jpeg',
+      0.9,
+    );
+  }
+
+  // Preview URL for uploaded / captured ID
+  useEffect(() => {
+    if (!govIdFile) {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewUrl(null);
+      setShowPreview(false);
+      setGovIdVerified(false);
+      setGovIdVerificationPath(null);
+      setGovIdVerificationReason(null);
+      return;
+    }
+    const url = URL.createObjectURL(govIdFile);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [govIdFile]);
+
+  async function verifyGovernmentId(file: File) {
+    setGovIdVerifying(true);
+    setGovIdVerified(false);
+    setGovIdVerificationPath(null);
+    setGovIdVerificationReason(null);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.set('full_name', fullName.trim());
+      formData.set('id_type', govIdType); // only 'aadhaar'
+      formData.set('government_id', file);
+
+      const verifyRes = await fetch('/api/onboarding/verify-government-id', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      if (!verifyRes.ok) {
+        setError(verifyData.error ?? 'Failed to upload government ID');
+        setGovIdVerified(false);
+        return;
+      }
+
+      if (!verifyData.verified) {
+        setError(
+          verifyData.reason ??
+            'Government ID could not be verified. Please upload a clear photo of your Aadhaar, PAN, Voter ID, or Driving License.',
+        );
+        setGovIdVerified(false);
+        return;
+      }
+
+      setGovIdVerified(true);
+      setGovIdVerificationPath(verifyData.path ?? null);
+      setGovIdVerificationReason(verifyData.reason ?? null);
+    } catch (err) {
+      console.error('verifyGovernmentId error:', err);
+      setError('Identity verification failed to load. Please check your connection and try again.');
+      setGovIdVerified(false);
+    } finally {
+      setGovIdVerifying(false);
+    }
+  }
+
+  // Fast search (debounced + request cancellation)
+  const handleZoneChange = useCallback((value: string) => {
+    setZone(value);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (zoneSearchAbortRef.current) {
+      zoneSearchAbortRef.current.abort();
+      zoneSearchAbortRef.current = null;
+    }
+
+    if (value.trim().length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    setShowResults(true);
+    setSearchLoading(true);
+
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const controller = new AbortController();
+        zoneSearchAbortRef.current = controller;
+        const res = await fetch(
+          `/api/geo/search?q=${encodeURIComponent(value.trim())}&limit=5`,
+          { signal: controller.signal },
+        );
+        if (res.ok) {
+          const geo = (await res.json()) as { results?: GeoResult[] };
+          setSearchResults(geo.results ?? []);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (e) {
+        // Ignore aborts; they happen on fast typing
+        if (!(e instanceof DOMException && e.name === 'AbortError')) {
+          setSearchResults([]);
+        }
+      } finally {
+        zoneSearchAbortRef.current = null;
+        setSearchLoading(false);
+      }
+    }, 150);
+  }, []);
+
+  function selectLocation(result: GeoResult) {
+    setZone(result.name + (result.admin1 ? `, ${result.admin1}` : ''));
+    setZoneLat(result.latitude);
+    setZoneLng(result.longitude);
+    setShowResults(false);
+    setSearchResults([]);
+  }
+
+  const isFormFilled =
+    !!platform &&
+    fullName.trim().length >= 2 &&
+    phone.trim().length >= 10 &&
+    zone.trim().length >= 2 &&
+    zoneLat != null &&
+    zoneLng != null;
+
+  const canGoNext = isFormFilled && !loading;
+  const canContinue = step === 2 && govIdVerified && faceVerified && !faceVerifying && !loading;
+
+  function handleNext(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canGoNext) return;
+    setStep(2);
+    setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canContinue) return;
+    setLoading(true);
+    setError(null);
+    setFaceError(null);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Not signed in');
+      setLoading(false);
+      return;
+    }
+
+    if (!govIdVerified || !govIdVerificationPath) {
+      setError('Please upload and verify your government ID before continuing.');
+      setLoading(false);
+      return;
+    }
+
+    if (!faceVerified || !faceVerificationPath) {
+      setError('Please complete face verification before continuing.');
+      setLoading(false);
+      return;
+    }
+
+    // Save profile with all required data (government ID + face verified)
+    const { error: upsertError } = await supabase.from('profiles').upsert(
+      {
+        id: user.id,
+        full_name: fullName.trim(),
+        phone_number: phone.trim(),
+        platform,
+        primary_zone_geofence: zone ? { zone_name: zone, coordinates: [zoneLng, zoneLat] } : null,
+        zone_latitude: zoneLat,
+        zone_longitude: zoneLng,
+        government_id_url: govIdVerificationPath,
+        government_id_verified: true,
+        government_id_verification_result: {
+          verified: true,
+          reason: govIdVerificationReason,
+        },
+        face_photo_url: faceVerificationPath,
+        face_verified: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+
+    if (upsertError) {
+      setError(upsertError.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push('/dashboard');
+    router.refresh();
+  }
+
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await supabase.auth.signOut();
+            } catch {
+              // ignore
+            } finally {
+              // Replace history entry so browser back won't bounce into onboarding again
+              router.replace('/login');
+            }
+          }}
+          className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-400 mb-6 transition-colors"
+          aria-label="Back to login"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <Logo size={24} />
+          Oasis
+        </button>
+        <div className="flex justify-center mb-6">
+          <Logo size={80} />
+        </div>
+        <h1 className="text-2xl font-bold mb-2 text-center">
+          {step === 0
+            ? 'Required permissions'
+            : step === 1
+              ? 'Complete your profile'
+              : 'Identity verification'}
+        </h1>
+        <p className="text-zinc-400 mb-8 text-center">
+          {step === 0
+            ? 'Oasis needs these to set your zone, verify your ID, and report delivery issues.'
+            : step === 1
+              ? 'Q-commerce delivery partner setup'
+              : 'Government ID and face verification'}
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (step === 0) setStep(1);
+            else if (step === 1) handleNext(e);
+            else handleSubmit(e);
+          }}
+          className="space-y-6"
+        >
+          {step === 0 ? (
+            <>
+              {!isSecureContext && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+                  Location and camera need a secure connection. Use <strong>https://</strong> or
+                  open this site at <strong>localhost</strong> so your browser can show permission
+                  prompts.
+                </div>
+              )}
+              <p className="text-xs text-zinc-400 text-center">
+                Click each button below. Your browser will show a permission prompt. Check the
+                address bar (lock icon) or a small popup.
+              </p>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-full p-2 bg-uber-green-500/20 shrink-0">
+                      <MapPin className="text-uber-green-400" size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Location (GPS)</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        We use your location to set your delivery zone and attach location to
+                        reports when you can’t deliver.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestLocationPermission}
+                        disabled={
+                          !isSecureContext ||
+                          locationStatus === 'granted' ||
+                          locationRequesting
+                        }
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-200 hover:border-uber-green-500 hover:bg-zinc-800/80 disabled:opacity-60"
+                      >
+                        {locationRequesting
+                          ? 'Requesting…'
+                          : locationStatus === 'granted'
+                            ? 'Granted'
+                            : locationStatus === 'denied'
+                              ? 'Allow in browser settings'
+                              : locationStatus === 'unavailable'
+                                ? 'Not supported'
+                                : 'Request location'}
+                        {locationStatus === 'granted' && (
+                          <CheckCircle2 className="h-4 w-4 text-uber-green-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-full p-2 bg-uber-green-500/20 shrink-0">
+                      <Camera className="text-uber-green-400" size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Camera</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        We use the camera for ID verification and when reporting delivery issues
+                        (required photo).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestCameraPermission}
+                        disabled={
+                          !isSecureContext ||
+                          cameraStatus === 'granted' ||
+                          cameraRequesting
+                        }
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-200 hover:border-uber-green-500 hover:bg-zinc-800/80 disabled:opacity-60"
+                      >
+                        {cameraRequesting
+                          ? 'Requesting…'
+                          : cameraStatus === 'granted'
+                            ? 'Granted'
+                            : cameraStatus === 'denied'
+                              ? 'Allow in browser settings'
+                              : cameraStatus === 'unavailable'
+                                ? 'Not supported'
+                                : 'Request camera'}
+                        {cameraStatus === 'granted' && (
+                          <CheckCircle2 className="h-4 w-4 text-uber-green-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {isMounted && !isMobileForGps(navigator.userAgent) && (
+                <p className="text-xs text-amber-400/90 text-center rounded-lg bg-amber-500/10 border border-amber-500/30 p-2">
+                  Zone and location work best on a mobile device. You can continue and set your zone manually (e.g. search).
+                </p>
+              )}
+              <Button type="submit" fullWidth size="lg">
+                Continue
+              </Button>
+            </>
+          ) : step === 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-400 mb-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to permissions
+              </button>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-3">
+                  Which platform do you deliver for? <span className="text-red-400">*</span>
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-label="Delivery platform"
+                  className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+                >
+                  {(['zepto', 'blinkit'] as const).map((p) => {
+                    const selected = platform === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPlatform(p)}
+                        role="radio"
+                        aria-checked={selected}
+                        className={[
+                          'group flex-1 min-w-0 rounded-xl px-4 py-3 transition-all',
+                          'border text-left',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                          selected
+                            ? 'border-white/20 bg-[#0b0b0b] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
+                            : 'border-transparent bg-transparent hover:bg-white/[0.04] active:bg-white/[0.06]',
+                        ].join(' ')}
+                      >
+                        <span className="flex items-center gap-3">
+                          <PlatformLogo platform={p} size={22} className="rounded-lg bg-white/[0.04]" showName={false} />
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={[
+                                'block text-sm font-semibold tracking-tight',
+                                selected ? 'text-white' : 'text-zinc-200',
+                              ].join(' ')}
+                            >
+                              {p.charAt(0).toUpperCase() + p.slice(1)}
+                            </span>
+                          </span>
+                          <span
+                            className={[
+                              'shrink-0 inline-flex items-center justify-center rounded-full border transition-all',
+                              selected ? 'border-uber-green-500/60 bg-uber-green-500/15' : 'border-white/10 bg-white/[0.03] opacity-60 group-hover:opacity-90',
+                            ].join(' ')}
+                            style={{ width: 26, height: 26 }}
+                            aria-hidden
+                          >
+                            <CheckCircle2
+                              className={[
+                                'h-4 w-4',
+                                selected ? 'text-uber-green-400' : 'text-white/50',
+                              ].join(' ')}
+                            />
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="fullName" className="block text-sm text-zinc-400 mb-1">
+                  Full name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-uber-green-500"
+                  placeholder="As on your government ID"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm text-zinc-400 mb-1">
+                  Phone number <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-uber-green-500"
+                  placeholder="10-digit mobile number"
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  required
+                />
+              </div>
+
+              {/* Zone picker with search + map */}
+              <div>
+                <label
+                  htmlFor="zone"
+                  className="block text-sm text-zinc-400 mb-1 flex items-center justify-between"
+                >
+                  <span>
+                    Pin your delivery zone <span className="text-red-400">*</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={prefillZoneFromCurrentLocation}
+                    className="text-[11px] text-uber-green-400 hover:text-uber-green-300"
+                  >
+                    Use current location
+                  </button>
+                </label>
+                <div className="relative">
+                  <div className="relative">
+                    <Search
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <input
+                      id="zone"
+                      type="text"
+                      value={zone}
+                      onChange={(e) => handleZoneChange(e.target.value)}
+                      onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                      className="w-full pl-10 pr-10 py-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-uber-green-500"
+                      placeholder="Search Indian area, e.g. Koramangala, Andheri"
+                    />
+                    {zone && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZone('');
+                          setZoneLat(null);
+                          setZoneLng(null);
+                          setSearchResults([]);
+                          setShowResults(false);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                      >
+                        <X style={{ width: 16, height: 16 }} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search results dropdown */}
+                  {showResults && (
+                    <div className="absolute z-20 w-full mt-1 rounded-lg bg-zinc-900 border border-zinc-700 shadow-xl shadow-black/40 max-h-48 overflow-y-auto">
+                      {searchLoading && (
+                        <div className="px-4 py-3 text-sm text-zinc-400 border-b border-zinc-700/60">
+                          Searching locations…
+                        </div>
+                      )}
+                      {!searchLoading && searchResults.length === 0 && (
+                        <div className="px-4 py-3 text-sm text-zinc-500">
+                          No locations found. Try a nearby area name or check your connection.
+                        </div>
+                      )}
+                      {!searchLoading &&
+                        searchResults.map((result, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => selectLocation(result)}
+                            className="w-full text-left px-4 py-3 hover:bg-zinc-800 active:bg-zinc-700 flex items-center gap-3 text-sm transition-colors border-b border-zinc-700/60 last:border-0"
+                          >
+                            <MapPin
+                              className="text-uber-green-400 shrink-0"
+                              style={{ width: 14, height: 14 }}
+                            />
+                            <div>
+                              <p className="text-zinc-200">{result.name}</p>
+                              <p className="text-[11px] text-zinc-500">
+                                {[result.admin1, result.country].filter(Boolean).join(', ')}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Map preview */}
+                {zoneLat && zoneLng && (
+                  <div className="mt-3 rounded-[16px] overflow-hidden border border-white/10">
+                    <div className="relative w-full h-[200px]">
+                      <div ref={mapRef} className="absolute inset-0" />
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0"
+                        style={{
+                          background:
+                            'linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.28) 100%)',
+                        }}
+                      />
+                    </div>
+                    <div className="bg-surface-1 px-3 py-2 flex items-center gap-2">
+                      <MapPin className="text-uber-green-400" style={{ width: 12, height: 12 }} />
+                      <span className="text-[11px] text-zinc-400">Delivery zone preview</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {error && <p className="text-sm text-red-400">{error}</p>}
+              <Button type="submit" disabled={!canGoNext} fullWidth size="lg">
+                Next
+              </Button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-400 mb-4"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to profile
+              </button>
+
+              <div className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-4 space-y-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className={`rounded-full p-2 ${govIdVerified ? 'bg-uber-green-500/20' : 'bg-zinc-700'}`}
+                    >
+                      <FileCheck
+                        className={govIdVerified ? 'text-uber-green-400' : 'text-zinc-500'}
+                        size={20}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-medium text-zinc-200">Government ID (Aadhaar)</p>
+                      <p className="text-xs text-zinc-500">
+                        {govIdVerifying
+                          ? 'Verifying…'
+                          : govIdVerified
+                            ? 'Verified'
+                            : 'Upload or capture your Aadhaar'}
+                      </p>
+                    </div>
+                    {govIdVerified && (
+                      <CheckCircle2 className="text-uber-green-400 ml-auto" size={20} />
+                    )}
+                  </div>
+                  {!govIdVerified && !govIdVerifying && (
+                    <>
+                      <p className="text-[11px] text-zinc-500 mb-2">
+                        Upload a clear photo or capture using your camera. AI will verify
+                        authenticity.
+                      </p>
+                      <input
+                        ref={govIdInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setGovIdFile(file);
+                          if (file) await verifyGovernmentId(file);
+                        }}
+                        className="hidden"
+                      />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (govIdFile && previewUrl) setShowPreview(true);
+                            else govIdInputRef.current?.click();
+                          }
+                        }}
+                        onClick={() => {
+                          if (govIdFile && previewUrl) setShowPreview(true);
+                          else govIdInputRef.current?.click();
+                        }}
+                        className={`w-full px-4 py-4 rounded-lg border border-dashed transition-colors flex items-center justify-center gap-3 cursor-pointer ${
+                          govIdFile
+                            ? 'border-uber-green-500/50 bg-uber-green-500/5 text-uber-green-400'
+                            : 'border-zinc-600 bg-zinc-900/50 text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900'
+                        }`}
+                      >
+                        {govIdFile ? (
+                          <>
+                            <FileCheck style={{ width: 20, height: 20 }} />
+                            <span className="flex-1 truncate text-left">{govIdFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGovIdFile(null);
+                              }}
+                              className="shrink-0 rounded p-1 hover:bg-zinc-700/50 -mr-1"
+                              aria-label="Remove file"
+                            >
+                              <X style={{ width: 14, height: 14 }} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <Upload style={{ width: 20, height: 20 }} />
+                            <span>Choose file (JPEG, PNG, WebP, max 5MB)</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Ensure only one camera panel is active at a time
+                            if (!showCamera) stopFaceCamera();
+                            setShowCamera((v) => !v);
+                          }}
+                          className={`inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 hover:border-uber-green-500 hover:bg-zinc-900/80 hover:text-uber-green-400 transition-colors ${showCamera ? 'border-uber-green-500 text-uber-green-400' : ''}`}
+                          aria-label={showCamera ? 'Close camera' : 'Open camera'}
+                        >
+                          <Camera className="h-3.5 w-3.5 mr-1.5" />
+                          <span>{showCamera ? 'Close camera' : 'Use camera'}</span>
+                        </button>
+                        {cameraError && (
+                          <p className="text-[11px] text-red-400 text-right">{cameraError}</p>
+                        )}
+                      </div>
+                      {showCamera && (
+                        <div
+                          className={`mt-3 rounded-2xl overflow-hidden transition-colors ${captureReady ? 'ring-2 ring-uber-green-500 ring-offset-2 ring-offset-zinc-950' : 'border border-zinc-700'}`}
+                        >
+                          <div className="relative w-full bg-black aspect-[16/9]">
+                            <video
+                              ref={videoRef}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              autoPlay
+                              playsInline
+                              muted
+                            />
+
+                            {/* Aadhaar alignment frame */}
+                            <div
+                              aria-hidden
+                              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                            >
+                              <div className="relative w-[86%] max-w-[520px] aspect-[1.58/1] rounded-xl border-2 border-white/40">
+                                {/* corner guides */}
+                                <div className="absolute -top-0.5 -left-0.5 h-6 w-6 border-t-2 border-l-2 border-uber-green-400/90 rounded-tl-xl" />
+                                <div className="absolute -top-0.5 -right-0.5 h-6 w-6 border-t-2 border-r-2 border-uber-green-400/90 rounded-tr-xl" />
+                                <div className="absolute -bottom-0.5 -left-0.5 h-6 w-6 border-b-2 border-l-2 border-uber-green-400/90 rounded-bl-xl" />
+                                <div className="absolute -bottom-0.5 -right-0.5 h-6 w-6 border-b-2 border-r-2 border-uber-green-400/90 rounded-br-xl" />
+                                {/* subtle dark scrim outside frame */}
+                                <div
+                                  className="absolute inset-0 -z-10"
+                                  style={{
+                                    boxShadow:
+                                      '0 0 0 9999px rgba(0,0,0,0.32), inset 0 0 0 1px rgba(255,255,255,0.06)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-3 py-3 bg-zinc-900/95 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <span className="text-xs text-zinc-400">
+                              {captureReady
+                                ? 'Hold steady. Capturing…'
+                                : 'Point your camera at the Aadhaar card (not your face). Fill the frame as much as possible; tap Capture if auto-capture doesn\'t trigger.'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={capturePhoto}
+                              disabled={capturingGovId}
+                              className="relative z-10 pointer-events-auto touch-manipulation w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-full bg-uber-green-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-uber-green-500/30 hover:bg-uber-green-400 active:scale-[0.98] transition disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-uber-green-500"
+                            >
+                              {capturingGovId ? 'Capturing…' : 'Capture now'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="border-t border-zinc-700/60 pt-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className={`rounded-full p-2 ${faceVerified ? 'bg-uber-green-500/20' : 'bg-zinc-700'}`}
+                    >
+                      <User
+                        className={faceVerified ? 'text-uber-green-400' : 'text-zinc-500'}
+                        size={20}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-medium text-zinc-200">Face verification</p>
+                      <p className="text-xs text-zinc-500">
+                        {faceVerified
+                          ? 'Verified'
+                          : faceVerifying
+                            ? 'Verifying…'
+                            : 'Prove you’re a real person with a live photo'}
+                      </p>
+                    </div>
+                    {faceVerified && (
+                      <CheckCircle2 className="text-uber-green-400 ml-auto" size={20} />
+                    )}
+                  </div>
+
+                  {!faceVerified && !faceVerifying && (
+                    <div className="space-y-3">
+                      {gesture && (
+                        <p className="text-sm text-zinc-200 bg-zinc-800/80 rounded-lg px-3 py-2.5 border border-zinc-700/60">
+                          <span className="text-uber-green-400 font-semibold">Do this:</span> {gesture}
+                        </p>
+                      )}
+                      {!showFaceCamera ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Ensure only one camera panel is active at a time
+                            stopCamera();
+                            setShowFaceCamera(true);
+                          }}
+                          disabled={!gesture}
+                          className="w-full py-3 px-4 rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-300 hover:border-uber-green-500 hover:text-uber-green-400 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Camera size={18} />
+                          Capture face
+                        </button>
+                      ) : (
+                        <div className="rounded-xl overflow-hidden border border-zinc-600 bg-zinc-900/80 shadow-lg shadow-black/30 relative">
+                          {/* Camera area: square aspect, max height so it's not too long */}
+                          <div className="relative w-full max-h-[min(72vw,280px)] aspect-square mx-auto bg-black">
+                            <video
+                              ref={faceVideoRef}
+                              className="w-full h-full object-cover"
+                              style={{ transform: 'scaleX(-1)' }}
+                              autoPlay
+                              playsInline
+                              muted
+                            />
+                            {/* Ring light effect: soft bright ring around face area */}
+                            <div
+                              className="absolute inset-0 pointer-events-none"
+                              aria-hidden
+                              style={{
+                                background: 'radial-gradient(circle at center, transparent 28%, rgba(255,255,255,0.12) 38%, rgba(255,255,255,0.08) 48%, transparent 58%)',
+                              }}
+                            />
+                            {/* Face alignment guide: circular, with subtle glow */}
+                            <div
+                              className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                              aria-hidden
+                            >
+                              <div
+                                className="w-[72%] max-w-[200px] aspect-square rounded-full border-2 border-uber-green-400/80 border-dashed"
+                                style={{ boxShadow: '0 0 0 1px rgba(16,185,129,0.2), 0 0 28px rgba(16,185,129,0.25)' }}
+                              />
+                            </div>
+                          </div>
+                          {faceCameraError && (
+                            <p className="text-xs text-red-400 px-3 py-2 bg-red-950/30">{faceCameraError}</p>
+                          )}
+                          <div className="px-3 py-2.5 bg-zinc-800/90 flex items-center justify-between border-t border-zinc-700/80">
+                            <span className="text-xs text-zinc-300">
+                              Align face in the frame. Must be a live selfie.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={captureFacePhoto}
+                              className="text-xs px-4 py-2 rounded-lg bg-uber-green-500 text-white font-semibold hover:bg-uber-green-400 active:scale-[0.98] shadow-md shadow-uber-green-500/20 transition-all"
+                            >
+                              Capture
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={stopFaceCamera}
+                            className="w-full py-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {error && <p className="text-sm text-red-400">{error}</p>}
+              <Button type="submit" disabled={!canContinue} fullWidth size="lg">
+                {loading ? 'Verifying & saving...' : 'Continue'}
+              </Button>
+            </>
+          )}
+
+          {/* Full-screen preview for uploaded / captured ID — shared across steps */}
+          {showPreview && previewUrl && (
+            <div
+              className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 px-4"
+              onClick={() => setShowPreview(false)}
+            >
+              <div className="relative max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                <img
+                  src={previewUrl}
+                  alt="Government ID preview"
+                  className="w-full max-h-[70vh] object-contain rounded-lg border border-zinc-700 bg-black"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(false)}
+                  className="absolute -top-3 -right-3 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-200 hover:bg-zinc-800 px-2 py-1 text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </form>
+      </div>
+    </main>
+  );
+}

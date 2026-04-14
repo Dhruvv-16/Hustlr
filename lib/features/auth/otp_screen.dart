@@ -113,7 +113,17 @@ class _OTPScreenState extends State<OTPScreen> {
         await box.put('userPlatform', existingUser['platform']);
         await box.put('onboardingComplete', true);
 
-        context.go(AppRoutes.dashboard);
+        // Biometric Step-Up Authorization Gateway
+        final reason = Uri.encodeComponent('Confirm your identity to securely access Hustlr.');
+        final authResult = await context.push<Map<String, dynamic>>('${AppRoutes.stepUpAuth}?reason=$reason');
+        
+        if (authResult != null && authResult['verified'] == true) {
+          context.go(AppRoutes.dashboard);
+        } else {
+          setState(() {
+            _error = 'Identity verification failed. Cannot access account.';
+          });
+        }
       } else {
         // User does not exist, proceed to onboarding
         final onboardingComplete = box.get('onboardingComplete', defaultValue: false);
