@@ -13,6 +13,9 @@ class ApiService {
   /// into the release binary with `--dart-define=HUSTLR_API_PROD=https://api.yourdomain.com`.
   ///
   /// **Local dev:** `--dart-define=HUSTLR_API_BASE=...` or repo [scripts/start-dev.ps1].
+  // Production Render URL
+  static const _prodUrl = 'https://hustlr-ad32.onrender.com';
+
   static String get baseUrl {
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
@@ -22,10 +25,11 @@ class ApiService {
     if (kIsWeb) {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
-      return defaultDev;
+      // Use production backend for web testing
+      return _prodUrl;
     }
     if (kReleaseMode) {
-      return prod.isNotEmpty ? prod : defaultDev;
+      return prod.isNotEmpty ? prod : _prodUrl;
     }
     if (devOverride.isNotEmpty) return devOverride;
     return prod.isNotEmpty ? prod : defaultDev;
