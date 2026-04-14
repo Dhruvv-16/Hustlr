@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -822,13 +824,10 @@ class ApiService {
     required String imageBase64,
     String? expectedGesture,
   }) async {
+    // Try Google Cloud Vision API first (cloud-based, more accurate)
     try {
-      // Use Google Cloud Vision API for face detection
       const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE'; // Replace with your Google Cloud Vision API key
       final url = Uri.parse('https://vision.googleapis.com/v1/images:annotate?key=$apiKey');
-      
-      // Decode base64 to bytes
-      final imageBytes = base64Decode(imageBase64);
       
       final response = await http.post(
         url,
@@ -864,6 +863,7 @@ class ApiService {
             'verified': false,
             'reason': faces.length == 0 ? 'No face detected' : 'Multiple faces detected',
             'similarity_score': 0.0,
+            'method': 'google_cloud_vision',
           };
         }
         
@@ -871,9 +871,6 @@ class ApiService {
         
         // Check face quality and liveness indicators
         final detectionConfidence = (face['detectionConfidence'] as num?)?.toDouble() ?? 0.0;
-        final headwearLikelihood = face['headwearLikelihood'] ?? 'UNKNOWN';
-        final blurredLikelihood = face['blurredLikelihood'] ?? 'UNKNOWN';
-        final eyesOpenLikelihood = face['eyesOpenLikelihood'] ?? 'UNKNOWN';
         
         // Strict checks for liveness
         if (detectionConfidence < 0.7) {
@@ -881,6 +878,7 @@ class ApiService {
             'verified': false,
             'reason': 'Face quality too low (confidence: ${detectionConfidence.toStringAsFixed(2)})',
             'similarity_score': detectionConfidence,
+            'method': 'google_cloud_vision',
           };
         }
         
@@ -897,37 +895,102 @@ class ApiService {
             'verified': false,
             'reason': 'Screen capture detected',
             'similarity_score': 0.3,
+            'method': 'google_cloud_vision',
           };
-        }
-        
-        // Gesture verification (if provided)
-        if (expectedGesture != null) {
-          // For now, we'll use a simple heuristic based on facial landmarks
-          // In production, you'd need more sophisticated gesture detection
-          final landmarkingConfidence = (face['landmarkingConfidence'] as num?)?.toDouble() ?? 0.0;
-          if (landmarkingConfidence < 0.5) {
-            return {
-              'verified': false,
-              'reason': 'Unable to verify gesture - face landmarks not clear',
-              'similarity_score': landmarkingConfidence,
-            };
-          }
         }
         
         return {
           'verified': true,
           'reason': 'Face verified successfully',
           'similarity_score': detectionConfidence,
+          'method': 'google_cloud_vision',
         };
       }
       throw Exception('Google Cloud Vision API failed');
     } catch (e) {
-      developer.log('Face liveness verification error: $e');
-      // Fallback mock if API fails
+      developer.log('Google Cloud Vision failed, falling back to ML Kit: $e');
+      
+      // Fallback to local ML Kit face detection
+      return _verifyFaceLivenessLocal(imageBase64: imageBase64, expectedGesture: expectedGesture);
+    }
+  }
+
+  // ── Local face liveness verification using ML Kit (fallback) ───────────────
+
+  Future<Map<String, dynamic>> _verifyFaceLivenessLocal({
+    required String imageBase64,
+    String? expectedGesture,
+  }) async {
+    try {
+      final imageBytes = base64Decode(imageBase64);
+      final tempFile = File('${Directory.systemTemp.path}/temp_face.jpg');
+      await tempFile.writeAsBytes(imageBytes);
+      
+      final inputImage = InputImage.fromFilePath(tempFile.path);
+      final options = FaceDetectorOptions(
+        performanceMode: FaceDetectorMode.accurate,
+        enableContours: true,
+        enableClassification: true,
+      );
+      
+      final faceDetector = GoogleMLKit.vision.faceDetector(options);
+      final faces = await faceDetector.processImage(inputImage);
+      
+      await faceDetector.close();
+      await tempFile.delete();
+      
+      // Check if exactly one face is detected
+      if (faces.length != 1) {
+        return {
+          'verified': false,
+          'reason': faces.length == 0 ? 'No face detected' : 'Multiple faces detected',
+          'similarity_score': 0.0,
+          'method': 'mlkit_local',
+        };
+      }
+      
+      final face = faces.first;
+      
+      // Check face quality using ML Kit's classification
+      final smilingProb = face.smilingProbability ?? 0.0;
+      final leftEyeOpenProb = face.leftEyeOpenProbability ?? 0.0;
+      final rightEyeOpenProb = face.rightEyeOpenProbability ?? 0.0;
+      
+      // Basic liveness checks
+      if (leftEyeOpenProb < 0.3 && rightEyeOpenProb < 0.3) {
+        return {
+          'verified': false,
+          'reason': 'Eyes appear closed - possible photo spoof',
+          'similarity_score': 0.4,
+          'method': 'mlkit_local',
+        };
+      }
+      
+      // Gesture verification (basic)
+      if (expectedGesture != null) {
+        if (expectedGesture.contains('smile') && smilingProb < 0.5) {
+          return {
+            'verified': false,
+            'reason': 'Smile gesture not detected',
+            'similarity_score': smilingProb,
+            'method': 'mlkit_local',
+          };
+        }
+      }
+      
+      return {
+        'verified': true,
+        'reason': 'Face verified locally',
+        'similarity_score': (leftEyeOpenProb + rightEyeOpenProb) / 2,
+        'method': 'mlkit_local',
+      };
+    } catch (e) {
+      developer.log('ML Kit face detection error: $e');
       return {
         'verified': false,
-        'reason': 'Verification service unavailable',
+        'reason': 'Local verification failed',
         'similarity_score': 0.0,
+        'method': 'mlkit_local',
       };
     }
   }
