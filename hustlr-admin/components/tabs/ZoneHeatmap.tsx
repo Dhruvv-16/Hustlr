@@ -4,6 +4,9 @@ import { ZONES } from '@/lib/constants';
 import { bcrColor, riskBadge } from '@/lib/utils';
 import { fetchProphetForecast } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+const H3RiskMap = dynamic(() => import('@/components/H3RiskMap'), { ssr: false });
 
 export default function ZoneHeatmap() {
   const [prophetData, setProphetData] = useState<any[]>([]);
@@ -17,6 +20,9 @@ export default function ZoneHeatmap() {
   }, []);
   return (
     <div className="space-y-6">
+      <div className="card p-2 bg-black overflow-hidden shadow-[0_0_30px_rgba(63,255,139,0.05)] border-emerald-500/20">
+        <H3RiskMap />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {ZONES.map(z => (
           <div key={z.name} className="card p-5 space-y-4">
