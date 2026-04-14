@@ -18,6 +18,7 @@ import '../../features/policy/shadow_policy_screen.dart';
 import '../../features/policy/premium_breakdown_screen.dart';
 import '../../features/policy/payment_screen.dart';
 import '../../features/policy/compound_triggers_screen.dart';
+import '../../features/policy/insurance_compliance_screen.dart';
 import '../../features/claims/claims_screen.dart';
 import '../../features/claims/claim_detail_screen.dart';
 import '../../features/claims/manual_evidence_screen.dart';
@@ -55,6 +56,7 @@ class AppRoutes {
   static const premiumBreakdown = '/policy/premium';
   static const payment = '/policy/payment';
   static const compoundTriggers = '/policy/compound';
+  static const insuranceCompliance = '/policy/compliance';
   static const claims = '/claims';
   static const manualEvidence = '/claims/evidence';
   static const claimSubmitted = '/claims/submitted';
@@ -182,6 +184,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.compoundTriggers,
           builder: (_, __) => const CompoundTriggersScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.insuranceCompliance,
+          builder: (_, __) => const InsuranceComplianceScreen(),
         ),
         GoRoute(
           path: AppRoutes.manualEvidence,

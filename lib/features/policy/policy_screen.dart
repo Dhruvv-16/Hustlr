@@ -640,6 +640,41 @@ class _UpgradeTabState extends State<_UpgradeTab> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          // Insurance Disclosure
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.insuranceCompliance),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_user_rounded, color: green, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Insurance Disclosure',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                        ),
+                        Text(
+                          'IRDAI compliance & data protection',
+                          style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, color: green, size: 16),
+                ],
+              ),
+            ),
+          ),
         ]),
       ),
       Positioned(
