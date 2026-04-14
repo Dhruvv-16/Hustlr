@@ -204,6 +204,8 @@ class _WalletScreenState extends State<WalletScreen> {
                                   onRefresh: _loadWallet,
                                 ),
                                 const SizedBox(height: 16),
+                                const _LinkedUpiCard(),
+                                const SizedBox(height: 16),
                                 _SavingsInsightCard(totalPayouts: _totalPayouts, totalPremiums: _totalPremiums),
                                 const SizedBox(height: 16),
                                 const _AnalyticsButton(),
@@ -1062,6 +1064,129 @@ class _CashbackStatusCard extends StatelessWidget {
           Text(
             'Keep up the 0 claims streak for $remaining more weeks to earn ₹${cashback.toStringAsFixed(0)} cashback!',
             style: TextStyle(fontSize: 13, height: 1.4, color: grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Linked UPI Card ────────────────────────────────────────────────────────
+class _LinkedUpiCard extends StatefulWidget {
+  const _LinkedUpiCard();
+
+  @override
+  State<_LinkedUpiCard> createState() => _LinkedUpiCardState();
+}
+
+class _LinkedUpiCardState extends State<_LinkedUpiCard> {
+  late String _upiId;
+
+  @override
+  void initState() {
+    super.initState();
+    _upiId = StorageService.upiId;
+  }
+
+  void _editUpi() {
+    final controller = TextEditingController(text: _upiId);
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+        
+        return AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: const Text('Edit UPI ID', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: 'Enter your UPI ID',
+              border: const OutlineInputBorder(),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: green)),
+            ),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(foregroundColor: Colors.grey),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newUpi = controller.text.trim();
+                if (newUpi.isNotEmpty) {
+                  await StorageService.setUpiId(newUpi);
+                  setState(() {
+                    _upiId = newUpi;
+                  });
+                }
+                if (mounted) Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: isDark ? Colors.black : Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = isDark ? const Color(0xFF91938D) : const Color(0xFF607D8B);
+    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: green.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.account_balance_wallet_rounded, color: green, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Linked UPI ID', style: TextStyle(fontSize: 12, color: grey)),
+                const SizedBox(height: 4),
+                Text(_upiId, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primary)),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _editUpi,
+            style: TextButton.styleFrom(
+              foregroundColor: green,
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ],
       ),

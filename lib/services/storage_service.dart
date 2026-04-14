@@ -22,6 +22,7 @@ class StorageService {
   static const _keyOnboardingComplete = 'onboardingComplete';
   static const _keyShiftActive = 'shiftActive';
   static const _keyShiftZone = 'shiftZone';
+  static const _keyUpiId = 'upiId';
 
   // ── Static sync API (after [init]) ─────────────────────────────────────────
   static bool get isLoggedIn => _prefs.getBool(_keyIsLoggedIn) ?? false;
@@ -37,6 +38,7 @@ class StorageService {
   static String get userZone => _prefs.getString(_keyUserZone) ?? '';
   static bool get shiftActive => _prefs.getBool(_keyShiftActive) ?? false;
   static String get shiftZone => _prefs.getString(_keyShiftZone) ?? '';
+  static String get upiId => _prefs.getString(_keyUpiId) ?? ((phone.isNotEmpty) ? '$phone@ybl' : 'add-upi-id@ybl');
 
   static Future<void> setLoggedIn(bool v) => _prefs.setBool(_keyIsLoggedIn, v);
   static Future<void> setOnboarded(bool v) async {
@@ -57,6 +59,8 @@ class StorageService {
       _prefs.setBool(_keyShiftActive, v);
   static Future<void> setShiftZone(String v) =>
       _prefs.setString(_keyShiftZone, v);
+  static Future<void> setUpiId(String v) =>
+      _prefs.setString(_keyUpiId, v);
   static Future<void> clearAll() => _prefs.clear();
 
   static Future<void> setBool(String key, bool value) =>
