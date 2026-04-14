@@ -29,6 +29,15 @@ CITY_BEHAVIORAL_RISK: Dict[str, float] = {
     "Kolkata": 0.45,
 }
 
+CITY_ZONE_BASE_PRIOR: Dict[str, float] = {
+    "Chennai": 0.55,
+    "Mumbai": 0.48,
+    "Bengaluru": 0.44,
+    "Bangalore": 0.44,
+    "Kolkata": 0.50,
+    "Delhi": 0.52,
+}
+
 
 def open_meteo_heavy_rain_prior(
     lat: float,
@@ -556,12 +565,13 @@ def hourly_rate_lookup(trigger: str, merged_rules: Dict[str, Dict[str, Any]]) ->
 # Zone priors: CHENNAI_LOCALITY_PRIORS + CHENNAI_SPECIAL_PRIORS → ZONE_UNDERWRITING_PRIOR (longest needle first).
 
 
-def zone_actuarial_prior(zone: str) -> float:
+def zone_actuarial_prior(zone: str, city: Optional[str] = None) -> float:
     z = (zone or "").lower()
     for needle, p in ZONE_UNDERWRITING_PRIOR:
         if needle in z:
             return p
-    return 0.55
+    city_guess = city or extract_city_from_text(zone or "")
+    return CITY_ZONE_BASE_PRIOR.get(city_guess.strip(), 0.50)
 
 
 def compute_work_route_advisory(
@@ -580,7 +590,7 @@ def compute_work_route_advisory(
     Combines zone prior + short-horizon weather + optional ISS + optional Prophet risk
     into actionable earning-stability guidance (insurance-aware, not navigation).
     """
-    prior = zone_actuarial_prior(zone)
+    prior = zone_actuarial_prior(zone, city)
     city_br = CITY_BEHAVIORAL_RISK.get(city.strip(), 0.55)
 
     weather_stress = min(

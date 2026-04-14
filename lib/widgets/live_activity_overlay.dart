@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_background_geolocation/flutter_background_geolocation.dart' as bg;
+import '../services/shift_tracking_service.dart';
 import '../services/shift_tracking_notifier.dart';
 import '../services/storage_service.dart';
 
@@ -35,9 +35,10 @@ class _LiveActivityOverlayState extends State<LiveActivityOverlay> with TickerPr
     _checkShiftState();
   }
 
-  void _checkShiftState() async {
-    final state = await bg.BackgroundGeolocation.state;
-    if (mounted) setState(() => _shiftActive = state.enabled);
+  void _checkShiftState() {
+    if (mounted) {
+      setState(() => _shiftActive = ShiftTrackingService.instance.status == ShiftStatus.active);
+    }
   }
 
   void _onTrackingUpdate() {

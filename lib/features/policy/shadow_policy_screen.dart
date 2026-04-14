@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
-import '../../data/mock_data.dart';
+
 
 class ShadowPolicyScreen extends StatefulWidget {
   const ShadowPolicyScreen({super.key});
@@ -39,7 +39,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
   int _missedInr() {
     final m = _live?['missed_payout_inr'];
     if (m is num) return m.round();
-    return MockData.shadowMissed;
+    return 0;
   }
 
   int _fortnightPremium() {
@@ -51,13 +51,13 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
   int _netBenefit() {
     final n = _live?['net_benefit_inr'];
     if (n is num) return n.round();
-    return 582;
+    return 0;
   }
 
   int _eventCount() {
     final e = _live?['events'];
     if (e is List) return e.length;
-    return MockData.shadowEvents.length;
+    return 0;
   }
 
   List<Map<String, dynamic>> _events() {
@@ -65,7 +65,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
     if (e is List) {
       return e.map((x) => Map<String, dynamic>.from(x as Map)).toList();
     }
-    return MockData.shadowEvents;
+    return [];
   }
 
   int _weeklyCta() {

@@ -53,8 +53,8 @@ dependencies:
 
   # Background Geolocation + Anti-Spoofing (Phase 3)
   flutter_foreground_task: ^8.15.0  # Native Android Foreground Service (MIT, free)
+  background_fetch: ^1.3.8
   app_settings: ^5.1.1              # Deep-links to battery optimization settings
-  flutter_background_geolocation: ^5.1.1
 
 dev_dependencies:
   flutter_test:

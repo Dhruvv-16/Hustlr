@@ -8,6 +8,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+val bgGeoLicense = (
+    localProperties.getProperty("BG_GEO_LICENSE")
+        ?: System.getenv("BG_GEO_LICENSE")
+        ?: ""
+)
+
 android {
     namespace = "com.shieldgig.shieldgig"
     compileSdk = flutter.compileSdkVersion
@@ -31,6 +46,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["BG_GEO_LICENSE"] = bgGeoLicense
     }
 
     buildTypes {

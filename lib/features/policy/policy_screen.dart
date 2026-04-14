@@ -75,6 +75,7 @@ class _PolicyScreenState extends State<PolicyScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Map<String, dynamic>? activePolicy;
+  List<Map<String, dynamic>> policyHistory = [];
   bool isLoading = true;
 
   @override
@@ -89,7 +90,20 @@ class _PolicyScreenState extends State<PolicyScreen>
     if (uid != null) {
       try {
         final data = await ApiService.instance.getPolicyInstance(uid);
-        if (mounted) setState(() { activePolicy = data; isLoading = false; });
+        if (mounted) {
+          final rawPolicy = data['policy'];
+          final rawHistory = data['history'];
+          setState(() {
+            activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            policyHistory = rawHistory is List
+                ? rawHistory
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList()
+                : [];
+            isLoading = false;
+          });
+        }
       } catch (e) {
         if (mounted) setState(() => isLoading = false);
       }
@@ -163,7 +177,10 @@ class _PolicyScreenState extends State<PolicyScreen>
                 children: [
                   _CurrentPlanTab(activePolicy: activePolicy),
                   _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
-                  _HistoryTab(),
+                  _LiveHistoryTab(
+                    activePolicy: activePolicy,
+                    policyHistory: policyHistory,
+                  ),
                 ],
               ),
             ),
@@ -187,6 +204,133 @@ class _PolicyScreenState extends State<PolicyScreen>
         context.go('/wallet');
         break;
     }
+  }
+}
+
+class _LiveHistoryTab extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  final List<Map<String, dynamic>> policyHistory;
+
+  const _LiveHistoryTab({
+    this.activePolicy,
+    this.policyHistory = const [],
+  });
+
+  List<Map<String, dynamic>> _entries() {
+    final items = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final item in policyHistory) {
+      final id = item['id']?.toString() ?? '${item['plan_tier']}_${item['created_at']}';
+      if (seen.add(id)) items.add(item);
+    }
+    if (items.isEmpty && activePolicy != null) {
+      items.add(activePolicy!);
+    }
+    return items;
+  }
+
+  String _planLabel(Map<String, dynamic> item) {
+    final tier = item['plan_tier']?.toString().trim();
+    return (tier == null || tier.isEmpty) ? 'Shield Plan' : tier;
+  }
+
+  String _premiumLabel(Map<String, dynamic> item) {
+    final raw = item['weekly_premium'];
+    final amount = raw is num ? raw.round() : int.tryParse('${raw ?? ''}');
+    return amount == null ? '—' : '₹$amount/wk';
+  }
+
+  String _dateRange(Map<String, dynamic> item) {
+    final start = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final end = DateTime.tryParse(
+      item['updated_at']?.toString() ?? item['cancelled_at']?.toString() ?? '',
+    );
+    String fmt(DateTime? value) {
+      if (value == null) return '—';
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      return '${months[value.month - 1]} ${value.year}';
+    }
+    return '${fmt(start)} – ${fmt(end ?? start)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _entries();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = theme.cardColor;
+    final borderCol = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE5E7EB);
+    final green = theme.colorScheme.primary;
+    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _sectionLabel(context, 'POLICY HISTORY'),
+        const SizedBox(height: 12),
+        if (items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                'No policy history yet',
+                style: TextStyle(color: hintColor, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...items.map(
+            (item) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderCol),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_rounded, color: green, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _planLabel(item),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _dateRange(item),
+                          style: TextStyle(fontSize: 12, color: hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _premiumLabel(item),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

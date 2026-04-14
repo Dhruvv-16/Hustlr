@@ -8,6 +8,35 @@ const { attachWorkAdvisor } = require('../services/work_advisor_service');
 
 // Literal paths must be registered before `/:zone` so "forecast" is not treated as a zone name.
 
+// In-memory store for demo disruptions
+const demoDisruptions = [];
+
+// ─── POST /disruptions/create ──────────────────
+router.post('/create', (req, res) => {
+  const { zone, trigger_type, severity } = req.body;
+  demoDisruptions.push({
+    trigger_type: trigger_type || 'extreme_cyclone',
+    display_name: trigger_type === 'extreme_cyclone' ? 'Severe Cyclone Warning' : trigger_type,
+    hourly_rate: 100,
+    severity: severity || 1.0,
+    current_value: 'IMD Alert Red',
+    threshold: 'IMD Alert Orange+',
+    payout_pct: 100,
+    active: true,
+    zone,
+    trust_score: 95,
+    trust_sufficient: true,
+    data_sources: ['IMD_OFFICIAL', 'DEMO_INJECTED'],
+    created_at: new Date().toISOString()
+  });
+  
+  // Clear cache to ensure demo disruption is immediately visible
+  const { _clearDisruptionCache } = require('../services/disruption_snapshot');
+  _clearDisruptionCache();
+  
+  return res.json({ success: true });
+});
+
 // ─── GET /disruptions/forecast/:zone ──────────────────
 router.get('/forecast/:zone', async (req, res) => {
   const { zone } = req.params;
@@ -59,6 +88,13 @@ router.get('/:zone', async (req, res) => {
       if (Number.isFinite(n)) issOpt = n;
     }
     body.work_advisor = await attachWorkAdvisor(zone, body, { iss_score: issOpt });
+
+    const localDemos = demoDisruptions.filter(d => d.zone === zone);
+    if (localDemos.length > 0) {
+      body.active = true;
+      body.disruptions.push(...localDemos);
+    }
+
     return res.json(body);
   } catch (e) {
     console.error('[Disruptions] Critical error:', e.message);

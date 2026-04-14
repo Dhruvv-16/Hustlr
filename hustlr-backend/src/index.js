@@ -7,6 +7,7 @@ const workerRoutes = require('./routes/worker.routes');
 const policyRoutes = require('./routes/policy.routes');
 const claimsRoutes = require('./routes/claims.routes');
 const walletRoutes = require('./routes/wallet.routes');
+const paymentRoutes = require('./routes/payment.routes');
 const disruptionRoutes = require('./routes/disruption.routes');
 const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
@@ -41,6 +42,7 @@ app.use('/workers', workerRoutes);
 app.use('/policies', policyRoutes);
 app.use('/claims', claimsRoutes);
 app.use('/wallet', walletRoutes);
+app.use('/payments', paymentRoutes);
 app.use('/disruptions', disruptionRoutes);
 app.use('/guidewire', guidewireRoutes);
 app.use('/cities', citiesRoutes);
@@ -132,8 +134,8 @@ app.get('/health/services', async (req, res) => {
     maxmind:    maxmindEnvStatus(),
     ookla_internet: ooklaInternetStatus,
     // Payments & Notifications
-    instamojo:  envPresent('INSTAMOJO_API_KEY'),
-    razorpay:   envPresent('RAZORPAY_KEY_ID'),
+    paypal:     envPresent('PAYPAL_CLIENT_ID'),
+    stripe:     envPresent('STRIPE_PUBLISHABLE_KEY'),
     guidewire:       process.env.ENABLE_GUIDEWIRE_ROUTES === 'true' ? 'enabled' : 'off',
     play_integrity:  playIntegrityStatus,
     firebase:   envPresent('FIREBASE_SERVER_KEY'),

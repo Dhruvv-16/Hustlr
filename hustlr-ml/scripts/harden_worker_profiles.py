@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from external_city_data_utils import city_environment_penalty
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATASETS_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets"
@@ -104,31 +106,10 @@ def rebuild_worker_scores(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+@lru_cache(maxsize=None)
 def load_city_environment_term(city: str) -> float:
-    rain_path = EXTERNAL_DIR / "chennai_rainfall_1991_2023.csv"
-    air_path = EXTERNAL_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
     bonus = CITY_ENV_PRIORS.get(str(city), -0.8)
-
-    if str(city) == "Chennai" and rain_path.is_file():
-        rain = pd.read_csv(rain_path)
-        if {"District", "Rainfall"}.issubset(rain.columns):
-            chennai = rain[rain["District"].astype(str).str.contains("chennai", case=False, na=False)]
-            if not chennai.empty:
-                mean_rain = float(pd.to_numeric(chennai["Rainfall"], errors="coerce").dropna().mean())
-                bonus -= min(mean_rain / 25.0, 2.0)
-
-    if str(city) == "Chennai" and air_path.is_file():
-        try:
-            air = pd.read_json(air_path)
-        except ValueError:
-            import json
-            payload = json.loads(air_path.read_text(encoding="utf-8"))
-            aqi = payload.get("hourly", {}).get("european_aqi", [])
-            valid = [float(x) for x in aqi if x is not None]
-            if valid:
-                bonus -= min(np.mean(valid) / 120.0, 1.5)
-
-    return bonus
+    return bonus + city_environment_penalty(str(city))
 
 
 def sync_claim_scores(worker_df: pd.DataFrame, claims_df: pd.DataFrame) -> pd.DataFrame:

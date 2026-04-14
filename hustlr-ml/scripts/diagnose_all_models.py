@@ -39,7 +39,7 @@ from model_data_utils import (
     month_groups,
     template_text_groups,
 )
-from train_model3_fraud import prepare_fraud_features
+from train_model3_fraud import augment_fraud_frame, prepare_fraud_features
 from train_model7_prophet import (
     REGRESSORS as PROPHET_REGRESSORS,
     add_event_calendar_features,
@@ -147,7 +147,7 @@ from xgboost import XGBClassifier
 xgb_fraud = XGBClassifier()
 xgb_fraud.load_model(MODELS_DIR / "model3_fraud_classifier.json")
 
-df_fraud = pd.read_csv(DATA_DIR / "claims_fraud.csv")
+df_fraud = augment_fraud_frame(pd.read_csv(DATA_DIR / "claims_fraud.csv"))
 print(f"Dataset: {len(df_fraud):,} rows | fraud rate: {df_fraud['is_fraud'].mean():.3f} | {df_fraud['zone'].nunique()} zones")
 
 X_f  = prepare_fraud_features(df_fraud).values
@@ -241,6 +241,24 @@ if "claim_date" in df_fraud.columns:
         month_rec = recall_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
         month_prec = precision_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
         print(f"    {month:<10} recall={month_rec:>6.1%} precision={month_prec:>6.1%} samples={int(mask.sum()):>5}")
+
+if "city" in df_fraud.columns:
+    print("\n  Test recall by city:")
+    test_city = df_fraud.iloc[fraud_test_idx]["city"].astype(str).fillna("unknown")
+    for city_name in sorted(test_city.unique()):
+        mask = test_city == city_name
+        if mask.sum() == 0 or y_fte[mask].sum() == 0:
+            continue
+        city_rec = recall_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+        city_prec = precision_score(y_fte[mask], pred_te_xgb[mask], zero_division=0)
+        print(f"    {city_name:<12} recall={city_rec:>6.1%} precision={city_prec:>6.1%} samples={int(mask.sum()):>5}")
+
+for feature in ["days_since_onboard", "simultaneous_zone_claims", "zone_depth_score", "iss_score"]:
+    if feature not in df_fraud.columns:
+        continue
+    train_mean = pd.to_numeric(df_fraud.iloc[fraud_train_idx][feature], errors="coerce").mean()
+    test_mean = pd.to_numeric(df_fraud.iloc[fraud_test_idx][feature], errors="coerce").mean()
+    print(f"  Drift check {feature:<24} train={train_mean:>8.3f} test={test_mean:>8.3f} delta={abs(train_mean-test_mean):>7.3f}")
 
 # -- Isolation Forest (unsupervised — evaluate against labels for reference)
 iso_scores_tr = -iso_model.decision_function(X_ftr_s)  # higher = more anomalous
@@ -379,68 +397,56 @@ try:
     elif "zone_id" in df_pr.columns and "city_type" not in df_pr.columns:
         df_pr["city_type"] = df_pr["zone_id"]
 
-    # Evaluate on one representative zone slug per city_type
-    CITY_SLUG_MAP = {
-        "Chennai":   "chennai",
-        "Mumbai":    "mumbai",
-        "Bangalore": "bangalore",
-        "Tier2":     "tier2",
-        "Tier 1":    "chennai",
-    }
+    print(f"\n  {'City':<16} {'Zones':>6} {'Windows':>8} {'Avg MAE':>10} {'Avg MAPE':>10} {'Coverage':>10}")
+    print("  " + "-" * 76)
 
-    print(f"\n  {'City':<16} {'Windows':>8} {'Avg MAE':>10} {'Avg MAPE':>10} {'Coverage':>10}")
-    print("  " + "-" * 66)
-
-    for city_type in sorted(df_pr["city_type"].astype(str).unique()):
-        slug = CITY_SLUG_MAP.get(city_type)
-        pkl  = MODELS_DIR / f"model7_prophet_{slug}.pkl" if slug else None
-
-        if not pkl or not pkl.exists():
-            print(f"  {city_type:<16} -- no .pkl found, skipping")
-            continue
-
-        sub   = df_pr[df_pr["city_type"].astype(str) == city_type].copy()
-        sub = build_prophet_frame(sub)
-
-        if len(sub) < 240:
-            print(f"  {city_type:<16} -- only {len(sub)} rows, skipping")
-            continue
-
-        model = joblib.load(pkl)
-        all_mae = []
-        all_mape = []
-        all_cov = []
-        total_test_rows = 0
-        window = max(48, int(len(sub) * 0.10))
-        starts = [int(len(sub) * 0.60), int(len(sub) * 0.70), int(len(sub) * 0.80)]
-
-        try:
-            for start in starts:
-                test_df = sub.iloc[start:min(start + window, len(sub))].copy()
-                if len(test_df) < 24:
+    if "zone_id" not in df_pr.columns:
+        print("  prophet_training.csv has no zone_id column; zone-wise backtest skipped")
+    else:
+        zone_city = (
+            df_pr[["zone_id", "city_type"]]
+            .dropna()
+            .drop_duplicates()
+            .assign(zone_id=lambda x: x["zone_id"].astype(str), city_type=lambda x: x["city_type"].astype(str))
+        )
+        for city_type in sorted(zone_city["city_type"].unique()):
+            city_zones = sorted(zone_city.loc[zone_city["city_type"] == city_type, "zone_id"].unique())[:8]
+            all_mae = []
+            all_mape = []
+            all_cov = []
+            windows = 0
+            for zone_id in city_zones:
+                pkl = MODELS_DIR / f"model7_prophet_{zone_id.lower()}.pkl"
+                if not pkl.exists():
                     continue
-                feature_df = test_df[["ds"] + [r for r in PROPHET_REGRESSORS if r in test_df.columns]].copy()
-                forecast = model.predict(feature_df)
-                y_true   = test_df["y"].values
-                y_pred   = forecast["yhat"].values
-                y_lo     = forecast["yhat_lower"].values
-                y_hi     = forecast["yhat_upper"].values
-
-                all_mae.append(mean_absolute_error(y_true, y_pred))
-                all_mape.append(np.mean(np.abs((y_true - y_pred) / (np.abs(y_true) + 1e-6))) * 100)
-                all_cov.append(np.mean((y_true >= y_lo) & (y_true <= y_hi)) * 100)
-                total_test_rows += len(test_df)
-
+                sub = df_pr[df_pr["zone_id"].astype(str) == zone_id].copy()
+                sub = build_prophet_frame(sub)
+                if len(sub) < 240:
+                    continue
+                model = joblib.load(pkl)
+                window = max(48, int(len(sub) * 0.10))
+                starts = [int(len(sub) * 0.60), int(len(sub) * 0.70), int(len(sub) * 0.80)]
+                for start in starts:
+                    test_df = sub.iloc[start:min(start + window, len(sub))].copy()
+                    if len(test_df) < 24:
+                        continue
+                    feature_df = test_df[["ds"] + [r for r in PROPHET_REGRESSORS if r in test_df.columns]].copy()
+                    forecast = model.predict(feature_df)
+                    y_true = test_df["y"].values
+                    y_pred = forecast["yhat"].values
+                    y_lo = forecast["yhat_lower"].values
+                    y_hi = forecast["yhat_upper"].values
+                    all_mae.append(mean_absolute_error(y_true, y_pred))
+                    all_mape.append(np.mean(np.abs((y_true - y_pred) / (np.abs(y_true) + 1e-6))) * 100)
+                    all_cov.append(np.mean((y_true >= y_lo) & (y_true <= y_hi)) * 100)
+                    windows += 1
             if not all_mae:
-                print(f"  {city_type:<16} -- windows too small, skipping")
+                print(f"  {city_type:<16} -- no usable zone models found")
                 continue
             print(
-                f"  {city_type:<16} {len(all_mae):>8} {np.mean(all_mae):>10.3f} "
+                f"  {city_type:<16} {len(city_zones):>6} {windows:>8} {np.mean(all_mae):>10.3f} "
                 f"{np.mean(all_mape):>9.1f}% {np.mean(all_cov):>9.1f}%"
             )
-
-        except Exception as e:
-            print(f"  {city_type:<16} -- predict failed: {e}")
 
     print("""
   Interpretation:

@@ -4,8 +4,17 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class PdfGenerator {
-  static Future<void> generateAndPreviewCertificate() async {
+  static Future<void> generateAndPreviewCertificate({
+    String name = 'Hustlr Worker',
+    String zone = 'Your Zone',
+    String planName = 'Standard Shield',
+    String policyNumber = 'HS-PENDING',
+  }) async {
     final pdf = pw.Document();
+    final now = DateTime.now();
+    final expiry = DateTime(now.year + 1, now.month, now.day);
+    final dateStr = '${now.day} ${_monthName(now.month)} ${now.year}';
+    final expiryStr = '${expiry.day} ${_monthName(expiry.month)} ${expiry.year}';
 
     pdf.addPage(
       pw.Page(
@@ -27,12 +36,9 @@ class PdfGenerator {
                   ),
                 ),
                 pw.SizedBox(height: 32),
-                
-                // Policy Details
-                pw.Text('Policy Number: HS-98234-AX', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                pw.Text('Effective Dates: 26 Oct 2025 - 25 Oct 2026', style: const pw.TextStyle(fontSize: 14)),
+                pw.Text('Policy Number: $policyNumber', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                pw.Text('Effective Dates: $dateStr - $expiryStr', style: const pw.TextStyle(fontSize: 14)),
                 pw.SizedBox(height: 24),
-
                 pw.Container(
                   padding: const pw.EdgeInsets.all(16),
                   decoration: pw.BoxDecoration(
@@ -44,23 +50,18 @@ class PdfGenerator {
                     children: [
                       pw.Text('COVERED PARTY', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600, fontWeight: pw.FontWeight.bold)),
                       pw.SizedBox(height: 8),
-                      pw.Text('Name: Karthik (Zepto Worker)'),
-                      pw.Text('Zone: Adyar Dark Store Zone, Chennai'),
+                      pw.Text('Name: $name'),
+                      pw.Text('Zone: $zone'),
                     ],
                   ),
                 ),
-
                 pw.SizedBox(height: 24),
-                
-                // Coverage Breakdown
-                pw.Text('ACTIVE COVERAGE: STANDARD SHIELD', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
+                pw.Text('ACTIVE COVERAGE: ${planName.toUpperCase()}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
                 pw.SizedBox(height: 12),
                 _buildCoverageRow('Rain Disruption', 'Auto-triggers when rainfall > 64.5mm/hr'),
                 _buildCoverageRow('Extreme Heat', 'Triggers when temperature exceeds 42°C'),
-                _buildCoverageRow('App Downtime', 'Outages lasting > 90 minutes (Zepto API)'),
-                
+                _buildCoverageRow('App Downtime', 'Outages lasting > 90 minutes'),
                 pw.Spacer(),
-
                 pw.Divider(),
                 pw.SizedBox(height: 12),
                 pw.Text('This is a parametric insurance contract. Payouts are transferred automatically based on zone-wide triggers. Do not share this document.', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
@@ -73,12 +74,13 @@ class PdfGenerator {
       ),
     );
 
-    // This will open a browser print/save preview dialogue automatically!
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'Hustlr_Certificate_HS98234AX',
+      name: 'Hustlr_Certificate_$policyNumber',
     );
   }
+
+  static String _monthName(int m) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
 
   static pw.Widget _buildCoverageRow(String title, String desc) {
     return pw.Padding(

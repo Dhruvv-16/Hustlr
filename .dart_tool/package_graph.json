@@ -8,6 +8,7 @@
       "version": "1.0.0+1",
       "dependencies": [
         "app_settings",
+        "background_fetch",
         "cupertino_icons",
         "equatable",
         "firebase_auth",
@@ -15,7 +16,6 @@
         "firebase_messaging",
         "fl_chart",
         "flutter",
-        "flutter_background_geolocation",
         "flutter_bloc",
         "flutter_foreground_task",
         "flutter_localizations",
@@ -117,14 +117,6 @@
         "stream_channel",
         "test_api",
         "vector_math"
-      ]
-    },
-    {
-      "name": "flutter_background_geolocation",
-      "version": "5.1.1",
-      "dependencies": [
-        "collection",
-        "flutter"
       ]
     },
     {
@@ -1909,6 +1901,13 @@
       "version": "1.0.2",
       "dependencies": [
         "source_span"
+      ]
+    },
+    {
+      "name": "background_fetch",
+      "version": "1.5.1",
+      "dependencies": [
+        "flutter"
       ]
     }
   ],

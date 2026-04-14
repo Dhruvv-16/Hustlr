@@ -104,7 +104,7 @@ router.get('/:user_id', async (req, res) => {
   try {
     const { user_id } = req.params;
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(user_id)) return res.status(200).json({ policy: null });
+    if (!UUID_RE.test(user_id)) return res.status(200).json({ policy: null, history: [] });
     const { data: policy, error } = await supabase
       .from('policies')
       .select('*')
@@ -112,7 +112,13 @@ router.get('/:user_id', async (req, res) => {
       .eq('status', 'active')
       .maybeSingle();
     if (error) throw error;
-    res.json({ policy });
+    const { data: history, error: historyError } = await supabase
+      .from('policies')
+      .select('*')
+      .eq('user_id', user_id)
+      .order('created_at', { ascending: false });
+    if (historyError) throw historyError;
+    res.json({ policy, history: history || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

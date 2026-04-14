@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/biometric_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../widgets/language_switcher.dart';
@@ -32,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'cashback_earned': 49,
   };
   bool _isLoading = true;
+  bool _biometricEnabled = false;
 
   @override
   void initState() {
@@ -59,11 +62,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         trustProfile = await ApiService.instance.getTrustProfile(userId);
       } catch (_) {}
       
+      final prefs = await SharedPreferences.getInstance();
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
       if (mounted) {
         setState(() {
           _worker = worker;
           _policy = policy;
           _trustProfile = trustProfile ?? _trustProfile; // fallback if fails completely
+          _biometricEnabled = bioEnabled;
           _isLoading = false;
         });
       }
@@ -169,7 +176,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (Icons.calendar_today_rounded, l10n.profile_validity, _policy != null ? 'Active' : 'N/A'),
                       ],
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 32),
+
+                    // ── Security ──────────────────────────────────────────────
+                    Text('SECURITY', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: isDark ? [] : [
+                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+                        ],
+                      ),
+                      child: FutureBuilder<bool>(
+                        future: BiometricService.instance.isAvailable(),
+                        builder: (context, snap) {
+                          if (!(snap.data ?? false)) return const SizedBox.shrink();
+                          return SwitchListTile(
+                            title: const Text('Fingerprint Lock', style: TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Require biometrics on app open', style: TextStyle(fontSize: 12)),
+                            value: _biometricEnabled,
+                            activeColor: const Color(0xFF2E7D32),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            onChanged: (val) async {
+                              if (val) {
+                                final result = await BiometricService.instance.authenticate(
+                                  reason: 'Enable fingerprint lock for Hustlr');
+                                if (!result.success) return;
+                              }
+                              setState(() => _biometricEnabled = val);
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool('biometric_enabled', val);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 32),
 
                     // ── Language Switcher ───────────────────────────────────────
                     Container(

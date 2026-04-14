@@ -4,6 +4,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/services/storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/biometric_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../screens/location_permission_screen.dart';
@@ -114,7 +116,44 @@ class _SplashScreenState extends State<SplashScreen> {
     } else if (!isComplete || userId == null) {
       context.go('/carousel');
     } else {
-      context.go('/dashboard');
+      // Biometric lock check
+      final prefs = await SharedPreferences.getInstance();
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
+      if (bioEnabled) {
+        final biometric = BiometricService.instance;
+        final available = await biometric.isAvailable();
+
+        if (available) {
+          final result = await biometric.authenticate(
+            reason: 'Unlock Hustlr to access your wallet',
+          );
+
+          if (!result.success && !result.notAvailable) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => AlertDialog(
+                  title: const Text('Authentication Required'),
+                  content: const Text('Please authenticate to access Hustlr'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _navigate();
+                      },
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+      if (mounted) context.go('/dashboard');
     }
   }
 

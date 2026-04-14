@@ -19,8 +19,9 @@ import '../../services/notification_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
-import '../../features/shared/widgets/demo_control_panel.dart';
+
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
+import '../../features/shared/widgets/live_persona_panel.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
 import '../../services/dynamic_translator.dart';
@@ -101,9 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     });
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
-    // Note: DemoStateService does not extend ChangeNotifier.
-    // The dashboard reacts to DemoStateService changes via ShiftTrackingService
-    // and AppEvents streams already wired above.
+    // AppEvents streams already wired above.
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -171,7 +170,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       results['GET /policies/:id']  = await ping('/policies/$userId');
       results['GET /wallet/:id']    = await ping('/wallet/$userId');
       results['GET /claims/:id']    = await ping('/claims/$userId');
-      final zone = Uri.encodeComponent(userZone ?? 'Adyar Dark Store Zone');
+      final zone = Uri.encodeComponent(userZone ?? '');
       results['GET /disruptions']   = await ping('/disruptions/$zone');
     } else {
       results['NOTE'] = 'Log in first for user-scoped endpoints';
@@ -297,7 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           'active': true,
           'trigger_type': latestDisruption['display_name'] as String? ?? 
               _disruptionTriggerLabel(latestDisruption['trigger_type'] as String?),
-          'zone': userZone ?? 'Adyar Dark Store Zone',
+          'zone': userZone ?? 'Your Zone',
         };
       }
 
@@ -554,7 +553,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () => showDemoPanel(context, onSubmit: _loadDashboardData),
+          onLongPress: () => showLivePersonaPanel(context, onSubmit: _loadDashboardData),
           child: Container(
             width: 52,
             height: 52,
@@ -1116,6 +1115,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
           BatteryOptimizationPrompt(onAllGranted: () async {
+            // Guard: don't start if already active or loading
+            if (isLoading || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
             setState(() => isLoading = true);
             try {
               final permStatus = await Permission.locationWhenInUse.status;
@@ -1139,25 +1140,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               if (!actPerm.isGranted) {
                 await Permission.activityRecognition.request();
               }
-              Position position;
               try {
-                position = await Geolocator.getCurrentPosition(
+                final position = await Geolocator.getCurrentPosition(
                   desiredAccuracy: LocationAccuracy.high,
-                  // Removed timeLimit from getCurrentPosition because it's deprecated/redundant
                 ).timeout(const Duration(seconds: 15));
                 await StorageService.instance.setLastLat(position.latitude);
                 await StorageService.instance.setLastLng(position.longitude);
-                // Cannot call setLastGpsUpdate directly as method may be missing, skipping
               } catch (gpsError) {
-                print('[GoOnline] GPS timeout: $gpsError — using last known or mock');
-                await StorageService.instance.setLastLat(13.0012);
-                await StorageService.instance.setLastLng(80.2565);
+                print('[GoOnline] GPS timeout: $gpsError — using last known');
               }
-              await ShiftTrackingService.instance.startShift(userZone ?? 'Adyar Dark Store Zone');
+              // Use real zone from storage, no hardcoded fallback
+              final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+              await ShiftTrackingService.instance.startShift(zone);
               AppEvents.instance.profileUpdated();
             } catch (e) {
               print('[GoOnline] ERROR: $e');
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not go online: $e')));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not go online: $e')),
+                );
+              }
             } finally {
               if (mounted) setState(() => isLoading = false);
             }
@@ -1385,7 +1387,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       disruptionData = {
                         'active': true,
                         'trigger_type': 'Heavy Rain',
-                        'zone': userZone ?? 'Adyar Dark Store Zone',
+                        'zone': userZone ?? 'Your Zone',
                       };
                       activeDisruption = disruptionData;
                     });
@@ -1423,7 +1425,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                          disruptionData = {
                           'active': true,
                           'trigger_type': 'Heavy Rain',
-                          'zone': userZone ?? 'Adyar Dark Store Zone',
+                          'zone': userZone ?? 'Your Zone',
                           'weather_source': 'mock_spoof',
                           'rain_mm': 72.4,
                           'severity': 0.85,

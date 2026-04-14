@@ -1,5 +1,4 @@
 import 'package:hive/hive.dart';
-import '../../services/storage_service.dart';
 
 class DemoStateService {
   static final instance = DemoStateService._();
@@ -12,6 +11,9 @@ class DemoStateService {
   List<Map<String, dynamic>> get claims => List.from(_claims);
   int get walletBalance => _walletBalance;
   List<Map<String, dynamic>> get transactions => List.from(_transactions);
+  int get totalPayouts => _transactions
+      .where((t) => t['type'] == 'credit')
+      .fold<int>(0, (s, t) => s + ((t['amount'] as num).toInt()));
 
   void addClaim(Map<String, dynamic> claim) {
     _claims.insert(0, claim);
@@ -50,7 +52,9 @@ class DemoStateService {
     _claims.clear();
     _walletBalance = 0;
     _transactions.clear();
-    // Also clear storage if implemented
-    await StorageService.instance.clearDemoState();
+    final box = Hive.box('appData');
+    await box.delete('demo_walletBalance');
+    await box.delete('demo_transactions');
+    await box.delete('demo_claims');
   }
 }

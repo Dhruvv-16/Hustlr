@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'storage_service.dart';
 
 class ApiService {
   /// **Production (like Swiggy / Facebook):** users install one app; it talks to **your cloud API**
@@ -12,36 +13,46 @@ class ApiService {
   static String get baseUrl {
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
-
-    // Web (e.g. Vercel): same prod URL as mobile — set HUSTLR_API_PROD in the host env and build.sh.
     if (kIsWeb) {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
-      if (kReleaseMode) {
-        return 'https://hustlr-ad32.onrender.com';
-      }
-      return 'https://hustlr-ad32.onrender.com';
+      return '';
     }
-
     if (kReleaseMode) {
-      if (prod.isNotEmpty) return prod;
-      return 'https://hustlr-ad32.onrender.com';
+      return prod;
     }
-
     if (devOverride.isNotEmpty) return devOverride;
-    return 'https://hustlr-ad32.onrender.com';
+    return prod;
   }
 
-  static const _timeout = Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
+  static const _timeout =
+      Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
 
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
 
-  static String get mlBackendUrl => const String.fromEnvironment('HUSTLR_ML_PROD', defaultValue: 'https://hustlr-ml-complete.onrender.com');
+  static String get mlBackendUrl {
+    const prod = String.fromEnvironment('HUSTLR_ML_PROD');
+    const devOverride = String.fromEnvironment('HUSTLR_ML_BASE');
+    if (devOverride.isNotEmpty) return devOverride;
+    return prod;
+  }
 
   String? currentUserId;
   String? currentPolicyId;
   String? accessToken;
+
+  Future<String> _effectiveUserZone() async {
+    return await StorageService.instance.getUserZone() ??
+        StorageService.getString('workerZone') ??
+        'Unknown Zone';
+  }
+
+  Future<String> _effectiveUserCity() async {
+    return await StorageService.instance.getUserCity() ??
+        StorageService.getString('workerCity') ??
+        'Unknown City';
+  }
 
   Map<String, String> get headers => {
         'Content-Type': 'application/json',
@@ -63,10 +74,12 @@ class ApiService {
   /// Fetch a worker by ID. Used by [UserBloc] on login.
   Future<Map<String, dynamic>> getWorkerById(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/$userId'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/workers/$userId'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 200) {
@@ -110,17 +123,19 @@ class ApiService {
     required String platform,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/workers/register'),
-        headers: headers,
-        body: jsonEncode({
-          'name': name,
-          'phone': phone,
-          'zone': zone,
-          'city': city,
-          'platform': platform,
-        }),
-      ).timeout(_timeout);
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/workers/register'),
+            headers: headers,
+            body: jsonEncode({
+              'name': name,
+              'phone': phone,
+              'zone': zone,
+              'city': city,
+              'platform': platform,
+            }),
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 201 || res.statusCode == 200) return data;
@@ -142,37 +157,14 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> createPolicy({
-    required String userId,
-    required String planTier,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/policies/create'),
-        headers: headers,
-        body: jsonEncode({'user_id': userId, 'plan_tier': planTier}),
-      ).timeout(_timeout);
-      final data = jsonDecode(res.body);
-      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-      if (res.statusCode == 201 || res.statusCode == 200) return data;
-      throw Exception(data['error'] ?? 'Policy creation failed');
-    } catch (_) {
-      SharedPreferences.getInstance().then((prefs) => prefs.setString('mockPlanTier', planTier));
-      return {
-        'policy': {
-          'id': 'mock-policy-${DateTime.now().millisecondsSinceEpoch}',
-          'plan_tier': planTier,
-        }
-      };
-    }
-  }
-
   Future<Map<String, dynamic>> getPolicy(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/policies/$userId'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/policies/$userId'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 200) return data;
@@ -184,8 +176,12 @@ class ApiService {
         'policy': {
           'id': 'mock-policy',
           'plan_tier': tier,
-          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
-          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
+          'weekly_premium': tier == 'Full Shield'
+              ? 79
+              : (tier == 'Standard Shield' ? 49 : 35),
+          'base_premium': tier == 'Full Shield'
+              ? 79
+              : (tier == 'Standard Shield' ? 49 : 35),
           'zone_adjustment': 0,
           'status': 'active',
         }
@@ -200,16 +196,18 @@ class ApiService {
     required double durationHours,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/claims/create'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': userId,
-          'trigger_type': triggerType,
-          'severity': severity,
-          'duration_hours': durationHours,
-        }),
-      ).timeout(_timeout);
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/claims/create'),
+            headers: headers,
+            body: jsonEncode({
+              'user_id': userId,
+              'trigger_type': triggerType,
+              'severity': severity,
+              'duration_hours': durationHours,
+            }),
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 201 || res.statusCode == 200) return data;
@@ -221,10 +219,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getClaims(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/claims/$userId'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/claims/$userId'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 200) return data;
@@ -236,40 +236,32 @@ class ApiService {
 
   Future<Map<String, dynamic>> getWallet(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/wallet/$userId'),
-        headers: headers,
-      ).timeout(_timeout);
-      
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/wallet/$userId'),
+            headers: headers,
+          )
+          .timeout(_timeout);
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        
+
         // Ensure all fields exist — backend may omit some
         return {
-          'balance':        data['balance'] ?? 0,
-          'total_payouts':  data['total_payouts'] ?? 0,
+          'balance': data['balance'] ?? 0,
+          'total_payouts': data['total_payouts'] ?? 0,
           'total_premiums': data['total_premiums'] ?? 0,
-          'transactions':   data['transactions'] ?? [],
+          'transactions': data['transactions'] ?? [],
         };
       }
-      
+
       throw Exception('Status ${res.statusCode}');
-      
-    } catch (e) {
-      print('[API] getWallet failed: $e');
-      // Return mock so UI never shows empty
-      return {
-        'balance':        1250,
-        'total_payouts':  450,
-        'total_premiums': 196,
-        'transactions':   [],
-        '_mock':          true,
-      };
-    }
+    } catch (e) { throw Exception("API request failed: $e"); }
   }
 
   /// Shadow policy estimate from zone [disruption_events] (falls back to empty map on error).
-  Future<Map<String, dynamic>> getShadowSummary(String userId, {int days = 14}) async {
+  Future<Map<String, dynamic>> getShadowSummary(String userId,
+      {int days = 14}) async {
     try {
       final res = await http
           .get(
@@ -334,7 +326,8 @@ class ApiService {
   }
 
   /// FPS-style body → `{ reasons, summary }` from `/claims/explanation`.
-  Future<Map<String, dynamic>> postClaimExplanation(Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> postClaimExplanation(
+      Map<String, dynamic> body) async {
     try {
       final res = await http
           .post(
@@ -351,7 +344,8 @@ class ApiService {
           'reasons': [
             {
               'title': 'Request failed',
-              'detail': data['error']?.toString() ?? 'Could not build explanation',
+              'detail':
+                  data['error']?.toString() ?? 'Could not build explanation',
               'severity': 'info',
             },
           ],
@@ -419,10 +413,12 @@ class ApiService {
     try {
       final encoded = Uri.encodeComponent(zone);
       final q = issScore != null ? '?iss=$issScore' : '';
-      final res = await http.get(
-        Uri.parse('$baseUrl/disruptions/$encoded$q'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/disruptions/$encoded$q'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
       if (res.statusCode == 200) return data;
@@ -485,23 +481,25 @@ class ApiService {
   static Future<Map<String, dynamic>?> getWorkerByPhone(String phone) async {
     try {
       final encoded = Uri.encodeComponent(phone);
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/phone/$encoded'),
-        headers: instance.headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/workers/phone/$encoded'),
+            headers: instance.headers,
+          )
+          .timeout(_timeout);
       if (res.statusCode == 404) return null;
       final data = instance._decodeMap(res);
       return data['user'] as Map<String, dynamic>?;
     } catch (_) {
       // Offline mock fallback for Demo Mode
       return {
-        'id': 'mock-karthik-001',
-        'name': 'Karthik',
+        'id': 'mock-user-${phone.replaceAll(RegExp(r'\D'), '')}',
+        'name': '',
         'phone': phone.replaceAll(RegExp(r'\D'), ''),
-        'city': 'Chennai',
-        'zone': 'Adyar',
-        'platform': 'Zepto',
-        'onboarding_complete': true,
+        'city': '',
+        'zone': '',
+        'platform': '',
+        'onboarding_complete': false,
       };
     }
   }
@@ -581,6 +579,69 @@ class ApiService {
     return instance._decodeMap(res);
   }
 
+  Future<Map<String, dynamic>> getPaymentSandboxConfig() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/payments/sandbox/config'), headers: headers)
+          .timeout(_timeout);
+      return _decodeMap(res);
+    } catch (e) { throw Exception("API request failed: $e"); }
+  }
+
+  Future<Map<String, dynamic>> createPaymentSandboxSession({
+    required String provider,
+    required int amount,
+    required String description,
+    String currency = 'INR',
+    String? userId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/payments/sandbox/session'),
+            headers: headers,
+            body: jsonEncode({
+              'provider': provider,
+              'amount': amount,
+              'currency': currency,
+              'description': description,
+              'user_id': userId,
+              'metadata': metadata ?? {},
+            }),
+          )
+          .timeout(_timeout);
+      return _decodeMap(res);
+    } catch (e) { throw Exception("API request failed: $e"); }
+  }
+
+  Future<Map<String, dynamic>> confirmPaymentSandbox({
+    required String provider,
+    required int amount,
+    required String sessionId,
+    String currency = 'INR',
+    String? userId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/payments/sandbox/confirm'),
+            headers: headers,
+            body: jsonEncode({
+              'provider': provider,
+              'amount': amount,
+              'currency': currency,
+              'session_id': sessionId,
+              'user_id': userId,
+              'metadata': metadata ?? {},
+            }),
+          )
+          .timeout(_timeout);
+      return _decodeMap(res);
+    } catch (e) { throw Exception("API request failed: $e"); }
+  }
+
   static Future<Map<String, dynamic>> createDisruption({
     required String zone,
     required String triggerType,
@@ -620,106 +681,62 @@ class ApiService {
         Uri.parse('$baseUrl/claims/manual'),
         headers: headers,
         body: jsonEncode({
-          'user_id':                userId,
-          'disruption_type':        disruptionType,
-          'description':            description,
-          'evidence_urls':          evidenceUrls ?? [],
+          'user_id': userId,
+          'disruption_type': disruptionType,
+          'description': description,
+          'evidence_urls': evidenceUrls ?? [],
           'device_signal_strength': deviceSignalStrength,
-          'sensor_features':        sensorFeatures,
+          'sensor_features': sensorFeatures,
           if (integrityToken != null && integrityToken.isNotEmpty)
             'integrity_token': integrityToken,
         }),
       );
       final data = jsonDecode(res.body);
       if (res.statusCode == 201) return data;
-      
+
       // Fallback to mock on API error
       String mockNote = 'Claim logged — review within 4 hours';
       String mockStatus = 'PENDING';
-      
+
       if (sensorFeatures != null) {
         final jitter = sensorFeatures['gps_jitter'];
         if (jitter != null && jitter == 0.0) {
-           mockNote = 'FRAUD ALERT: GPS Spoofing Detected (0.0 Jitter).';
-           mockStatus = 'FLAGGED';
+          mockNote = 'FRAUD ALERT: GPS Spoofing Detected (0.0 Jitter).';
+          mockStatus = 'FLAGGED';
         } else if (jitter != null && jitter > 0.0) {
-           mockNote = 'Sensors Validated: Natural GPS Variance Detected.';
-           mockStatus = 'APPROVED';
+          mockNote = 'Sensors Validated: Natural GPS Variance Detected.';
+          mockStatus = 'APPROVED';
         }
       }
 
-      return {
-        'claim': {
-          'id': 'CLM_MOCK_${DateTime.now().millisecondsSinceEpoch}',
-          'display_name': 'Manual Report (Mock)',
-          'status': mockStatus,
-          'gross_payout': 100,
-          'tranche1_amount': 70,
-          'tranche2_amount': 30,
-          'provisional_note': mockNote,
-          '_mock': true,
-        }
-      };
-    } catch (e) {
-      String mockNote = 'Offline mode — will sync when connected';
-      String mockStatus = 'PENDING';
-      
-      if (sensorFeatures != null) {
-        final jitter = sensorFeatures['gps_jitter'];
-        if (jitter != null && jitter == 0.0) {
-           mockNote = 'Offline FRAUD ALERT: GPS Spoofing (Jitter 0.0).';
-           mockStatus = 'FLAGGED';
-        } else if (jitter != null && jitter > 0.0) {
-           mockNote = 'Offline Validated: Natural GPS Variance.';
-           mockStatus = 'APPROVED';
-        }
-      }
-
-      return {
-        'claim': {
-          'id': 'CLM_MOCK_ERR',
-          'display_name': 'Manual Report (Mock)',
-          'status': mockStatus,
-          'gross_payout': 100,
-          'tranche1_amount': 70,
-          'tranche2_amount': 30,
-          'provisional_note': mockNote,
-          '_mock': true,
-        }
-      };
-    }
+      throw Exception('Manual claim creation failed: ${res.statusCode}');
+    } catch (e) { throw Exception("API request failed: $e"); }
   }
 
   // ── Trust & Cashback ─────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getTrustProfile(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/$userId/trust'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/workers/$userId/trust'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       return _decodeMap(res);
-    } catch (_) {
-      return {
-        'score': 72,
-        'tier': {'label': 'Trusted'},
-        'level': 3,
-        'factors': [],
-        '_mock': true,
-      };
-    }
+    } catch (e) { throw Exception("API request failed: $e"); }
   }
 
   Future<Map<String, dynamic>> getCashbackStatus(String userId) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/$userId/cashback'),
-        headers: headers,
-      ).timeout(_timeout);
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/workers/$userId/cashback'),
+            headers: headers,
+          )
+          .timeout(_timeout);
       return _decodeMap(res);
-    } catch (_) {
-      return {'eligible': false, 'rate': 0, '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
 
   // ── Claims appeal ────────────────────────────────────────────────────────────
@@ -733,20 +750,20 @@ class ApiService {
     List<String>? evidenceUrls,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/claims/$claimId/appeal'),
-        headers: headers,
-        body: jsonEncode({
-          'reason': selectedReason ?? reason ?? additionalContext ?? '',
-          'additional_context': additionalContext,
-          'worker_id': workerId,
-          'evidence_urls': evidenceUrls ?? [],
-        }),
-      ).timeout(_timeout);
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/claims/$claimId/appeal'),
+            headers: headers,
+            body: jsonEncode({
+              'reason': selectedReason ?? reason ?? additionalContext ?? '',
+              'additional_context': additionalContext,
+              'worker_id': workerId,
+              'evidence_urls': evidenceUrls ?? [],
+            }),
+          )
+          .timeout(_timeout);
       return _decodeMap(res);
-    } catch (_) {
-      return {'status': 'APPEAL_PENDING', '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
 
   // ── Face liveness (step-up auth) ─────────────────────────────────────────────
@@ -757,15 +774,16 @@ class ApiService {
     required String imageBase64,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/auth/liveness'),
-        headers: headers,
-        body: jsonEncode({'user_id': userId ?? workerId, 'image': imageBase64}),
-      ).timeout(_timeout);
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/auth/liveness'),
+            headers: headers,
+            body: jsonEncode(
+                {'user_id': userId ?? workerId, 'image': imageBase64}),
+          )
+          .timeout(_timeout);
       return _decodeMap(res);
-    } catch (_) {
-      return {'verified': true, '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
 
   // ── Demo / admin helpers ─────────────────────────────────────────────────────
@@ -775,7 +793,8 @@ class ApiService {
     required String triggerType,
     double severity = 0.8,
     double durationHours = 2.0,
-  }) => createClaim(
+  }) =>
+      createClaim(
         userId: userId,
         triggerType: triggerType,
         severity: severity,
@@ -798,22 +817,24 @@ class ApiService {
     bool? isLowConfidence,
   }) async {
     try {
-      await http.post(
-        Uri.parse('$baseUrl/shifts/heartbeat'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': userId ?? workerId,
-          'lat': lat,
-          'lng': lng,
-          if (zone != null) 'zone': zone,
-          if (accuracy != null) 'accuracy': accuracy,
-          if (timestamp != null) 'ts': timestamp,
-          if (isMockLocation != null) 'is_mock': isMockLocation,
-          if (activityType != null) 'activity_type': activityType,
-          if (batteryLevel != null) 'battery_level': batteryLevel,
-          if (isLowConfidence != null) 'low_confidence': isLowConfidence,
-        }),
-      ).timeout(_timeout);
+      await http
+          .post(
+            Uri.parse('$baseUrl/shifts/heartbeat'),
+            headers: headers,
+            body: jsonEncode({
+              'user_id': userId ?? workerId,
+              'lat': lat,
+              'lng': lng,
+              if (zone != null) 'zone': zone,
+              if (accuracy != null) 'accuracy': accuracy,
+              if (timestamp != null) 'ts': timestamp,
+              if (isMockLocation != null) 'is_mock': isMockLocation,
+              if (activityType != null) 'activity_type': activityType,
+              if (batteryLevel != null) 'battery_level': batteryLevel,
+              if (isLowConfidence != null) 'low_confidence': isLowConfidence,
+            }),
+          )
+          .timeout(_timeout);
     } catch (_) {
       // Best-effort — silently ignore offline heartbeats
     }
@@ -821,131 +842,135 @@ class ApiService {
 
   // ── Native ML Direct Endpoints (Phase 3 Organic Demo) ──────────────────────
 
-  Future<Map<String, dynamic>> validateFraudTelemetry(Map<String, dynamic> sensorFeatures) async {
-    final zone = await StorageService.instance.getUserZone() ?? "Adyar Dark Store Zone";
+  Future<Map<String, dynamic>> validateFraudTelemetry(
+      Map<String, dynamic> sensorFeatures) async {
+    final zone = await _effectiveUserZone();
     try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/fraud-score'),
-        headers: headers,
-        body: jsonEncode({
-          "worker_id": currentUserId ?? "demo_worker",
-          "zone_id": zone,
-          "claim_timestamp": DateTime.now().toIso8601String(),
-          "feature_vector": {
-            "zone_match": 0.95,
-            "gps_jitter": sensorFeatures['gps_jitter'] ?? 0.10,
-            "accelerometer_match": 0.90,
-            "wifi_home_ssid": false,
-            "days_since_onboarding": 30
-          }
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .post(
+            Uri.parse('$mlBackendUrl/fraud-score'),
+            headers: headers,
+            body: jsonEncode({
+              "worker_id": currentUserId ?? "demo_worker",
+              "zone_id": zone,
+              "claim_timestamp": DateTime.now().toIso8601String(),
+              "feature_vector": {
+                "zone_match": 0.95,
+                "gps_jitter": sensorFeatures['gps_jitter'] ?? 0.10,
+                "accelerometer_match": 0.90,
+                "wifi_home_ssid": false,
+                "days_since_onboarding": 30
+              }
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (_) {
-      return {'is_anomalous': (sensorFeatures['gps_jitter'] == 0.0), 'anomaly_score': 0.99, '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
 
   Future<Map<String, dynamic>> getIssScore() async {
+    final city = await _effectiveUserCity();
     try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/iss'),
-        headers: headers,
-        body: jsonEncode({
-          "zone_flood_risk": 0.65,
-          "avg_daily_income": 650.0,
-          "disruption_freq_12mo": 3,
-          "platform_tenure_weeks": 12,
-          "city": "Chennai"
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .post(
+            Uri.parse('$mlBackendUrl/iss'),
+            headers: headers,
+            body: jsonEncode({
+              "zone_flood_risk": 0.65,
+              "avg_daily_income": 650.0,
+              "disruption_freq_12mo": 3,
+              "platform_tenure_weeks": 12,
+              "city": city
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (_) {
-      return {'iss_score': 72, 'trust_tier': 'High Trust', '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
 
-  Future<Map<String, dynamic>> getDynamicPremium(String planTier, int issScore) async {
-    final zone = await StorageService.instance.getUserZone() ?? "Adyar Dark Store Zone";
+  Future<Map<String, dynamic>> getDynamicPremium(
+      String planTier, int issScore) async {
+    final zone = await _effectiveUserZone();
     try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/premium'),
-        headers: headers,
-        body: jsonEncode({
-          "plan_tier": planTier.toLowerCase().contains('full') ? 'full' : 'standard',
-          "zone": zone,
-          "iss_score": issScore,
-          "previous_premium": planTier.toLowerCase().contains('full') ? 79.0 : 49.0
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .post(
+            Uri.parse('$mlBackendUrl/premium'),
+            headers: headers,
+            body: jsonEncode({
+              "plan_tier":
+                  planTier.toLowerCase().contains('full') ? 'full' : 'standard',
+              "zone": zone,
+              "iss_score": issScore,
+              "previous_premium":
+                  planTier.toLowerCase().contains('full') ? 79.0 : 49.0
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (_) {
-      return {'final_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
-    }
+    } catch (e) { throw Exception('API failed'); }
   }
+
   Future<Map<String, dynamic>> createPolicy({
     required String userId,
     required String planTier,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/policies/create'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id':   userId,
-          'plan_tier': planTier,
-        }),
-      ).timeout(const Duration(seconds: 10));
-      
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/policies/create'),
+            headers: headers,
+            body: jsonEncode({
+              'user_id': userId,
+              'plan_tier': planTier,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
       if (res.statusCode == 201 || res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        
+
         // Store locally immediately
         if (data['policy'] != null) {
           final policy = data['policy'];
           await StorageService.instance.savePolicyId(policy['id']);
           await StorageService.instance.setPlanTier(policy['plan_tier']);
-          await StorageService.instance.setWeeklyPremium(
-            policy['weekly_premium'] ?? 49
-          );
+          await StorageService.instance
+              .setWeeklyPremium((policy['weekly_premium'] ?? 49).toDouble());
         }
-        
+
         return data;
       }
       throw Exception('Status ${res.statusCode}: ${res.body}');
-      
-    } catch (e) {
-      print('[API] createPolicy error: $e');
-      final mockWeekly = planTier == 'basic' ? 35 : planTier == 'full' ? 79 : 49;
-      // Store locally even for mock
-      await StorageService.instance.savePolicyId('mock-policy-${DateTime.now().millisecondsSinceEpoch}');
-      await StorageService.instance.setPlanTier(planTier);
-      await StorageService.instance.setWeeklyPremium(mockWeekly);
-      
-      // Return mock success so demo still works
-      return {
-        'policy': {
-          'id':              'mock-policy-${DateTime.now().millisecondsSinceEpoch}',
-          'plan_tier':       planTier,
-          'weekly_premium':  mockWeekly,
-          'status':          'active',
-          'max_daily_payout': planTier == 'full' ? 250 : 150,
-        },
-        '_mock': true,
-      };
-    }
+    } catch (e) { throw Exception("API request failed: $e"); }
   }
 
   Future<Map<String, dynamic>> sendChat(String message) async {
     try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/chat'),
-        headers: headers,
-        body: jsonEncode({"message": message}),
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .post(
+            Uri.parse('$mlBackendUrl/chat'),
+            headers: headers,
+            body: jsonEncode({"message": message}),
+          )
+          .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (_) {
-      return {'response': 'I\'m currently offline, but I can help you with your claims when I reconnect!', 'intent': 'default', '_mock': true};
+    } catch (e) { throw Exception('API failed'); }
+  }
+
+  // ── Demo / Simulation Helpers ──────────────────────────────────────────────────
+
+  Future<void> updateIssScore(String userId, int newScore) async {
+    try {
+      final res = await http.patch(
+        Uri.parse('$baseUrl/workers/$userId/iss'),
+        headers: headers,
+        body: jsonEncode({'iss_score': newScore}),
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode >= 400) {
+        throw Exception('Failed to update ISS score: ${res.body}');
+      }
+    } catch (e) {
+      throw Exception('API request failed: $e');
     }
   }
 }

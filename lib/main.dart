@@ -16,6 +16,7 @@ import 'services/api_service.dart';
 import 'services/location_service.dart';
 import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
+import 'services/background_heartbeat_service.dart';
 import 'services/notification_service.dart';
 import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
@@ -30,7 +31,7 @@ import 'widgets/live_activity_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await Hive.initFlutter();
   final appBox = await Hive.openBox('appData');
 
@@ -40,11 +41,25 @@ Future<void> main() async {
   final localeProvider = LocaleProvider();
   await localeProvider.loadSavedLocale();
 
-  // Supabase initialization with placeholders for environment keys
-  await Supabase.initialize(
-    url: 'https://vmoihldysiswqzseyypn.supabase.co',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY', // Placeholder to be replaced
-  );
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  final hasSupabaseConfig = supabaseUrl.isNotEmpty &&
+      supabaseAnonKey.isNotEmpty &&
+      !supabaseAnonKey.contains('YOUR_');
+
+  if (hasSupabaseConfig) {
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+    } catch (e) {
+      print('Supabase initialization skipped: $e');
+    }
+  } else {
+    print(
+        'Supabase initialization skipped: missing SUPABASE_URL / SUPABASE_ANON_KEY');
+  }
 
   // Firebase (messaging & cross platform)
   try {
@@ -53,7 +68,9 @@ Future<void> main() async {
     );
     NotificationService.initialize();
 
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       String? token = await FirebaseMessaging.instance.getToken();
       print("FCM TOKEN: $token");
     }
@@ -63,7 +80,7 @@ Future<void> main() async {
 
   final claimsBloc = ClaimsBloc(
     apiService: ApiService.instance,
-    supabase: Supabase.instance.client,
+    supabase: hasSupabaseConfig ? Supabase.instance.client : null,
   );
 
   // Demo bridge: long-press disruption triggers flow through ClaimsBloc
@@ -75,6 +92,7 @@ Future<void> main() async {
 
   // Start API health monitoring (auto-refreshes every 60s)
   ApiHealthService.instance.startAutoRefresh();
+  await BackgroundHeartbeatService.initialize();
 
   runApp(
     MultiBlocProvider(
@@ -112,7 +130,7 @@ class HustlrApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
-    
+
     return LiveActivityOverlay(
       child: MaterialApp.router(
         title: 'Hustlr',

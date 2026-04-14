@@ -53,11 +53,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <!-- flutter_background_geolocation tracking service -->
-        <service
-            android:name="com.transistorsoft.locationmanager.service.TrackingService"
-            android:foregroundServiceType="location" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

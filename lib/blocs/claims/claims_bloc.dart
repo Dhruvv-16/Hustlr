@@ -9,7 +9,7 @@ import 'claims_state.dart';
 
 class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   final ApiService apiService;
-  final SupabaseClient supabase;
+  final SupabaseClient? supabase;
 
   /// Supabase real-time stream subscription for claim updates.
   StreamSubscription<List<Map<String, dynamic>>>? _claimsSubscription;
@@ -22,7 +22,8 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   /// a ClaimStatusUpdated event through the BLoC layer.
   void Function(ClaimStatusUpdated event)? onDemoClaimReady;
 
-  ClaimsBloc({required this.apiService, required this.supabase}) : super(const ClaimsState()) {
+  ClaimsBloc({required this.apiService, required this.supabase})
+      : super(const ClaimsState()) {
     on<LoadClaims>(_onLoadClaims);
     on<WatchClaims>(_onWatchClaims);
     on<ClaimStatusUpdated>(_onClaimStatusUpdated);
@@ -79,18 +80,19 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
     // Perform an immediate load before starting the stream.
     await _onLoadClaims(LoadClaims(event.userId), emit);
 
+    if (supabase == null) {
+      return;
+    }
+
     try {
-      final stream = supabase
+      final stream = supabase!
           .from('claims')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', event.userId);
+          .stream(primaryKey: ['id']).eq('user_id', event.userId);
 
       _claimsSubscription = stream.listen((payload) {
         if (payload.isEmpty || isClosed) return;
 
-        final freshClaims = payload
-            .map((c) => Claim.fromJson(c))
-            .toList();
+        final freshClaims = payload.map((c) => Claim.fromJson(c)).toList();
 
         // Detect status changes compared to current state.
         for (final fresh in freshClaims) {

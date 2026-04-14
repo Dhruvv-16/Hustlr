@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../data/mock_data.dart';
+
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
 
@@ -15,7 +15,7 @@ class PremiumBreakdownScreen extends StatefulWidget {
 class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
   Map<String, dynamic>? policyData;
   String? userId;
-  String userZone = 'Adyar Dark Store Zone';
+  String userZone = '';
   bool isLoading = true;
 
   @override
@@ -26,7 +26,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
 
   Future<void> _loadPolicyData() async {
     userId = await StorageService.instance.getUserId();
-    userZone = await StorageService.instance.getUserZone() ?? 'Adyar Dark Store Zone';
+    userZone = await StorageService.instance.getUserZone() ?? '';
     
     if (userId == null) {
       if (mounted) setState(() => isLoading = false);
@@ -74,7 +74,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
       'min_bound': (basePremium * 0.7).round(),
       'max_bound': (basePremium * 2.0).round(),
       'zone_comparison': [
-        {'zone': 'Adyar', 'rate': zoneAdj, 'risk': 'HIGH'},
+        {'zone': userZone.isNotEmpty ? userZone : 'Your Zone', 'rate': zoneAdj, 'risk': 'YOUR ZONE'},
         {'zone': 'T Nagar', 'rate': zoneAdj - 2, 'risk': 'MODERATE'},
         {'zone': 'OMR', 'rate': zoneAdj + 3, 'risk': 'EXTREME'},
       ],

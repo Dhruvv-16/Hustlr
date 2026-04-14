@@ -296,12 +296,7 @@ class ApiHealthService extends ChangeNotifier {
       maxMindFromBackend(),
 
       // ── Payments & Notifications ──────────────────────────────────────────
-      fromBackend(
-        name: 'Instamojo Payouts',
-        description: 'UPI disbursement 70%/30% tranching — INSTAMOJO_API_KEY',
-        category: 'Payments & Notifications',
-        key: 'instamojo',
-      ),
+
       fromBackend(
         name: 'Firebase Messaging',
         description: 'Push notifications for claim updates — FIREBASE_SERVER_KEY',

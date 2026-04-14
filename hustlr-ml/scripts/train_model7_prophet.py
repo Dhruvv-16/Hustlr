@@ -20,12 +20,14 @@ import json
 
 import numpy as np
 import pandas as pd
+from external_city_data_utils import load_city_air_frame, load_city_weather_frame
 
 warnings.filterwarnings("ignore")
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR   = PROJECT_ROOT / "outputs" / "trained_models"
 PROPHET_CSV  = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "prophet_training.csv"
+INVENTORY_JSON = MODELS_DIR / "model7_prophet_inventory.json"
 
 # External regressors available in the new CSV
 REGRESSORS = [
@@ -74,33 +76,41 @@ def add_event_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def enrich_with_real_precipitation(df: pd.DataFrame) -> pd.DataFrame:
-    rain_path = EXTERNAL_DIR / "chennai_rainfall_1991_2023.csv"
-    if not rain_path.is_file():
-        return df
-    try:
-        rain = pd.read_csv(rain_path)
-        if rain.empty or "Date" not in rain.columns or "Rainfall" not in rain.columns:
-            return df
-        rain["Date"] = pd.to_datetime(rain["Date"], format="%d-%m-%Y", errors="coerce")
-        rain["Rainfall"] = pd.to_numeric(rain["Rainfall"], errors="coerce")
-        rain = rain.dropna(subset=["Date", "Rainfall"])
-        if rain.empty:
-            return df
-        rain["month_day"] = rain["Date"].dt.strftime("%m-%d")
-        climatology = rain.groupby("month_day", as_index=False)["Rainfall"].mean()
-        out = df.copy()
-        out["month_day"] = pd.to_datetime(out["ds"]).dt.strftime("%m-%d")
-        out = out.merge(climatology, on="month_day", how="left")
-        if "precip_mm" in out.columns:
-            out["precipitation_mm"] = (
-                0.65 * pd.to_numeric(out["precip_mm"], errors="coerce").fillna(0.0) +
-                0.35 * pd.to_numeric(out["Rainfall"], errors="coerce").fillna(0.0)
-            )
-        else:
-            out["precipitation_mm"] = pd.to_numeric(out["Rainfall"], errors="coerce").fillna(0.0)
-        return out.drop(columns=["month_day", "Rainfall"], errors="ignore")
-    except Exception:
-        return df
+    out = df.copy()
+    city_col = "city_type" if "city_type" in out.columns else "city"
+    if city_col not in out.columns:
+        return out
+    pieces = []
+    for city, part in out.groupby(city_col, sort=False):
+        city_weather = load_city_weather_frame(str(city))
+        sub = part.copy()
+        if city_weather.empty:
+            if "precip_mm" in sub.columns and "precipitation_mm" not in sub.columns:
+                sub["precipitation_mm"] = pd.to_numeric(sub["precip_mm"], errors="coerce").fillna(0.0)
+            pieces.append(sub)
+            continue
+        city_weather = city_weather[["date", "precipitation_sum", "rain_sum"]].copy()
+        city_weather["date"] = pd.to_datetime(city_weather["date"]).dt.normalize()
+        sub["date"] = pd.to_datetime(sub["ds"]).dt.normalize()
+        sub = sub.merge(city_weather, on="date", how="left")
+        observed = pd.to_numeric(sub.get("precip_mm") if "precip_mm" in sub.columns else 0, errors="coerce")
+        archive_precip = pd.to_numeric(sub.get("precipitation_sum") if "precipitation_sum" in sub.columns else 0, errors="coerce")
+        archive_rain = pd.to_numeric(sub.get("rain_sum") if "rain_sum" in sub.columns else 0, errors="coerce")
+        
+        # Ensure all are Series with same index as sub
+        if not isinstance(observed, pd.Series):
+            observed = pd.Series([observed] * len(sub), index=sub.index)
+        if not isinstance(archive_precip, pd.Series):
+            archive_precip = pd.Series([archive_precip] * len(sub), index=sub.index)
+        if not isinstance(archive_rain, pd.Series):
+            archive_rain = pd.Series([archive_rain] * len(sub), index=sub.index)
+            
+        observed = observed.fillna(0.0)
+        archive_precip = archive_precip.fillna(0.0)
+        archive_rain = archive_rain.fillna(archive_precip)
+        sub["precipitation_mm"] = 0.55 * observed + 0.30 * archive_precip + 0.15 * archive_rain
+        pieces.append(sub.drop(columns=["date", "precipitation_sum", "rain_sum"], errors="ignore"))
+    return pd.concat(pieces, ignore_index=True)
 
 
 def build_prophet_frame(sub: pd.DataFrame) -> pd.DataFrame:
@@ -177,9 +187,11 @@ def train_prophet_all_zones():
     print(f"Training Model 7 - Prophet for {len(city_types)} city types and {len(zone_ids)} zones")
 
     city_models = {}
+    zone_to_city_type = {}
 
     for zone_id in zone_ids:
         sub = df[df["zone_id"].astype(str) == zone_id].copy()
+        zone_to_city_type[str(zone_id)] = str(sub["city_type"].astype(str).mode().iloc[0]) if not sub.empty else "unknown"
         sub_frame = build_prophet_frame(sub)
         if len(sub_frame) < 120:
             print(f"  skip zone {zone_id}: only {len(sub_frame)} rows after aggregation")
@@ -221,26 +233,37 @@ def train_prophet_all_zones():
             joblib.dump(m_chennai, alias_path)
         print(f"  Created {len(CHENNAI_SLUG_ALIASES)} Chennai zone aliases -> chennai model")
 
+    inventory = {
+        "regressors": REGRESSORS,
+        "city_models": {slug: path.name for slug, path in city_models.items()},
+        "zone_to_city_type": zone_to_city_type,
+        "alias_map": {alias: "chennai" for alias in CHENNAI_SLUG_ALIASES} | {"chennai": "chennai"},
+        "zone_model_count": len(zone_to_city_type),
+    }
+    INVENTORY_JSON.write_text(json.dumps(inventory, indent=2), encoding="utf-8")
+    print(f"  saved {INVENTORY_JSON.name}")
+
     print("Prophet training finished.")
 
 
 def enrich_with_real_aqi(df: pd.DataFrame) -> pd.DataFrame:
-    air_path = EXTERNAL_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
-    if not air_path.is_file():
-        return df
-    try:
-        payload = json.loads(air_path.read_text(encoding="utf-8"))
-        hourly = pd.DataFrame(payload.get("hourly", {}))
-        if hourly.empty or "time" not in hourly.columns or "european_aqi" not in hourly.columns:
-            return df
-        hourly["ds"] = pd.to_datetime(hourly["time"])
-        hourly["european_aqi"] = pd.to_numeric(hourly["european_aqi"], errors="coerce")
-        aqi_map = hourly[["ds", "european_aqi"]].dropna().copy()
-        out = df.merge(aqi_map, on="ds", how="left")
-        out["european_aqi"] = out["european_aqi"].fillna(out["european_aqi"].median() if "european_aqi" in out else 70.0)
+    out = df.copy()
+    city_col = "city_type" if "city_type" in out.columns else "city"
+    if city_col not in out.columns:
         return out
-    except Exception:
-        return df
+    pieces = []
+    for city, part in out.groupby(city_col, sort=False):
+        city_air = load_city_air_frame(str(city))
+        sub = part.copy()
+        if city_air.empty or "european_aqi" not in city_air.columns:
+            sub["european_aqi"] = 70.0
+            pieces.append(sub)
+            continue
+        aqi_map = city_air[["ds", "european_aqi"]].dropna().copy()
+        sub = sub.merge(aqi_map, on="ds", how="left")
+        sub["european_aqi"] = sub["european_aqi"].fillna(float(aqi_map["european_aqi"].median()))
+        pieces.append(sub)
+    return pd.concat(pieces, ignore_index=True)
 
 
 if __name__ == "__main__":

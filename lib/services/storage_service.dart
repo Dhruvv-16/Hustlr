@@ -20,6 +20,8 @@ class StorageService {
   static const _keyPolicyId = 'policyId';
   static const _keyUserZone = 'userZone';
   static const _keyOnboardingComplete = 'onboardingComplete';
+  static const _keyShiftActive = 'shiftActive';
+  static const _keyShiftZone = 'shiftZone';
 
   // ── Static sync API (after [init]) ─────────────────────────────────────────
   static bool get isLoggedIn => _prefs.getBool(_keyIsLoggedIn) ?? false;
@@ -33,6 +35,8 @@ class StorageService {
   static String get userId => _prefs.getString(_keyUserId) ?? '';
   static String get policyId => _prefs.getString(_keyPolicyId) ?? '';
   static String get userZone => _prefs.getString(_keyUserZone) ?? '';
+  static bool get shiftActive => _prefs.getBool(_keyShiftActive) ?? false;
+  static String get shiftZone => _prefs.getString(_keyShiftZone) ?? '';
 
   static Future<void> setLoggedIn(bool v) => _prefs.setBool(_keyIsLoggedIn, v);
   static Future<void> setOnboarded(bool v) async {
@@ -49,14 +53,22 @@ class StorageService {
       _prefs.setString(_keyPolicyId, v);
   static Future<void> setUserZone(String v) =>
       _prefs.setString(_keyUserZone, v);
+  static Future<void> setShiftActive(bool v) =>
+      _prefs.setBool(_keyShiftActive, v);
+  static Future<void> setShiftZone(String v) =>
+      _prefs.setString(_keyShiftZone, v);
   static Future<void> clearAll() => _prefs.clear();
 
   static Future<void> setBool(String key, bool value) =>
       _prefs.setBool(key, value);
   static Future<void> setString(String key, String value) =>
       _prefs.setString(key, value);
+  static Future<void> setDouble(String key, double value) =>
+      _prefs.setDouble(key, value);
+      
   static bool? getBool(String key) => _prefs.getBool(key);
   static String? getString(String key) => _prefs.getString(key);
+  static double? getDouble(String key) => _prefs.getDouble(key);
 
   // ── Instance API (prompt / async) ───────────────────────────────────────
   Future<void> savePhone(String phone) async => setPhone(phone);
@@ -84,6 +96,11 @@ class StorageService {
   Future<String?> getUserZone() async =>
       userZone.isEmpty ? null : userZone;
 
+  Future<void> setShiftTrackingActive(bool value) async => setShiftActive(value);
+  Future<bool> isShiftTrackingActive() async => shiftActive;
+  Future<void> saveShiftZone(String zone) async => setShiftZone(zone);
+  Future<String?> getShiftZone() async => shiftZone.isEmpty ? null : shiftZone;
+
   Future<void> saveUserCity(String city) async =>
       setString('userCity', city);
 
@@ -96,4 +113,9 @@ class StorageService {
   Future<void> clearDemoState() async {
     // Implement any demo specific clearing if necessary
   }
+
+  Future<void> setLastLat(double lat) async => setDouble('lastLat', lat);
+  Future<void> setLastLng(double lng) async => setDouble('lastLng', lng);
+  Future<void> setPlanTier(String tier) async => setString('planTier', tier);
+  Future<void> setWeeklyPremium(double premium) async => setDouble('weeklyPremium', premium);
 }

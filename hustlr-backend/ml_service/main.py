@@ -11,6 +11,7 @@ import datetime as dt
 import numpy as np
 import joblib
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -43,7 +44,7 @@ circuit_breaker = EconomicCircuitBreaker()
 # On Render (rootDir = hustlr-backend/ml_service), models are copied into
 # hustlr-backend/ml_service/outputs/trained_models so they travel with the service.
 SERVICE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SERVICE_DIR.parent.parent.parent
+REPO_ROOT = SERVICE_DIR.parent.parent
 MODELS_SEARCH_PATHS: List[Path] = [
     SERVICE_DIR / "outputs" / "trained_models",       # Render: models inside service rootDir
     REPO_ROOT / "outputs" / "trained_models",          # local monorepo dev
@@ -101,20 +102,6 @@ def _load(name: str):
 # Files required for each endpoint's ML branch (matches _load(...) usage).
 # Note: /fraud uses XGBoost JSON + scaler + isolation forest (see compute_fraud).
 # Note: /traffic loads classifier + label encoder only (no congestion_baseline).
-# Prophet: one file per zone in hustlr-ml/outputs/datasets/prophet_training.csv (Chennai grid).
-CHENNAI_FORECAST_ZONE_SLUGS = (
-    "adyar",
-    "anna_nagar",
-    "chromepet",
-    "guindy",
-    "perambur",
-    "porur",
-    "sholinganallur",
-    "t_nagar",
-    "tambaram",
-    "velachery",
-)
-
 MODEL_FILES = {
     "model1_iss":        ["model1_iss_xgboost.pkl", "model1_features.pkl"],
     "model3_fraud":      [
@@ -127,7 +114,6 @@ MODEL_FILES = {
     "model4_nlp":        ["model4_rf_nlp.json", "model4_tfidf.pkl", "model4_label_map.pkl"],
     "model5_blackout":   ["model5_iso_connectivity.pkl", "model5_scaler.pkl", "model5_thresholds.pkl"],
     "model6_traffic":    ["model6_traffic_classifier.json", "model6_label_encoder.pkl"],
-    "model7_forecast":   [f"model7_prophet_{z}.pkl" for z in CHENNAI_FORECAST_ZONE_SLUGS],
 }
 
 @app.get("/health")
@@ -136,12 +122,209 @@ def health():
     for model_group, files in MODEL_FILES.items():
         missing = [f for f in files if _resolve_model_path(f) is None]
         statuses[model_group] = "ok" if not missing else f"missing: {missing}"
+    prophet_inventory = _load_prophet_inventory()
+    prophet_models = []
+    for directory in MODELS_SEARCH_PATHS:
+        prophet_models.extend(directory.glob("model7_prophet_*.pkl"))
+    statuses["model7_forecast"] = (
+        "ok"
+        if prophet_models
+        else "missing: no model7_prophet_*.pkl files found"
+    )
     overall = "ok" if all(v == "ok" for v in statuses.values()) else "degraded"
     return {
         "status": overall,
         "models": statuses,
+        "prophet_zone_model_count": int(prophet_inventory.get("zone_model_count", 0)),
+        "prophet_city_models": sorted((prophet_inventory.get("city_models") or {}).keys()),
         "models_search_paths": [str(p) for p in MODELS_SEARCH_PATHS],
     }
+
+
+def _normalize_slug(value: str) -> str:
+    return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+@lru_cache(maxsize=1)
+def _load_prophet_inventory() -> Dict[str, Any]:
+    inventory_path = _resolve_model_path("model7_prophet_inventory.json")
+    inventory: Dict[str, Any] = {
+        "city_models": {},
+        "zone_to_city_type": {},
+        "alias_map": {},
+        "zone_model_count": 0,
+    }
+    if inventory_path is not None:
+        try:
+            inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    if not inventory.get("zone_to_city_type"):
+        dataset_path = REPO_ROOT / "hustlr-ml" / "outputs" / "datasets" / "prophet_training.csv"
+        if dataset_path.is_file():
+            try:
+                import pandas as pd
+                zone_map = {}
+                for chunk in pd.read_csv(dataset_path, usecols=["zone_id", "city_type"], chunksize=250000):
+                    for zone_id, city_type in chunk.dropna().drop_duplicates().itertuples(index=False):
+                        zone_map[_normalize_slug(zone_id)] = str(city_type)
+                inventory["zone_to_city_type"] = zone_map
+                inventory["zone_model_count"] = len(zone_map)
+            except Exception:
+                pass
+    inventory.setdefault("city_models", {})
+    inventory.setdefault("zone_to_city_type", {})
+    inventory.setdefault("alias_map", {})
+    inventory["alias_map"].update({
+        "chennai": "chennai",
+        "mumbai": "mumbai",
+        "bangalore": "bangalore",
+        "bengaluru": "bangalore",
+        "kolkata": "tier2",
+        "tier2": "tier2",
+    })
+    inventory["zone_model_count"] = int(inventory.get("zone_model_count") or len(inventory["zone_to_city_type"]))
+    return inventory
+
+
+def _city_slug_for_zone_or_city(zone_or_city: str) -> str:
+    zl = _normalize_slug(zone_or_city)
+    if zl in {"mumbai", "bombay"} or any(x in zl for x in ["andheri", "bandra", "borivali", "chembur", "dadar", "ghatkopar", "parel", "powai", "thane", "vashi"]):
+        return "mumbai"
+    if zl in {"bengaluru", "bangalore", "blr"} or any(x in zl for x in ["koramangala", "whitefield", "indiranagar", "marathahalli", "electronic", "btm", "hsr", "jayanagar", "rajajinagar", "yelahanka"]):
+        return "bangalore"
+    if zl in {"kolkata", "calcutta"} or any(x in zl for x in ["salt_lake", "howrah", "garia", "new_town", "park_street", "tollygunge", "dum_dum", "behala", "sealdah", "esplanade"]):
+        return "tier2"
+    if zl.startswith("89") and zl in _load_prophet_inventory().get("zone_to_city_type", {}):
+        city_type = str(_load_prophet_inventory()["zone_to_city_type"][zl]).strip().lower()
+        return {
+            "chennai": "chennai",
+            "mumbai": "mumbai",
+            "bangalore": "bangalore",
+            "bengaluru": "bangalore",
+            "tier2": "tier2",
+        }.get(city_type, "chennai")
+    return "chennai"
+
+
+def _resolve_forecast_model_slug(zone_or_city: str) -> str:
+    normalized = _normalize_slug(zone_or_city)
+    inventory = _load_prophet_inventory()
+    candidate_order = [
+        normalized,
+        inventory.get("alias_map", {}).get(normalized),
+        _city_slug_for_zone_or_city(normalized),
+    ]
+    for candidate in candidate_order:
+        if not candidate:
+            continue
+        if _resolve_model_path(f"model7_prophet_{candidate}.pkl") is not None:
+            return str(candidate)
+    return "chennai"
+
+
+@lru_cache(maxsize=8)
+def _load_city_air_profile(city_slug: str) -> Dict[str, Any]:
+    air_path = EXTERNAL_DATA_DIR / f"{city_slug}_openmeteo_air_quality_2024_2025.json"
+    default = {"by_hour": {}, "recent_avg": 70.0}
+    if not air_path.is_file():
+        return default
+    try:
+        payload = json.loads(air_path.read_text(encoding="utf-8"))
+        hourly = payload.get("hourly", {})
+        times = hourly.get("time", [])
+        values = hourly.get("european_aqi", [])
+        buckets: Dict[int, List[float]] = {}
+        clean_vals: List[float] = []
+        for ts, val in zip(times, values):
+            if val is None:
+                continue
+            hour = int(str(ts)[11:13])
+            fval = float(val)
+            clean_vals.append(fval)
+            buckets.setdefault(hour, []).append(fval)
+        return {
+            "by_hour": {hour: float(sum(vals) / len(vals)) for hour, vals in buckets.items()},
+            "recent_avg": float(sum(clean_vals[-24:]) / max(1, len(clean_vals[-24:]))) if clean_vals else 70.0,
+        }
+    except Exception:
+        return default
+
+
+@lru_cache(maxsize=8)
+def _load_city_weather_profile(city_slug: str) -> Dict[str, Any]:
+    weather_path = EXTERNAL_DATA_DIR / f"{city_slug}_openmeteo_weather_2024_2025.json"
+    default = {"temp_by_month": {}, "precip_by_month": {}, "recent_temp": 32.0, "recent_precip": 0.4}
+    if not weather_path.is_file():
+        return default
+    try:
+        payload = json.loads(weather_path.read_text(encoding="utf-8"))
+        daily = payload.get("daily", {})
+        times = daily.get("time", [])
+        temps = daily.get("temperature_2m_mean", [])
+        precs = daily.get("precipitation_sum", [])
+        temp_buckets: Dict[int, List[float]] = {}
+        precip_buckets: Dict[int, List[float]] = {}
+        clean_temps: List[float] = []
+        clean_precs: List[float] = []
+        for ts, temp, precip in zip(times, temps, precs):
+            month = int(str(ts)[5:7])
+            if temp is not None:
+                ftemp = float(temp)
+                clean_temps.append(ftemp)
+                temp_buckets.setdefault(month, []).append(ftemp)
+            if precip is not None:
+                fprec = float(precip)
+                clean_precs.append(fprec)
+                precip_buckets.setdefault(month, []).append(fprec)
+        return {
+            "temp_by_month": {month: float(sum(vals) / len(vals)) for month, vals in temp_buckets.items()},
+            "precip_by_month": {month: float(sum(vals) / len(vals)) for month, vals in precip_buckets.items()},
+            "recent_temp": float(sum(clean_temps[-14:]) / max(1, len(clean_temps[-14:]))) if clean_temps else 32.0,
+            "recent_precip": float(sum(clean_precs[-14:]) / max(1, len(clean_precs[-14:]))) if clean_precs else 0.4,
+        }
+    except Exception:
+        return default
+
+
+def _build_forecast_future_frame(prophet_model, zone_or_city: str, horizon_hours: int) -> "pd.DataFrame":
+    import pandas as pd
+
+    city_slug = _city_slug_for_zone_or_city(zone_or_city)
+    start = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None).floor("h") + pd.Timedelta(hours=1)
+    future = pd.DataFrame({"ds": pd.date_range(start=start, periods=horizon_hours, freq="h")})
+    air_profile = _load_city_air_profile(city_slug)
+    weather_profile = _load_city_weather_profile(city_slug)
+    months = future["ds"].dt.month
+    hours = future["ds"].dt.hour
+    dom = future["ds"].dt.day
+
+    future["festival_multiplier"] = 1.0
+    future["precipitation_mm"] = months.map(weather_profile["precip_by_month"]).fillna(weather_profile["recent_precip"]).astype(float) / 24.0
+    future["temperature_c"] = months.map(weather_profile["temp_by_month"]).fillna(weather_profile["recent_temp"]).astype(float)
+    future["traffic_profile_index"] = np.select(
+        [
+            hours.isin([8, 9, 10, 17, 18, 19, 20]),
+            hours.isin([0, 1, 2, 3, 4, 5]),
+        ],
+        [0.84, 0.24],
+        default=0.52,
+    )
+    future["european_aqi"] = hours.map(air_profile["by_hour"]).fillna(air_profile["recent_avg"]).astype(float)
+    future["salary_week_flag"] = np.where(
+        (dom >= 1) & (dom <= 5),
+        1,
+        np.where((dom >= 25) | ((dom >= 7) & (dom <= 10)), 2, 0),
+    )
+    future["flood_event_flag"] = ((months.isin([10, 11])) & (future["precipitation_mm"] >= 1.0)).astype(int)
+    future["ipl_event_flag"] = ((months.isin([3, 4, 5])) & (hours.isin([18, 19, 20, 21, 22]))).astype(int)
+    future["festival_peak_flag"] = (
+        ((months == 1) & (dom.isin([14, 15, 16])))
+        | ((months == 10) & (dom >= 28))
+        | ((months == 11) & (dom <= 2))
+    ).astype(int)
+    future.loc[future["festival_peak_flag"] == 1, "festival_multiplier"] = 1.18
+    return future
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -643,29 +826,17 @@ def classify_traffic(req: TrafficRequest):
 # MODEL 7 — Disruption Forecast (Prophet)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/forecast/{zone}")
-def get_forecast(zone: str):
-    zone_lower = zone.lower().replace(" ", "_")
-    model_file = f"model7_prophet_{zone_lower}.pkl"
+def get_forecast(zone: str, horizon_hours: int = 24):
+    horizon_hours = max(6, min(int(horizon_hours), 168))
+    model_slug = _resolve_forecast_model_slug(zone)
+    model_file = f"model7_prophet_{model_slug}.pkl"
     forecast_data = []
 
     try:
         prophet_model = _load(model_file)
-        future = prophet_model.make_future_dataframe(periods=7, freq='D')
-        
-        # Supply mandatory regressors for the new Blueprint Prophet models
-        future["festival_multiplier"] = 1.0
-        future["precipitation_mm"]    = 0.0
-        future["temperature_c"]       = 32.0
-        future["traffic_profile_index"] = 0.5
-        future["european_aqi"] = _recent_chennai_aqi_default()
-        
-        dom = future["ds"].dt.day
-        future["salary_week_flag"] = np.where((dom >= 1) & (dom <= 5), 1, 
-                                      np.where((dom >= 7) & (dom <= 10), 2, 0))
-
+        future = _build_forecast_future_frame(prophet_model, zone, horizon_hours)
         forecast = prophet_model.predict(future)
-        last_7 = forecast.tail(7)
-        for _, row in last_7.iterrows():
+        for _, row in forecast.iterrows():
             # Log transform reverse (demand units)
             yhat = float(np.exp(row['yhat']))
             yhat_upper = float(np.exp(row['yhat_upper']))
@@ -685,6 +856,7 @@ def get_forecast(zone: str):
             risk = float(np.clip(risk, 0.0, 1.0))
 
             forecast_data.append({
+                "timestamp":  row['ds'].strftime('%Y-%m-%dT%H:%M:%S'),
                 "date":       row['ds'].strftime('%Y-%m-%d'),
                 "risk_score": round(risk, 3),
                 "predicted_demand": round(yhat, 2),
@@ -693,13 +865,15 @@ def get_forecast(zone: str):
             })
     except Exception as repr_err:
         # Deterministic prior + smooth weekly shape (no RNG — stable for a given zone/day index)
-        base_risk = float(zone_actuarial_prior(zone))
-        for i in range(7):
-            day = dt.date.today() + dt.timedelta(days=i + 1)
-            phase = math.sin(2 * math.pi * (i + 1) / 7.0)
+        city_slug = _city_slug_for_zone_or_city(zone)
+        base_risk = float(zone_actuarial_prior(zone, city_slug.title()))
+        for i in range(horizon_hours):
+            point = dt.datetime.now() + dt.timedelta(hours=i + 1)
+            phase = math.sin(2 * math.pi * ((i % 24) + 1) / 24.0)
             risk = float(np.clip(base_risk * (0.88 + 0.06 * phase), 0, 1))
             forecast_data.append({
-                "date":       day.strftime('%Y-%m-%d'),
+                "timestamp":  point.strftime('%Y-%m-%dT%H:%M:%S'),
+                "date":       point.strftime('%Y-%m-%d'),
                 "risk_score": round(risk, 3),
                 "risk_level": "HIGH" if risk > 0.6 else ("MEDIUM" if risk > 0.3 else "LOW"),
                 "source":     "rule_based_fallback",
@@ -707,23 +881,15 @@ def get_forecast(zone: str):
 
     return {
         "zone":     zone,
+        "model_slug": model_slug,
+        "horizon_hours": horizon_hours,
         "forecast": forecast_data,
     }
 
 
-def _recent_chennai_aqi_default() -> float:
-    air_path = EXTERNAL_DATA_DIR / "chennai_openmeteo_air_quality_2024_2025.json"
-    if not air_path.is_file():
-        return 70.0
-    try:
-        payload = json.loads(air_path.read_text(encoding="utf-8"))
-        vals = [float(x) for x in payload.get("hourly", {}).get("european_aqi", []) if x is not None]
-        if not vals:
-            return 70.0
-        tail = vals[-24:] if len(vals) >= 24 else vals
-        return float(round(sum(tail) / len(tail), 2))
-    except Exception:
-        return 70.0
+def _recent_city_aqi_default(zone_or_city: str) -> float:
+    slug = _city_slug_for_zone_or_city(zone_or_city)
+    return float(_load_city_air_profile(slug).get("recent_avg", 70.0))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

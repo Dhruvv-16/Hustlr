@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/router/app_router.dart';
 import '../../services/api_service.dart';
-import '../../services/storage_service.dart';
 import '../../services/app_events.dart';
+import '../../services/storage_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Map<String, dynamic>? checkoutData;
@@ -14,14 +15,16 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  int _selectedMethod = 0; // 0 = UPI, 1 = Wallet
+  int _selectedMethod = 0; // 0 = PayPal sandbox, 1 = UPI demo, 2 = Wallet
   bool _loading = false;
   int _walletBalance = 0;
+  String _sandboxMode = 'mock_sandbox';
 
   @override
   void initState() {
     super.initState();
     _loadBalance();
+    _loadSandboxConfig();
   }
 
   void _loadBalance() async {
@@ -29,13 +32,37 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final userId = await StorageService.instance.getUserId();
       if (userId == null) return;
       final data = await ApiService.instance.getWallet(userId);
-      if (mounted) {
-        setState(() {
-          _walletBalance = (data['balance'] as num?)?.toInt() ?? 0;
-          if (_walletBalance < 0) _walletBalance = 0;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _walletBalance = (data['balance'] as num?)?.toInt() ?? 0;
+        if (_walletBalance < 0) _walletBalance = 0;
+      });
     } catch (_) {}
+  }
+
+  void _loadSandboxConfig() async {
+    try {
+      final data = await ApiService.instance.getPaymentSandboxConfig();
+      final providers = (data['providers'] as Map?)?.cast<String, dynamic>() ?? const {};
+      final paypal = (providers['paypal'] as Map?)?.cast<String, dynamic>() ?? const {};
+      if (!mounted) return;
+      setState(() {
+        _sandboxMode = (paypal['mode'] as String?) ?? 'mock_sandbox';
+      });
+    } catch (_) {}
+  }
+
+  String get _selectedProvider {
+    switch (_selectedMethod) {
+      case 0:
+        return 'paypal';
+      case 1:
+        return 'upi';
+      case 2:
+        return 'wallet';
+      default:
+        return 'stripe';
+    }
   }
 
   void _confirm() async {
@@ -44,6 +71,31 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final userId = await StorageService.instance.getUserId();
       if (userId != null) {
         final planName = widget.checkoutData?['plan'] ?? 'standard';
+        final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
+        if (_selectedProvider == 'wallet' && _walletBalance < total) {
+          throw Exception('Insufficient wallet balance for this sandbox payment');
+        }
+
+        final session = await ApiService.instance.createPaymentSandboxSession(
+          provider: _selectedProvider,
+          amount: total,
+          description: 'Hustlr coverage activation',
+          userId: userId,
+          metadata: {'plan': planName, 'sandbox_mode': _sandboxMode},
+        );
+
+        final sessionId = session['session_id'] as String? ?? 'sandbox_session';
+        final payment = await ApiService.instance.confirmPaymentSandbox(
+          provider: _selectedProvider,
+          amount: total,
+          sessionId: sessionId,
+          userId: userId,
+          metadata: {'plan': planName, 'sandbox_mode': _sandboxMode},
+        );
+        if (payment['success'] != true) {
+          throw Exception('Sandbox payment failed');
+        }
+
         final result = await ApiService.instance.createPolicy(
           userId: userId,
           planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
@@ -52,17 +104,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
         if (policyId != null) {
           await StorageService.instance.savePolicyId(policyId);
           AppEvents.instance.policyUpdated();
-          AppEvents.instance.walletUpdated(); // Premium deducted
+          AppEvents.instance.walletUpdated();
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment mock error: $e', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              'Payment sandbox error: $e',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
         setState(() => _loading = false);
       }
-      return; // Do not go to dashboard if payment fails, let them see the error
+      return;
     }
 
     if (!mounted) return;
@@ -72,9 +130,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final green = Theme.of(context).colorScheme.primary;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text(
-          'Coverage activated! You are now protected.',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
+        content: Text(
+          _selectedProvider == 'paypal'
+              ? 'PayPal sandbox payment confirmed. Coverage is active.'
+              : 'Sandbox payment confirmed. Coverage is active.',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            height: 1.4,
+          ),
         ),
         backgroundColor: green,
         behavior: SnackBarBehavior.floating,
@@ -96,16 +160,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
     final planCost = widget.checkoutData?['planCost'] ?? 49;
-    
-    // Safely cast riders to prevent type errors from GoRouter extras
     final rawRiders = widget.checkoutData?['riders'];
-    final List<Map<String, dynamic>> riders = [];
+    final riders = <Map<String, dynamic>>[];
     if (rawRiders is List) {
-      for (var r in rawRiders) {
-        if (r is Map) riders.add(Map<String, dynamic>.from(r));
+      for (final rider in rawRiders) {
+        if (rider is Map) riders.add(Map<String, dynamic>.from(rider));
       }
     }
-    
     final total = widget.checkoutData?['total'] ?? 49;
 
     return Scaffold(
@@ -131,7 +192,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Column(
           children: [
-            // ── Order Summary Card ────────────────────────────────────────────
             _SectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,14 +205,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _SummaryRow(label: planName, amount: '₹$planCost/wk'),
+                  _SummaryRow(label: planName, amount: 'Rs $planCost/wk'),
                   if (riders.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    ...riders.map((r) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _SummaryRow(
-                              label: r['name'], amount: '₹${r['cost']}/wk'),
-                        )),
+                    ...riders.map(
+                      (rider) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _SummaryRow(
+                          label: '${rider['name']}',
+                          amount: 'Rs ${rider['cost']}/wk',
+                        ),
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 4),
                   Container(height: 1, color: divider),
@@ -169,7 +233,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         ),
                       ),
                       Text(
-                        '₹$total/wk',
+                        'Rs $total/wk',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -182,8 +246,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Payment Method Card ────────────────────────────────────────────
             _SectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,38 +259,48 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   _PaymentMethodRow(
-                    icon: Icons.account_balance_rounded,
-                    title: 'UPI Payment',
+                    icon: Icons.credit_card_rounded,
+                    title: 'PayPal Sandbox',
+                    subtitle: _sandboxMode == 'sandbox_keys_present'
+                        ? 'Test keys configured'
+                        : 'Recommended mock sandbox',
                     selected: _selectedMethod == 0,
                     onTap: () => setState(() => _selectedMethod = 0),
                   ),
-
                   const SizedBox(height: 4),
                   Container(height: 1, color: divider),
                   const SizedBox(height: 4),
-
+                  _PaymentMethodRow(
+                    icon: Icons.account_balance_rounded,
+                    title: 'UPI Demo',
+                    subtitle: 'Safe fallback without gateway onboarding',
+                    selected: _selectedMethod == 1,
+                    onTap: () => setState(() => _selectedMethod = 1),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(height: 1, color: divider),
+                  const SizedBox(height: 4),
                   _PaymentMethodRow(
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'Hustlr Wallet',
-                    subtitle: 'Balance: ₹${_walletBalance.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},")}',
-                    selected: _selectedMethod == 1,
-                    onTap: () => setState(() => _selectedMethod = 1),
+                    subtitle: 'Balance: Rs ${_formatCurrency(_walletBalance)}',
+                    selected: _selectedMethod == 2,
+                    onTap: () => setState(() => _selectedMethod = 2),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Important Note Card ────────────────────────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark ? green.withOpacity(0.05) : const Color(0xFFE3F2FD),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? green.withOpacity(0.2) : Colors.transparent),
+                border: Border.all(
+                  color: isDark ? green.withOpacity(0.2) : Colors.transparent,
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,10 +327,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'This is a demo payment. No real money will be charged.',
+                      'Sandbox checkout is enabled. PayPal is the recommended test path; Razorpay is not required for this demo.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? theme.colorScheme.onSurface.withOpacity(0.8) : const Color(0xFF1565C0),
+                        color: isDark
+                            ? theme.colorScheme.onSurface.withOpacity(0.8)
+                            : const Color(0xFF1565C0),
                         height: 1.5,
                       ),
                     ),
@@ -290,11 +364,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       height: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(isDark ? const Color(0xFF0A0B0A) : Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isDark ? const Color(0xFF0A0B0A) : Colors.white,
+                        ),
                       ),
                     )
                   : const Text(
-                      'Confirm & Activate Coverage →',
+                      'Confirm & Activate Coverage ->',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -304,6 +380,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    final raw = amount.toString();
+    return raw.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]},',
     );
   }
 }
@@ -316,7 +400,7 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -349,11 +433,18 @@ class _SummaryRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.6))),
-        Text(amount,
-            style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.6)),
+        ),
+        Text(
+          amount,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
       ],
     );
   }
@@ -380,7 +471,7 @@ class _PaymentMethodRow extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final green = theme.colorScheme.primary;
     final onSurface = theme.colorScheme.onSurface;
-    
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -392,24 +483,36 @@ class _PaymentMethodRow extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: selected ? green.withOpacity(0.1) : (isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6)),
+                color: selected
+                    ? green.withOpacity(0.1)
+                    : (isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6)),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon,
-                  color: selected ? green : onSurface.withOpacity(0.6), size: 22),
+              child: Icon(
+                icon,
+                color: selected ? green : onSurface.withOpacity(0.6),
+                size: 22,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold, color: onSurface)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: onSurface,
+                    ),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle!,
-                        style: TextStyle(fontSize: 12, color: green)),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(fontSize: 12, color: green),
+                    ),
                   ],
                 ],
               ),

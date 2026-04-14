@@ -89,6 +89,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  background_fetch:
+    dependency: "direct main"
+    description:
+      name: background_fetch
+      sha256: f5f0a5774cbe5e71ce62a9daf7f01007d07b3ac0c1fea1ecb131a3c5a273ca38
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.1"
   barcode:
     dependency: transitive
     description:
@@ -446,14 +454,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_background_geolocation:
-    dependency: "direct main"
-    description:
-      name: flutter_background_geolocation
-      sha256: "1f0fd38e665b632341e26d8ba8c1c0f8b1c3195d28dd9082802b21f3ff9ed6dc"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.1.1"
   flutter_bloc:
     dependency: "direct main"
     description:

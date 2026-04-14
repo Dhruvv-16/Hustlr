@@ -68,6 +68,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "background_fetch",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/background_fetch-1.5.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
       "name": "barcode",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/barcode-2.2.9",
       "packageUri": "lib/",
@@ -336,12 +342,6 @@
       "rootUri": "file:///C:/src/flutter/packages/flutter",
       "packageUri": "lib/",
       "languageVersion": "3.9"
-    },
-    {
-      "name": "flutter_background_geolocation",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_background_geolocation-5.1.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.6"
     },
     {
       "name": "flutter_bloc",

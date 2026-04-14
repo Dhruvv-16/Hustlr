@@ -269,12 +269,12 @@ class MockDataService extends ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────────────
 
   WorkerModel worker = WorkerModel(
-    id: "HS-9821",
-    name: "Karthik",
-    platform: "Zepto",
-    city: "Chennai",
-    zone: "Adyar Dark Store Zone",
-    weeklyIncomeEstimate: 4200,
+    id: '',
+    name: '',
+    platform: '',
+    city: '',
+    zone: '',
+    weeklyIncomeEstimate: 0,
   );
 
   PolicyModel activePolicy = PolicyModel(
@@ -380,19 +380,19 @@ class MockDataService extends ChangeNotifier {
   /// Populate from local storage (fast) then hydrate from API (async).
   void syncWithStorage() {
     final box = Hive.box('appData');
-    final name = box.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? "Karthik";
-    final city = box.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? "Chennai";
-    final zone = box.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? "Adyar Dark Store Zone";
-    final platform = box.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? "Zepto";
+    final name = box.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? '';
+    final city = box.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? '';
+    final zone = box.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? '';
+    final platform = box.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? '';
     final userId = StorageService.userId;
 
     worker = WorkerModel(
-      id: userId.isNotEmpty ? userId : "HS-9821",
+      id: userId.isNotEmpty ? userId : '',
       name: name,
       platform: platform,
       city: city,
       zone: zone,
-      weeklyIncomeEstimate: 4200,
+      weeklyIncomeEstimate: 0,
     );
 
     // Restore persisted demo state (survives app restarts)
