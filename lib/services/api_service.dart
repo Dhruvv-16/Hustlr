@@ -936,7 +936,7 @@ class ApiService {
         enableClassification: true,
       );
       
-      final faceDetector = GoogleMLKit.vision.faceDetector(options);
+      final faceDetector = FaceDetector(options: options);
       final faces = await faceDetector.processImage(inputImage);
       
       await faceDetector.close();

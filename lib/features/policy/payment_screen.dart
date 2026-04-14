@@ -88,7 +88,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final userId = await StorageService.instance.getUserId();
     
     // Razorpay test key (sandbox mode)
-    const razorpayTestKey = 'rzp_test_your_test_key_here'; // Replace with your test key
+    const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; // Replace with your test key
     
     var options = {
       'key': razorpayTestKey,
@@ -246,7 +246,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         backgroundColor: const Color(0xFF2E7D32),
         elevation: 0,
         leading: IconButton(
-          onTap: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.close, color: Colors.white),
         ),
         title: Column(
