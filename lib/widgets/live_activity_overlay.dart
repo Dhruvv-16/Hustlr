@@ -53,7 +53,7 @@ class _LiveActivityOverlayState extends State<LiveActivityOverlay> with TickerPr
   @override
   Widget build(BuildContext context) {
     return Stack(
-      alignment: AlignmentDirectional.topStart,
+      alignment: Alignment.topLeft,
       children: [
         widget.child,
         if (_shiftActive)
