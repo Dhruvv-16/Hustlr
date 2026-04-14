@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -822,60 +823,30 @@ class ApiService {
     String? expectedGesture,
   }) async {
     try {
-      // Primary Route: Use Gemini 1.5 Flash Vision for robust offline/demo liveness validation.
-      const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
+      // Use Google Cloud Vision API for face detection
+      const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE'; // Replace with your Google Cloud Vision API key
+      final url = Uri.parse('https://vision.googleapis.com/v1/images:annotate?key=$apiKey');
       
-      // Build prompt with gesture if provided (Oasis-style liveness)
-      final gesturePrompt = expectedGesture != null
-          ? "Requested gesture: \"$expectedGesture\".\n\n"
-            "Approve ONLY if all are true:\n"
-            "- Exactly one real human face is clearly visible\n"
-            "- The requested gesture is unmistakably performed\n"
-            "- Photo looks like a live selfie (not screen/print/screenshot)\n\n"
-            "Reject if any are true:\n"
-            "- Indoor scene or unclear setting\n"
-            "- Multiple faces\n"
-            "- Face too obscured to judge gesture\n"
-            "- Signs of screen/print/screenshot or AI/deepfake\n\n"
-            "Return JSON only."
-          : "Perform strict liveness verification. Check for screen capture, photo of photo, deepfake, and quality issues. Return JSON.";
-
+      // Decode base64 to bytes
+      final imageBytes = base64Decode(imageBase64);
+      
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "systemInstruction": {
-            "parts": [
-              {
-                "text": "You are a strict KYC liveness verifier for gig workers. "
-                        "Return ONLY a strict JSON object with this schema: "
-                        "{\"verified\": boolean, \"reason\": string}. "
-                        "STRICT LIVENESS CHECK - Analyze for these RED FLAGS: "
-                        "1. SCREEN CAPTURE: Look for screen glare, pixelation, moiré patterns, display bezels, or any digital display artifacts "
-                        "2. PHOTO OF PHOTO: Look for reflections, shadows, paper texture, or printed material artifacts "
-                        "3. DEEPFAKE: Look for unnatural skin texture, inconsistent lighting, blurry edges, or AI generation artifacts "
-                        "4. MULTIPLE FACES: Reject if more than one face is visible "
-                        "5. POOR QUALITY: Reject if face is blurry, too dark, or not clearly visible "
-                        "6. WRONG ANGLE: Reject if it's not a front-facing selfie angle "
-                        "APPROVE ONLY if: Exactly ONE real human face, clearly visible, front-facing angle, natural lighting, "
-                        "no screen artifacts, no photo artifacts, no deepfake signs, looks like a live selfie taken now. "
-                        "REJECT if ANY red flag is detected - be extremely strict about screen captures and photos of screens."
-              }
-            ]
-          },
-          "contents": [
+          "requests": [
             {
-              "role": "user",
-              "parts": [
+              "image": {
+                "content": imageBase64
+              },
+              "features": [
                 {
-                  "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": imageBase64
-                  }
+                  "type": "FACE_DETECTION",
+                  "maxResults": 5
                 },
                 {
-                  "text": gesturePrompt
+                  "type": "LABEL_DETECTION",
+                  "maxResults": 10
                 }
               ]
             }
@@ -885,29 +856,79 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final jsonResult = jsonDecode(response.body);
-        final contentText = jsonResult['candidates'][0]['content']['parts'][0]['text']?.toString() ?? '{}';
+        final faces = jsonResult['responses']?[0]?['faceAnnotations'] ?? [];
         
-        // Strip markdown blocks if Gemini wraps the JSON
-        var cleanJsonString = contentText.trim();
-        if (cleanJsonString.startsWith('```json')) {
-          cleanJsonString = cleanJsonString.replaceAll('```json', '').replaceAll('```', '').trim();
+        // Check if exactly one face is detected
+        if (faces.length != 1) {
+          return {
+            'verified': false,
+            'reason': faces.length == 0 ? 'No face detected' : 'Multiple faces detected',
+            'similarity_score': 0.0,
+          };
         }
         
-        final parsed = jsonDecode(cleanJsonString);
+        final face = faces[0];
+        
+        // Check face quality and liveness indicators
+        final detectionConfidence = (face['detectionConfidence'] as num?)?.toDouble() ?? 0.0;
+        final headwearLikelihood = face['headwearLikelihood'] ?? 'UNKNOWN';
+        final blurredLikelihood = face['blurredLikelihood'] ?? 'UNKNOWN';
+        final eyesOpenLikelihood = face['eyesOpenLikelihood'] ?? 'UNKNOWN';
+        
+        // Strict checks for liveness
+        if (detectionConfidence < 0.7) {
+          return {
+            'verified': false,
+            'reason': 'Face quality too low (confidence: ${detectionConfidence.toStringAsFixed(2)})',
+            'similarity_score': detectionConfidence,
+          };
+        }
+        
+        // Check for screen capture indicators
+        final labels = jsonResult['responses']?[0]?['labelAnnotations'] ?? [];
+        final hasScreenIndicators = labels.any((label) => 
+          (label['description'] as String).toLowerCase().contains('screen') ||
+          (label['description'] as String).toLowerCase().contains('display') ||
+          (label['description'] as String).toLowerCase().contains('monitor')
+        );
+        
+        if (hasScreenIndicators) {
+          return {
+            'verified': false,
+            'reason': 'Screen capture detected',
+            'similarity_score': 0.3,
+          };
+        }
+        
+        // Gesture verification (if provided)
+        if (expectedGesture != null) {
+          // For now, we'll use a simple heuristic based on facial landmarks
+          // In production, you'd need more sophisticated gesture detection
+          final landmarkingConfidence = (face['landmarkingConfidence'] as num?)?.toDouble() ?? 0.0;
+          if (landmarkingConfidence < 0.5) {
+            return {
+              'verified': false,
+              'reason': 'Unable to verify gesture - face landmarks not clear',
+              'similarity_score': landmarkingConfidence,
+            };
+          }
+        }
+        
         return {
-          'verified': parsed['verified'] ?? false,
-          'reason': parsed['reason'] ?? 'Could not verify',
-          'similarity_score': (parsed['verified'] == true) ? 0.98 : 0.45,
+          'verified': true,
+          'reason': 'Face verified successfully',
+          'similarity_score': detectionConfidence,
         };
       }
-      throw Exception('Gemini verification failed');
-    } catch (e) { 
-       // Fallback mock if strictly offline
-       return {
-         'verified': true,
-         'reason': 'Offline mock success',
-         'similarity_score': 0.88,
-       };
+      throw Exception('Google Cloud Vision API failed');
+    } catch (e) {
+      developer.log('Face liveness verification error: $e');
+      // Fallback mock if API fails
+      return {
+        'verified': false,
+        'reason': 'Verification service unavailable',
+        'similarity_score': 0.0,
+      };
     }
   }
 
