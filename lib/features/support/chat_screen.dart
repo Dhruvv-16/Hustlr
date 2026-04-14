@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../config/secrets.dart';
-import 'package:hustlr/services/demo_state_service.dart';
+import '../../services/demo_state_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../l10n/app_localizations.dart';

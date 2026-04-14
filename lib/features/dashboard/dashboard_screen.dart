@@ -236,8 +236,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
+  int _lastShiftUpdate = 0;
   void _onShiftUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastShiftUpdate > 5000) { // Every 5 seconds max
+      _lastShiftUpdate = now;
+      setState(() {});
+    }
   }
 
   @override
