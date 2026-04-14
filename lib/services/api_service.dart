@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/secrets.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -822,8 +821,9 @@ class ApiService {
     required String imageBase64,
   }) async {
     try {
-      // Primary Route: Use Gemini 2.5 Flash Vision for robust offline/demo liveness validation.
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
+      // Primary Route: Use Gemini 1.5 Flash Vision for robust offline/demo liveness validation.
+      const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
       
       final response = await http.post(
         url,

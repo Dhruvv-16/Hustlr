@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../../config/secrets.dart';
-import '../../services/demo_state_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../l10n/app_localizations.dart';
@@ -62,7 +59,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   Future<String> _queryGemini(String prompt) async {
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
+    const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
     
     final contents = [
       {
