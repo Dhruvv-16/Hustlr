@@ -12,6 +12,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
   final TextEditingController _messageController = TextEditingController();
 
   bool _isTyping = false;
@@ -59,8 +60,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   Future<String> _queryGemini(String prompt) async {
-    const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
+    if (_geminiApiKey.isEmpty) return _getAutoReply(prompt);
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_geminiApiKey',
+    );
     
     final contents = [
       {

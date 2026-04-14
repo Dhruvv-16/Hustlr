@@ -21,9 +21,7 @@ class DynamicTranslator {
     return DynamicTranslator._(tag);
   }
 
-  static const _apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
-  static const _geminiUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey';
+  static const _apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
 
   // ── In-memory cache to avoid re-calling the API for the same string ──────
   static final Map<String, String> _cache = {};
@@ -87,9 +85,12 @@ class DynamicTranslator {
   }
 
   Future<String?> _fetchGeminiTranslation(String input, String cacheKey) async {
+    if (_apiKey.isEmpty) return null;
     try {
       final response = await http.post(
-        Uri.parse(_geminiUrl),
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey',
+        ),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'systemInstruction': {

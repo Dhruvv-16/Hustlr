@@ -586,12 +586,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _loading || (!_useRazorpay && _walletBalance < total)
-                      ? null
-                      : _useRazorpay ? _openRazorpayCheckout : _payWithWallet,
+                  onPressed: _loading 
+                      ? null 
+                      : (_useRazorpay 
+                          ? _openRazorpayCheckout 
+                          : (_walletBalance < total ? null : _payWithWallet)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
