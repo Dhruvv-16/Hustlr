@@ -19,20 +19,24 @@ class ApiService {
   static String get baseUrl {
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
-    // Default fallback for development
-    const defaultDev = 'http://localhost:3000';
     
     if (kIsWeb) {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
-      // Use production backend for web testing
       return _prodUrl;
     }
+    
+    // In production builds, prioritize prod environment variable, then hardcoded prod URL
     if (kReleaseMode) {
       return prod.isNotEmpty ? prod : _prodUrl;
     }
+    
+    // In debug mode, allow overrides, but ensure regular devices don't see empty host
     if (devOverride.isNotEmpty) return devOverride;
-    return prod.isNotEmpty ? prod : defaultDev;
+    if (prod.isNotEmpty) return prod;
+
+    // Safe default on physical devices when no dart-defines are passed.
+    return _prodUrl;
   }
 
   static const _timeout =
@@ -47,7 +51,10 @@ class ApiService {
   ApiService._internal();
 
   static String get mlBackendUrl {
-    const prod = String.fromEnvironment('HUSTLR_ML_PROD');
+    const prod = String.fromEnvironment(
+      'HUSTLR_ML_PROD',
+      defaultValue: 'https://hustlr-ml-complete.onrender.com',
+    );
     const devOverride = String.fromEnvironment('HUSTLR_ML_BASE');
     if (devOverride.isNotEmpty) return devOverride;
     return prod;

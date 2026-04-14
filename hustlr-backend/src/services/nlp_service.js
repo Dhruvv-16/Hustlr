@@ -96,7 +96,7 @@ async function classifyDisruptionText(text, opts = {}) {
   const { source = 'unknown', requireDualSource = false, sources = {} } = opts;
 
   try {
-    const mlUrl  = process.env.ML_SERVICE_URL || 'http://localhost:8001';
+    const mlUrl  = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
     const resp   = await fetch(`${mlUrl}/nlp`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },

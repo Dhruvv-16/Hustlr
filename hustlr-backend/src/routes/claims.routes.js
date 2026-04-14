@@ -16,7 +16,7 @@ const { getSharedDeviceFraudBump } = require('../services/device_fingerprint_ser
 const router = express.Router();
 
 // ML microservice — Isolation Forest + Ring Detector
-const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml.onrender.com';
+const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
 
 /*
   SETTLEMENT ARCHITECTURE

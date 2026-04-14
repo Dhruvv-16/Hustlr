@@ -87,7 +87,7 @@ function startRegionalWeeklyCron() {
   // Calls GET /nudge/{zone}/{plan_tier} on ML service for each active worker
   // and logs the nudge recommendations (FCM push can be added here)
   cron.schedule('30 4 * * 3', async () => {
-    const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml.onrender.com';
+    const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
     try {
       const { data: activeWorkers } = await supabase
         .from('users')

@@ -8,8 +8,8 @@ from datetime import datetime
 from prophet import Prophet
 from scipy.stats import norm
 
-MODEL_PATH = Path(__file__).parent.parent / "models" / "prophet_chennai.pkl"
-MODELS_DIR = Path(__file__).parent.parent.parent / "trained_models" / "trained_models"
+MODEL_PATH = Path(__file__).parent.parent / "models" / "trained" / "prophet_chennai.pkl"
+MODELS_DIR = Path(__file__).parent.parent / "models" / "trained"
 def fetch_open_meteo_historical() -> pd.DataFrame:
     """
     Fetch 2018-2024 daily rainfall data for Chennai via Open-Meteo Historical Archive API.

@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
             "threshold": 0.65,
             "feature_version": "3.0.0",
         }
-        print("[Startup] Loaded model3_isolation_forest from trained_models/")
+        print("[Startup] Loaded model3_isolation_forest from models/trained/")
     else:
         _MODEL_BUNDLE = load_model()  # fallback to inline pkl
         print("[Startup] Loaded inline fraud_model.pkl")
@@ -83,9 +83,9 @@ async def lifespan(app: FastAPI):
         }
         print("[Startup] ISS XGBoost model loaded")
     else:
-        print("[Startup] ISS model not found ??? will use rule engine fallback")
+        print("[Startup] ISS model not found — will use rule engine fallback")
 
-    chat_dir = Path(__file__).parent / "models"
+    chat_dir = MODELS_DIR  # Consolidated location
     bot_path = chat_dir / "chatbot_model.pkl"
     if bot_path.exists():
         import json
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI):
         print("[Startup] NLP Classifier loaded.")
 
     # Load GNN fraud detection model
-    gnn_model_path = Path(__file__).parent / "models" / "gnn_fraud_detector.pt"
+    gnn_model_path = MODELS_DIR / "gnn_fraud_detector.pt"
     if gnn_model_path.exists():
         try:
             _GNN_MODEL = load_gnn_model(str(gnn_model_path), node_features=6, hidden_dim=64, num_classes=2)
