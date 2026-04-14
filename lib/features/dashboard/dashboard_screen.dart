@@ -206,23 +206,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   Future<void> _recheckAllPermissions() async {
     final locationPerm = await Geolocator.checkPermission();
-    final notifPerm    = await Permission.notification.status;
-    final activityPerm = await Permission.activityRecognition.status;
-
-    final locationOk = locationPerm == LocationPermission.always ||
-                       locationPerm == LocationPermission.whileInUse;
-    final allGranted = locationOk && notifPerm.isGranted && activityPerm.isGranted;
 
     if (mounted) {
       setState(() {
         _backgroundTrackingActive = locationPerm == LocationPermission.always;
         _locationPermissionStatus = locationPerm.toString();
       });
-      // If all granted and shift not already active, start tracking
-      if (allGranted && ShiftTrackingService.instance.status == ShiftStatus.offline) {
-        final zone = userZone ?? 'Unknown Zone';
-        await ShiftTrackingService.instance.startShift(zone);
-      }
     }
   }
 

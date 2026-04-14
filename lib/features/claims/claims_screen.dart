@@ -29,6 +29,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null) {
+        if (!mounted) return;
         setState(() { _error = 'Not logged in'; _loading = false; });
         return;
       }
@@ -37,8 +38,10 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
       final list = raw is List
           ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : <Map<String, dynamic>>[];
+      if (!mounted) return;
       setState(() { _claims = list; _loading = false; });
     } catch (e) {
+      if (!mounted) return;
       setState(() { _error = e.toString(); _loading = false; });
     }
   }
