@@ -21,7 +21,7 @@ import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
 
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
-import '../../features/shared/widgets/live_persona_panel.dart';
+import '../../widgets/demo_controls_sheet.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
 import '../../services/dynamic_translator.dart';
@@ -529,7 +529,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () => showLivePersonaPanel(context, onSubmit: _loadDashboardData),
+          onLongPress: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const DemoControlsSheet(),
+            );
+          },
           child: Container(
             width: 52,
             height: 52,

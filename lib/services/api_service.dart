@@ -200,6 +200,7 @@ class ApiService {
     required String triggerType,
     required double severity,
     required double durationHours,
+    Map<String, dynamic>? extraData,
   }) async {
     try {
       final res = await http
@@ -211,6 +212,7 @@ class ApiService {
               'trigger_type': triggerType,
               'severity': severity,
               'duration_hours': durationHours,
+              ...?extraData,
             }),
           )
           .timeout(_timeout);
