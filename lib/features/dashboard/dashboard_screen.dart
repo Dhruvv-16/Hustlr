@@ -268,11 +268,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _loadDashboardData() async {
+    // Prevent concurrent API call stacks from piling up
+    if (_isDashboardLoading) return;
+    _isDashboardLoading = true;
     userId = await StorageService.instance.getUserId();
     userZone = await StorageService.instance.getUserZone();
     userName = await StorageService.instance.getUserName();
 
     if (userId == null) {
+      _isDashboardLoading = false;
       if (mounted) setState(() => isLoading = false);
       return;
     }
@@ -352,6 +356,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
+    } finally {
+      _isDashboardLoading = false;
     }
   }
 

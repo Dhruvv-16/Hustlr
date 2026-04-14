@@ -24,9 +24,9 @@ from external_city_data_utils import load_city_air_frame, load_city_weather_fram
 
 warnings.filterwarnings("ignore")
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR   = PROJECT_ROOT / "outputs" / "trained_models"
-PROPHET_CSV  = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "prophet_training.csv"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR   = PROJECT_ROOT / "models" / "trained"
+PROPHET_CSV  = PROJECT_ROOT / "outputs" / "datasets" / "prophet_training.csv"
 INVENTORY_JSON = MODELS_DIR / "model7_prophet_inventory.json"
 
 # External regressors available in the new CSV

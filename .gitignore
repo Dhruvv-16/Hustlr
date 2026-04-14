@@ -151,10 +151,10 @@ hs_err_pid*.log
 replay_pid*.log
 .analyze_out.txt
 
-# ML model binary outputs — tracked in outputs/trained_models/ for Render deploy
+# ML model binary outputs — tracked in hustlr-ml/models/trained/ for Render deploy
 # (only gitignore backup/scratch files, not the actual trained models)
 **/*.json.bak
-# hustlr_ml/outputs/ contains dev scratch; production models are in outputs/trained_models/
+# hustlr-ml/outputs/ contains dev scratch; production models are in hustlr-ml/models/trained/
 hustlr-ml/outputs/scratch/
 
 # Heavyweight LLM Models

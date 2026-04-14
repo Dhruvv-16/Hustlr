@@ -1,5 +1,5 @@
 """
-Train all local models into repo_root/outputs/trained_models.
+Train all local models into hustlr-ml/models/trained (consolidated location).
 Run from anywhere: python hustlr-ml/scripts/train_all_local.py
 """
 

@@ -721,49 +721,48 @@ class MockDataService extends ChangeNotifier {
     notifyListeners();
 
     // Bypass real API for hackathon demo to ensure optimistic UI consistency
+    // Automatic instant payout in mock mode
     if (userId.isEmpty || true) {
-      Future.delayed(const Duration(seconds: 3), () {
-        final payout = switch (triggerType) {
-          'rain_heavy' => 120,   // ₹40/hr × 3hrs = ₹120 (within Standard ₹150 daily cap)
-          'platform_outage' => 140, // ₹50/hr × 2.8hrs ≈ ₹140 (within Standard ₹150 daily cap)
-          'heat_severe' => 130,  // ₹45/hr × 2.9hrs ≈ ₹130 (within Standard ₹150 daily cap)
-          _ => 100,
-        };
-        claims.first.status = 'APPROVED';
-        if (claims.first.id == tempId) {
-          claims[0] = ClaimModel(
-            id: tempId, type: _triggerLabel(triggerType),
-            date: 'Just now', amount: payout, status: 'APPROVED',
-            zone: worker.zone, icon: _triggerIcon(triggerType),
-            grossAmount: payout, immediateAmount: (payout * 0.7).round(),
-            heldAmount: (payout * 0.3).round(),
-          );
-        }
-        walletBalance += payout;
-        monthlySavings += payout;
-        transactions.insert(0, {
-          'type': 'credit',
-          'title': '${_triggerLabel(triggerType)} Payout',
-          'subtitle': 'Auto-triggered · ${worker.zone}',
-          'amount': payout,
-          'date': 'Just now',
-        });
-        // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
-        onClaimApproved?.call(domain.Claim(
-          id: tempId,
-          userId: '',
-          triggerType: triggerType,
-          displayLabel: _triggerLabel(triggerType),
-          status: domain.ClaimStatus.approved,
-          grossPayout: payout,
-          tranche1: (payout * 0.7).round(),
-          tranche2: (payout * 0.3).round(),
-          zone: worker.zone,
-          createdAt: DateTime.now(),
-        ));
-        _persistDemoState(); // ← save so it survives refresh
-        notifyListeners();
+      final payout = switch (triggerType) {
+        'rain_heavy' => 120,   // ₹40/hr × 3hrs = ₹120 (within Standard ₹150 daily cap)
+        'platform_outage' => 140, // ₹50/hr × 2.8hrs ≈ ₹140 (within Standard ₹150 daily cap)
+        'heat_severe' => 130,  // ₹45/hr × 2.9hrs ≈ ₹130 (within Standard ₹150 daily cap)
+        _ => 100,
+      };
+      claims.first.status = 'APPROVED';
+      if (claims.first.id == tempId) {
+        claims[0] = ClaimModel(
+          id: tempId, type: _triggerLabel(triggerType),
+          date: 'Just now', amount: payout, status: 'APPROVED',
+          zone: worker.zone, icon: _triggerIcon(triggerType),
+          grossAmount: payout, immediateAmount: (payout * 0.7).round(),
+          heldAmount: (payout * 0.3).round(),
+        );
+      }
+      walletBalance += payout;
+      monthlySavings += payout;
+      transactions.insert(0, {
+        'type': 'credit',
+        'title': '${_triggerLabel(triggerType)} Payout',
+        'subtitle': 'Auto-triggered · ${worker.zone}',
+        'amount': payout,
+        'date': 'Just now',
       });
+      // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
+      onClaimApproved?.call(domain.Claim(
+        id: tempId,
+        userId: '',
+        triggerType: triggerType,
+        displayLabel: _triggerLabel(triggerType),
+        status: domain.ClaimStatus.approved,
+        grossPayout: payout,
+        tranche1: (payout * 0.7).round(),
+        tranche2: (payout * 0.3).round(),
+        zone: worker.zone,
+        createdAt: DateTime.now(),
+      ));
+      _persistDemoState(); // ← save so it survives refresh
+      notifyListeners();
       return;
     }
 

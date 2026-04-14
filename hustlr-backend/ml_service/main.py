@@ -39,16 +39,14 @@ circuit_breaker = EconomicCircuitBreaker()
 
 # ── Model paths ───────────────────────────────────────────────────────────────
 # Training scripts (hustlr-ml/scripts/train_*.py) write XGBoost JSON + pickles to
-# repo_root/outputs/trained_models. Alternate bundles may live under
-# hustlr-ml/outputs/trained_models.
+# hustlr-ml/models/trained (consolidated location).
 # On Render (rootDir = hustlr-backend/ml_service), models are copied into
 # hustlr-backend/ml_service/outputs/trained_models so they travel with the service.
 SERVICE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SERVICE_DIR.parent.parent
 MODELS_SEARCH_PATHS: List[Path] = [
     SERVICE_DIR / "outputs" / "trained_models",       # Render: models inside service rootDir
-    REPO_ROOT / "outputs" / "trained_models",          # local monorepo dev
-    REPO_ROOT / "hustlr-ml" / "outputs" / "trained_models",  # alternate dev path
+    REPO_ROOT / "hustlr-ml" / "models" / "trained",     # consolidated monorepo dev path
 ]
 EXTERNAL_DATA_DIR = REPO_ROOT / "hustlr-ml" / "outputs" / "external_data"
 

@@ -7,7 +7,7 @@
 #   3) Flutter web on Vercel: set the same URL as HUSTLR_API_PROD in Vercel env; set CORS_ORIGIN on hustlr-api
 #      to your Vercel origin(s), e.g. https://hustlr-xxxxx.vercel.app (comma-separated if multiple).
 #
-# ML loads models from repo paths: outputs/trained_models and hustlr-ml/outputs/trained_models
+# ML loads models from repo paths: hustlr-ml/models/trained (consolidated location)
 # (commit full model artifacts or health will show "degraded" — rule fallbacks still run).
 
 services:

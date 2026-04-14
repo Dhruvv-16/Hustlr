@@ -12,9 +12,9 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
-TRAFFIC_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "traffic_accidents.csv"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR = PROJECT_ROOT / "models" / "trained"
+TRAFFIC_CSV = PROJECT_ROOT / "outputs" / "datasets" / "traffic_accidents.csv"
 TEST_SIZE = 0.30
 
 TRAFFIC_FEAT = [

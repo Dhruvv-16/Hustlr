@@ -17,7 +17,7 @@ To train **per-zone** Prophet (or other models) beyond the default grid:
 
 1. Add a **`zone`** column (consistent spelling) to:
    - `hustlr-ml/outputs/datasets/prophet_training.csv`
-   - `traffic_accidents.csv`, `connectivity_dataset.csv`, `claims_fraud.csv`, `nlp_disruption_events.csv`, etc.
+   - `hustlr-ml/outputs/datasets/traffic_accidents.csv`, `connectivity_dataset.csv`, `claims_fraud.csv`, `nlp_disruption_events.csv`, etc.
 2. Run `python hustlr-ml/scripts/train_all_local.py`.
 3. For Prophet, either:
    - extend **`CHENNAI_FORECAST_ZONE_SLUGS`** in `main.py` to list every new slug (`"my zone".lower().replace(" ", "_")`), **or**

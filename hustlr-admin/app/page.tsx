@@ -3,6 +3,11 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { fetchPoolSummary, fetchApiHealth } from '@/lib/api';
 
+export const metadata = {
+  title: 'Admin Dashboard',
+  description: 'Monitor insurance pool health, detect fraud, and analyze financial performance in real-time.',
+};
+
 // Dynamically import chart-heavy tabs so they SSR-safe
 const PoolHealth      = dynamic(() => import('@/components/tabs/PoolHealth'),      { ssr: false });
 const ZoneHeatmap     = dynamic(() => import('@/components/tabs/ZoneHeatmap'),     { ssr: false });

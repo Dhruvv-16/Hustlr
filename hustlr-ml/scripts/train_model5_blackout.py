@@ -11,9 +11,9 @@ from sklearn.ensemble import IsolationForest
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
-CONNECTIVITY_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "connectivity_dataset.csv"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR = PROJECT_ROOT / "models" / "trained"
+CONNECTIVITY_CSV = PROJECT_ROOT / "outputs" / "datasets" / "connectivity_dataset.csv"
 TEST_SIZE = 0.30
 
 FEATURE_COLS = ["ookla_avg_speed", "device_pct_weak", "sustained_minutes"]

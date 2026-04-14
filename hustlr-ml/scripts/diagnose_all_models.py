@@ -50,7 +50,7 @@ from train_model7_prophet import (
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 ML_DIR      = Path(__file__).parent.parent
-MODELS_DIR  = ML_DIR.parent / "outputs" / "trained_models"
+MODELS_DIR  = ML_DIR / "models" / "trained"
 DATA_DIR    = ML_DIR / "outputs" / "datasets"
 RANDOM_STATE = 42
 TEST_SIZE = 0.30

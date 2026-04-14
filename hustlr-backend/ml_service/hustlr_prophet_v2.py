@@ -11,8 +11,8 @@ Run locally:
     python hustlr_backend/ml_service/hustlr_prophet_v2.py
 
 Saves:
-    outputs/trained_models/prophet_v2_render.pkl
-    outputs/trained_models/prophet_v2_manifest.json
+    hustlr-ml/models/trained/prophet_v2_render.pkl
+    hustlr-ml/models/trained/prophet_v2_manifest.json
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 
 # ── Output paths ──────────────────────────────────────────────────────────────
 _HERE = Path(__file__).parent
-MODELS_DIR = _HERE / "outputs" / "trained_models"
+MODELS_DIR = _HERE.parent.parent / "hustlr-ml" / "models" / "trained"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Indian gig-economy training data ─────────────────────────────────────────

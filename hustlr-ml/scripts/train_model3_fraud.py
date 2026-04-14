@@ -23,9 +23,9 @@ from xgboost import XGBClassifier
 
 from model_data_utils import grouped_train_test_indices
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
-CLAIMS_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "claims_fraud.csv"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR = PROJECT_ROOT / "models" / "trained"
+CLAIMS_CSV = PROJECT_ROOT / "outputs" / "datasets" / "claims_fraud.csv"
 TEST_SIZE = 0.30
 
 IF_FEATURES = [

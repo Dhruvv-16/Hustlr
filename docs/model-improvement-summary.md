@@ -9,7 +9,7 @@ Updated: 2026-04-14
   - ISS: grouped by onboarding month
   - Fraud: grouped by `worker_id`
   - NLP: grouped by normalized template text
-- Added fraud threshold tuning and saved the deployment threshold in `outputs/trained_models/model3_thresholds.pkl`.
+- Added fraud threshold tuning and saved the deployment threshold in `hustlr-ml/models/trained/model3_thresholds.pkl`.
 - Cleaned up Prophet artifact generation so backend-facing Chennai zone aliases are regenerated on each training run.
 - Downloaded external public data into `hustlr-ml/outputs/external_data`:
   - `chennai_rainfall_1991_2023.csv`
@@ -43,7 +43,7 @@ Updated: 2026-04-14
 
 ## Artifact Status
 
-Latest trained models are in `outputs/trained_models`.
+Latest trained models are in `hustlr-ml/models/trained` (consolidated location).
 
 Key files:
 

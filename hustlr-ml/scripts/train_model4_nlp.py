@@ -13,9 +13,9 @@ from xgboost import XGBClassifier
 
 from model_data_utils import cap_group_rows, grouped_train_test_indices, template_text_groups
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
-NLP_CSV = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets" / "nlp_disruption_events.csv"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR = PROJECT_ROOT / "models" / "trained"
+NLP_CSV = PROJECT_ROOT / "outputs" / "datasets" / "nlp_disruption_events.csv"
 TEST_SIZE = 0.30
 
 

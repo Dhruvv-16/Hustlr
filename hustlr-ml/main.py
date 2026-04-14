@@ -28,7 +28,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from fraud_model import (
+from services.fraud_model import (
     ANOMALY_THRESHOLD,
     CONTAMINATION_RATE,
     TRAINING_SAMPLES,
@@ -36,12 +36,12 @@ from fraud_model import (
     load_model,
     score_claim,
 )
-from ring_detector import (
+from services.ring_detector import (
     combined_ring_verdict,
     detect_gps_clusters,
     test_poisson_arrivals,
 )
-from gnn_fraud_detection import GraphSAGEFraudDetector, FraudGraphBuilder, load_model as load_gnn_model
+from services.gnn_fraud_detection import GraphSAGEFraudDetector, FraudGraphBuilder, load_model as load_gnn_model
 
 # ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????????????
 _MODEL_BUNDLE: dict | None = None
@@ -49,7 +49,7 @@ _ISS_BUNDLE: dict | None = None
 _CHATBOT_BUNDLE: dict | None = None
 _GNN_MODEL: GraphSAGEFraudDetector | None = None
 _GNN_BUILDER: FraudGraphBuilder | None = None
-MODELS_DIR = Path(__file__).parent.parent / "trained_models" / "trained_models"
+MODELS_DIR = Path(__file__).parent / "models" / "trained"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

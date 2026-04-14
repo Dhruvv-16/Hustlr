@@ -11,7 +11,7 @@ from model_data_utils import grouped_train_test_indices, month_groups, template_
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets"
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
+MODELS_DIR = PROJECT_ROOT / "hustlr-ml" / "models" / "trained"
 BENCH_DIR = PROJECT_ROOT / "outputs" / "benchmarks"
 MANIFEST_DIR = PROJECT_ROOT / "outputs" / "model_manifests"
 TEST_SIZE = 0.30

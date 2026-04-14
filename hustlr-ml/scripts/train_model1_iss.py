@@ -17,9 +17,9 @@ from xgboost import XGBRegressor
 
 from model_data_utils import grouped_train_test_indices, month_groups
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_DIR = PROJECT_ROOT / "outputs" / "trained_models"
-DATASETS_DIR = PROJECT_ROOT / "hustlr-ml" / "outputs" / "datasets"
+PROJECT_ROOT = Path(__file__).parent.parent
+MODELS_DIR = PROJECT_ROOT / "models" / "trained"
+DATASETS_DIR = PROJECT_ROOT / "outputs" / "datasets"
 WORKER_CSV = DATASETS_DIR / "worker_profiles.csv"
 TEST_SIZE = 0.30
 
