@@ -649,7 +649,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (DynamicTranslator.of(context).translate(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
+                    (DynamicTranslator.of(context).translateSync(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
                       fontSize: 10,
@@ -818,9 +818,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
-    final band = t.translate(a['stability_band_label'] as String? ?? 'Earning outlook');
-    final headline = t.translate(a['headline'] as String? ?? '');
-    final nudge = t.translate(a['coverage_nudge'] as String? ?? '');
+    final band = t.translateSync(a['stability_band_label'] as String? ?? 'Earning outlook');
+    final headline = t.translateSync(a['headline'] as String? ?? '');
+    final nudge = t.translateSync(a['coverage_nudge'] as String? ?? '');
     final suggest = a['suggest_activate_coverage'] == true;
     final windows = a['recommended_shift_windows'] as List<dynamic>? ?? [];
 
@@ -1050,9 +1050,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final textColor = Theme.of(context).colorScheme.onSurface;
     
     final t = DynamicTranslator.of(context);
-    final date = t.translate(nudgeData!['nudge_date'] as String? ?? 'Friday');
+    final date = t.translateSync(nudgeData!['nudge_date'] as String? ?? 'Friday');
     final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
-    final desc = t.translate(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
+    final desc = t.translateSync(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
     
     return Container(
       width: double.infinity,
