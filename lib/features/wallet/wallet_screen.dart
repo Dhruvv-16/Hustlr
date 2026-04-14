@@ -925,9 +925,10 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Scaffold(
+      builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
-        body: Center(
+        elevation: 0,
+        child: Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             padding: const EdgeInsets.all(24),
@@ -1228,3 +1229,4 @@ class _LinkedUpiCardState extends State<_LinkedUpiCard> {
     );
   }
 }
+

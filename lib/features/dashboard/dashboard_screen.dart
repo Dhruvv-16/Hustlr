@@ -586,9 +586,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // 3D Risk Map shortcut
         _buildMintIconBtn(
           Icons.hexagon_outlined,
-          () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RiskMapScreen()),
-          ),
+          () => context.push(AppRoutes.riskMap),
           mintColor, isDark,
         ),
         const SizedBox(width: 12),

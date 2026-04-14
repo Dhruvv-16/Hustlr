@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../l10n/app_localizations.dart';
 import 'chat_screen.dart';
@@ -147,7 +148,7 @@ class _QuickHelpGrid extends StatelessWidget {
           subtitle: l10n.support_live_chat_sub.toUpperCase(),
           isGreenCaps: true,
           onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
+            context.push(AppRoutes.supportChat);
           },
         ),
         _GridCard(

@@ -209,10 +209,40 @@ async function isMlOnline() {
   }
 }
 
+// ── GNN Fraud Ring Detection ─────────────────────────────────
+async function getGNNFraudRings(zoneId, workers, fraudThreshold = 0.7) {
+  if (!ML_URL) {
+    console.warn('[ML] ML_SERVICE_URL not set — GNN fraud detection unavailable');
+    return { fraud_rings_detected: 0, rings: [], risk_level: 'LOW' };
+  }
+
+  try {
+    const res = await axios.post(`${ML_URL}/fraud/gnn-ring-detect`, {
+      zone_id: zoneId,
+      workers: workers,
+      fraud_threshold: fraudThreshold,
+    }, { timeout: 10000 });
+
+    return {
+      zone_id: res.data.zone_id,
+      total_workers: res.data.total_workers,
+      fraud_rings_detected: res.data.fraud_rings_detected,
+      rings: res.data.rings,
+      risk_level: res.data.risk_level,
+      latency_ms: res.data.latency_ms,
+      source: 'ml_gnn_service',
+    };
+  } catch (e) {
+    console.error('[ML] /fraud/gnn-ring-detect failed:', e.message);
+    return { fraud_rings_detected: 0, rings: [], risk_level: 'LOW', error: e.message };
+  }
+}
+
 module.exports = {
   getFraudScore,
   getISSScore,
   getPremium,
   getForecast,
   isMlOnline,
+  getGNNFraudRings,
 };

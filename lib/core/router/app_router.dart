@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
 import '../../models/claim.dart';
 
 import '../../features/splash/splash_screen.dart';
@@ -23,11 +24,15 @@ import '../../features/claims/manual_evidence_screen.dart';
 import '../../features/claims/claim_submitted_screen.dart';
 import '../../features/claims/auto_explanation_screen.dart';
 import '../../features/claims/appeal_claim_screen.dart';
+import '../../features/claims/manual_claim_camera_screen.dart';
+import '../../features/claims/manual_claim_review_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/wallet/analytics_dashboard_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
+import '../../features/support/chat_screen.dart';
+import '../../features/dashboard/risk_map_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/ml_tester_screen.dart';
 import '../../features/ml_live/ml_live_screen.dart';
@@ -65,6 +70,11 @@ class AppRoutes {
   static const mlTester = '/admin/ml-tester';
   static const mlLive = '/ml-live';
   static const stepUpAuth = '/step-up-auth';
+  
+  static const supportChat = '/support/chat';
+  static const riskMap = '/dashboard/risk-map';
+  static const manualClaimCamera = '/claims/evidence/camera';
+  static const manualClaimReview = '/claims/evidence/review';
 }
 
 // ─── Initial Route Logic ─────────────────────────────────────────────────────
@@ -242,6 +252,35 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.support,
           builder: (_, __) => const SupportScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.supportChat,
+          builder: (_, __) => const ChatScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.riskMap,
+          builder: (_, __) => const RiskMapScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.manualClaimCamera,
+          builder: (context, state) {
+            final type = state.uri.queryParameters['disruptionType'] ?? 'manual';
+            return ManualClaimCameraScreen(disruptionType: type);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.manualClaimReview,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            final type = extra?['disruptionType'] as String? ?? 'manual';
+            final images = extra?['images'] as List<dynamic>? ?? [];
+            final signal = extra?['signalStrength'] as int?;
+            return ManualClaimReviewScreen(
+              disruptionType: type,
+              capturedImages: images.cast<File>(),
+              signalStrength: signal,
+            );
+          },
         ),
       ],
     ),

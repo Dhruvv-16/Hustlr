@@ -41,11 +41,14 @@ from ring_detector import (
     detect_gps_clusters,
     test_poisson_arrivals,
 )
+from gnn_fraud_detection import GraphSAGEFraudDetector, FraudGraphBuilder, load_model as load_gnn_model
 
-# ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????
+# ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????????????
 _MODEL_BUNDLE: dict | None = None
 _ISS_BUNDLE: dict | None = None
 _CHATBOT_BUNDLE: dict | None = None
+_GNN_MODEL: GraphSAGEFraudDetector | None = None
+_GNN_BUILDER: FraudGraphBuilder | None = None
 MODELS_DIR = Path(__file__).parent.parent / "trained_models" / "trained_models"
 
 @asynccontextmanager
@@ -53,6 +56,8 @@ async def lifespan(app: FastAPI):
     """Load the trained model bundle once at server startup."""
     global _MODEL_BUNDLE
     global _ISS_BUNDLE
+    global _GNN_MODEL
+    global _GNN_BUILDER
     
     iso_path = MODELS_DIR / "model3_isolation_forest.pkl"
     if iso_path.exists():
@@ -93,12 +98,30 @@ async def lifespan(app: FastAPI):
         }
         print("[Startup] NLP Classifier loaded.")
 
+    # Load GNN fraud detection model
+    gnn_model_path = Path(__file__).parent / "models" / "gnn_fraud_detector.pt"
+    if gnn_model_path.exists():
+        try:
+            _GNN_MODEL = load_gnn_model(str(gnn_model_path), node_features=6, hidden_dim=64, num_classes=2)
+            _GNN_BUILDER = FraudGraphBuilder()
+            print("[Startup] GNN Fraud Detection model loaded")
+        except Exception as e:
+            print(f"[Startup] Failed to load GNN model: {e}")
+            _GNN_MODEL = None
+            _GNN_BUILDER = None
+    else:
+        print("[Startup] GNN model not found ??? fraud ring detection disabled")
+        _GNN_MODEL = None
+        _GNN_BUILDER = None
+
     yield  # server runs here
 
     # Cleanup on shutdown
     _MODEL_BUNDLE = None
     _ISS_BUNDLE = None
     _CHATBOT_BUNDLE = None
+    _GNN_MODEL = None
+    _GNN_BUILDER = None
 
 
 
@@ -216,6 +239,36 @@ class RingDetectResponse(BaseModel):
     combined_ring_flag:   bool
     recommended_action:   str = Field(..., description="auto_approve | soft_hold | human_review")
     latency_ms:           float
+
+
+class GNNWorkerNode(BaseModel):
+    id: str
+    account_age_days: float = 30.0
+    avg_daily_orders: float = 15.0
+    claim_frequency: float = 3.0
+    device_shared_count: int = 1
+    zone_depth_avg: float = 0.75
+    historical_clean_ratio: float = 0.80
+    device_fingerprint: Optional[str] = None
+    upi_id: Optional[str] = None
+    zone_id: str = "adyar"
+    claim_latency: float = 120.0
+    registered_at: Optional[str] = None
+
+
+class GNNFraudDetectRequest(BaseModel):
+    zone_id: str
+    workers: List[GNNWorkerNode] = Field(..., min_length=1)
+    fraud_threshold: float = 0.7
+
+
+class GNNFraudDetectResponse(BaseModel):
+    zone_id: str
+    total_workers: int
+    fraud_rings_detected: int
+    rings: List[dict]
+    risk_level: str
+    latency_ms: float
 
 
 # ?????? Endpoints ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -452,6 +505,64 @@ async def ring_detect(req: RingDetectRequest):
         latency_ms         = round(latency_ms, 3),
     )
 
+
+@app.post("/fraud/gnn-ring-detect", response_model=GNNFraudDetectResponse, tags=["Fraud"])
+async def gnn_ring_detect(req: GNNFraudDetectRequest):
+    """
+    Detect fraud rings using Graph Neural Networks (GraphSAGE).
+    
+    Analyzes worker connections based on:
+    - Device sharing patterns
+    - UPI ID sharing
+    - Zone clustering with similar claim timing
+    - Registration bursts
+    
+    Returns detected fraud rings with member workers and fraud probabilities.
+    """
+    if _GNN_MODEL is None or _GNN_BUILDER is None:
+        raise HTTPException(
+            status_code=503, 
+            detail="GNN model not loaded. Train the model first using scripts/train_model8_gnn_fraud.py"
+        )
+    
+    t0 = time.perf_counter()
+    
+    try:
+        # Convert Pydantic models to dicts
+        workers_data = [worker.model_dump() for worker in req.workers]
+        
+        # Build graph from worker data
+        graph = _GNN_BUILDER.build_graph_from_workers(workers_data)
+        
+        # Detect fraud rings
+        fraud_rings = _GNN_BUILDER.detect_fraud_rings(
+            _GNN_MODEL, 
+            graph, 
+            fraud_threshold=req.fraud_threshold
+        )
+        
+        # Determine risk level
+        if len(fraud_rings) > 5:
+            risk_level = "HIGH"
+        elif len(fraud_rings) > 0:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+        
+        latency_ms = (time.perf_counter() - t0) * 1000.0
+        
+        return GNNFraudDetectResponse(
+            zone_id=req.zone_id,
+            total_workers=len(workers_data),
+            fraud_rings_detected=len(fraud_rings),
+            rings=fraud_rings,
+            risk_level=risk_level,
+            latency_ms=round(latency_ms, 3)
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GNN fraud detection failed: {str(e)}")
+
 @app.post("/chat", response_model=ChatResponse, tags=["Support"])
 async def chat_bot(req: ChatRequest):
     # TF-IDF NLP classifier path
@@ -509,6 +620,7 @@ async def model_health():
 async def health():
     iso_ok = _MODEL_BUNDLE is not None
     iss_ok = _ISS_BUNDLE is not None
+    gnn_ok = _GNN_MODEL is not None
 
     # We do a basic check for prophet models without re-importing the logic fully here
     # Assuming around 10 based on our prompt requirements
@@ -528,6 +640,10 @@ async def health():
             "iss_xgboost": {
                 "loaded": iss_ok,
             },
+            "gnn_fraud_detection": {
+                "loaded": gnn_ok,
+                "model_type": "GraphSAGE",
+            },
             "prophet_zones": {
                 "loaded": prophet_count,
                 "total":  10,
@@ -541,6 +657,7 @@ async def health():
             "POST /fraud-score":      "Isolation Forest fraud scoring",
             "POST /ml/fraud-score":   "Alias for /fraud-score",
             "POST /fraud/ring-detect":"Poisson + DBSCAN ring detection",
+            "POST /fraud/gnn-ring-detect": "GNN GraphSAGE fraud ring detection",
             "GET /forecast/{zone_id}":"Prophet 7-day disruption forecast",
             "GET /fraud/model-health":"Detailed model diagnostics",
             "GET /health":            "This endpoint",
@@ -549,6 +666,7 @@ async def health():
             "fraud-score accepts both Node.js and Python feature shapes",
             "ISS score is backend-only ??? never sent to Flutter app",
             "Zone depth scoring runs in Node.js (Haversine), not here",
+            "GNN fraud detection requires trained model at models/gnn_fraud_detector.pt",
         ],
     }
 

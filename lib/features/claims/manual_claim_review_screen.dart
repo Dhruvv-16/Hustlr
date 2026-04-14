@@ -113,7 +113,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
   }
 
   void _addMore() {
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ManualClaimCameraScreen(disruptionType: widget.disruptionType)));
+    context.pushReplacement('/claims/evidence/camera?disruptionType=${widget.disruptionType}');
   }
 
   Widget build(BuildContext context) {

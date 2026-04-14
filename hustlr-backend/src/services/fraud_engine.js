@@ -8,9 +8,11 @@
  *  - Compound signal boost: velocityJump + accelMismatch ≥ 0.7
  *  - Network Trust Score: 4-component weighted ensemble
  *  - Conditional high-res telemetry snapshot (trust < 0.70 only)
+ *  - H3 Geospatial Precision for zone matching (GigGuard integration)
  */
 
 const mlService = require('./ml_service');
+const h3Service = require('./h3_service');
 
 // ── Thresholds ────────────────────────────────────────────────────────────────
 const FRAUD_THRESHOLDS = {
@@ -26,6 +28,46 @@ const NETWORK_WEIGHTS = {
   rsrqJitter:        0.25,
   handoffPattern:    0.15,
 };
+
+/**
+ * calculateH3ZoneMatch — H3-based zone matching for precise geospatial verification.
+ * Returns a score between 0-1 indicating how well the worker location matches the zone.
+ * Uses H3 hexagonal grid at resolution 8 (~0.74 km² per hex).
+ */
+function calculateH3ZoneMatch(workerLat, workerLng, zoneId, city = 'Chennai') {
+  if (!workerLat || !workerLng || !zoneId) {
+    return 0.5; // Neutral score if data missing
+  }
+
+  try {
+    // Check if worker is in zone using H3
+    const isInZone = h3Service.isWorkerInZone(workerLat, workerLng, zoneId, city);
+    
+    if (isInZone) {
+      // Calculate zone depth score for fine-grained matching
+      const depthScore = h3Service.calculateZoneDepthScore(workerLat, workerLng, zoneId, city);
+      return depthScore;
+    } else {
+      // Worker not in zone - calculate distance penalty
+      const zoneCenter = h3Service.ZONE_CENTERS[zoneId.toLowerCase()];
+      if (zoneCenter) {
+        const h3Distance = h3Service.h3Distance(
+          workerLat, workerLng,
+          zoneCenter.lat, zoneCenter.lng,
+          city
+        );
+        // Penalize based on H3 distance (0-10 hexes)
+        const penalty = Math.min(h3Distance / 10, 1.0);
+        return Math.max(0, 1.0 - penalty);
+      }
+    }
+    
+    return 0.5; // Default neutral score
+  } catch (e) {
+    console.warn('[FraudEngine] H3 zone match calculation failed:', e.message);
+    return 0.5; // Fallback to neutral score
+  }
+}
 
 /**
  * routeClaim — 3-tier routing replacing the old binary approve/reject.
@@ -100,15 +142,28 @@ async function collectTripTelemetry(tripId, networkSignals = {}) {
 /**
  * scoreClaim — main entry point (backwards-compatible with existing callers).
  * Wraps mlService.getFraudScore and applies new routing + compound boosts.
+ * Integrates H3 zone matching when USE_H3_ZONE_MATCH is enabled.
  */
 async function scoreClaim(claimData) {
+  // Determine zone ID
+  const zoneId = (claimData.zone_id || 'adyar')
+    .toLowerCase()
+    .replace(/ /g, '_')
+    .replace(' dark store zone', '');
+  
+  const city = claimData.city || 'Chennai';
+
+  // Calculate H3 zone match if enabled and lat/lng provided
+  let h3ZoneMatch = null;
+  if (process.env.USE_H3_ZONE_MATCH === 'true' && claimData.lat && claimData.lng) {
+    h3ZoneMatch = calculateH3ZoneMatch(claimData.lat, claimData.lng, zoneId, city);
+  }
+
   const fraudResult = await mlService.getFraudScore({
     worker_id:        claimData.worker_id,
-    zone_id:          (claimData.zone_id || 'adyar')
-                        .toLowerCase().replace(/ /g, '_')
-                        .replace(' dark store zone', ''),
+    zone_id:          zoneId,
     gps_jitter:       claimData.gps_jitter             ?? 0.10,
-    zone_match:       claimData.zone_match              ?? 0.85,
+    zone_match:       h3ZoneMatch ?? claimData.zone_match ?? 0.85,
     accel_match:      claimData.accelerometer_match     ?? 0.90,
     wifi_home:        claimData.wifi_home               ?? false,
     days_active:      claimData.days_active             ?? 30,
@@ -126,12 +181,20 @@ async function scoreClaim(claimData) {
     claimData.accelerometer_mismatch ?? 0,
   );
 
-  return {
+  const result = {
     ...fraudResult,
     fps_score:  score,
     action:     routeClaim(score),
     trust_tier: score < 0.42 ? 'GREEN' : score < 0.65 ? 'YELLOW' : 'RED',
   };
+
+  // Add H3 zone match info if calculated
+  if (h3ZoneMatch !== null) {
+    result.h3_zone_match = h3ZoneMatch;
+    result.zone_match_source = 'h3';
+  }
+
+  return result;
 }
 
 // ── Stubs for device telemetry helpers (implemented in device_fingerprint_service) ──
@@ -146,5 +209,6 @@ module.exports = {
   applyCompoundSignalBoost,
   computeNetworkTrustScore,
   collectTripTelemetry,
+  calculateH3ZoneMatch,
   FRAUD_THRESHOLDS,
 };

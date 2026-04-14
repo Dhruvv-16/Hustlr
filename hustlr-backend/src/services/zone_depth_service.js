@@ -1,9 +1,11 @@
 /**
  * Zone depth vs dark-store hub: distance rings → underwriting-style score [0.35, 1.0].
  * Optional PostGIS path: set USE_POSTGIS_ZONE_DEPTH=true and run schema_phase2.sql (RPC hustlr_zone_depth).
+ * H3 Geospatial Precision: set USE_H3_ZONE_DEPTH=true to use Uber's H3 hexagonal grid.
  */
 
 const { supabase } = require('../config/supabase');
+const h3Service = require('./h3_service');
 
 const EARTH_KM = 6371;
 
@@ -48,9 +50,42 @@ function computeZoneDepth(lat, lon) {
 }
 
 /**
- * Prefer PostGIS ST_Distance (geography) when enabled and RPC exists.
+ * Compute zone depth using H3 hexagonal grid.
+ * More precise than haversine for urban zone matching.
  */
-async function computeZoneDepthAsync(lat, lon) {
+function computeZoneDepthH3(lat, lon, zoneId, city = 'Chennai') {
+  try {
+    const zoneDepthScore = h3Service.calculateZoneDepthScore(lat, lon, zoneId, city);
+    
+    // Convert H3 distance (in hexes) to approximate km for consistency
+    const zoneCenter = h3Service.ZONE_CENTERS[zoneId.toLowerCase()];
+    let distanceKm = 0;
+    if (zoneCenter) {
+      distanceKm = haversineKm(lat, lon, zoneCenter.lat, zoneCenter.lng);
+    }
+    
+    return {
+      distance_km: Math.round(distanceKm * 1000) / 1000,
+      zone_depth_score: Math.round(zoneDepthScore * 1000) / 1000,
+      hub: zoneCenter || { lat: 12.982, lon: 80.243 },
+      source: 'h3',
+    };
+  } catch (e) {
+    console.warn('[ZoneDepth] H3 calculation failed, using haversine:', e.message);
+    return computeZoneDepth(lat, lon);
+  }
+}
+
+/**
+ * Prefer H3 when enabled, otherwise PostGIS ST_Distance (geography) when enabled and RPC exists.
+ */
+async function computeZoneDepthAsync(lat, lon, zoneId = 'adyar', city = 'Chennai') {
+  // Priority 1: H3 Geospatial Precision
+  if (process.env.USE_H3_ZONE_DEPTH === 'true') {
+    return computeZoneDepthH3(lat, lon, zoneId, city);
+  }
+  
+  // Priority 2: PostGIS
   const fallback = computeZoneDepth(lat, lon);
   if (process.env.USE_POSTGIS_ZONE_DEPTH !== 'true') {
     return fallback;
@@ -83,4 +118,4 @@ async function computeZoneDepthAsync(lat, lon) {
   return fallback;
 }
 
-module.exports = { computeZoneDepth, computeZoneDepthAsync, haversineKm };
+module.exports = { computeZoneDepth, computeZoneDepthAsync, computeZoneDepthH3, haversineKm };

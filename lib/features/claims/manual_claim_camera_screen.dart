@@ -26,16 +26,11 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
     if (widget.disruptionType == 'internet_outage') {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
-          Navigator.pushReplacement(
-            context, 
-            MaterialPageRoute(
-              builder: (_) => ManualClaimReviewScreen(
-                disruptionType: widget.disruptionType,
-                capturedImages: const [],
-                signalStrength: 1,
-              )
-            )
-          );
+          context.pushReplacement('/claims/evidence/review', extra: {
+            'disruptionType': widget.disruptionType,
+            'images': const [],
+            'signalStrength': 1,
+          });
         }
       });
     } else {
@@ -56,15 +51,10 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
       if (photo != null && mounted) {
         // Go to review screen with the new photo
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(
-            builder: (_) => ManualClaimReviewScreen(
-              disruptionType: widget.disruptionType,
-              capturedImages: [File(photo.path)],
-            )
-          )
-        );
+        context.pushReplacement('/claims/evidence/review', extra: {
+          'disruptionType': widget.disruptionType,
+          'images': [File(photo.path)],
+        });
       } else if (mounted) {
         // User cancelled camera, go back
         Navigator.pop(context);

@@ -90,12 +90,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
                 onPressed: _selectedType != null
                     ? () {
                         // Pass disruption type to next screen
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ManualClaimCameraScreen(disruptionType: _selectedType!),
-                          ),
-                        );
+                        context.push(Uri(path: '/claims/evidence/camera', queryParameters: {'disruptionType': _selectedType!}).toString());
                       }
                     : null,
                 child: Text(l10n.manual_claim_continue, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
