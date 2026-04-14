@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -200,6 +201,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _checkLocationPermission() async {
+    // Skip permission checks on web - permission_handler not supported
+    if (kIsWeb) {
+      setState(() {
+        _locationPermissionStatus = 'GRANTED';
+        _backgroundTrackingActive = false;
+      });
+      return;
+    }
+    
     final status = await Permission.locationWhenInUse.status;
     final bgStatus = await Permission.locationAlways.status;
     final gpsEnabled = await Geolocator.isLocationServiceEnabled();

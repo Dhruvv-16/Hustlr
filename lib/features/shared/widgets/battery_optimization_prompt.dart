@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:app_settings/app_settings.dart';
@@ -45,6 +46,17 @@ class _BatteryOptimizationPromptState
 
   Future<void> _checkAll() async {
     setState(() => _checking = true);
+
+    // Skip permission checks on web - not supported
+    if (kIsWeb) {
+      setState(() {
+        _locationAlways = true;
+        _locationForegroundOnly = false;
+        _batteryUnrestricted = true;
+        _checking = false;
+      });
+      return;
+    }
 
     final locAlwaysStatus = await Permission.locationAlways.status;
     final locFgStatus = await Permission.location.status;
