@@ -189,3 +189,10 @@ hustlr_ml_complete/
 
 # APK releases (too large for GitHub free tier)
 releases/*.apk
+
+# Flutter build cache (auto-generated, can be huge)
+build/
+.dart_tool/flutter_build/
+
+# GuideWire assets (large video files)
+GuideWire/
