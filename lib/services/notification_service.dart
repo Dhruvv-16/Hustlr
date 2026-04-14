@@ -66,6 +66,39 @@ class NotificationService {
     ));
   }
 
+  void addClaimCreated({required String triggerType, required int amount}) {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'claim_created',
+      title: '$triggerType — Claim Filed',
+      body: 'Your claim has been created. Awaiting verification.',
+      color: 'blue',
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  void addWalletCredited({required int amount}) {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'wallet_credited',
+      title: '₹$amount credited to wallet',
+      body: 'Payout has been added to your wallet balance.',
+      color: 'green',
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  void addDisruptionAlert({required String triggerType, required String zone}) {
+    _notifications.insert(0, HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'disruption_alert',
+      title: '$triggerType in $zone',
+      body: 'Disruption detected in your zone. Coverage may apply.',
+      color: 'amber',
+      createdAt: DateTime.now(),
+    ));
+  }
+
   void addPremiumDeducted(int amount) {
     _notifications.insert(0, HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
