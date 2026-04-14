@@ -624,12 +624,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              l10n.wallet_title,
+              l10n.dashboard_title,
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onSurface,
-                fontFamily: 'Manrope',
               ),
             ),
             Container(
