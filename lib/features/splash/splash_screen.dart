@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/biometric_service.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:geolocator/geolocator.dart';
-import '../../screens/location_permission_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,79 +14,10 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  Future<void> requestAllPermissions(BuildContext context) async {
-    // Step 1 — Notification permission (Android 13+)
-    final notifStatus = await Permission.notification.status;
-    if (notifStatus.isDenied) {
-      await Permission.notification.request();
-    }
-
-    // Step 2 — Physical activity permission
-    final activityStatus = await Permission.activityRecognition.status;
-    if (activityStatus.isDenied) {
-      await Permission.activityRecognition.request();
-    }
-
-    // Step 3 — Foreground location (while using)
-    LocationPermission locationPerm = await Geolocator.checkPermission();
-    if (locationPerm == LocationPermission.denied) {
-      locationPerm = await Geolocator.requestPermission();
-    }
-
-    // Step 4 — Background location (always allow)
-    if (locationPerm == LocationPermission.whileInUse) {
-      if (!mounted) return;
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Enable background location'),
-          content: const Text(
-            'Hustlr monitors your zone while you work, even when the app is in the background. '
-            'This is required to validate claims and protect your income. '
-            'On the next screen, please select "Allow all the time".'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-      await Permission.locationAlways.request();
-    }
-
-    // Step 5 — If permanently denied, show settings prompt
-    if (await Permission.locationAlways.isPermanentlyDenied) {
-      if (!mounted) return;
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Location required'),
-          content: const Text(
-            'Please open Settings → Apps → Hustlr → Permissions → Location '
-            'and select "Allow all the time" to enable zone protection.'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                openAppSettings();
-              },
-              child: const Text('Open Settings'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await requestAllPermissions(context);
       Future.delayed(const Duration(seconds: 2), _navigate);
     });
   }

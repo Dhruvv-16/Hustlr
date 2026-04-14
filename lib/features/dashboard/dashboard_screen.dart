@@ -425,61 +425,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final isLocationDenied = _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
-    if (isLocationDenied || isGpsOff) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.location_disabled,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Location Required',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isGpsOff
-                      ? 'Your physical GPS sensor is turned off. Hustlr requires active GPS to track your delivery routes and authenticate weather claims.'
-                      : 'Hustlr requires "While using the app" or "Always" location access to protect your income during deliveries. "Only this time" is not supported.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (isGpsOff) {
-                      await Geolocator.openLocationSettings();
-                    } else {
-                      await openAppSettings();
-                    }
-                    _checkLocationPermission();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  ),
-                  child: Text(isGpsOff ? 'Turn On GPS' : 'Open Settings'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     final planName = policyData?['plan_name'] ?? 'Standard Shield';
     
     String titleCase(String text) {
@@ -523,6 +468,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       const SizedBox(height: 32),
                       _buildTitleSection(l10n, displayUserName),
                       const SizedBox(height: 20),
+                      if (isLocationDenied || isGpsOff) ...[
+                        _buildLocationStatusBanner(context, isGpsOff: isGpsOff),
+                        const SizedBox(height: 16),
+                      ],
                       if (nudgeData != null) ...[
                         _buildPredictiveNudgeCard(l10n),
                         const SizedBox(height: 16),
@@ -1162,8 +1111,36 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   return;
                 }
               }
+
+              final gpsEnabled = await Geolocator.isLocationServiceEnabled();
+              if (!gpsEnabled) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please turn on device location to go online')),
+                  );
+                }
+                setState(() => isLoading = false);
+                return;
+              }
+
               final bgPerm = await Permission.locationAlways.status;
-              if (!bgPerm.isGranted) {
+              if (!bgPerm.isGranted && mounted) {
+                await showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Improve background tracking'),
+                    content: const Text(
+                      'To protect payouts while Hustlr is in the background, allow "Always" location on the next screen. '
+                      'You can skip this for now and still go online while the app stays open.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Continue'),
+                      ),
+                    ],
+                  ),
+                );
                 await Permission.locationAlways.request();
               }
               final notifPerm = await Permission.notification.status;
@@ -1292,6 +1269,60 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLocationStatusBanner(BuildContext context, {required bool isGpsOff}) {
+    final theme = Theme.of(context);
+    final bg = theme.colorScheme.errorContainer;
+    final fg = theme.colorScheme.onErrorContainer;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.location_off_rounded, color: fg),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isGpsOff ? 'Turn on GPS before going online' : 'Location access is incomplete',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isGpsOff
+                ? 'You can still browse the app, but shift protection and live zone tracking need device location turned on.'
+                : 'You can keep using Hustlr normally. We will ask again only when you need protected tracking.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () async {
+              if (isGpsOff) {
+                await Geolocator.openLocationSettings();
+              } else {
+                await openAppSettings();
+              }
+              _checkLocationPermission();
+            },
+            child: Text(isGpsOff ? 'Turn On GPS' : 'Open Settings'),
+          ),
+        ],
       ),
     );
   }

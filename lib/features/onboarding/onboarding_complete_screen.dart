@@ -7,7 +7,6 @@ import '../../services/mock_data_service.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../services/shift_tracking_service.dart';
 
 class OnboardingCompleteScreen extends StatelessWidget {
   const OnboardingCompleteScreen({super.key});
@@ -167,27 +166,18 @@ class OnboardingCompleteScreen extends StatelessWidget {
                       text: 'Enable Zone Protection →',
                       onPressed: () async {
                         final status = await Permission.locationWhenInUse.request();
-                        
-                        if (status.isGranted) {
-                          // Request background immediately after foreground
-                          await Future.delayed(const Duration(milliseconds: 500));
-                          await Permission.locationAlways.request();
-                          
-                          // Start tracking immediately
-                          await ShiftTrackingService.instance.startShift(worker.zone);
-                          
-                          // Get first ping right now securely
-                          try {
-                            await Geolocator.getCurrentPosition(
-                              locationSettings: const LocationSettings(
-                                accuracy: LocationAccuracy.high,
-                                timeLimit: Duration(seconds: 10),
-                              )
-                            );
-                          } catch (_) {}
-                          
-                          if (context.mounted) _goToDashboard(context);
-                        }
+                        if (!status.isGranted) return;
+
+                        try {
+                          await Geolocator.getCurrentPosition(
+                            locationSettings: const LocationSettings(
+                              accuracy: LocationAccuracy.high,
+                              timeLimit: Duration(seconds: 8),
+                            ),
+                          );
+                        } catch (_) {}
+
+                        if (context.mounted) _goToDashboard(context);
                       },
                     ),
                   ),

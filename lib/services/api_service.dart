@@ -832,11 +832,19 @@ class ApiService {
           "systemInstruction": {
             "parts": [
               {
-                "text": "You are a KYC liveness verifier for gig workers. "
+                "text": "You are a strict KYC liveness verifier for gig workers. "
                         "Return ONLY a strict JSON object with this schema: "
                         "{\"verified\": boolean, \"reason\": string}. "
-                        "Approve ONLY if exactly one real human face is clearly visible, and it looks like a live selfie. "
-                        "Reject if there are signs of screen/print/screenshot, deepfakes, or multiple faces."
+                        "STRICT LIVENESS CHECK - Analyze for these RED FLAGS: "
+                        "1. SCREEN CAPTURE: Look for screen glare, pixelation, moiré patterns, display bezels, or any digital display artifacts "
+                        "2. PHOTO OF PHOTO: Look for reflections, shadows, paper texture, or printed material artifacts "
+                        "3. DEEPFAKE: Look for unnatural skin texture, inconsistent lighting, blurry edges, or AI generation artifacts "
+                        "4. MULTIPLE FACES: Reject if more than one face is visible "
+                        "5. POOR QUALITY: Reject if face is blurry, too dark, or not clearly visible "
+                        "6. WRONG ANGLE: Reject if it's not a front-facing selfie angle "
+                        "APPROVE ONLY if: Exactly ONE real human face, clearly visible, front-facing angle, natural lighting, "
+                        "no screen artifacts, no photo artifacts, no deepfake signs, looks like a live selfie taken now. "
+                        "REJECT if ANY red flag is detected - be extremely strict about screen captures and photos of screens."
               }
             ]
           },
@@ -851,7 +859,7 @@ class ApiService {
                   }
                 },
                 {
-                  "text": "Validate this face for authentication liveness. Return JSON."
+                  "text": "Perform strict liveness verification. Check for screen capture, photo of photo, deepfake, and quality issues. Return JSON."
                 }
               ]
             }
