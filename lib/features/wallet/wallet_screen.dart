@@ -72,30 +72,28 @@ class _WalletScreenState extends State<WalletScreen> {
       } catch (_) {}
       
       setState(() {
-        // Mix with demo data only when demo mode is active
+        // Only use real API data - never mix with demo unless explicitly in demo mode
         final box = Hive.box('appData');
         final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
         
-        _balance        = (res['balance'] ?? 0) + (isDemoMode ? DemoStateService.instance.walletBalance : 0);
-        _totalPayouts   = (res['total_payouts'] ?? 0) + (isDemoMode ? DemoStateService.instance.totalPayouts : 0);
-        _totalPremiums  = res['total_premiums'] ?? 0;
+        if (isDemoMode) {
+          // In demo mode: use demo data only
+          _balance        = DemoStateService.instance.walletBalance;
+          _totalPayouts   = DemoStateService.instance.totalPayouts;
+          _totalPremiums  = 0;
+          _transactions   = List<Map<String, dynamic>>.from(DemoStateService.instance.transactions);
+          _isMock         = true;
+        } else {
+          // Real mode: use API data only
+          _balance        = res['balance'] ?? 0;
+          _totalPayouts   = res['total_payouts'] ?? 0;
+          _totalPremiums  = res['total_premiums'] ?? 0;
+          _transactions   = List<Map<String, dynamic>>.from(res['transactions'] ?? []);
+          _isMock         = res['_mock'] == true;
+        }
         
-        final combinedTx = [
-          ...DemoStateService.instance.transactions,
-          ...(res['transactions'] ?? [])
-        ];
-        
-        // sort combinedTx by created_at descending
-        combinedTx.sort((a, b) {
-          final dateA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final dateB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return dateB.compareTo(dateA);
-        });
-
-        _transactions   = List<Map<String, dynamic>>.from(combinedTx);
         _cashbackStatus = cashbackData;
         _loading        = false;
-        _isMock         = res['_mock'] == true;
       });
       
     } catch (e) {
@@ -106,38 +104,19 @@ class _WalletScreenState extends State<WalletScreen> {
 
   void _loadMockWallet() {
     setState(() {
-      _balance       = 1250;
-      _totalPayouts  = 450;
-      _totalPremiums = 196;
+      _balance       = 120;  // Match the single payout amount user expects
+      _totalPayouts  = 120;
+      _totalPremiums = 0;
       _loading       = false;
       _isMock        = true;
       _transactions  = [
         {
           'id': 'TXN_001',
           'description': 'Heavy Rain Payout (70%)',
-          'amount': 84,
+          'amount': 120,
           'type': 'credit',
           'category': 'payout_tranche1',
-          'created_at': DateTime.now()
-            .subtract(const Duration(hours: 2)).toIso8601String(),
-        },
-        {
-          'id': 'TXN_002',
-          'description': 'Standard Shield Premium',
-          'amount': -49,
-          'type': 'debit',
-          'category': 'premium',
-          'created_at': DateTime.now()
-            .subtract(const Duration(days: 7)).toIso8601String(),
-        },
-        {
-          'id': 'TXN_003',
-          'description': 'Platform Downtime Payout (70%)',
-          'amount': 98,
-          'type': 'credit',
-          'category': 'payout_tranche1',
-          'created_at': DateTime.now()
-            .subtract(const Duration(days: 3)).toIso8601String(),
+          'created_at': DateTime.now().toIso8601String(),
         },
       ];
     });

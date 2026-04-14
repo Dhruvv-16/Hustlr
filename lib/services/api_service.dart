@@ -34,6 +34,11 @@ class ApiService {
   static const _timeout =
       Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
 
+  static const _googleVisionApiKey = String.fromEnvironment(
+    'GOOGLE_VISION_API_KEY',
+    defaultValue: '',
+  );
+
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
 
@@ -829,10 +834,18 @@ class ApiService {
     required String imageBase64,
     String? expectedGesture,
   }) async {
+    if (_googleVisionApiKey.isEmpty) {
+      return {
+        'verified': false,
+        'reason': 'Face verification is not configured on this build.',
+        'similarity_score': 0.0,
+      };
+    }
     // Try Google Cloud Vision API first (cloud-based, more accurate)
     try {
-      const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE'; // Replace with your Google Cloud Vision API key
-      final url = Uri.parse('https://vision.googleapis.com/v1/images:annotate?key=$apiKey');
+      final url = Uri.parse(
+        'https://vision.googleapis.com/v1/images:annotate?key=$_googleVisionApiKey',
+      );
       
       final response = await http.post(
         url,

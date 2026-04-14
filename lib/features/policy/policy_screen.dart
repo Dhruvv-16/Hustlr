@@ -242,18 +242,18 @@ class _LiveHistoryTab extends StatelessWidget {
 
   String _dateRange(Map<String, dynamic> item) {
     final start = DateTime.tryParse(item['created_at']?.toString() ?? '');
-    final end = DateTime.tryParse(
-      item['updated_at']?.toString() ?? item['cancelled_at']?.toString() ?? '',
-    );
+    final end = DateTime.tryParse(item['expires_at']?.toString() ?? '');
     String fmt(DateTime? value) {
       if (value == null) return '—';
-      const months = [
+      return '${value.day} ${[
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ];
-      return '${months[value.month - 1]} ${value.year}';
+      ][value.month - 1]} ${value.year}';
     }
-    return '${fmt(start)} – ${fmt(end ?? start)}';
+    if (start != null && end != null) {
+      return '${fmt(start)} - ${fmt(end)}';
+    }
+    return fmt(start);
   }
 
   @override
@@ -406,6 +406,15 @@ class _ActiveCoverageCard extends StatelessWidget {
   final Map<String, dynamic>? activePolicy;
   const _ActiveCoverageCard({this.activePolicy});
 
+  String _formatPolicyDates(Map<String, dynamic>? policy) {
+    if (policy == null) return '—';
+    final start = DateTime.tryParse(policy['created_at']?.toString() ?? '');
+    final end = DateTime.tryParse(policy['expires_at']?.toString() ?? '');
+    if (start == null || end == null) return '—';
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${start.day} ${months[start.month - 1]} ${start.year} - ${end.day} ${months[end.month - 1]} ${end.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context)!;
@@ -445,7 +454,7 @@ class _ActiveCoverageCard extends StatelessWidget {
           fontSize: 10, fontWeight: FontWeight.w700,
           color: textColor.withOpacity(0.6), letterSpacing: 0.8)),
         const SizedBox(height: 4),
-        Text('26 Oct 2025 - 25 Oct 2026',
+        Text(_formatPolicyDates(activePolicy),
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 16),
         Row(children: [
