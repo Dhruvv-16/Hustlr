@@ -16,16 +16,19 @@ class ApiService {
   static String get baseUrl {
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
+    // Default fallback for development
+    const defaultDev = 'http://localhost:3000';
+    
     if (kIsWeb) {
       if (prod.isNotEmpty) return prod;
       if (devOverride.isNotEmpty) return devOverride;
-      return '';
+      return defaultDev;
     }
     if (kReleaseMode) {
-      return prod;
+      return prod.isNotEmpty ? prod : defaultDev;
     }
     if (devOverride.isNotEmpty) return devOverride;
-    return prod;
+    return prod.isNotEmpty ? prod : defaultDev;
   }
 
   static const _timeout =

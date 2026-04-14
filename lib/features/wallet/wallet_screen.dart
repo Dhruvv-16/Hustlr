@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
@@ -796,6 +795,8 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
     context: context,
     isScrollControlled: true,
     backgroundColor: sheetBg,
+    barrierColor: Colors.black.withOpacity(0.5),
+    useSafeArea: true,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetCtx) {
       return Padding(
