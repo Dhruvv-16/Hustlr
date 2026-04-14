@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../l10n/app_localizations.dart';
-import '../../services/api_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -57,6 +58,49 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final ScrollController _scrollController = ScrollController();
 
+  Future<String> _queryGemini(String prompt) async {
+    const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
+    
+    final contents = [
+      {
+         "role": "user",
+         "parts": [{"text": "Hello, I am the Hustlr automated support bot. I help gig workers with parametric insurance claims, payouts, and coverage."}]
+      },
+      {
+         "role": "model",
+         "parts": [{"text": "Hello! I am ready to help you with your Hustlr insurance questions."}]
+      }
+    ];
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "systemInstruction": {
+            "parts": [{"text": "You are a customer support agent for Hustlr, a parametric insurance app for gig workers. Be concise, polite, and helpful. Default language is English. Answer their questions regarding app features, insurance, rain/heat/AQI triggers, wallet payouts."}]
+          },
+          "contents": [
+            ...contents,
+            {
+              "role": "user",
+              "parts": [{"text": prompt}]
+            }
+          ]
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return json['candidates'][0]['content']['parts'][0]['text']?.toString().trim() ?? _getAutoReply(prompt);
+      }
+      return _getAutoReply(prompt);
+    } catch(e) {
+      return _getAutoReply(prompt);
+    }
+  }
+
   void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
     final userText = _messageController.text.trim();
@@ -69,17 +113,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     Future.delayed(const Duration(milliseconds: 100), () async {
       if (!mounted) return;
-      final replyData = await ApiService.instance.sendChat(userText);
-      // Use the live ML response when real. Fall back to local keyword matching
-      // when the backend is cold-starting or returned the generic default.
-      String replyMsg;
-      final isMock = replyData['_mock'] == true;
-      final isGenericDefault = replyData['intent'] == 'default' && replyData['response']?.toString().startsWith('I\'m here to help!') == true;
-      if (isMock || isGenericDefault) {
-        replyMsg = _getAutoReply(userText);
-      } else {
-        replyMsg = replyData['response'] ?? _getAutoReply(userText);
-      }
+      final replyMsg = await _queryGemini(userText);
+      
       if (!mounted) return;
       setState(() {
         _isTyping = false;
@@ -385,10 +420,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
     Future.delayed(const Duration(milliseconds: 100), () async {
       if (!mounted) return;
-      final replyData = await ApiService.instance.sendChat(message);
-      final isMock = replyData['_mock'] == true;
-      final isGenericDefault = replyData['intent'] == 'default' && replyData['response']?.toString().startsWith('I\'m here to help!') == true;
-      final replyMsg = (isMock || isGenericDefault) ? _getAutoReply(message) : (replyData['response'] ?? _getAutoReply(message));
+      final replyMsg = await _queryGemini(message);
       if (!mounted) return;
       setState(() {
         _isTyping = false;
