@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
@@ -118,8 +119,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
     try {
       final picker = ImagePicker();
+      // On web, camera opens file picker - use gallery instead
       final XFile? photo = await picker.pickImage(
-        source: ImageSource.camera,
+        source: kIsWeb ? ImageSource.gallery : ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
         maxWidth: 640,
         maxHeight: 640,
@@ -133,7 +135,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
       setState(() => _state = _VerificationState.verifying);
 
-      final bytes = await File(photo.path).readAsBytes();
+      // Read bytes differently for web vs mobile
+      final bytes = kIsWeb 
+          ? await photo.readAsBytes()  // Web uses XFile.readAsBytes()
+          : await File(photo.path).readAsBytes();  // Mobile uses File
       final base64Image = base64Encode(bytes);
       final userId = await StorageService.instance.getUserId();
 
@@ -557,9 +562,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                 _errorMessage = null;
                 _currentGesture = _gestures[math.Random().nextInt(_gestures.length)];
               }),
-              child: const Text(
-                'Use Camera Instead',
-                style: TextStyle(color: Colors.white38, fontSize: 13),
+              child: Text(
+                kIsWeb ? 'Upload Photo Instead' : 'Use Camera Instead',
+                style: const TextStyle(color: Colors.white38, fontSize: 13),
               ),
             ),
           ],
@@ -575,9 +580,11 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           height: 52,
           child: ElevatedButton.icon(
             onPressed: isLoading ? null : _captureAndVerify,
-            icon: const Icon(Icons.camera_alt_outlined),
+            icon: Icon(kIsWeb ? Icons.upload : Icons.camera_alt_outlined),
             label: Text(
-              _state == _VerificationState.failed ? 'Try Again' : 'Verify Identity',
+              _state == _VerificationState.failed 
+                  ? 'Try Again' 
+                  : (kIsWeb ? 'Upload Photo' : 'Verify Identity'),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
             ),
             style: ElevatedButton.styleFrom(
