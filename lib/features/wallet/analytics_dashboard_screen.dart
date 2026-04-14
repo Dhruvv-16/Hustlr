@@ -55,18 +55,25 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final bgScreen = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF4F6F4);
+    final green    = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final primary  = isDark ? Colors.white : const Color(0xFF0D1B0F);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgScreen,
       appBar: AppBar(
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface), onPressed: () => context.pop()),
-        title: Text('My Protection Analytics',
-            style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w700)),
-        backgroundColor: Colors.transparent,
-        foregroundColor: theme.colorScheme.onSurface,
+        backgroundColor: bgScreen,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: primary),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'My Protection Analytics',
+          style: TextStyle(color: primary, fontWeight: FontWeight.bold, fontSize: 22),
+        ),
+        centerTitle: false,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -76,15 +83,15 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                _buildHeroCard(context),
+                _buildHeroCard(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildPolicyInfoCard(context),
+                _buildPolicyInfoCard(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildDisruptionChart(context),
+                _buildDisruptionChart(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildPayoutHistory(context),
+                _buildPayoutHistory(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildUpgradeNudge(context),
+                _buildUpgradeNudge(context, isDark, green, primary),
                 const SizedBox(height: 32),
               ],
             ),
@@ -101,14 +108,11 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     return '${months[expiry.month - 1]} ${expiry.year}';
   }
 
-  Widget _buildHeroCard(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildHeroCard(BuildContext context, bool isDark, Color green, Color primary) {
     final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
                           .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
-    final green = theme.colorScheme.primary;
-    final heroBg = isDark ? const Color(0xFF004734) : const Color(0xFF125117);
-    final subText = isDark ? green.withOpacity(0.8) : const Color(0xFFB0F3A6);
+    final heroBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final subText = isDark ? Colors.white70 : Colors.black54;
 
     final claimsState = context.watch<ClaimsBloc>().state;
     final claims = claimsState.claims;
@@ -155,7 +159,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           const SizedBox(height: 8),
           Text(
             '₹$total',
-            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+            style: TextStyle(color: primary, fontSize: 36, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -167,41 +171,34 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildPolicyInfoCard(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildPolicyInfoCard(BuildContext context, bool isDark, Color green, Color primary) {
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         children: [
-          _buildPolicyRow(context, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Policy Valid', value: _quarterlyExpiry()),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Add-ons', value: 'App Downtime (1 active)'),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'App Downtime (1 active)'),
         ],
       ),
     );
   }
 
-  Widget _buildPolicyRow(BuildContext context, {
+  Widget _buildPolicyRow(BuildContext context, bool isDark, Color green, Color primary, {
     required String title,
     required String value,
     String? chip,
   }) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
     return Row(
@@ -225,14 +222,12 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildDisruptionChart(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
-    final empty  = theme.colorScheme.onSurface.withOpacity(0.2);
+  Widget _buildDisruptionChart(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final empty = isDark ? Colors.white24 : Colors.black12;
     final orange = const Color(0xFFFF9800);
     final blue = const Color(0xFF2196F3);
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mockClaims = context.watch<MockDataService>().claims;
 
     final rain = List<int>.filled(7, 0);
@@ -274,11 +269,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,11 +313,11 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLegendItem(context, 'Rain',     green),
+              _buildLegendItem(context, 'Rain',     green, isDark),
               const SizedBox(width: 16),
-              _buildLegendItem(context, 'Heat',     const Color(0xFFFF9800)),
+              _buildLegendItem(context, 'Heat',     const Color(0xFFFF9800), isDark),
               const SizedBox(width: 16),
-              _buildLegendItem(context, 'Platform', const Color(0xFF2196F3)),
+              _buildLegendItem(context, 'Platform', const Color(0xFF2196F3), isDark),
             ],
           ),
         ],
@@ -347,8 +339,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildLegendItem(BuildContext context, String label, Color color) {
-    final text = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+  Widget _buildLegendItem(BuildContext context, String label, Color color, bool isDark) {
+    final text = isDark ? Colors.white70 : Colors.black54;
     return Row(
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
@@ -358,10 +350,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildPayoutHistory(BuildContext context) {
-    final theme  = Theme.of(context);
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
+  Widget _buildPayoutHistory(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
                           .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
 
@@ -380,7 +370,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             child: Center(
               child: Text(
                 'No recent payouts to show.',
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
               ),
             ),
           )
@@ -399,7 +389,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             Color statusColor;
             switch (claim.status.toUpperCase()) {
               case 'APPROVED': statusColor = green; break;
-              case 'REJECTED': statusColor = theme.colorScheme.error; break;
+              case 'REJECTED': statusColor = Colors.red; break;
               case 'PROCESSING': statusColor = const Color(0xFF2196F3); break;
               default: statusColor = const Color(0xFFFF9800); break;
             }
@@ -409,7 +399,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _buildPayoutCard(
-                context,
+                context, isDark, green, primary,
                 icon: icon,
                 trigger: claim.type,
                 date: dateStr,
@@ -434,7 +424,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             Color statusColor;
             switch (claim.status) {
               case ClaimStatus.approved: statusColor = green; break;
-              case ClaimStatus.rejected: statusColor = theme.colorScheme.error; break;
+              case ClaimStatus.rejected: statusColor = Colors.red; break;
               case ClaimStatus.processing: statusColor = const Color(0xFF2196F3); break;
               default: statusColor = const Color(0xFFFF9800); break;
             }
@@ -444,7 +434,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _buildPayoutCard(
-                context, 
+                context, isDark, green, primary,
                 icon: icon, 
                 trigger: claim.displayLabel,
                 date: dateStr, 
@@ -459,7 +449,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildPayoutCard(BuildContext context, {
+  Widget _buildPayoutCard(BuildContext context, bool isDark, Color green, Color primary, {
     required IconData icon,
     required String trigger,
     required String date,
@@ -468,22 +458,17 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     required String status,
     required Color statusColor,
   }) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final text   = theme.colorScheme.onSurface;
-    final sub    = theme.colorScheme.onSurface.withOpacity(0.5);
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final sub = isDark ? Colors.white70 : Colors.black54;
     final iconBg = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F4EF);
-    final green  = theme.colorScheme.primary;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
       ),
       child: Row(
         children: [
@@ -520,18 +505,16 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildUpgradeNudge(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
+  Widget _buildUpgradeNudge(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         border: Border.all(color: green.withOpacity(isDark ? 0.4 : 1.0)),
         borderRadius: BorderRadius.circular(16),
       ),
