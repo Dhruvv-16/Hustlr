@@ -56,13 +56,15 @@ class TrustScoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Trust score',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.9),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Manrope',
+              Expanded(
+                child: Text(
+                  'Trust Score',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.9),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Row(
