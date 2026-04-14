@@ -62,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   Future<String> _queryGemini(String prompt) async {
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
     
     final contents = [
       {

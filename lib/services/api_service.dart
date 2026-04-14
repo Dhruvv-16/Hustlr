@@ -822,8 +822,8 @@ class ApiService {
     required String imageBase64,
   }) async {
     try {
-      // Primary Route: Use Gemini 1.5 Flash Vision for robust offline/demo liveness validation.
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
+      // Primary Route: Use Gemini 2.5 Flash Vision for robust offline/demo liveness validation.
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${AppSecrets.geminiApiKey}');
       
       final response = await http.post(
         url,

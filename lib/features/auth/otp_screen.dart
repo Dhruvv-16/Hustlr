@@ -12,14 +12,16 @@ class OTPScreen extends StatefulWidget {
   final String phone;
   final String verificationId;
 
-  const OTPScreen({super.key, required this.phone, required this.verificationId});
+  const OTPScreen(
+      {super.key, required this.phone, required this.verificationId});
 
   @override
   State<OTPScreen> createState() => _OTPScreenState();
 }
 
 class _OTPScreenState extends State<OTPScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   bool _loading = false;
@@ -63,7 +65,8 @@ class _OTPScreenState extends State<OTPScreen> {
 
     try {
       // 1. Authenticate with Firebase
-      if (widget.verificationId == 'demo-bypass' || widget.verificationId.isEmpty) {
+      if (widget.verificationId == 'demo-bypass' ||
+          widget.verificationId.isEmpty) {
         if (otp != '123456') {
           setState(() {
             _loading = false;
@@ -98,12 +101,12 @@ class _OTPScreenState extends State<OTPScreen> {
         final userId = existingUser['id'] as String;
         await StorageService.setUserId(userId);
         await StorageService.setOnboarded(true);
-        await StorageService.instance.saveUserName(
-            existingUser['name'] as String? ?? '');
-        await StorageService.instance.saveUserCity(
-            existingUser['city'] as String? ?? '');
-        await StorageService.instance.saveUserZone(
-            existingUser['zone'] as String? ?? '');
+        await StorageService.instance
+            .saveUserName(existingUser['name'] as String? ?? '');
+        await StorageService.instance
+            .saveUserCity(existingUser['city'] as String? ?? '');
+        await StorageService.instance
+            .saveUserZone(existingUser['zone'] as String? ?? '');
         await StorageService.setString(
             'userPlatform', existingUser['platform'] as String? ?? '');
 
@@ -114,9 +117,11 @@ class _OTPScreenState extends State<OTPScreen> {
         await box.put('onboardingComplete', true);
 
         // Biometric Step-Up Authorization Gateway
-        final reason = Uri.encodeComponent('Confirm your identity to securely access Hustlr.');
-        final authResult = await context.push<Map<String, dynamic>>('${AppRoutes.stepUpAuth}?reason=$reason');
-        
+        final reason = Uri.encodeComponent(
+            'Confirm your identity to securely access Hustlr.');
+        final authResult = await context.push<Map<String, dynamic>>(
+            '${AppRoutes.stepUpAuth}?reason=$reason');
+
         if (authResult != null && authResult['verified'] == true) {
           context.go(AppRoutes.dashboard);
         } else {
@@ -126,7 +131,8 @@ class _OTPScreenState extends State<OTPScreen> {
         }
       } else {
         // User does not exist, proceed to onboarding
-        final onboardingComplete = box.get('onboardingComplete', defaultValue: false);
+        final onboardingComplete =
+            box.get('onboardingComplete', defaultValue: false);
         if (onboardingComplete) {
           context.go(AppRoutes.dashboard); // Safety fallback
         } else {
@@ -152,13 +158,14 @@ class _OTPScreenState extends State<OTPScreen> {
     for (final c in _controllers) c.clear();
     _focusNodes[0].requestFocus();
     setState(() => _error = null);
-    
+
     final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           'OTP RESENT SUCCESSFULLY',
-          style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onPrimary),
+          style: theme.textTheme.labelSmall
+              ?.copyWith(color: theme.colorScheme.onPrimary),
         ),
         backgroundColor: theme.colorScheme.primary,
         behavior: SnackBarBehavior.floating,
@@ -190,11 +197,18 @@ class _OTPScreenState extends State<OTPScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     GestureDetector(
-                      onTap: () => context.go('/auth/phone'),
+                      onTap: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go(AppRoutes.login);
+                        }
+                      },
                       behavior: HitTestBehavior.opaque,
                       child: Row(
                         children: [
-                          Icon(Icons.arrow_back, color: theme.colorScheme.primary, size: 20),
+                          Icon(Icons.arrow_back,
+                              color: theme.colorScheme.primary, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             'Verification',
@@ -217,7 +231,7 @@ class _OTPScreenState extends State<OTPScreen> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
 
               // ── Title & Intro ──────────────────────────────────────────
@@ -283,7 +297,7 @@ class _OTPScreenState extends State<OTPScreen> {
               if (_error != null)
                 Center(
                   child: Padding(
-                     padding: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       _error!,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -329,24 +343,26 @@ class _OTPScreenState extends State<OTPScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: _loading 
-                  ? const SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text(
-                    'Verify & Continue',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Verify & Continue',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
                 ),
               ),
 
               const SizedBox(height: 12),
-              
+
               // ── Terms Footer ───────────────────────────────────────────
               const Center(
                 child: Text(
@@ -408,7 +424,7 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
   }
 
   void _onTextChanged() {
-    if (mounted) setState(() {}); 
+    if (mounted) setState(() {});
   }
 
   @override
@@ -423,8 +439,8 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
   Widget build(BuildContext context) {
     final hasText = widget.controller.text.isNotEmpty;
     final isFocused = widget.focusNode.hasFocus;
-    
-    final isDark  = widget.isDark;
+
+    final isDark = widget.isDark;
     final primary = const Color(0xFF2E7D32);
     final defaultBg = isDark ? const Color(0xFF1C1F1C) : Colors.white;
 
@@ -445,7 +461,8 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
       bgColor = defaultBg;
       borderWidth = 1.5;
     } else {
-      borderColor = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E7EB);
+      borderColor =
+          isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E7EB);
       bgColor = defaultBg;
       borderWidth = 1.0;
     }
@@ -455,7 +472,7 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
       width: 44,
       height: 52,
       decoration: BoxDecoration(
-        color: bgColor, 
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: borderColor,

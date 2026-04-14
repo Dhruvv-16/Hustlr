@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
 import '../../services/demo_state_service.dart';
 
 import '../../services/api_service.dart';
@@ -8,6 +10,7 @@ import '../../services/storage_service.dart';
 import '../../core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/app_events.dart';
+import '../../services/mock_data_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -767,7 +770,10 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
     return;
   }
 
-  final upiController = TextEditingController();
+  final savedUpi = StorageService.upiId;
+  final upiController = TextEditingController(
+    text: savedUpi == 'add-upi-id' ? '' : savedUpi,
+  );
   final isDark     = Theme.of(context).brightness == Brightness.dark;
   final sheetBg    = isDark ? const Color(0xFF1C1F1C) : Colors.white;
   final inputBg    = isDark ? const Color(0xFF0A0B0A) : const Color(0xFFF4F6F4);
@@ -846,6 +852,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                 onPressed: () {
                   final upi = upiController.text.trim();
                   if (upi.isEmpty) return;
+                  StorageService.setUpiId(upi);
                   Navigator.pop(sheetCtx);
                   _processWithdrawal(parentContext, balance, upi);
                 },
@@ -876,7 +883,6 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
 
 void _processWithdrawal(BuildContext context, int amount, String upiId) {
   final isDark    = Theme.of(context).brightness == Brightness.dark;
-  final barrierBg = isDark ? Colors.black.withOpacity(0.95) : Colors.white.withOpacity(0.98);
   final green     = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2D6A2D);
   final primary   = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
   final grey      = isDark ? const Color(0xFF91938D) : Colors.grey;
@@ -885,23 +891,27 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
   final refText   = isDark ? const Color(0xFFE1E3DE) : Colors.black87;
   final btnTxt    = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
+  try {
+    context.read<MockDataService>().withdrawToUPI(amount, upiId);
+  } catch (_) {}
+  AppEvents.instance.walletUpdated();
+
   showDialog(
     context: context,
-    barrierColor: barrierBg,
     barrierDismissible: false,
-    builder: (context) => Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Center(
+    builder: (context) => Dialog(
+      backgroundColor: successBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(green)),
             const SizedBox(height: 24),
             Text('Initiating transfer...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
             const SizedBox(height: 8),
             Text('Connecting to UPI network', style: TextStyle(fontSize: 14, color: grey)),
-            const SizedBox(height: 8),
-            Text('Powered by Razorpay', style: TextStyle(fontSize: 12, color: grey)),
           ],
         ),
       ),
@@ -910,7 +920,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
 
   Future.delayed(const Duration(seconds: 2), () {
     if (!context.mounted) return;
-    Navigator.pop(context);
+    Navigator.of(context, rootNavigator: true).pop();
     final formattedBalance = amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
     showDialog(
       context: context,
@@ -959,7 +969,8 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
                   width: double.infinity, height: 50,
                   child: ElevatedButton(
                     onPressed: () {
-                      while (Navigator.of(context).canPop()) Navigator.of(context).pop();
+                      Navigator.of(context, rootNavigator: true).pop();
+                      AppEvents.instance.walletUpdated();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: green,
@@ -1092,11 +1103,24 @@ class _LinkedUpiCard extends StatefulWidget {
 
 class _LinkedUpiCardState extends State<_LinkedUpiCard> {
   late String _upiId;
+  StreamSubscription? _walletSub;
 
   @override
   void initState() {
     super.initState();
     _upiId = StorageService.upiId;
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _upiId = StorageService.upiId;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _walletSub?.cancel();
+    super.dispose();
   }
 
   void _editUpi() {

@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../core/router/app_router.dart';
 import '../services/location_permission_service.dart';
-import '../features/auth/login_screen.dart';
 
 class LocationPermissionScreen extends StatelessWidget {
   const LocationPermissionScreen({super.key});
 
   void _goToLogin(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
+    context.go(AppRoutes.login);
   }
 
   @override

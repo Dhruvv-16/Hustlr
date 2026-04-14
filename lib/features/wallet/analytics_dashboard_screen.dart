@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/claims/claims_bloc.dart';
 import '../../models/claim.dart';
+import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
 import 'package:intl/intl.dart';
 
@@ -17,6 +19,24 @@ class AnalyticsDashboardScreen extends StatefulWidget {
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   String _zone = '';
+
+  DateTime _parseDemoClaimDate(ClaimModel claim) {
+    if (claim.date.toLowerCase() == 'just now') return DateTime.now();
+    for (final pattern in ['yyyy-MM-dd', 'MMM d, yyyy', 'dd MMM yyyy']) {
+      try {
+        return DateFormat(pattern).parse(claim.date);
+      } catch (_) {}
+    }
+    return DateTime.now();
+  }
+
+  int _demoClaimHours(ClaimModel claim) {
+    if (claim.durationHours != null && claim.durationHours! > 0) {
+      return claim.durationHours!;
+    }
+    final gross = claim.grossAmount ?? claim.amount;
+    return gross <= 0 ? 1 : (gross / 40).round().clamp(1, 6);
+  }
 
   @override
   void initState() {
@@ -85,13 +105,23 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
 
     final claimsState = context.watch<ClaimsBloc>().state;
     final claims = claimsState.claims;
+    final mockClaims = context.watch<MockDataService>().claims;
     
     int total = 0;
     int count = 0;
-    for (var c in claims) {
-      if (c.status != ClaimStatus.rejected) {
-        total += c.grossPayout;
-        count++;
+    if (mockClaims.isNotEmpty) {
+      for (final c in mockClaims) {
+        if (c.status.toUpperCase() != 'REJECTED') {
+          total += c.grossAmount ?? c.amount;
+          count++;
+        }
+      }
+    } else {
+      for (var c in claims) {
+        if (c.status != ClaimStatus.rejected) {
+          total += c.grossPayout;
+          count++;
+        }
       }
     }
 
@@ -194,6 +224,44 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     final green  = theme.colorScheme.primary;
     final text   = theme.colorScheme.onSurface;
     final empty  = theme.colorScheme.onSurface.withOpacity(0.2);
+    final orange = const Color(0xFFFF9800);
+    final blue = const Color(0xFF2196F3);
+    final mockClaims = context.watch<MockDataService>().claims;
+
+    final rain = List<int>.filled(7, 0);
+    final heat = List<int>.filled(7, 0);
+    final platform = List<int>.filled(7, 0);
+
+    for (final claim in mockClaims) {
+      if (claim.status.toUpperCase() == 'REJECTED') continue;
+      final idx = _parseDemoClaimDate(claim).weekday - 1;
+      final hours = _demoClaimHours(claim);
+      final type = claim.type.toLowerCase();
+      if (type.contains('rain')) {
+        rain[idx] += hours;
+      } else if (type.contains('heat')) {
+        heat[idx] += hours;
+      } else {
+        platform[idx] += hours;
+      }
+    }
+
+    List<BarChartGroupData> groups() {
+      return List.generate(7, (index) {
+        final total = rain[index] + heat[index] + platform[index];
+        Color color = empty;
+        if (total > 0) {
+          if (rain[index] >= heat[index] && rain[index] >= platform[index]) {
+            color = green;
+          } else if (heat[index] >= platform[index]) {
+            color = orange;
+          } else {
+            color = blue;
+          }
+        }
+        return _buildBarGroup(index, total, color);
+      });
+    }
 
     return Container(
       width: double.infinity,
@@ -217,15 +285,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             height: 180,
             child: BarChart(
               BarChartData(
-                barGroups: [
-                  _buildBarGroup(0, 0, empty),
-                  _buildBarGroup(1, 0, empty),
-                  _buildBarGroup(2, 0, empty),
-                  _buildBarGroup(3, 0, empty),
-                  _buildBarGroup(4, 0, empty),
-                  _buildBarGroup(5, 0, empty),
-                  _buildBarGroup(6, 0, empty),
-                ],
+                barGroups: groups(),
                 titlesData: FlTitlesData(
                   leftTitles:   AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -300,13 +360,14 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
 
     final claimsState = context.watch<ClaimsBloc>().state;
     final claims = claimsState.claims;
+    final mockClaims = context.watch<MockDataService>().claims;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Payout history', style: TextStyle(color: text, fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
-        if (claims.isEmpty)
+        if (mockClaims.isEmpty && claims.isEmpty)
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Center(
@@ -316,6 +377,42 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               ),
             ),
           )
+        else if (mockClaims.isNotEmpty)
+          ...mockClaims.take(3).map((claim) {
+            IconData icon;
+            final type = claim.type.toLowerCase();
+            if (type.contains('rain')) {
+              icon = Icons.water_drop_rounded;
+            } else if (type.contains('heat')) {
+              icon = Icons.wb_sunny_rounded;
+            } else {
+              icon = Icons.phonelink_off_rounded;
+            }
+
+            Color statusColor;
+            switch (claim.status.toUpperCase()) {
+              case 'APPROVED': statusColor = green; break;
+              case 'REJECTED': statusColor = theme.colorScheme.error; break;
+              case 'PROCESSING': statusColor = const Color(0xFF2196F3); break;
+              default: statusColor = const Color(0xFFFF9800); break;
+            }
+
+            final dateStr = DateFormat('MMM d, yyyy').format(_parseDemoClaimDate(claim));
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildPayoutCard(
+                context,
+                icon: icon,
+                trigger: claim.type,
+                date: dateStr,
+                zone: claim.zone.isNotEmpty ? claim.zone : userZone,
+                amount: '₹${claim.grossAmount ?? claim.amount}',
+                status: claim.status,
+                statusColor: statusColor,
+              ),
+            );
+          })
         else
           ...claims.take(3).map((claim) {
             IconData icon;
