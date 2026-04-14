@@ -819,12 +819,28 @@ class ApiService {
     String? userId,
     String? workerId,
     required String imageBase64,
+    String? expectedGesture,
   }) async {
     try {
       // Primary Route: Use Gemini 1.5 Flash Vision for robust offline/demo liveness validation.
       const apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
       
+      // Build prompt with gesture if provided (Oasis-style liveness)
+      final gesturePrompt = expectedGesture != null
+          ? "Requested gesture: \"$expectedGesture\".\n\n"
+            "Approve ONLY if all are true:\n"
+            "- Exactly one real human face is clearly visible\n"
+            "- The requested gesture is unmistakably performed\n"
+            "- Photo looks like a live selfie (not screen/print/screenshot)\n\n"
+            "Reject if any are true:\n"
+            "- Indoor scene or unclear setting\n"
+            "- Multiple faces\n"
+            "- Face too obscured to judge gesture\n"
+            "- Signs of screen/print/screenshot or AI/deepfake\n\n"
+            "Return JSON only."
+          : "Perform strict liveness verification. Check for screen capture, photo of photo, deepfake, and quality issues. Return JSON.";
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -859,7 +875,7 @@ class ApiService {
                   }
                 },
                 {
-                  "text": "Perform strict liveness verification. Check for screen capture, photo of photo, deepfake, and quality issues. Return JSON."
+                  "text": gesturePrompt
                 }
               ]
             }

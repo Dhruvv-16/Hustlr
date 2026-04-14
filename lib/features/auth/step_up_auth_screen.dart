@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
@@ -37,6 +38,19 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   bool _biometricAvailable = false;
   List<BiometricType> _enrolledBiometrics = [];
 
+  // Gesture-based liveness (Oasis-style)
+  final List<String> _gestures = [
+    'Close your left eye (wink with left eye closed)',
+    'Close your right eye (wink with right eye closed)',
+    'Smile with teeth visible',
+    'Raise your eyebrows',
+    'Turn your head slightly to the left',
+    'Turn your head slightly to the right',
+    'Look up toward the camera',
+  ];
+  String? _currentGesture;
+  bool _showGesturePrompt = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +62,8 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _checkBiometricAvailability();
+    // Initialize random gesture for liveness check
+    _currentGesture = _gestures[math.Random().nextInt(_gestures.length)];
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -124,6 +140,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       final result = await ApiService.instance.verifyFaceLiveness(
         workerId: userId ?? 'demo-user',
         imageBase64: base64Image,
+        expectedGesture: _currentGesture,
       );
 
       final verified = result['verified'] as bool? ?? false;
@@ -134,7 +151,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         _state = verified
             ? _VerificationState.success
             : _VerificationState.failed;
-        if (!verified) _errorMessage = 'Face did not match registered profile.';
+        if (!verified) _errorMessage = result['reason'] ?? 'Face did not match registered profile.';
       });
 
       if (verified) {
@@ -246,6 +263,36 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                       : _buildFaceRing(accentGreen),
                   const SizedBox(height: 32),
                   _buildStatusText(),
+                  // Gesture prompt for camera tier
+                  if (_tier == _AuthTier.camera && _currentGesture != null && _state == _VerificationState.idle) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: accentGreen.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: accentGreen.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.accessibility_new, color: Color(0xFF4CAF50), size: 20),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              _currentGesture!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF4CAF50),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -441,15 +488,15 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         case _VerificationState.idle:
         case _VerificationState.failed:
           title = 'Face Identity Check';
-          subtitle = 'Look into the camera and tap "Verify Identity" when ready.';
+          subtitle = 'Perform the gesture below, then tap "Verify Identity".';
           break;
         case _VerificationState.capturing:
           title = 'Opening Camera...';
           subtitle = 'Please hold your phone steady in good lighting.';
           break;
         case _VerificationState.verifying:
-          title = 'Verifying via AWS Rekognition...';
-          subtitle = 'Comparing against your registered face profile. This takes ~3 seconds.';
+          title = 'Verifying via AI...';
+          subtitle = 'Checking gesture and liveness. This takes ~3 seconds.';
           break;
         case _VerificationState.success:
           title = 'Identity Confirmed';
