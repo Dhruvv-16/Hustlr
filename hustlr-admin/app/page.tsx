@@ -29,6 +29,62 @@ const TABS: Array<{ id: TabId; label: string; emoji: string }> = [
 
 type ApiStatus = 'connecting' | 'live' | 'degraded' | 'offline';
 
+const STORY_STEPS = [
+  {
+    step: '1',
+    title: 'The person',
+    copy: 'Name the worker precisely. Example: Ravi, 28, Delhi, Zomato rider, earning INR 18,000 per month.',
+  },
+  {
+    step: '2',
+    title: 'The disruption',
+    copy: 'Anchor it to a measurable event with time and duration, like AQI above 300 on Tuesday evening leading to three days off-road.',
+  },
+  {
+    step: '3',
+    title: 'The loss',
+    copy: 'Show the exact number lost, not a vague hardship. Example: INR 1,800 of income gone with rent due Friday.',
+  },
+  {
+    step: '4',
+    title: 'The protection',
+    copy: 'Explain the automatic payout flow clearly: trigger fires, verification clears, money moves without claim chasing.',
+  },
+  {
+    step: '5',
+    title: 'The relief',
+    copy: 'End with continuity. The worker rides next week, the family stays okay, and insurance proves its purpose.',
+  },
+];
+
+const INSURANCE_CHECKLIST = [
+  'Objective and verifiable triggers from trusted sources such as CPCB, IMD, or platform telemetry',
+  'Scope restricted to income disruption, not health, life, or motor coverage',
+  'Automatic payout flow tied to verification instead of manual review first',
+  'Financial sustainability shown through BCR limits, reserve logic, and stress testing',
+  'Fraud prevention based on cross-checkable data, not just behavioural scoring',
+  'Frictionless premium collection via wallet, UPI, payroll, or platform integrations',
+  'Dynamic pricing based on local risk and seasonality rather than a flat number',
+  'Adverse-selection controls such as lock-out windows before known disaster events',
+  'Operational cost discipline through automation and straight-through processing',
+  'Basis-risk minimization by matching worker zone and trigger source at a granular level',
+];
+
+const COMPLIANCE_NOTES = [
+  {
+    title: 'IRDAI guidelines',
+    copy: 'Claims must be fair, zero-touch where possible, and triggered from trusted independent public sources. Accuracy, fraud controls, and capital proof all matter.',
+  },
+  {
+    title: 'Social Security Code, 2020',
+    copy: 'Gig and platform workers are recognized as a protected class, so eligibility logic should be transparent wherever active-day thresholds affect benefits.',
+  },
+  {
+    title: 'DPDP Act, 2023',
+    copy: 'GPS, bank or UPI details, and platform activity data need explicit purpose limitation, informed consent, and careful storage practices.',
+  },
+];
+
 export default function Dashboard() {
   const [tab, setTab]           = useState<TabId>('pool');
   const [pool, setPool]         = useState<Awaited<ReturnType<typeof fetchPoolSummary>> | null>(null);
@@ -150,6 +206,120 @@ export default function Dashboard() {
         {tab === 'profit'     && <ProfitSimulator />}
         {tab === 'stress'     && <StressSimulator />}
         {tab === 'financials' && <Financials />}
+
+        {tab === 'pool' && (
+          <section className="mt-10 space-y-8">
+            <div
+              className="rounded-3xl border p-6"
+              style={{
+                background: 'linear-gradient(180deg, rgba(7,53,74,0.96), rgba(4,31,44,0.96))',
+                borderColor: 'rgba(95,225,255,0.18)',
+              }}
+            >
+              <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: '#F6C445' }}>
+                Storytelling Framework
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Tell Hustlr like a real insurance product</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.68)' }}>
+                These five beats help explain the product in demos, judge conversations, and partner pitches with specificity instead of generic fintech language.
+              </p>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-5">
+                {STORY_STEPS.map((item) => (
+                  <div
+                    key={item.step}
+                    className="rounded-2xl border p-5"
+                    style={{
+                      background: 'rgba(255,255,255,0.97)',
+                      borderColor: 'rgba(246,196,69,0.28)',
+                      color: '#082533',
+                    }}
+                  >
+                    <div
+                      className="mb-4 flex h-10 w-10 items-center justify-center rounded-full text-lg font-black"
+                      style={{ background: '#27C1F0', color: '#082533' }}
+                    >
+                      {item.step}
+                    </div>
+                    <h3 className="text-lg font-black">{item.title}</h3>
+                    <p className="mt-3 text-sm leading-6" style={{ color: 'rgba(8,37,51,0.82)' }}>
+                      {item.copy}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div
+                className="rounded-3xl border p-6"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(7,53,74,0.96), rgba(4,31,44,0.96))',
+                  borderColor: 'rgba(95,225,255,0.18)',
+                }}
+              >
+                <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: '#F6C445' }}>
+                  Insurance Checklist
+                </p>
+                <h2 className="mt-2 text-2xl font-black">Does the solution make insurance sense?</h2>
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  {INSURANCE_CHECKLIST.map((item, index) => (
+                    <div
+                      key={item}
+                      className="flex gap-4 rounded-2xl border p-4"
+                      style={{
+                        borderColor: 'rgba(255,255,255,0.08)',
+                        background: 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      <div
+                        className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black"
+                        style={{ background: '#F6C445', color: '#082533' }}
+                      >
+                        {index + 1}
+                      </div>
+                      <p className="text-sm leading-6" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                        {item}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="rounded-3xl border p-6"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(7,53,74,0.96), rgba(4,31,44,0.96))',
+                  borderColor: 'rgba(95,225,255,0.18)',
+                }}
+              >
+                <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: '#F6C445' }}>
+                  Regulatory Notes
+                </p>
+                <h2 className="mt-2 text-2xl font-black">IRDAI, Social Security Code, and DPDP framing</h2>
+                <div className="mt-6 space-y-4">
+                  {COMPLIANCE_NOTES.map((item) => (
+                    <div
+                      key={item.title}
+                      className="rounded-2xl border p-4"
+                      style={{
+                        borderColor: 'rgba(255,255,255,0.08)',
+                        background: 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      <h3 className="text-base font-black" style={{ color: '#56D6FF' }}>
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                        {item.copy}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* ── Footer ── */}

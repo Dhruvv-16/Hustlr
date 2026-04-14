@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
@@ -15,16 +16,36 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  int _selectedMethod = 0; // 0 = PayPal sandbox, 1 = UPI demo, 2 = Wallet
   bool _loading = false;
   int _walletBalance = 0;
   String _sandboxMode = 'mock_sandbox';
+  
+  // Card input controllers
+  final TextEditingController _cardNumberController = TextEditingController();
+  final TextEditingController _expiryController = TextEditingController();
+  final TextEditingController _cvcController = TextEditingController();
+  final TextEditingController _cardholderController = TextEditingController();
+  
+  bool _useCard = true; // Card vs Wallet toggle
 
   @override
   void initState() {
     super.initState();
     _loadBalance();
     _loadSandboxConfig();
+    // Pre-fill test card for sandbox
+    _cardNumberController.text = '4242 4242 4242 4242';
+    _expiryController.text = '12/25';
+    _cvcController.text = '123';
+  }
+  
+  @override
+  void dispose() {
+    _cardNumberController.dispose();
+    _expiryController.dispose();
+    _cvcController.dispose();
+    _cardholderController.dispose();
+    super.dispose();
   }
 
   void _loadBalance() async {
@@ -52,18 +73,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } catch (_) {}
   }
 
-  String get _selectedProvider {
-    switch (_selectedMethod) {
-      case 0:
-        return 'paypal';
-      case 1:
-        return 'upi';
-      case 2:
-        return 'wallet';
-      default:
-        return 'stripe';
-    }
-  }
+  String get _selectedProvider => _useCard ? 'card' : 'wallet';
 
   void _confirm() async {
     setState(() => _loading = true);
@@ -72,8 +82,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (userId != null) {
         final planName = widget.checkoutData?['plan'] ?? 'standard';
         final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
-        if (_selectedProvider == 'wallet' && _walletBalance < total) {
-          throw Exception('Insufficient wallet balance for this sandbox payment');
+        
+        if (!_useCard && _walletBalance < total) {
+          throw Exception('Insufficient wallet balance');
         }
 
         final session = await ApiService.instance.createPaymentSandboxSession(
@@ -93,7 +104,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           metadata: {'plan': planName, 'sandbox_mode': _sandboxMode},
         );
         if (payment['success'] != true) {
-          throw Exception('Sandbox payment failed');
+          throw Exception('Payment failed');
         }
 
         final result = await ApiService.instance.createPolicy(
@@ -112,7 +123,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Payment sandbox error: $e',
+              'Payment error: $e',
               style: const TextStyle(color: Colors.white),
             ),
             backgroundColor: Colors.red,
@@ -127,20 +138,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     setState(() => _loading = false);
     context.go(AppRoutes.dashboard);
 
-    final green = Theme.of(context).colorScheme.primary;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          _selectedProvider == 'paypal'
-              ? 'PayPal sandbox payment confirmed. Coverage is active.'
-              : 'Sandbox payment confirmed. Coverage is active.',
-          style: const TextStyle(
+        content: const Text(
+          'Payment successful! Coverage is active.',
+          style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
             height: 1.4,
           ),
         ),
-        backgroundColor: green,
+        backgroundColor: const Color(0xFF2E7D32),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -151,385 +159,452 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = theme.scaffoldBackgroundColor;
-    final primaryText = theme.colorScheme.onSurface;
-    final green = theme.colorScheme.primary;
-    final divider = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
-
-    final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
-    final planCost = widget.checkoutData?['planCost'] ?? 49;
-    final rawRiders = widget.checkoutData?['riders'];
-    final riders = <Map<String, dynamic>>[];
-    if (rawRiders is List) {
-      for (final rider in rawRiders) {
-        if (rider is Map) riders.add(Map<String, dynamic>.from(rider));
-      }
-    }
     final total = widget.checkoutData?['total'] ?? 49;
+    final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF141614) : Colors.white,
+        backgroundColor: const Color(0xFF2E7D32),
         elevation: 0,
-        leading: GestureDetector(
+        leading: IconButton(
           onTap: () => Navigator.of(context).pop(),
-          child: Icon(Icons.arrow_back, color: primaryText),
+          icon: const Icon(Icons.close, color: Colors.white),
         ),
-        title: Text(
-          'Payment',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: primaryText,
-          ),
+        title: Column(
+          children: [
+            const Text(
+              'Checkout',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              'hustlr.app',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-        child: Column(
-          children: [
-            _SectionCard(
+      body: Column(
+        children: [
+          // Green header with amount
+          Container(
+            width: double.infinity,
+            color: const Color(0xFF2E7D32),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              children: [
+                Text(
+                  'Rs $total.00',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  planName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Payment form
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Order Summary',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SummaryRow(label: planName, amount: 'Rs $planCost/wk'),
-                  if (riders.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    ...riders.map(
-                      (rider) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _SummaryRow(
-                          label: '${rider['name']}',
-                          amount: 'Rs ${rider['cost']}/wk',
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Container(height: 1, color: divider),
-                  const SizedBox(height: 16),
+                  // Payment method tabs
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Total weekly cost',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: primaryText,
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _useCard = true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: _useCard ? const Color(0xFF2E7D32) : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.credit_card,
+                                  size: 18,
+                                  color: _useCard ? const Color(0xFF2E7D32) : Colors.grey,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Card',
+                                  style: TextStyle(
+                                    fontWeight: _useCard ? FontWeight.w600 : FontWeight.normal,
+                                    color: _useCard ? const Color(0xFF2E7D32) : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        'Rs $total/wk',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: green,
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _useCard = false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: !_useCard ? const Color(0xFF2E7D32) : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.account_balance_wallet,
+                                  size: 18,
+                                  color: !_useCard ? const Color(0xFF2E7D32) : Colors.grey,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Wallet (Rs $_walletBalance)',
+                                  style: TextStyle(
+                                    fontWeight: !_useCard ? FontWeight.w600 : FontWeight.normal,
+                                    color: !_useCard ? const Color(0xFF2E7D32) : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Payment Method',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: primaryText,
+                  
+                  const SizedBox(height: 24),
+                  
+                  if (_useCard) ...[
+                    // Card form
+                    const Text(
+                      'Card information',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black54,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _PaymentMethodRow(
-                    icon: Icons.credit_card_rounded,
-                    title: 'PayPal Sandbox',
-                    subtitle: _sandboxMode == 'sandbox_keys_present'
-                        ? 'Test keys configured'
-                        : 'Recommended mock sandbox',
-                    selected: _selectedMethod == 0,
-                    onTap: () => setState(() => _selectedMethod = 0),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(height: 1, color: divider),
-                  const SizedBox(height: 4),
-                  _PaymentMethodRow(
-                    icon: Icons.account_balance_rounded,
-                    title: 'UPI Demo',
-                    subtitle: 'Safe fallback without gateway onboarding',
-                    selected: _selectedMethod == 1,
-                    onTap: () => setState(() => _selectedMethod = 1),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(height: 1, color: divider),
-                  const SizedBox(height: 4),
-                  _PaymentMethodRow(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'Hustlr Wallet',
-                    subtitle: 'Balance: Rs ${_formatCurrency(_walletBalance)}',
-                    selected: _selectedMethod == 2,
-                    onTap: () => setState(() => _selectedMethod = 2),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? green.withOpacity(0.05) : const Color(0xFFE3F2FD),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? green.withOpacity(0.2) : Colors.transparent,
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isDark ? green.withOpacity(0.2) : const Color(0xFF1565C0),
-                      shape: BoxShape.circle,
+                    const SizedBox(height: 8),
+                    
+                    // Card number field
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _cardNumberController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(19),
+                              _CardNumberFormatter(),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: '4242 4242 4242 4242',
+                              hintStyle: TextStyle(color: Colors.grey.shade400),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.all(16),
+                              suffixIcon: const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Icon(Icons.credit_card, color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                          Divider(height: 1, color: Colors.grey.shade300),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _expiryController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(4),
+                                    _ExpiryDateFormatter(),
+                                  ],
+                                  decoration: InputDecoration(
+                                    hintText: 'MM / YY',
+                                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.all(16),
+                                  ),
+                                ),
+                              ),
+                              Container(width: 1, height: 48, color: Colors.grey.shade300),
+                              Expanded(
+                                child: TextField(
+                                  controller: _cvcController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(3),
+                                  ],
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    hintText: 'CVC',
+                                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.all(16),
+                                    suffixIcon: const Icon(Icons.credit_card, size: 20, color: Colors.grey),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Center(
-                      child: Text(
-                        'i',
-                        style: TextStyle(
-                          color: isDark ? green : Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          fontStyle: FontStyle.italic,
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Cardholder name
+                    const Text(
+                      'Cardholder name',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextField(
+                        controller: _cardholderController,
+                        decoration: InputDecoration(
+                          hintText: 'Full name on card',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Sandbox checkout is enabled. PayPal is the recommended test path; Razorpay is not required for this demo.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark
-                            ? theme.colorScheme.onSurface.withOpacity(0.8)
-                            : const Color(0xFF1565C0),
-                        height: 1.5,
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Test card hint
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade100),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 18, color: Colors.blue.shade600),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Test card: 4242 4242 4242 4242, any future date, any CVC',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: SizedBox(
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _confirm,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: isDark ? const Color(0xFF0A0B0A) : Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-              ),
-              child: _loading
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isDark ? const Color(0xFF0A0B0A) : Colors.white,
+                  ] else ...[
+                    // Wallet view
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.account_balance_wallet, size: 48, color: Color(0xFF2E7D32)),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Hustlr Wallet',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Balance: Rs $_walletBalance',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Available for payment',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    if (_walletBalance < total)
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade100),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, size: 18, color: Colors.red.shade600),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Insufficient balance. Add Rs ${total - _walletBalance} more.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.red.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    )
-                  : const Text(
-                      'Confirm & Activate Coverage ->',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    return raw.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  final Widget child;
-  const _SectionCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          if (!isDark)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-        ],
-        border: isDark ? Border.all(color: Colors.white.withOpacity(0.05)) : null,
-      ),
-      child: child,
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String amount;
-  const _SummaryRow({required this.label, required this.amount});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.6)),
-        ),
-        Text(
-          amount,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.primary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PaymentMethodRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PaymentMethodRow({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green = theme.colorScheme.primary;
-    final onSurface = theme.colorScheme.onSurface;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: selected
-                    ? green.withOpacity(0.1)
-                    : (isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6)),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: selected ? green : onSurface.withOpacity(0.6),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: onSurface,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(fontSize: 12, color: green),
-                    ),
                   ],
                 ],
               ),
             ),
-            Radio<int>(
-              value: selected ? 0 : 1,
-              groupValue: 0,
-              onChanged: (_) => onTap(),
-              activeColor: green,
-              fillColor: WidgetStateProperty.resolveWith<Color>((states) {
-                if (states.contains(WidgetState.selected)) return green;
-                return onSurface.withOpacity(0.5);
-              }),
+          ),
+          
+          // Pay button
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
             ),
-          ],
-        ),
+            child: SafeArea(
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: (_loading || (!_useCard && _walletBalance < total)) 
+                      ? null 
+                      : _confirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          _useCard ? 'Pay Rs $total' : 'Pay with Wallet',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+// Card number formatter (adds spaces every 4 digits)
+class _CardNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text;
+    if (text.isEmpty) return newValue;
+    
+    text = text.replaceAll(' ', '');
+    final buffer = StringBuffer();
+    for (var i = 0; i < text.length; i++) {
+      buffer.write(text[i]);
+      if ((i + 1) % 4 == 0 && i != text.length - 1) {
+        buffer.write(' ');
+      }
+    }
+    
+    return TextEditingValue(
+      text: buffer.toString(),
+      selection: TextSelection.collapsed(offset: buffer.length),
+    );
+  }
+}
+
+// Expiry date formatter (adds / after MM)
+class _ExpiryDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text.replaceAll('/', '');
+    if (text.isEmpty) return newValue;
+    
+    if (text.length >= 2) {
+      text = '${text.substring(0, 2)}/${text.substring(2)}';
+    }
+    
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

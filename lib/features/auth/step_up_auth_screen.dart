@@ -277,7 +277,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 12),
         const SizedBox(width: 8),
         _TierChip(
-          label: 'Tier 2: Face (AWS)',
+          label: 'Tier 2: Face',
           icon: Icons.camera_front_outlined,
           active: _tier == _AuthTier.camera,
           done: false,
@@ -463,7 +463,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           break;
         case _VerificationState.failed:
           title = 'Authentication Failed';
-          subtitle = 'Try again or use camera';
+          subtitle = 'Try again or use secure face verification';
           break;
         default:
           title = 'Authenticate';
@@ -482,7 +482,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           break;
         case _VerificationState.verifying:
           title = 'Verifying';
-          subtitle = 'Checking liveness...';
+          subtitle = 'Checking gesture and liveness...';
           break;
         case _VerificationState.success:
           title = 'Success';
@@ -555,9 +555,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                 _tier = _AuthTier.camera;
                 _state = _VerificationState.idle;
                 _errorMessage = null;
+                _currentGesture = _gestures[math.Random().nextInt(_gestures.length)];
               }),
               child: const Text(
-                'Use Camera Instead (AWS Rekognition)',
+                'Use Camera Instead',
                 style: TextStyle(color: Colors.white38, fontSize: 13),
               ),
             ),
