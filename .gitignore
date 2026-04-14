@@ -196,3 +196,7 @@ build/
 
 # GuideWire assets (large video files)
 GuideWire/
+
+# API secrets — never commit
+lib/config/secrets.dart
+

@@ -11,6 +11,7 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import '../config/secrets.dart';
 
 class DynamicTranslator {
   final String locale;
@@ -21,9 +22,8 @@ class DynamicTranslator {
     return DynamicTranslator._(tag);
   }
 
-  static const _apiKey = 'AIzaSyAMNiJvfidVomLdsINMA9zRQ8ouGWuaimE';
   static const _geminiUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${AppSecrets.geminiApiKey}';
 
   // ── In-memory cache to avoid re-calling the API for the same string ──────
   static final Map<String, String> _cache = {};
