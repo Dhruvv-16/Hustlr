@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import 'widgets/audit_receipt_badge.dart';
 
 class ClaimDetailScreen extends StatefulWidget {
   final String claimId;
@@ -202,6 +203,18 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
               const SizedBox(height: 32),
               _buildFraudShieldCard(fpsScore, theme, isDark),
             ],
+
+            // ── Tamper-Evident Audit Receipt badge ───────────────────────
+            AuditReceiptBadge(
+              claimId:        claimId,
+              receiptHash:    claim['audit_receipt_hash']    as String?,
+              receiptVersion: claim['audit_receipt_version'] as String?,
+              generatedAt:    claim['audit_generated_at']    as String?,
+              receiptPayload: claim['audit_receipt_payload'] != null
+                  ? Map<String, dynamic>.from(
+                      claim['audit_receipt_payload'] as Map)
+                  : null,
+            ),
 
             const SizedBox(height: 48),
             if (isApproved)

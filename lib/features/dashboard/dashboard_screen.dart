@@ -26,6 +26,7 @@ import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
 import '../../services/dynamic_translator.dart';
 import '../../services/app_events.dart';
+import 'risk_map_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -586,6 +587,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         const ShiftStatusDot(),
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded, () => context.push(AppRoutes.support), mintColor, isDark),
+        const SizedBox(width: 12),
+        // 3D Risk Map shortcut
+        _buildMintIconBtn(
+          Icons.hexagon_outlined,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RiskMapScreen()),
+          ),
+          mintColor, isDark,
+        ),
         const SizedBox(width: 12),
         IconButton(
           icon: Icon(

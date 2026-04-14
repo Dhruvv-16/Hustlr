@@ -60,6 +60,12 @@ class Claim extends Equatable {
   final String zone;
   final DateTime createdAt;
 
+  // ── Tamper-evident audit receipt ────────────────────────────────────
+  final String? auditReceiptHash;
+  final String? auditReceiptVersion;
+  final String? auditGeneratedAt;
+  final Map<String, dynamic>? auditReceiptPayload;
+
   const Claim({
     required this.id,
     required this.userId,
@@ -71,6 +77,10 @@ class Claim extends Equatable {
     required this.tranche2,
     required this.zone,
     required this.createdAt,
+    this.auditReceiptHash,
+    this.auditReceiptVersion,
+    this.auditGeneratedAt,
+    this.auditReceiptPayload,
   });
 
   factory Claim.fromJson(Map<String, dynamic> json) {
@@ -92,6 +102,12 @@ class Claim extends Equatable {
       zone: json['zone'] as String? ?? '',
       createdAt:
           createdStr != null ? DateTime.tryParse(createdStr) ?? DateTime.now() : DateTime.now(),
+      auditReceiptHash:    json['audit_receipt_hash'] as String?,
+      auditReceiptVersion: json['audit_receipt_version'] as String?,
+      auditGeneratedAt:    json['audit_generated_at'] as String?,
+      auditReceiptPayload: json['audit_receipt_payload'] != null
+          ? Map<String, dynamic>.from(json['audit_receipt_payload'] as Map)
+          : null,
     );
   }
 
@@ -106,6 +122,10 @@ class Claim extends Equatable {
     int? tranche2,
     String? zone,
     DateTime? createdAt,
+    String? auditReceiptHash,
+    String? auditReceiptVersion,
+    String? auditGeneratedAt,
+    Map<String, dynamic>? auditReceiptPayload,
   }) {
     return Claim(
       id: id ?? this.id,
@@ -118,6 +138,10 @@ class Claim extends Equatable {
       tranche2: tranche2 ?? this.tranche2,
       zone: zone ?? this.zone,
       createdAt: createdAt ?? this.createdAt,
+      auditReceiptHash:    auditReceiptHash    ?? this.auditReceiptHash,
+      auditReceiptVersion: auditReceiptVersion ?? this.auditReceiptVersion,
+      auditGeneratedAt:    auditGeneratedAt    ?? this.auditGeneratedAt,
+      auditReceiptPayload: auditReceiptPayload ?? this.auditReceiptPayload,
     );
   }
 
@@ -132,5 +156,7 @@ class Claim extends Equatable {
         tranche2,
         zone,
         createdAt,
+        auditReceiptHash,
+        auditReceiptVersion,
       ];
 }

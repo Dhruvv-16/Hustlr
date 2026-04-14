@@ -56,6 +56,9 @@ dependencies:
   background_fetch: ^1.3.8
   app_settings: ^5.1.1              # Deep-links to battery optimization settings
 
+  # 3D Risk Map
+  webview_flutter: ^4.10.0          # Renders Deck.gl H3 hexagon layer in-app
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -76,3 +79,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/lottie/
+    - assets/html/

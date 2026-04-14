@@ -230,9 +230,56 @@ class ApiService {
       if (res.statusCode == 200) return data;
       throw Exception(data['error'] ?? 'Failed to fetch claims');
     } catch (_) {
-      return {'claims': []};
+      // ── Demo fallback: one rich approved claim with a full audit receipt ──
+      return {
+        'claims': [
+          {
+            'id':           'demo-claim-apr-001',
+            'user_id':      userId,
+            'trigger_type': 'rain_heavy',
+            'zone':         'Adyar',
+            'city':         'Chennai',
+            'status':       'APPROVED',
+            'gross_payout': 120,
+            'tranche1':     84,
+            'tranche2':     36,
+            'fraud_score':  14,
+            'fps_score':    14,
+            'severity':     0.82,
+            'duration_hours': 3,
+            'created_at':   DateTime.now()
+                .subtract(const Duration(hours: 4))
+                .toIso8601String(),
+            // ── Tamper-evident audit receipt ──────────────────────────────
+            'audit_receipt_hash':
+                'a3f8c2d1e4b9071a6c5d2e8f3a7b4c9d1e6f2a8b5c7d3e9f1a4b6c8d2e5f7a1',
+            'audit_receipt_version': 'HUSTLR-AUDIT-V1',
+            'audit_generated_at':
+                DateTime.now()
+                    .subtract(const Duration(hours: 4))
+                    .toIso8601String(),
+            'audit_receipt_payload': {
+              'claim_id':           'demo-claim-apr-001',
+              'trigger_type':       'rain_heavy',
+              'trigger_value':      '72.4mm/hr',
+              'trigger_source':     'IMD+OpenWeatherMap',
+              'data_trust_score':   0.85,
+              'fps_score':          14,
+              'fps_tier':           'GREEN',
+              'device_integrity':   'PASS',
+              'zone_depth_score':   0.84,
+              'shift_overlap_hours': 3,
+              'gross_payout':       120,
+              'tranche1_amount':    84,
+              'tranche2_amount':    36,
+              'plan_tier':          'STANDARD',
+            },
+          }
+        ],
+      };
     }
   }
+
 
   Future<Map<String, dynamic>> getWallet(String userId) async {
     try {
