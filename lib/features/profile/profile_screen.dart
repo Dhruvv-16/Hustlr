@@ -15,7 +15,6 @@ import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
 import '../../features/shared/widgets/demo_control_panel.dart';
-import '../../widgets/trust_score_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -160,8 +159,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (Icons.account_balance_wallet_rounded, l10n.profile_upi_id, '${_worker?['phone'] as String? ?? 'user'}@ybl'),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    TrustScoreCard(trustProfile: _trustProfile),
                     const SizedBox(height: 32),
 
                     // ── Account Info ──────────────────────────────────────
