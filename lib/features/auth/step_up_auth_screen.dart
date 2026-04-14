@@ -186,7 +186,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     const accentGreen = Color(0xFF4CAF50);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F0A),
+      backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -194,64 +194,12 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           icon: const Icon(Icons.close, color: Colors.white70),
           onPressed: () => Navigator.pop(context, {'verified': false}),
         ),
-        title: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: primaryColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: primaryColor.withValues(alpha: 0.5)),
-          ),
-          child: const Text(
-            'STEP-UP IDENTITY CHECK',
-            style: TextStyle(
-              color: accentGreen,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: [
-            const SizedBox(height: 16),
-
-            // Auth tier indicator chips
-            _buildTierChips(accentGreen),
-
-            const SizedBox(height: 12),
-
-            // Trigger reason banner
-            if (widget.triggerReason != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFFA000).withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFF57C00), size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.triggerReason!,
-                        style: const TextStyle(
-                          color: Color(0xFF7B3F00),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
 
             // Biometric / face ring + status
             Expanded(
@@ -261,31 +209,31 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                   _tier == _AuthTier.biometric
                       ? _buildBiometricRing(accentGreen)
                       : _buildFaceRing(accentGreen),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
                   _buildStatusText(),
                   // Gesture prompt for camera tier
                   if (_tier == _AuthTier.camera && _currentGesture != null && _state == _VerificationState.idle) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       decoration: BoxDecoration(
-                        color: accentGreen.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: accentGreen.withValues(alpha: 0.3)),
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.accessibility_new, color: Color(0xFF4CAF50), size: 20),
+                          const Icon(Icons.accessibility_new, color: Colors.white, size: 20),
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
                               _currentGesture!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                color: Color(0xFF4CAF50),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
@@ -294,38 +242,20 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                     ),
                   ],
                   if (_errorMessage != null) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Text(
                       _errorMessage!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                    ),
-                  ],
-                  if (_similarityScore != null && _state == _VerificationState.failed) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Similarity: ${(_similarityScore! * 100).toStringAsFixed(1)}% (threshold: 80%)',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                     ),
                   ],
                 ],
               ),
             ),
 
-            // Legal disclosure
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'Hustlr uses device biometrics and AWS Rekognition to verify your identity. Only a numeric face embedding is stored — never your raw photo. Processed under DPDPA 2023 § 7(b) fraud prevention purpose limitation.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white24, fontSize: 10, height: 1.5),
-              ),
-            ),
-
             // CTA Button(s)
             _buildActionButtons(primaryColor, accentGreen),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -369,17 +299,44 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         ? accentGreen
         : _state == _VerificationState.failed
             ? Colors.redAccent
-            : accentGreen;
+            : Colors.white24;
 
     Widget icon;
     if (_state == _VerificationState.verifying) {
-      icon = const CircularProgressIndicator(color: Color(0xFF4CAF50), strokeWidth: 3);
+      icon = SizedBox(
+        width: 48,
+        height: 48,
+        child: CircularProgressIndicator(
+          color: accentGreen,
+          strokeWidth: 3,
+        ),
+      );
     } else if (_state == _VerificationState.success) {
-      icon = Icon(Icons.check_circle_outline_rounded, color: accentGreen, size: 64);
+      icon = Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: accentGreen,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check, color: Colors.white, size: 36),
+      );
     } else if (_state == _VerificationState.failed) {
-      icon = const Icon(Icons.highlight_off_rounded, color: Colors.redAccent, size: 64);
+      icon = Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.close, color: Colors.white, size: 36),
+      );
     } else {
-      icon = Icon(_primaryBiometricIcon(), color: Colors.white54, size: 64);
+      icon = Icon(
+        _primaryBiometricIcon(),
+        color: Colors.white,
+        size: 56,
+      );
     }
 
     final shouldPulse = _state == _VerificationState.idle;
@@ -391,19 +348,20 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         child: child,
       ),
       child: Container(
-        width: 180,
-        height: 180,
+        width: 120,
+        height: 120,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: ringColor, width: 3),
-          color: ringColor.withValues(alpha: 0.08),
-          boxShadow: [
-            BoxShadow(
-              color: ringColor.withValues(alpha: 0.25),
-              blurRadius: 40,
-              spreadRadius: 5,
-            ),
-          ],
+          color: ringColor,
+          boxShadow: shouldPulse
+              ? [
+                  BoxShadow(
+                    color: ringColor.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Center(child: icon),
       ),
@@ -415,17 +373,44 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         ? accentGreen
         : _state == _VerificationState.failed
             ? Colors.redAccent
-            : accentGreen;
+            : Colors.white24;
 
     Widget icon;
     if (_state == _VerificationState.verifying) {
-      icon = const CircularProgressIndicator(color: Color(0xFF4CAF50), strokeWidth: 3);
+      icon = SizedBox(
+        width: 48,
+        height: 48,
+        child: CircularProgressIndicator(
+          color: accentGreen,
+          strokeWidth: 3,
+        ),
+      );
     } else if (_state == _VerificationState.success) {
-      icon = Icon(Icons.check_circle_outline_rounded, color: accentGreen, size: 64);
+      icon = Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: accentGreen,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check, color: Colors.white, size: 36),
+      );
     } else if (_state == _VerificationState.failed) {
-      icon = const Icon(Icons.highlight_off_rounded, color: Colors.redAccent, size: 64);
+      icon = Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.close, color: Colors.white, size: 36),
+      );
     } else {
-      icon = const Icon(Icons.face_outlined, color: Colors.white38, size: 64);
+      icon = const Icon(
+        Icons.face_outlined,
+        color: Colors.white,
+        size: 56,
+      );
     }
 
     final shouldPulse = _state == _VerificationState.idle ||
@@ -438,19 +423,20 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         child: child,
       ),
       child: Container(
-        width: 180,
-        height: 180,
+        width: 120,
+        height: 120,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: ringColor, width: 3),
-          color: ringColor.withValues(alpha: 0.08),
-          boxShadow: [
-            BoxShadow(
-              color: ringColor.withValues(alpha: 0.25),
-              blurRadius: 40,
-              spreadRadius: 5,
-            ),
-          ],
+          color: ringColor,
+          boxShadow: shouldPulse
+              ? [
+                  BoxShadow(
+                    color: ringColor.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Center(child: icon),
       ),
@@ -462,45 +448,45 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     if (_tier == _AuthTier.biometric) {
       switch (_state) {
         case _VerificationState.idle:
-          title = 'Biometric Identity Check';
+          title = 'Authenticate';
           subtitle = _biometricAvailable
-              ? 'Use your fingerprint or Face ID to confirm your identity.'
-              : 'No biometric enrolled — use camera instead.';
+              ? 'Use your fingerprint or Face ID'
+              : 'Biometric not available';
           break;
         case _VerificationState.verifying:
-          title = 'Waiting for Biometric...';
-          subtitle = 'Approve the prompt on your device.';
+          title = 'Authenticating...';
+          subtitle = 'Touch the sensor';
           break;
         case _VerificationState.success:
-          title = 'Identity Confirmed';
-          subtitle = 'Biometric match successful. Proceeding...';
+          title = 'Success';
+          subtitle = 'Authentication successful';
           break;
         case _VerificationState.failed:
-          title = 'Biometric Failed';
-          subtitle = 'Switching to camera verification (AWS Rekognition).';
+          title = 'Authentication Failed';
+          subtitle = 'Try again or use camera';
           break;
         default:
-          title = 'Biometric Check';
+          title = 'Authenticate';
           subtitle = '';
       }
     } else {
       switch (_state) {
         case _VerificationState.idle:
         case _VerificationState.failed:
-          title = 'Face Identity Check';
-          subtitle = 'Perform the gesture below, then tap "Verify Identity".';
+          title = 'Face Verification';
+          subtitle = 'Perform the gesture shown below';
           break;
         case _VerificationState.capturing:
-          title = 'Opening Camera...';
-          subtitle = 'Please hold your phone steady in good lighting.';
+          title = 'Opening Camera';
+          subtitle = 'Hold your phone steady';
           break;
         case _VerificationState.verifying:
-          title = 'Verifying via AI...';
-          subtitle = 'Checking gesture and liveness. This takes ~3 seconds.';
+          title = 'Verifying';
+          subtitle = 'Checking liveness...';
           break;
         case _VerificationState.success:
-          title = 'Identity Confirmed';
-          subtitle = 'Similarity: ${(_similarityScore! * 100).toStringAsFixed(1)}% — Proceeding...';
+          title = 'Success';
+          subtitle = 'Verification complete';
           break;
       }
     }
