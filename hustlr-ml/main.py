@@ -22,7 +22,7 @@ import joblib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,14 +41,14 @@ from services.ring_detector import (
     detect_gps_clusters,
     test_poisson_arrivals,
 )
-from services.gnn_fraud_detection import GraphSAGEFraudDetector, FraudGraphBuilder, load_model as load_gnn_model
 
 # ?????? Model bundle cache (loaded once at startup) ????????????????????????????????????????????????????????????????????????????????????????????
 _MODEL_BUNDLE: dict | None = None
 _ISS_BUNDLE: dict | None = None
 _CHATBOT_BUNDLE: dict | None = None
-_GNN_MODEL: GraphSAGEFraudDetector | None = None
-_GNN_BUILDER: FraudGraphBuilder | None = None
+_GNN_MODEL: Any | None = None
+_GNN_BUILDER: Any | None = None
+_GNN_IMPORT_ERROR: str | None = None
 MODELS_DIR = Path(__file__).parent / "models" / "trained"
 
 @asynccontextmanager
@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
     global _ISS_BUNDLE
     global _GNN_MODEL
     global _GNN_BUILDER
+    global _GNN_IMPORT_ERROR
     
     iso_path = MODELS_DIR / "model3_isolation_forest.pkl"
     if iso_path.exists():
@@ -98,17 +99,29 @@ async def lifespan(app: FastAPI):
         }
         print("[Startup] NLP Classifier loaded.")
 
-    # Load GNN fraud detection model
+    # Load GNN fraud detection model (optional; disabled by default to keep
+    # startup stable on constrained environments like Render free tier).
+    _GNN_IMPORT_ERROR = None
+    enable_gnn = os.getenv("ENABLE_GNN_FRAUD", "false").strip().lower() == "true"
     gnn_model_path = MODELS_DIR / "gnn_fraud_detector.pt"
-    if gnn_model_path.exists():
+    if enable_gnn and gnn_model_path.exists():
         try:
+            from services.gnn_fraud_detection import (
+                FraudGraphBuilder,
+                load_model as load_gnn_model,
+            )
             _GNN_MODEL = load_gnn_model(str(gnn_model_path), node_features=6, hidden_dim=64, num_classes=2)
             _GNN_BUILDER = FraudGraphBuilder()
             print("[Startup] GNN Fraud Detection model loaded")
         except Exception as e:
+            _GNN_IMPORT_ERROR = str(e)
             print(f"[Startup] Failed to load GNN model: {e}")
             _GNN_MODEL = None
             _GNN_BUILDER = None
+    elif not enable_gnn:
+        print("[Startup] GNN fraud detection disabled (set ENABLE_GNN_FRAUD=true to enable)")
+        _GNN_MODEL = None
+        _GNN_BUILDER = None
     else:
         print("[Startup] GNN model not found ??? fraud ring detection disabled")
         _GNN_MODEL = None
@@ -122,6 +135,7 @@ async def lifespan(app: FastAPI):
     _CHATBOT_BUNDLE = None
     _GNN_MODEL = None
     _GNN_BUILDER = None
+    _GNN_IMPORT_ERROR = None
 
 
 
@@ -398,8 +412,7 @@ async def premium(req: PremiumRequest):
 async def fraud_score(req: ClaimScoreRequest):
     if _MODEL_BUNDLE is None:
         raise HTTPException(status_code=503, detail="Model not loaded ??? server starting up")
-
-    from fraud_model import poisson_timing_test
+    from services.fraud_model import poisson_timing_test
     if len(req.claim_timestamp) > 10:
         try:
             from dateutil.parser import parse
@@ -520,9 +533,12 @@ async def gnn_ring_detect(req: GNNFraudDetectRequest):
     Returns detected fraud rings with member workers and fraud probabilities.
     """
     if _GNN_MODEL is None or _GNN_BUILDER is None:
+        detail = "GNN model not loaded. Set ENABLE_GNN_FRAUD=true and provide gnn_fraud_detector.pt."
+        if _GNN_IMPORT_ERROR:
+            detail = f"{detail} Import error: {_GNN_IMPORT_ERROR}"
         raise HTTPException(
             status_code=503, 
-            detail="GNN model not loaded. Train the model first using scripts/train_model8_gnn_fraud.py"
+            detail=detail,
         )
     
     t0 = time.perf_counter()
@@ -600,7 +616,7 @@ async def model_health():
             "model_loaded":   False,
         }
 
-    model_path = Path(__file__).parent / "fraud_model.pkl"
+    model_path = MODELS_DIR / "fraud_model.pkl"
 
     return {
         "status":              "ok",
