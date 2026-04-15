@@ -156,7 +156,7 @@ class _QuickHelpGrid extends StatelessWidget {
           iconBg: lightBlue,
           title: l10n.support_call,
           subtitle: l10n.support_call_sub,
-          onTap: () => _launch('tel:+918001234567'),
+          onTap: () => _launch('tel:+911234567890'),
         ),
         _GridCard(
           icon: Icons.message_rounded,
@@ -164,7 +164,7 @@ class _QuickHelpGrid extends StatelessWidget {
           iconBg: lightGreen,
           title: l10n.support_whatsapp,
           subtitle: l10n.support_whatsapp_sub,
-          onTap: () => _launch('https://wa.me/918001234567'),
+          onTap: () => _launch('https://wa.me/911234567890'),
         ),
         _GridCard(
           icon: Icons.email_outlined,
