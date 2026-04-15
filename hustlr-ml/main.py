@@ -78,11 +78,15 @@ async def lifespan(app: FastAPI):
         
     iss_model_path = MODELS_DIR / "model1_iss_xgboost.pkl"
     if iss_model_path.exists():
-        _ISS_BUNDLE = {
-            'model': joblib.load(iss_model_path),
-            'features': joblib.load(MODELS_DIR / "model1_features.pkl"),
-        }
-        print("[Startup] ISS XGBoost model loaded")
+        try:
+            _ISS_BUNDLE = {
+                'model': joblib.load(iss_model_path),
+                'features': joblib.load(MODELS_DIR / "model1_features.pkl"),
+            }
+            print("[Startup] ISS XGBoost model loaded")
+        except Exception as e:
+            print(f"[Startup] ISS model failed to load ({e}) — will use rule engine fallback")
+            _ISS_BUNDLE = None
     else:
         print("[Startup] ISS model not found — will use rule engine fallback")
 
