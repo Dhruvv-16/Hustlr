@@ -4,6 +4,17 @@
 /// using Gemini 1.5 Flash. Falls back to a curated offline lookup
 /// dictionary if the API is unavailable (no network / offline mode).
 ///
+/// **Gemini API key:** Pass at **compile time** only (not from a `.env` file):
+/// `flutter run --dart-define=GEMINI_API_KEY=your_key`
+/// or add the same `--dart-define` to your Xcode / CI build. If the key is
+/// empty, `_fetchGeminiTranslation` is skipped and only the offline map + original
+/// English text are used.
+///
+/// **UI note:** [translateSync] returns immediately (offline/cache) and starts
+/// a background Gemini request; widgets do not rebuild when the cache updates.
+/// Use [translate] with a [FutureBuilder] if you need the screen to refresh when
+/// the API returns.
+///
 /// Usage:
 ///   final t = DynamicTranslator.of(context);
 ///   Text(await t.translate('Heavy Rain'))

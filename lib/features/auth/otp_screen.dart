@@ -116,11 +116,15 @@ class _OTPScreenState extends State<OTPScreen> {
         await box.put('userPlatform', existingUser['platform']);
         await box.put('onboardingComplete', true);
 
-        // Biometric Step-Up Authorization Gateway
-        final reason = Uri.encodeComponent(
-            'Confirm your identity to securely access Hustlr.');
+        // Existing users: if identity enrollment is missing (legacy accounts),
+        // force two-tier enrollment once; otherwise do regular step-up auth.
+        final hasEnrollment =
+            await StorageService.instance.isIdentityEnrollmentComplete();
+        final reason = Uri.encodeComponent(hasEnrollment
+            ? 'Confirm your identity to securely access Hustlr.'
+            : 'Complete one-time biometric + face enrollment to secure your account.');
         final authResult = await context.push<Map<String, dynamic>>(
-            '${AppRoutes.stepUpAuth}?reason=$reason');
+            '${AppRoutes.stepUpAuth}?reason=$reason&requireTwoTier=${!hasEnrollment}');
 
         if (authResult != null && authResult['verified'] == true) {
           context.go(AppRoutes.dashboard);

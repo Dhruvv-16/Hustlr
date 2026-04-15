@@ -49,7 +49,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
 
   void _onNext() {
     if (_currentPage == _slides.length - 1) {
-      if (mounted) context.go(AppRoutes.onboarding);
+      if (mounted) context.go(AppRoutes.kycConsent);
     } else {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 600),

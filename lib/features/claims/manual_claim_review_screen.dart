@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../blocs/claims/claims_bloc.dart';
+import '../../blocs/claims/claims_event.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/app_events.dart';
 import '../../services/api_service.dart';
 import '../../services/play_integrity_helper.dart';
 import '../../services/storage_service.dart';
 import '../../services/fraud_sensor_service.dart';
+import '../../core/router/app_router.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
   final String disruptionType;
@@ -57,7 +62,26 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (mlData['is_anomalous'] == true) {
-       sensorFeatures['gps_jitter'] = 0.0; // Force flag downstream
+       final reason = Uri.encodeComponent(
+         'Suspicious activity detected while submitting this claim. Re-verify identity to continue.',
+       );
+       final verifyResult = await context.push<Map<String, dynamic>>(
+         '${AppRoutes.stepUpAuth}?reason=$reason',
+       );
+       if (!mounted) return;
+       if (verifyResult == null || verifyResult['verified'] != true) {
+         setState(() {
+           _isSubmitting = false;
+           _mlStatusText = '';
+         });
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(
+             content: Text('Identity verification required to submit this claim.'),
+           ),
+         );
+         return;
+       }
+       sensorFeatures['gps_jitter'] = 0.0; // keep flagged trail for backend review
     } else {
        sensorFeatures['gps_jitter'] = 0.10; // Natural safe jitter
     }
@@ -102,6 +126,15 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
       integrityToken: integrityToken,
       sensorFeatures: sensorFeatures,
     );
+
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.walletUpdated();
+    if (mounted) {
+      final uid = StorageService.userId;
+      if (uid.isNotEmpty) {
+        context.read<ClaimsBloc>().add(LoadClaims(uid));
+      }
+    }
 
     if (mounted) {
       setState(() => _isSubmitting = false);

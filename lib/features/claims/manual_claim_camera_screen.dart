@@ -1,11 +1,11 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:math' as math;
 import 'package:image_picker/image_picker.dart';
-import '../../l10n/app_localizations.dart';
 
-import 'manual_claim_review_screen.dart';
+import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/primary_button.dart';
 
 class ManualClaimCameraScreen extends StatefulWidget {
   final String disruptionType;
@@ -18,11 +18,13 @@ class ManualClaimCameraScreen extends StatefulWidget {
 class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
   final ImagePicker _picker = ImagePicker();
 
+  /// On phones we show an explainer first; then open the front camera only.
+  bool _showSelfieIntro = true;
+
   @override
   void initState() {
     super.initState();
-    
-    // Auto-progress internet outages
+
     if (widget.disruptionType == 'internet_outage') {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
@@ -33,30 +35,29 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
           });
         }
       });
-    } else {
-      // Auto-launch the camera immediately instead of waiting for a button tap
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _capturePhoto();
-      });
+      return;
     }
-  }
 
-  @override
-  void dispose() {
-    super.dispose();
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _capturePhoto());
+    }
   }
 
   Future<void> _capturePhoto() async {
     try {
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      final XFile? photo = await _picker.pickImage(
+        source: kIsWeb ? ImageSource.gallery : ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 88,
+      );
       if (photo != null && mounted) {
-        // Go to review screen with the new photo
         context.pushReplacement('/claims/evidence/review', extra: {
           'disruptionType': widget.disruptionType,
           'images': [File(photo.path)],
         });
       } else if (mounted) {
-        // User cancelled camera, go back
         Navigator.pop(context);
       }
     } catch (e) {
@@ -64,17 +65,12 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
     }
   }
 
-  void _onGalleryTapped() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Live capture required for fraud prevention', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      )
-    );
+  void _onOpenSelfieCamera() {
+    setState(() => _showSelfieIntro = false);
+    _capturePhoto();
   }
 
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
@@ -91,8 +87,81 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
               const SizedBox(height: 24),
               Text(l10n.camera_internet_auto, style: const TextStyle(color: Colors.white, fontSize: 16)),
               const SizedBox(height: 8),
-              Text(l10n.camera_no_photo, style: TextStyle(color: Colors.white.withOpacity(0.5))),
+              Text(l10n.camera_no_photo, style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
             ],
+          ),
+        ),
+      );
+    }
+
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: primaryColor),
+        ),
+      );
+    }
+
+    if (_showSelfieIntro) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
+                Icon(Icons.camera_front_outlined, color: primaryColor, size: 56),
+                const SizedBox(height: 24),
+                Text(
+                  l10n.claim_camera_selfie_title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.claim_camera_selfie_body,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.step_up_face_ml_notice,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.amber.shade200,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.claim_camera_selfie_hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 12,
+                  ),
+                ),
+                const Spacer(),
+                PrimaryButton(
+                  text: l10n.claim_camera_selfie_cta,
+                  onPressed: _onOpenSelfieCamera,
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       );

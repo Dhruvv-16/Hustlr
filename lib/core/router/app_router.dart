@@ -9,6 +9,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_screen.dart';
 import '../../features/auth/step_up_auth_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/onboarding/kyc_data_consent_screen.dart';
 import '../../features/onboarding/onboarding_complete_screen.dart';
 import '../../features/onboarding/onboarding_carousel_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
@@ -46,6 +47,7 @@ class AppRoutes {
   static const splash = '/';
   static const login = '/login';
   static const otp = '/otp';
+  static const kycConsent = '/kyc-consent';
   static const onboarding = '/onboarding';
   static const onboardingComplete = '/onboarding/complete';
   static const carousel = '/carousel';
@@ -136,7 +138,17 @@ final GoRouter appRouter = GoRouter(
       builder: (_, __) => const OnboardingCarouselScreen(),
     ),
     GoRoute(
+      path: AppRoutes.kycConsent,
+      builder: (_, __) => const KycDataConsentScreen(),
+    ),
+    GoRoute(
       path: AppRoutes.onboarding,
+      redirect: (context, state) {
+        if (StorageService.needsKycDataConsent) {
+          return AppRoutes.kycConsent;
+        }
+        return null;
+      },
       builder: (_, __) => const OnboardingScreen(),
     ),
     GoRoute(
@@ -310,7 +322,12 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.stepUpAuth,
       builder: (context, state) {
         final reason = state.uri.queryParameters['reason'];
-        return StepUpAuthScreen(triggerReason: reason);
+        final requireTwoTier =
+            state.uri.queryParameters['requireTwoTier'] == 'true';
+        return StepUpAuthScreen(
+          triggerReason: reason,
+          requireTwoTier: requireTwoTier,
+        );
       },
     ),
   ],

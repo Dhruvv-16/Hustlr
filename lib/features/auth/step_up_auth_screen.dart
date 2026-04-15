@@ -8,6 +8,7 @@ import 'package:local_auth/local_auth.dart';
 import '../../services/api_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/biometric_service.dart';
+import '../../l10n/app_localizations.dart';
 
 /// AWS Rekognition Step-Up Identity Verification Screen
 /// Triggered on: behavioral anomaly, high-value claims (>=300),
@@ -19,8 +20,13 @@ import '../../core/services/biometric_service.dart';
 class StepUpAuthScreen extends StatefulWidget {
   /// Optional reason string shown to the user explaining why this was triggered
   final String? triggerReason;
+  final bool requireTwoTier;
 
-  const StepUpAuthScreen({super.key, this.triggerReason});
+  const StepUpAuthScreen({
+    super.key,
+    this.triggerReason,
+    this.requireTwoTier = false,
+  });
 
   @override
   State<StepUpAuthScreen> createState() => _StepUpAuthScreenState();
@@ -38,6 +44,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   double? _similarityScore;
   bool _biometricAvailable = false;
   List<BiometricType> _enrolledBiometrics = [];
+  bool _biometricPassed = false;
 
   // Gesture-based liveness (Oasis-style)
   final List<String> _gestures = [
@@ -96,10 +103,21 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     if (!mounted) return;
 
     if (result.success) {
-      setState(() => _state = _VerificationState.success);
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) {
-        Navigator.pop(context, {'verified': true, 'method': 'biometric'});
+      if (widget.requireTwoTier) {
+        setState(() {
+          _biometricPassed = true;
+          _tier = _AuthTier.camera;
+          _state = _VerificationState.idle;
+        });
+      } else {
+        setState(() => _state = _VerificationState.success);
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) {
+          await _completeAndExit(
+            method: 'biometric',
+            similarityScore: null,
+          );
+        }
       }
     } else {
       setState(() {
@@ -162,11 +180,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       if (verified) {
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
-          Navigator.pop(context, {
-            'verified': true,
-            'similarity_score': score,
-            'method': 'rekognition',
-          });
+          await _completeAndExit(
+            method: widget.requireTwoTier ? 'biometric+rekognition' : 'rekognition',
+            similarityScore: score,
+          );
         }
       }
     } catch (e) {
@@ -178,6 +195,23 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────────
+
+  Future<void> _completeAndExit({
+    required String method,
+    required double? similarityScore,
+  }) async {
+    if (widget.requireTwoTier) {
+      await StorageService.instance.markIdentityEnrollmentComplete();
+    } else {
+      await StorageService.instance.markIdentityVerifiedNow();
+    }
+    if (!mounted) return;
+    Navigator.pop(context, {
+      'verified': true,
+      'similarity_score': similarityScore,
+      'method': method,
+    });
+  }
 
   @override
   void dispose() {
@@ -449,6 +483,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   }
 
   Widget _buildStatusText() {
+    final l10n = AppLocalizations.of(context)!;
     String title, subtitle;
     if (_tier == _AuthTier.biometric) {
       switch (_state) {
@@ -478,12 +513,21 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       switch (_state) {
         case _VerificationState.idle:
         case _VerificationState.failed:
-          title = 'Face Verification';
-          subtitle = 'Perform the gesture shown below';
+          title = widget.requireTwoTier
+              ? (_biometricPassed ? 'Face Verification (Step 2/2)' : 'Face Verification')
+              : 'Face Verification';
+          final selfie = l10n.step_up_face_selfie_notice;
+          final ml = l10n.step_up_face_ml_notice;
+          if (widget.requireTwoTier && _biometricPassed) {
+            subtitle =
+                '$selfie\n\n$ml\n\nBiometric complete. Perform the gesture to finish enrollment.';
+          } else {
+            subtitle = '$selfie\n\n$ml\n\nPerform the gesture shown below.';
+          }
           break;
         case _VerificationState.capturing:
-          title = 'Opening Camera';
-          subtitle = 'Hold your phone steady';
+          title = l10n.step_up_face_capturing;
+          subtitle = l10n.step_up_face_hold;
           break;
         case _VerificationState.verifying:
           title = 'Verifying';
@@ -595,7 +639,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             ),
           ),
         ),
-        if (_biometricAvailable) ...[
+        if (_biometricAvailable && !widget.requireTwoTier) ...[
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => setState(() {

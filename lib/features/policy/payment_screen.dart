@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
 
+import 'razorpay_bridge_io.dart' if (dart.library.html) 'razorpay_bridge_web.dart'
+    as razorpay_bridge;
+
+import '../../blocs/claims/claims_bloc.dart';
+import '../../blocs/claims/claims_event.dart';
+import '../../blocs/policy/policy_bloc.dart';
+import '../../blocs/policy/policy_event.dart';
 import '../../core/router/app_router.dart';
 import '../../services/api_service.dart';
 import '../../services/app_events.dart';
@@ -19,26 +27,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _loading = false;
   int _walletBalance = 0;
   bool _useRazorpay = true; // Razorpay vs Wallet toggle
-  
-  late Razorpay _razorpay;
 
   @override
   void initState() {
     super.initState();
     _loadBalance();
-    _initRazorpay();
-  }
-
-  void _initRazorpay() {
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (!kIsWeb) {
+      razorpay_bridge.initializeRazorpay(
+        onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
+        onPaymentError: (message) {
+          if (!mounted) return;
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment failed: $message'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        },
+        onExternalWallet: (walletName) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('External wallet: $walletName'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        },
+      );
+    }
   }
 
   @override
   void dispose() {
-    _razorpay.clear();
+    if (!kIsWeb) razorpay_bridge.disposeRazorpay();
     super.dispose();
   }
 
@@ -55,37 +77,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } catch (_) {}
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    // Payment successful - verify and create policy
-    _verifyAndCreatePolicy(response.paymentId ?? 'unknown');
-  }
-
-  void _handlePaymentError(PaymentFailureResponse response) {
-    setState(() => _loading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Payment failed: ${response.message}'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  void _handleExternalWallet(ExternalWalletResponse response) {
-    // External wallet selected
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('External wallet: ${response.walletName}'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-  }
-
   void _openRazorpayCheckout() async {
     setState(() => _loading = true);
     
     final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
     final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
     final userId = await StorageService.instance.getUserId();
+
+    // Web fallback: use backend sandbox flow since razorpay_flutter callbacks
+    // can be unreliable/not supported in Flutter web contexts.
+    if (kIsWeb) {
+      await _startWebSandboxPayment(
+        total: total,
+        planName: planName.toString(),
+        userId: userId,
+      );
+      return;
+    }
     
     // Razorpay test key (sandbox mode)
     const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; // Replace with your test key
@@ -111,7 +119,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     };
 
     try {
-      _razorpay.open(options);
+      razorpay_bridge.openRazorpay(options);
     } catch (e) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,34 +131,87 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  void _verifyAndCreatePolicy(String paymentId) async {
+  Future<void> _startWebSandboxPayment({
+    required int total,
+    required String planName,
+    required String? userId,
+  }) async {
     try {
-      final userId = await StorageService.instance.getUserId();
-      if (userId != null) {
-        final planName = widget.checkoutData?['plan'] ?? 'standard';
-        
-        // Verify payment with backend (optional for sandbox)
-        // await ApiService.instance.verifyRazorpayPayment(paymentId);
-        
-        // Create policy
-        final result = await ApiService.instance.createPolicy(
-          userId: userId,
-          planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
-        );
-        final policyId = result['policy']?['id'] as String?;
-        if (policyId != null) {
-          await StorageService.instance.savePolicyId(policyId);
-          AppEvents.instance.policyUpdated();
-          AppEvents.instance.walletUpdated();
-        }
+      final session = await ApiService.instance.createPaymentSandboxSession(
+        provider: 'razorpay',
+        amount: total,
+        description: '$planName Coverage',
+        userId: userId,
+        metadata: {
+          'plan': planName,
+          'source': 'flutter_web_payment_screen',
+        },
+      );
+
+      final sessionId = session['session_id']?.toString();
+      if (sessionId == null || sessionId.isEmpty) {
+        throw Exception('Sandbox session not created');
       }
+
+      await ApiService.instance.confirmPaymentSandbox(
+        provider: 'razorpay',
+        amount: total,
+        sessionId: sessionId,
+        userId: userId,
+        metadata: {
+          'plan': planName,
+          'simulated': true,
+        },
+      );
+
+      await _verifyAndCreatePolicy('sandbox_$sessionId');
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error creating policy: $e'),
+          content: Text('Web sandbox payment failed: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _verifyAndCreatePolicy(String paymentId) async {
+    try {
+      final userId = await StorageService.instance.getUserId();
+      if (userId == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final planName = widget.checkoutData?['plan'] ?? 'standard';
+
+      final result = await ApiService.instance.createPolicy(
+        userId: userId,
+        planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
+      );
+      final policyId = result['policy']?['id'] as String?;
+      if (policyId != null) {
+        await StorageService.instance.savePolicyId(policyId);
+      }
+
+      AppEvents.instance.policyUpdated();
+      AppEvents.instance.walletUpdated();
+      if (mounted) {
+        context.read<PolicyBloc>().add(LoadPolicy(userId));
+        context.read<ClaimsBloc>().add(LoadClaims(userId));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating policy: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
     }
 
     if (!mounted) return;
@@ -199,8 +260,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
         await StorageService.instance.savePolicyId(policyId);
-        AppEvents.instance.policyUpdated();
-        AppEvents.instance.walletUpdated();
+      }
+
+      AppEvents.instance.policyUpdated();
+      AppEvents.instance.walletUpdated();
+      if (mounted) {
+        context.read<PolicyBloc>().add(LoadPolicy(userId));
+        context.read<ClaimsBloc>().add(LoadClaims(userId));
       }
 
       if (!mounted) return;

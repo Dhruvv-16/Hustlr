@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../blocs/claims/claims_bloc.dart';
+import '../../../blocs/claims/claims_event.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../services/app_events.dart';
@@ -98,6 +101,9 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
       );
       AppEvents.instance.claimUpdated();
       AppEvents.instance.walletUpdated();
+      if (mounted) {
+        context.read<ClaimsBloc>().add(LoadClaims(userId));
+      }
 
       if (mounted) {
         setState(() {

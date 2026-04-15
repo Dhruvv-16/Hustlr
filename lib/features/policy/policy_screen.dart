@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
@@ -6,6 +8,7 @@ import '../../shared/widgets/hustlr_bottom_nav.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
+import '../../services/app_events.dart';
 import '../../services/storage_service.dart';
 
 // Dark mode palette
@@ -77,12 +80,16 @@ class _PolicyScreenState extends State<PolicyScreen>
   Map<String, dynamic>? activePolicy;
   List<Map<String, dynamic>> policyHistory = [];
   bool isLoading = true;
+  StreamSubscription<void>? _policySub;
+  StreamSubscription<void>? _walletSub;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
     _loadPolicy();
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadPolicy());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadPolicy());
   }
 
   Future<void> _loadPolicy() async {
@@ -114,6 +121,8 @@ class _PolicyScreenState extends State<PolicyScreen>
 
   @override
   void dispose() {
+    _policySub?.cancel();
+    _walletSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -329,6 +338,10 @@ class _LiveHistoryTab extends StatelessWidget {
               ),
             ),
           ),
+        const SizedBox(height: 28),
+        _sectionLabel(context, 'POLICY DISCLOSURE'),
+        const SizedBox(height: 12),
+        _policyDisclosureCard(context),
       ],
     );
   }
@@ -355,6 +368,10 @@ class _CurrentPlanTab extends StatelessWidget {
         _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
         _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
         _coverageItem(context, Icons.edit_document,         'Manual Disruption Filing', 'Report untracked disruptions manually'),
+        const SizedBox(height: 24),
+        _sectionLabel(context, 'POLICY DISCLOSURE'),
+        const SizedBox(height: 12),
+        _policyDisclosureCard(context),
       ]),
     );
   }
@@ -576,11 +593,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
-    final textSub = theme.colorScheme.onSurface.withOpacity(0.5);
+    final theme = Theme.of(context);
     _selectedPlan ??= AppLocalizations.of(context)!.policy_standard;
 
     return Stack(children: [
@@ -641,40 +654,9 @@ class _UpgradeTabState extends State<_UpgradeTab> {
             ),
           ),
           const SizedBox(height: 20),
-          // Insurance Disclosure
-          GestureDetector(
-            onTap: () => context.push(AppRoutes.insuranceCompliance),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: green.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.verified_user_rounded, color: green, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Insurance Disclosure',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
-                        ),
-                        Text(
-                          'IRDAI compliance & data protection',
-                          style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.5)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios_rounded, color: green, size: 16),
-                ],
-              ),
-            ),
-          ),
+          _sectionLabel(context, 'POLICY DISCLOSURE'),
+          const SizedBox(height: 12),
+          _policyDisclosureCard(context),
         ]),
       ),
       Positioned(
@@ -1108,6 +1090,59 @@ class _HistoryTab extends StatelessWidget {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Regulatory / IRDAI disclosure; opens [InsuranceComplianceScreen].
+Widget _policyDisclosureCard(BuildContext context) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final green = theme.colorScheme.primary;
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: () => context.push(AppRoutes.insuranceCompliance),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: green.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.verified_user_rounded, color: green, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Insurance & data disclosure',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'IRDAI norms, DPDP, triggers & payouts — tap to read',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: green, size: 16),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 Widget _sectionLabel(BuildContext context, String text) {
   final hintColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.4);
   return Text(

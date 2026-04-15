@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -165,6 +166,19 @@ class OnboardingCompleteScreen extends StatelessWidget {
                     child: PrimaryButton(
                       text: 'Enable Zone Protection →',
                       onPressed: () async {
+                        if (kIsWeb) {
+                          // permission_handler is not implemented on web.
+                          try {
+                            await Geolocator.getCurrentPosition(
+                              locationSettings: const LocationSettings(
+                                accuracy: LocationAccuracy.high,
+                                timeLimit: Duration(seconds: 8),
+                              ),
+                            );
+                          } catch (_) {}
+                          if (context.mounted) _goToDashboard(context);
+                          return;
+                        }
                         final status = await Permission.locationWhenInUse.request();
                         if (!status.isGranted) return;
 

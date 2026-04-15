@@ -9,6 +9,7 @@ import '../../core/services/storage_service.dart';
 import '../../services/notification_service.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/primary_button.dart';
+import '../../l10n/app_localizations.dart';
 
 const _cities = ['Chennai', 'Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad'];
 const _platforms = ['Zepto', 'Blinkit', 'Swiggy Instamart', 'Dunzo', 'BB Now'];
@@ -121,17 +122,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       Provider.of<MockDataService>(context, listen: false).syncWithStorage();
       
-      // Biometric Enrollment Gateway
-      final reason = Uri.encodeComponent('Please complete biometric setup to secure your account.');
-      final authResult = await context.push<Map<String, dynamic>>('${AppRoutes.stepUpAuth}?reason=$reason');
+      // First-time identity enrollment: require biometric + face verification.
+      final reason = Uri.encodeComponent(
+        'First-time setup: complete biometric and face verification to secure your account.',
+      );
+      final authResult = await context.push<Map<String, dynamic>>(
+        '${AppRoutes.stepUpAuth}?reason=$reason&requireTwoTier=true',
+      );
       
       if (!mounted) return;
       if (authResult != null && authResult['verified'] == true) {
         context.go(AppRoutes.onboardingComplete);
       } else {
-        // If they bypass or fail, we still consider onboarding 'complete' but they will be challenged on login next time.
-        // Or we could force it. Let's let them through for now since onboardingComplete=true is set.
-        context.go(AppRoutes.onboardingComplete);
+        _showError('Identity verification is required to finish onboarding.');
       }
     } catch (e) {
       print('Onboarding error: $e'); // Debug print
@@ -277,6 +280,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final isDark = theme.brightness == Brightness.dark;
     final inputRadius = BorderRadius.circular(isDark ? 24 : 16);
 
@@ -484,7 +488,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text('PLATFORM VERIFICATION', style: theme.textTheme.labelSmall),
             const SizedBox(height: 4),
             Text(
-              'Enter your $_selectedPlatform Delivery ID or registered Aadhaar',
+              l10n.onboarding_kyc_helper,
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
             ),
             const SizedBox(height: 12),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../services/app_events.dart';
 import '../services/storage_service.dart';
 import '../services/notification_service.dart';
 
@@ -487,6 +487,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
         severity:      0.85,
         durationHours: 3.0,
       );
+      AppEvents.instance.claimUpdated();
+      AppEvents.instance.walletUpdated();
 
       // 3. Fire notification
       NotificationService.instance.addClaimCreated(
@@ -498,10 +500,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
       // 4. Auto-approve fires (backend does this after 5s)
       _showStep('Claim auto-approved...');
-      NotificationService.instance.addClaimApproved(
-        triggerType: 'Heavy Rain',
-        amount: 105,
-      );
+      NotificationService.instance.addClaimApproved(105);
       NotificationService.instance.addWalletCredited(amount: 105);
 
       _showSuccess('Karthik received ₹105. Navigate to Claims and Wallet to see.');
@@ -530,6 +529,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
         severity:      1.0,
         durationHours: 4.0,
       );
+      AppEvents.instance.claimUpdated();
+      AppEvents.instance.walletUpdated();
 
       NotificationService.instance.addDisruptionAlert(
         triggerType: 'Platform + Rain (Compound)',
@@ -588,6 +589,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
           'fps_override':   87,
         },
       );
+      AppEvents.instance.claimUpdated();
+      AppEvents.instance.walletUpdated();
     } catch (e) {
       // Even if API doesn't support extra fields, show the UI
     }
@@ -640,6 +643,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
         severity:      0.90,
         durationHours: 2.5,
       );
+      AppEvents.instance.claimUpdated();
+      AppEvents.instance.walletUpdated();
 
       NotificationService.instance.addClaimCreated(
         triggerType: 'Internet Zone Blackout',
@@ -686,9 +691,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   void _showSuccess(String message) {
     if (!mounted) return;
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -702,7 +707,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Done',
               style: TextStyle(color: Color(0xFF2E7D32))),
           ),

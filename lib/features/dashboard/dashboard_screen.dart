@@ -80,6 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // API health check results
   Map<String, String> _apiHealthStatus = {};
+  bool _reverifyPromptOpen = false;
 
   @override
   void initState() {
@@ -96,6 +97,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     ShiftTrackingService.instance.addListener(_onShiftUpdate);
 
     _loadDashboardData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeRunRiskIdentityReview();
+    });
     _disruptionRefreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
       if (!mounted) return;
       _loadDashboardData();
@@ -130,8 +134,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   /// real coordinates without requiring the user to physically move first.
   Future<void> _fetchInitialLocation() async {
     try {
-      final hasPermission = await Permission.locationWhenInUse.isGranted;
-      if (!hasPermission) return;
+      if (kIsWeb) {
+        var p = await Geolocator.checkPermission();
+        if (p == LocationPermission.denied) {
+          p = await Geolocator.requestPermission();
+        }
+        if (p == LocationPermission.denied ||
+            p == LocationPermission.deniedForever) {
+          return;
+        }
+      } else {
+        final hasPermission = await Permission.locationWhenInUse.isGranted;
+        if (!hasPermission) return;
+      }
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
@@ -224,6 +239,62 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _backgroundTrackingActive = bgStatus.isGranted && gpsEnabled;
       });
     }
+  }
+
+  Future<void> _maybeRunRiskIdentityReview() async {
+    if (!mounted || _reverifyPromptOpen) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastRiskReview = StorageService.getInt('lastRiskReviewAt') ?? 0;
+    const minGapMs = 15 * 60 * 1000; // do not recheck too frequently
+    if (now - lastRiskReview < minGapMs) return;
+    await StorageService.setLastRiskReviewAt(now);
+
+    final hasEnrollment =
+        await StorageService.instance.isIdentityEnrollmentComplete();
+    bool shouldChallenge = !hasEnrollment;
+    bool isRiskTriggered = false;
+
+    if (!shouldChallenge) {
+      try {
+        final sensor = await FraudSensorService.collectPayload();
+        final ml = await ApiService.instance.validateFraudTelemetry(sensor);
+        final anomalous = ml['is_anomalous'] == true;
+        final fps = (ml['fps_score'] as num?)?.toDouble() ?? 0.0;
+        isRiskTriggered = anomalous || fps >= 0.75;
+      } catch (_) {
+        isRiskTriggered = false;
+      }
+      final randomAudit = math.Random().nextInt(100) < 3; // 3% random checks
+      shouldChallenge = isRiskTriggered || randomAudit;
+    }
+
+    if (!shouldChallenge || !mounted) return;
+
+    _reverifyPromptOpen = true;
+    final reason = Uri.encodeComponent(
+      !hasEnrollment
+          ? 'Complete first-time identity enrollment to secure your account.'
+          : (isRiskTriggered
+              ? 'Suspicious account activity detected. Re-verify your identity to continue.'
+              : 'Quick security check: please re-verify your identity.'),
+    );
+    final requireTwoTier = !hasEnrollment;
+    final result = await context.push<Map<String, dynamic>>(
+      '${AppRoutes.stepUpAuth}?reason=$reason&requireTwoTier=$requireTwoTier',
+    );
+    _reverifyPromptOpen = false;
+
+    if (!mounted) return;
+    if (result != null && result['verified'] == true) {
+      await StorageService.instance.markIdentityVerifiedNow();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Identity verification was not completed.'),
+      ),
+    );
   }
 
   @override
@@ -617,7 +688,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              l10n.dashboard_title,
+              l10n.nav_home,
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -890,7 +961,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ...windows.take(2).map((w) {
               final m = w is Map<String, dynamic> ? w : null;
               if (m == null) return const SizedBox.shrink();
-              final label = t.translate(m['label'] as String? ?? '');
+              final label = t.translateSync(m['label'] as String? ?? '');
               final hours = m['hours'] as String? ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -1110,6 +1181,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             // Guard: don't start if already active or loading
             if (isLoading || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
             setState(() => isLoading = true);
+            // permission_handler is not implemented on web (UnimplementedError).
+            if (kIsWeb) {
+              try {
+                final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                await ShiftTrackingService.instance.startShift(zone);
+                AppEvents.instance.profileUpdated();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not go online on web: $e')),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => isLoading = false);
+              }
+              return;
+            }
             try {
               final permStatus = await Permission.locationWhenInUse.status;
               if (!permStatus.isGranted) {

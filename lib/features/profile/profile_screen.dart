@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
+import '../../services/app_events.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/biometric_service.dart';
 import '../../shared/widgets/mobile_container.dart';
@@ -34,11 +36,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   };
   bool _isLoading = true;
   bool _biometricEnabled = false;
+  StreamSubscription<void>? _policySub;
+  StreamSubscription<void>? _claimSub;
+  StreamSubscription<void>? _walletSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadData());
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadData());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _policySub?.cancel();
+    _claimSub?.cancel();
+    _walletSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -76,11 +92,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override

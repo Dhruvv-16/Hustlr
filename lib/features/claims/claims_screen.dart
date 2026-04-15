@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../services/app_events.dart';
 import '../../services/storage_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../shared/widgets/notification_bell.dart';
@@ -17,11 +20,25 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _claims = [];
+  StreamSubscription<void>? _claimSub;
+  StreamSubscription<void>? _walletSub;
+  StreamSubscription<void>? _policySub;
 
   @override
   void initState() {
     super.initState();
     _loadClaims();
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadClaims());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadClaims());
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadClaims());
+  }
+
+  @override
+  void dispose() {
+    _claimSub?.cancel();
+    _walletSub?.cancel();
+    _policySub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadClaims() async {
