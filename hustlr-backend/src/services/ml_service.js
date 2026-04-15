@@ -1,218 +1,217 @@
+/**
+ * ml_service.js
+ * Thin HTTP client for the Python FastAPI ML microservice.
+ * Falls back gracefully to rule-based logic if the ML service is offline.
+ */
+
 const axios = require('axios');
 
-const ML_URL = process.env.ML_SERVICE_URL;
-const TIMEOUT = 4000;
+const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
+const TIMEOUT = 5000; // 5s — never block a claim payout waiting for ML
 
-// ── Fraud Scoring ──────────────────────────────────────────
+let _mlOnline = false;
+let _lastCheck = 0;
 
-async function getFraudScore(data) {
-  if (!ML_URL) {
-    console.warn('[ML] ML_SERVICE_URL not set — using local fallback');
-    return _localFraudFallback(data);
-  }
-
-  try {
-    const res = await axios.post(`${ML_URL}/fraud-score`, {
-      worker_id:       data.worker_id   || 'unknown',
-      zone_id:         data.zone_id     || 'adyar',
-      claim_timestamp: new Date().toISOString(),
-      feature_vector: {
-        // Node.js native fields
-        zone_match:            data.zone_match       ?? 0.85,
-        gps_jitter:            data.gps_jitter       ?? 0.10,
-        accelerometer_match:   data.accel_match      ?? 0.90,
-        wifi_home_ssid:        data.wifi_home        ?? false,
-        days_since_onboarding: data.days_active      ?? 30,
-        // Extended fields when available
-        claim_latency_seconds:              data.latency_seconds      ?? 120,
-        simultaneous_zone_claims:           data.zone_claim_count     ?? 1,
-        zone_depth_score:                   data.depth_score          ?? 0.75,
-        is_mock_location_ever:              data.is_mock_location     ?? false,
-        orders_completed_during_disruption: data.orders_during        ?? 0,
-        device_shared_with_n_accounts:      data.device_share_count   ?? 1,
-      },
-    }, { timeout: TIMEOUT });
-
-    // Map Python response to Node.js expected shape
-    const d = res.data;
-    const rawScore = d.anomaly_score ?? 0;
-    const fps = Math.round(rawScore * 100);
-
-    return {
-      fraud_score:    fps,
-      status:         fps >= 80 ? 'FLAGGED' : fps >= 50 ? 'REVIEW' : 'CLEAN',
-      action:         fps >= 80 ? 'HUMAN_REVIEW' : fps >= 50 ? 'SOFT_HOLD' : 'AUTO_APPROVE',
-      top_features:   d.top_features   || [],
-      poisson_p_value: d.poisson_p_value ?? null,
-      model_used:     d.model_version  || 'isolation_forest_v3',
-      source:         'ml_service',
-    };
-
-  } catch (e) {
-    console.error('[ML] /fraud-score failed:', e.message, '— using fallback');
-    return _localFraudFallback(data);
-  }
-}
-
-// ── ISS Score ──────────────────────────────────────────────
-
-async function getISSScore(data) {
-  if (!ML_URL) return _localISSFallback(data);
-
-  try {
-    const res = await axios.post(`${ML_URL}/iss`, {
-      zone_flood_risk:        data.zone_flood_risk       ?? 0.60,
-      avg_daily_income:       data.avg_daily_income      ?? 600,
-      disruption_freq_12mo:   data.disruption_freq       ?? 8,
-      platform_tenure_weeks:  data.tenure_weeks          ?? 4,
-      city:                   data.city                  ?? 'Chennai',
-    }, { timeout: TIMEOUT });
-
-    return {
-      iss_score:    res.data.iss_score,
-      tier:         res.data.tier,
-      recommendation: res.data.recommendation,
-      model_used:   res.data.model_used,
-      source:       'ml_service',
-    };
-
-  } catch (e) {
-    console.error('[ML] /iss failed:', e.message, '— using fallback');
-    return _localISSFallback(data);
-  }
-}
-
-// ── Premium Calculation ────────────────────────────────────
-
-async function getPremium(data) {
-  if (!ML_URL) return _localPremiumFallback(data);
-
-  try {
-    const res = await axios.post(`${ML_URL}/premium`, {
-      plan_tier:         data.plan_tier         ?? 'standard',
-      zone:              data.zone              ?? 'Adyar Dark Store Zone',
-      iss_score:         data.iss_score         ?? 62,
-      previous_premium:  data.previous_premium  ?? 0,
-    }, { timeout: TIMEOUT });
-
-    return {
-      plan_tier:       res.data.plan_tier,
-      base_premium:    res.data.base_premium,
-      zone_adjustment: res.data.zone_adjustment,
-      final_premium:   res.data.final_premium,
-      note:            res.data.note,
-      source:          'ml_service',
-    };
-
-  } catch (e) {
-    console.error('[ML] /premium failed:', e.message, '— using fallback');
-    return _localPremiumFallback(data);
-  }
-}
-
-// ── Forecast ───────────────────────────────────────────────
-
-async function getForecast(zone) {
-  if (!ML_URL) return null;
-
-  const zoneKey = zone
-    .toLowerCase()
-    .replace(' dark store zone', '')
-    .replace(/ /g, '_');
-
-  try {
-    const res = await axios.get(
-      `${ML_URL}/forecast/${encodeURIComponent(zoneKey)}`,
-      { timeout: 5000 }
-    );
-    return res.data;
-  } catch (e) {
-    console.error('[ML] /forecast failed:', e.message);
-    return null;
-  }
-}
-
-// ── Fallbacks ─────────────────────────────────────────────
-// These are called when ML service is unreachable.
-// They use deterministic logic — NOT random numbers.
-
-function _localFraudFallback(data) {
-  let score = 10;  // start clean
-
-  if ((data.gps_jitter ?? 0.1) < 0.000001) score += 80;
-  if ((data.days_active ?? 30) < 14)        score += 20;
-  if ((data.wifi_home ?? false))             score += 20;
-  if ((data.zone_claim_count ?? 1) > 50)    score += 35;
-
-  const hour = new Date().getHours();
-  if (hour < 8 || hour > 22) score += 15;
-
-  score = Math.min(100, score);
-
-  return {
-    fraud_score: score,
-    status:  score >= 80 ? 'FLAGGED' : score >= 50 ? 'REVIEW' : 'CLEAN',
-    action:  score >= 80 ? 'HUMAN_REVIEW' : score >= 50 ? 'SOFT_HOLD' : 'AUTO_APPROVE',
-    source:  'local_fallback',
-    model_used: 'rule_engine_v2',
-  };
-}
-
-function _localISSFallback(data) {
-  let score = 100;
-  score -= (data.zone_flood_risk ?? 0.6) * 20;
-  score -= Math.min(data.disruption_freq ?? 8, 15);
-  score += Math.min((data.avg_daily_income ?? 600) / 200, 10);
-  score += Math.min((data.tenure_weeks ?? 4) / 10, 8);
-  score = Math.max(0, Math.min(100, Math.round(score)));
-
-  const tier = score >= 70 ? 'GREEN'
-             : score >= 50 ? 'AMBER'
-             : score >= 30 ? 'AMBER_LOW'
-             : 'RED';
-
-  return {
-    iss_score:    score,
-    tier,
-    recommendation: score >= 70 ? 'basic' : score >= 40 ? 'standard' : 'full',
-    model_used:   'rule_engine_local',
-    source:       'local_fallback',
-  };
-}
-
-function _localPremiumFallback(data) {
-  const base = { basic: 35, standard: 49, full: 79 }[data.plan_tier] ?? 49;
-  const zone_adj = {
-    'Adyar Dark Store Zone': 5,
-    'Velachery Dark Store Zone': 7,
-    'Tambaram Dark Store Zone': 4,
-  }[data.zone] ?? 0;
-
-  return {
-    plan_tier: data.plan_tier,
-    base_premium: base,
-    zone_adjustment: zone_adj,
-    final_premium: Math.min(98, base + zone_adj),
-    note: 'Fixed pricing — fallback calculation',
-    source: 'local_fallback',
-  };
-}
-
-// ── Health Check ───────────────────────────────────────────
+/** Ping the ML service and cache the result for 30s */
 async function isMlOnline() {
-  if (!ML_URL) return false;
+  if (Date.now() - _lastCheck < 30_000) return _mlOnline;
   try {
-    const res = await axios.get(`${ML_URL}/health`, { timeout: 2000 });
-    return res.data?.status === 'ok';
-  } catch (e) {
-    return false;
+    await axios.get(`${ML_URL}/health`, { timeout: 2000 });
+    _mlOnline  = true;
+  } catch {
+    _mlOnline  = false;
+  }
+  _lastCheck = Date.now();
+  return _mlOnline;
+}
+
+// ── ISS Score ────────────────────────────────────────────────────────────────
+async function getISSScore({
+  zone_flood_risk = 0.5,
+  avg_daily_income = 600,
+  disruption_freq_12mo = 10,
+  claims_history_penalty = 0,
+  bandh_freq_zone = 4,
+  platform_outage_per_mo = 2,
+  coastal_zone = false,
+  city = 'Chennai',
+} = {}) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/iss`, {
+      zone_flood_risk, avg_daily_income, disruption_freq_12mo,
+      claims_history_penalty, bandh_freq_zone, platform_outage_per_mo,
+      coastal_zone, use_ml: true, city,
+      use_weather_prior: process.env.USE_ISS_WEATHER_PRIOR === 'true',
+    }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    // Rule-based fallback
+    let score = 100;
+    score -= zone_flood_risk * 20;
+    score -= Math.min(disruption_freq_12mo, 15);
+    score += Math.min(avg_daily_income / 200, 10);
+    score -= claims_history_penalty;
+    const iss = Math.max(0, Math.min(100, Math.round(score)));
+    return {
+      iss_score: iss,
+      risk_band: iss < 50 ? 'HIGH' : iss < 70 ? 'MEDIUM' : 'LOW',
+      recommended_tier: iss < 40 ? 'Full Shield' : iss < 65 ? 'Standard Shield' : 'Basic Shield',
+      _source: 'rule_fallback',
+    };
+  }
+}
+
+// ── Fraud Score ──────────────────────────────────────────────────────────────
+async function getFraudScore({
+  zone_depth_score = 0.8,
+  days_since_onboard = 90,
+  simultaneous_zone_claims = 0,
+  play_integrity_pass = true,
+  is_mock_location = false,
+  ndma_emergency_active = false,
+  // device signals default to 0 (clean)
+  gps_zone_mismatch = 0,
+  wifi_home_ssid = 0,
+  battery_charging = 0,
+  accelerometer_idle = 0,
+  platform_app_inactive = 0,
+  ip_home_match = 0,
+  claim_latency_under30s = 0,
+} = {}) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/fraud`, {
+      zone_depth_score, days_since_onboard, simultaneous_zone_claims,
+      play_integrity_pass, is_mock_location, ndma_emergency_active,
+      gps_zone_mismatch, wifi_home_ssid, battery_charging,
+      accelerometer_idle, platform_app_inactive, ip_home_match,
+      claim_latency_under30s,
+    }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    // Simple fallback matching existing fraud_engine.js tiers
+    const fps = days_since_onboard < 14 ? 0.4 : 0.1;
+    const tier = fps < 0.31 ? 'GREEN' : fps < 0.61 ? 'YELLOW' : 'RED';
+    return {
+      fps_score: fps,
+      fps_tier: tier,
+      action: tier === 'GREEN' ? 'AUTO_APPROVE' : tier === 'YELLOW' ? 'SOFT_HOLD' : 'HUMAN_REVIEW',
+      payout_multiplier: zone_depth_score > 0.6 ? 1.0 : 0.6,
+      _source: 'rule_fallback',
+    };
+  }
+}
+
+// ── NLP Disruption Parse ──────────────────────────────────────────────────────
+async function parseDisruption(text) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/nlp`, { text }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    return { trigger: 'normal', confidence: 0.0, fires: false, _source: 'rule_fallback' };
+  }
+}
+
+// ── Internet Blackout ────────────────────────────────────────────────────────
+async function detectBlackout({ ookla_avg_speed, device_pct_weak, sustained_minutes, trai_match, zone }) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/blackout`, {
+      ookla_avg_speed, device_pct_weak, sustained_minutes, trai_match, zone,
+    }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    const fired = ookla_avg_speed < 2.0 && device_pct_weak >= 0.30 && sustained_minutes >= 20;
+    return { blackout_detected: fired, severity: fired ? 'MODERATE' : 'NONE', trigger_fires: fired, hourly_rate_inr: fired ? 50 : 0, _source: 'rule_fallback' };
+  }
+}
+
+// ── Traffic Classifier ───────────────────────────────────────────────────────
+async function classifyTraffic({ zone, traffic_speed_kmh, baseline_speed_kmh, traffic_duration_min, news_confidence, time_of_day, is_weekend = false }) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/traffic`, {
+      zone, traffic_speed_kmh, baseline_speed_kmh,
+      traffic_duration_min, news_confidence, time_of_day, is_weekend,
+    }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    const drop = (baseline_speed_kmh - traffic_speed_kmh) / baseline_speed_kmh;
+    const heavy = drop >= 0.40 && traffic_duration_min >= 45;
+    return { classification: heavy ? 'ACCIDENT_BLOCKSPOT' : 'INCONCLUSIVE', heavy_traffic_trigger: heavy, trigger_fires: heavy, hourly_rate_inr: heavy ? 40 : 0, _source: 'rule_fallback' };
+  }
+}
+
+// ── Work advisor (earning stability + shift windows) ────────────────────────
+async function getWorkAdvisor(payload) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/work-advisor`, payload, {
+      timeout: TIMEOUT,
+    });
+    return { ...data, _source: 'ml_service' };
+  } catch {
+    const prior = 0.55;
+    const esi = Math.max(
+      35,
+      Math.min(
+        88,
+        Math.round(100 - 28 * prior - (payload.active_disruption_count || 0) * 8),
+      ),
+    );
+    return {
+      earning_stability_index: esi,
+      stability_band: esi >= 70 ? 'STABLE' : esi >= 48 ? 'ELEVATED' : 'STRESSED',
+      stability_band_label:
+        esi >= 70 ? 'Stable earnings outlook' : esi >= 48 ? 'Elevated disruption risk' : 'High disruption risk — protect income',
+      headline:
+        esi >= 70
+          ? 'Your zone looks workable — keep usual shift patterns.'
+          : 'Weather or demand may be uneven — plan shift blocks carefully.',
+      recommended_shift_windows: [
+        { label: 'Peak demand', hours: '8:00–11:00 & 17:00–21:00', rationale: 'Stack high-volume hours' },
+      ],
+      suggest_activate_coverage: esi < 55,
+      coverage_nudge:
+        esi < 55
+          ? 'Disruption risk is elevated — consider keeping coverage active.'
+          : 'Conditions are relatively calm.',
+      _source: 'rule_fallback',
+    };
+  }
+}
+
+// ── Disruption Forecast ──────────────────────────────────────────────────────
+async function getForecast(zone) {
+  try {
+    const { data } = await axios.get(`${ML_URL}/forecast/${encodeURIComponent(zone)}`, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    return { zone, forecast: [], _source: 'ml_offline' };
+  }
+}
+
+// ── Payout Calculation ────────────────────────────────────────────────────────
+async function calculatePayout({ trigger_type, disruption_hours, zone_depth_score, fps_tier, plan_tier, daily_payouts_this_week = 0, shift_overlap_hours = null }) {
+  try {
+    const { data } = await axios.post(`${ML_URL}/payout`, {
+      trigger_type, disruption_hours, zone_depth_score,
+      fps_tier, plan_tier, daily_payouts_this_week, shift_overlap_hours,
+    }, { timeout: TIMEOUT });
+    return data;
+  } catch {
+    // Conservative fallback
+    const RATES = { heavy_rain: 50, extreme_rain: 65, heat_wave: 40, aqi: 40, app_outage: 50, bandh: 50, internet_blackout: 50, heavy_traffic: 40 };
+    const rate   = RATES[trigger_type] || 50;
+    const payout = Math.min(Math.round(rate * disruption_hours * 0.85), 150);
+    return { payout_inr: payout, approved: payout > 0, _source: 'rule_fallback' };
   }
 }
 
 module.exports = {
-  getFraudScore,
-  getISSScore,
-  getPremium,
-  getForecast,
   isMlOnline,
+  getISSScore,
+  getFraudScore,
+  parseDisruption,
+  detectBlackout,
+  classifyTraffic,
+  getForecast,
+  getWorkAdvisor,
+  calculatePayout,
 };

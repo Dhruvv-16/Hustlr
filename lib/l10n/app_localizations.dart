@@ -745,7 +745,7 @@ abstract class AppLocalizations {
   /// No description provided for @wallet_title.
   ///
   /// In en, this message translates to:
-  /// **'Wallet'**
+  /// **'Vault'**
   String get wallet_title;
 
   /// No description provided for @wallet_balance.
@@ -1069,7 +1069,7 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_1_a.
   ///
   /// In en, this message translates to:
-  /// **'In parametric insurance, there is no filing, no investigation, and no approval. Claims trigger automatically when official thresholds are crossed (e.g., AQI > 300 via CPCB, or rain > 50mm). The worker does nothing.'**
+  /// **'Claims are triggered automatically when a disruption is detected in your zone. You never need to file anything manually.'**
   String get support_faq_1_a;
 
   /// No description provided for @support_faq_2_q.
@@ -1081,7 +1081,7 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_2_a.
   ///
   /// In en, this message translates to:
-  /// **'If your GPS cross-checks with your platform login data (proving you were active), funds are transferred directly to your UPI within 2 hours.'**
+  /// **'70% is credited immediately. The remaining 30% is released after a 48-hour fraud review on Tuesday night.'**
   String get support_faq_2_a;
 
   /// No description provided for @support_faq_3_q.
@@ -1095,18 +1095,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yes. Go to the Policy tab and tap Upgrade Plan to change your coverage tier.'**
   String get support_faq_3_a;
-
-  /// No description provided for @support_faq_4_q.
-  ///
-  /// In en, this message translates to:
-  /// **'How are the weekly premiums priced?'**
-  String get support_faq_4_q;
-
-  /// No description provided for @support_faq_4_a.
-  ///
-  /// In en, this message translates to:
-  /// **'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.'**
-  String get support_faq_4_a;
 
   /// No description provided for @support_raise_ticket.
   ///

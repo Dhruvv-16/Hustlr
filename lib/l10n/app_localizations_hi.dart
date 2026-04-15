@@ -336,7 +336,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get claim_detail_download => 'रसीद डाउनलोड करें';
 
   @override
-  String get wallet_title => 'वॉलेट';
+  String get wallet_title => 'वॉल्ट';
 
   @override
   String get wallet_balance => 'उपलब्ध बैलेंस';
@@ -515,13 +515,6 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get support_faq_3_a =>
       'हाँ। पॉलिसी टैब पर जाएं और योजना अपग्रेड करें पर टैप करें।';
-
-  @override
-  String get support_faq_4_q => 'How are the weekly premiums priced?';
-
-  @override
-  String get support_faq_4_a =>
-      'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.';
 
   @override
   String get support_raise_ticket => 'टिकट उठाएं';

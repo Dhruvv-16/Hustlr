@@ -11,9 +11,7 @@ import 'core/theme/theme_provider.dart';
 
 import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'firebase_options.dart';
 import 'services/api_service.dart';
-import 'services/location_service.dart';
 import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
 import 'services/notification_service.dart';
@@ -26,7 +24,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'widgets/live_activity_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,19 +43,20 @@ Future<void> main() async {
     anonKey: 'YOUR_SUPABASE_ANON_KEY', // Placeholder to be replaced
   );
 
-  // Firebase (messaging & cross platform)
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    NotificationService.initialize();
+  // Firebase (messaging)
+  // Skip on Web and Windows because DefaultFirebaseOptions are missing for this demo
+  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+    try {
+      await Firebase.initializeApp();
+      NotificationService.initialize();
 
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
       String? token = await FirebaseMessaging.instance.getToken();
       print("FCM TOKEN: $token");
+    } catch (e) {
+      print("Firebase initialization error: $e");
     }
-  } catch (e) {
-    print("Firebase initialization error: $e");
+  } else {
+    print("Skipped Firebase initialization (Running on Web/Desktop for testing)");
   }
 
   final claimsBloc = ClaimsBloc(
@@ -94,7 +92,6 @@ Future<void> main() async {
       ],
       child: MultiProvider(
         providers: [
-          ChangeNotifierProvider.value(value: LocationService.instance),
           ChangeNotifierProvider.value(value: mockService),
           ChangeNotifierProvider(create: (_) => ThemeProvider(appBox: appBox)),
           ChangeNotifierProvider.value(value: localeProvider),
@@ -113,27 +110,25 @@ class HustlrApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
     
-    return LiveActivityOverlay(
-      child: MaterialApp.router(
-        title: 'Hustlr',
-        debugShowCheckedModeBanner: false,
-        locale: localeProvider.locale,
-        supportedLocales: const [
-          Locale('en'),
-          Locale('ta'),
-          Locale('hi'),
-        ],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: themeProvider.themeMode,
-        routerConfig: appRouter,
-      ),
+    return MaterialApp.router(
+      title: 'Hustlr',
+      debugShowCheckedModeBanner: false,
+      locale: localeProvider.locale,
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ta'),
+        Locale('hi'),
+      ],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeProvider.themeMode,
+      routerConfig: appRouter,
     );
   }
 }

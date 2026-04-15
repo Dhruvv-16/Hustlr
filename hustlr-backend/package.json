@@ -8,8 +8,7 @@
   },
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "stress": "node stress_test.js"
+    "start": "node src/index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",
@@ -17,7 +16,6 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "google-auth-library": "^9.15.1",
     "node-cron": "^3.0.3"
   },
   "devDependencies": {

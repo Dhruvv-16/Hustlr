@@ -6,8 +6,6 @@ Node.js backend calls this on localhost:8000.
 """
 
 import sys
-import math
-import datetime as dt
 import numpy as np
 import joblib
 from pathlib import Path
@@ -17,8 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from industrial_logic import DataTrustEngine, EconomicCircuitBreaker
-from ml_intelligence import (
-    CHENNAI_NLP_RULE_ZONE_HINTS,
+from ml_cherry_picks import (
     CHENNAI_ZONES,
     EXTRA_KEYWORD_RULES,
     CITY_BEHAVIORAL_RISK,
@@ -29,24 +26,19 @@ from ml_intelligence import (
     extract_time_window_nlp,
     hourly_rate_lookup,
     seven_layer_fps,
-    zone_actuarial_prior,
 )
 
 trust_engine = DataTrustEngine()
 circuit_breaker = EconomicCircuitBreaker()
 
 # ── Model paths ───────────────────────────────────────────────────────────────
-# Training scripts (hustlr-ml/scripts/train_*.py) write XGBoost JSON + pickles to
-# repo_root/outputs/trained_models. Alternate bundles may live under
-# hustlr-ml/outputs/trained_models.
-# On Render (rootDir = hustlr-backend/ml_service), models are copied into
-# hustlr-backend/ml_service/outputs/trained_models so they travel with the service.
-SERVICE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SERVICE_DIR.parent.parent.parent
+# Training scripts (hustlr_ml/scripts/train_*.py) write XGBoost JSON + pickles to
+# repo_root/outputs/trained_models. Older full bundles may live under
+# hustlr_ml/outputs/trained_models. We check both so /iss, /fraud, /nlp, etc. resolve.
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MODELS_SEARCH_PATHS: List[Path] = [
-    SERVICE_DIR / "outputs" / "trained_models",       # Render: models inside service rootDir
-    REPO_ROOT / "outputs" / "trained_models",          # local monorepo dev
-    REPO_ROOT / "hustlr-ml" / "outputs" / "trained_models",  # alternate dev path
+    REPO_ROOT / "outputs" / "trained_models",
+    REPO_ROOT / "hustlr_ml" / "outputs" / "trained_models",
 ]
 
 app = FastAPI(title="Hustlr ML Service", version="1.0.0")
@@ -99,20 +91,6 @@ def _load(name: str):
 # Files required for each endpoint's ML branch (matches _load(...) usage).
 # Note: /fraud uses XGBoost JSON + scaler + isolation forest (see compute_fraud).
 # Note: /traffic loads classifier + label encoder only (no congestion_baseline).
-# Prophet: one file per zone in hustlr-ml/outputs/datasets/prophet_training.csv (Chennai grid).
-CHENNAI_FORECAST_ZONE_SLUGS = (
-    "adyar",
-    "anna_nagar",
-    "chromepet",
-    "guindy",
-    "perambur",
-    "porur",
-    "sholinganallur",
-    "t_nagar",
-    "tambaram",
-    "velachery",
-)
-
 MODEL_FILES = {
     "model1_iss":        ["model1_iss_xgboost.pkl", "model1_features.pkl"],
     "model3_fraud":      [
@@ -123,7 +101,7 @@ MODEL_FILES = {
     "model4_nlp":        ["model4_rf_nlp.json", "model4_tfidf.pkl", "model4_label_map.pkl"],
     "model5_blackout":   ["model5_iso_connectivity.pkl", "model5_scaler.pkl", "model5_thresholds.pkl"],
     "model6_traffic":    ["model6_traffic_classifier.json", "model6_label_encoder.pkl"],
-    "model7_forecast":   [f"model7_prophet_{z}.pkl" for z in CHENNAI_FORECAST_ZONE_SLUGS],
+    "model7_forecast":   ["model7_prophet_adyar.pkl"],
 }
 
 @app.get("/health")
@@ -276,7 +254,7 @@ SIGNAL_WEIGHTS = {
     "hw_fingerprint_match": 15, "app_install_cluster": 10,
 }
 
-# Must match hustlr-ml/scripts/train_model3_fraud.py IF_FEATURES order / length (16 dims).
+# Must match hustlr_ml/scripts/train_model3_fraud.py IF_FEATURES order / length (16 dims).
 _DEFAULT_FRAUD_ML_FEATURES = [
     "gps_zone_mismatch", "wifi_home_ssid", "battery_charging",
     "accelerometer_idle", "platform_app_inactive", "ip_home_match",
@@ -418,21 +396,13 @@ class NLPRequest(BaseModel):
     sources: dict = {}  # e.g. {"imd": 0.9, "openweather": 0.5}
 
 KEYWORD_RULES_BASE: Dict[str, Dict[str, Any]] = {
-    "rain_heavy":   {"keywords": ["heavy rain","heavy rainfall","orange alert","flooding","waterlogging","mm rainfall","imd alert","thunderstorm","64.5","downpour","intense rain"], "zone_keywords": ["chennai","velachery","adyar","tambaram","porur","anna nagar","t nagar","chromepet","guindy", "mumbai", "bengaluru", "kolkata", *CHENNAI_NLP_RULE_ZONE_HINTS], "hourly_rate_inr": 40},
-    "rain_extreme": {"keywords": ["red alert","extremely heavy","cyclone","115mm","200mm","ndma","extreme precipitation","very heavy rainfall","cyclone watch","emergency advisory"], "zone_keywords": ["chennai","district","tamil nadu", "maharashtra", "karnataka", "west bengal", *CHENNAI_NLP_RULE_ZONE_HINTS], "hourly_rate_inr": 65},
+    "rain_heavy":   {"keywords": ["heavy rain","heavy rainfall","orange alert","flooding","waterlogging","mm rainfall","imd alert","thunderstorm","64.5","downpour","intense rain"], "zone_keywords": ["chennai","velachery","adyar","tambaram","porur","anna nagar","t nagar","chromepet","guindy", "mumbai", "bengaluru", "kolkata"], "hourly_rate_inr": 40},
+    "rain_extreme": {"keywords": ["red alert","extremely heavy","cyclone","115mm","200mm","ndma","extreme precipitation","very heavy rainfall","cyclone watch","emergency advisory"], "zone_keywords": ["chennai","district","tamil nadu", "maharashtra", "karnataka", "west bengal"], "hourly_rate_inr": 65},
     "bandh":        {"keywords": ["bandh","strike","section 144","curfew","shutdown","roads blocked","commercial halted","tamil nadu bandh","aiadmk","dmk","hartal","cpi"], "zone_keywords": ["chennai","tamil nadu","statewide", "mumbai", "bengaluru", "kolkata"], "hourly_rate_inr": 55},
     "heat_severe":  {"keywords": ["heat wave","heatwave","43°","44°","45°","extreme heat","imd red alert","temperature advisory"], "zone_keywords": ["chennai","tamil nadu", "mumbai", "delhi", "bengaluru"], "hourly_rate_inr": 45},
     "cyclone_landfall": {"keywords": ["cyclone landfall","imd category","landfall","cyclone track","very severe cyclonic storm"], "zone_keywords": ["chennai","tamil nadu coast", "odisha", "andhra"], "hourly_rate_inr": 80},
 }
 KEYWORD_RULES: Dict[str, Dict[str, Any]] = {**KEYWORD_RULES_BASE, **EXTRA_KEYWORD_RULES}
-
-# Display names for lowercase CHENNAI_ZONES slugs in /nlp responses
-_NLP_ZONE_DISPLAY: Dict[str, str] = {
-    "omr": "OMR",
-    "ecr": "ECR",
-    "gst road": "GST Road",
-    "iit madras": "IIT Madras",
-}
 
 @app.post("/nlp")
 def parse_disruption(req: NLPRequest):
@@ -496,8 +466,13 @@ def parse_disruption(req: NLPRequest):
     zone_detail = metro_city
     for z in CHENNAI_ZONES:
         if z in text_lower:
-            zone_detail = _NLP_ZONE_DISPLAY.get(z, z.title())
+            zone_detail = z.title()
             break
+    if zone_detail == metro_city:
+        for z in ["Adyar", "Velachery", "Tambaram", "Porur", "Guindy", "Anna Nagar", "T Nagar", "Chromepet", "Sholinganallur"]:
+            if z.lower() in text_lower:
+                zone_detail = z
+                break
 
     fires_flag = best_score >= THRESHOLD
     if fires_flag and req.require_dual_source:
@@ -554,23 +529,22 @@ def detect_blackout(req: BlackoutRequest):
         scaler = _load("model5_scaler.pkl")
         X = np.array([[req.ookla_avg_speed, req.device_pct_weak, req.sustained_minutes]])
         X_scaled = scaler.transform(X)
-        ml_anomaly = bool(iso.predict(X_scaled)[0] == -1)
+        ml_anomaly = iso.predict(X_scaled)[0] == -1
         if ml_anomaly and not threshold_fired:
             threshold_fired = True
             severity = "MODERATE"
     except Exception:
         pass
 
-    threshold_fired = bool(threshold_fired)
     return {
         "blackout_detected":  threshold_fired,
-        "ml_anomaly_flag":    bool(ml_anomaly),
+        "ml_anomaly_flag":    ml_anomaly,
         "severity":           severity,
         "zone":               req.zone,
         "ookla_speed_mbps":   req.ookla_avg_speed,
         "device_pct_weak":    req.device_pct_weak,
         "sustained_minutes":  req.sustained_minutes,
-        "trai_confirmed":     bool(req.trai_match),
+        "trai_confirmed":     req.trai_match,
         "trigger_fires":      threshold_fired,
         "hourly_rate_inr":    50 if threshold_fired else 0,
     }
@@ -610,18 +584,17 @@ def classify_traffic(req: TrafficRequest):
         elif req.news_confidence >= 0.65 and req.traffic_duration_min >= 30:
             classification = "ACCIDENT_BLOCKSPOT"
 
-    heavy_trigger = bool(speed_pct_drop >= 0.40 and req.traffic_duration_min >= 45)
-    trigger_fires = bool(classification == "ACCIDENT_BLOCKSPOT" or heavy_trigger)
+    heavy_trigger = (speed_pct_drop >= 0.40 and req.traffic_duration_min >= 45)
 
     return {
         "classification":          classification,
-        "congestion_probability":  round(float(congestion_prob), 3),
-        "speed_pct_drop":          round(float(speed_pct_drop), 3),
+        "congestion_probability":  round(congestion_prob, 3),
+        "speed_pct_drop":          round(speed_pct_drop, 3),
         "heavy_traffic_trigger":   heavy_trigger,
         "news_confidence":         req.news_confidence,
         "hourly_rate_inr":         30 if heavy_trigger else 0,  # ₹30/hr from actuarial model
         "daily_cap_inr":           80 if heavy_trigger else 0,
-        "trigger_fires":           trigger_fires,
+        "trigger_fires":           classification == "ACCIDENT_BLOCKSPOT" or heavy_trigger,
     }
 
 
@@ -631,58 +604,37 @@ def classify_traffic(req: TrafficRequest):
 @app.get("/forecast/{zone}")
 def get_forecast(zone: str):
     zone_lower = zone.lower().replace(" ", "_")
+    # Only Adyar has a trained model; others get rule-based forecast
     model_file = f"model7_prophet_{zone_lower}.pkl"
     forecast_data = []
 
     try:
+        from prophet import Prophet
+        import pandas as pd
         prophet_model = _load(model_file)
         future = prophet_model.make_future_dataframe(periods=7, freq='D')
-        
-        # Supply mandatory regressors for the new Blueprint Prophet models
-        future["festival_multiplier"] = 1.0
-        future["precipitation_mm"]    = 0.0
-        future["temperature_c"]       = 32.0
-        future["traffic_profile_index"] = 0.5
-        
-        dom = future["ds"].dt.day
-        future["salary_week_flag"] = np.where((dom >= 1) & (dom <= 5), 1, 
-                                      np.where((dom >= 7) & (dom <= 10), 2, 0))
-
         forecast = prophet_model.predict(future)
         last_7 = forecast.tail(7)
         for _, row in last_7.iterrows():
-            # Log transform reverse (demand units)
-            yhat = float(np.exp(row['yhat']))
-            yhat_upper = float(np.exp(row['yhat_upper']))
-            yhat_lower = float(np.exp(row['yhat_lower']))
-            
-            # Simple risk mapping for baseline
-            # if yhat drops significantly below standard baseline it's high risk
-            baseline_demand = 50.0 
-            risk = 0.0
-            sigma = (yhat_upper - yhat_lower) / (2 * 1.28)
-            if sigma > 0:
-                from scipy.stats import norm
-                risk = norm.cdf(15.0, loc=yhat, scale=sigma)
-            else:
-                risk = 1.0 if yhat < 15.0 else 0.0
-                
-            risk = float(np.clip(risk, 0.0, 1.0))
-
+            risk = float(np.clip(row['yhat'], 0, 1))
             forecast_data.append({
                 "date":       row['ds'].strftime('%Y-%m-%d'),
                 "risk_score": round(risk, 3),
-                "predicted_demand": round(yhat, 2),
                 "risk_level": "HIGH" if risk > 0.6 else ("MEDIUM" if risk > 0.3 else "LOW"),
                 "source":     "prophet_ml",
             })
-    except Exception as repr_err:
-        # Deterministic prior + smooth weekly shape (no RNG — stable for a given zone/day index)
-        base_risk = float(zone_actuarial_prior(zone))
+    except Exception:
+        # Rule-based 7-day forecast fallback
+        import datetime
+        ZONE_BASE_RISK = {
+            "adyar": 0.72, "velachery": 0.65, "t_nagar": 0.68,
+            "tambaram": 0.55, "anna_nagar": 0.41, "korattur": 0.45,
+        }
+        base_risk = ZONE_BASE_RISK.get(zone_lower, 0.50)
         for i in range(7):
-            day = dt.date.today() + dt.timedelta(days=i + 1)
-            phase = math.sin(2 * math.pi * (i + 1) / 7.0)
-            risk = float(np.clip(base_risk * (0.88 + 0.06 * phase), 0, 1))
+            day  = datetime.date.today() + datetime.timedelta(days=i+1)
+            risk = base_risk * (0.85 + np.random.uniform(-0.1, 0.1))
+            risk = float(np.clip(risk, 0, 1))
             forecast_data.append({
                 "date":       day.strftime('%Y-%m-%d'),
                 "risk_score": round(risk, 3),

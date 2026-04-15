@@ -25,12 +25,12 @@ class LanguageSwitcher extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: LocaleProvider.supportedLanguages
             .entries
-            .map((entry) => GestureDetector(
+            .map((entry) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
                 onTap: () => provider.setLocale(entry.key),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -58,7 +58,8 @@ class LanguageSwitcher extends StatelessWidget {
                     ),
                   ),
                 ),
-              ))
+              ),
+            ))
             .toList(),
         ),
       ],

@@ -1,69 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../services/api_service.dart';
-import '../../services/storage_service.dart';
+import '../../services/mock_data_service.dart';
+import '../../widgets/hustlr_bottom_nav.dart';
 import '../../shared/widgets/mobile_container.dart';
-import '../../shared/widgets/notification_bell.dart';
 import 'package:go_router/go_router.dart';
 
-class ClaimsScreen extends StatefulWidget {
+class ClaimsScreen extends StatelessWidget {
   const ClaimsScreen({super.key});
 
   @override
-  State<ClaimsScreen> createState() => _ClaimsScreenState();
-}
-
-class _ClaimsScreenState extends State<ClaimsScreen> {
-  bool _loading = true;
-  String? _error;
-  List<Map<String, dynamic>> _claims = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadClaims();
-  }
-
-  Future<void> _loadClaims() async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      final userId = await StorageService.instance.getUserId();
-      if (userId == null) {
-        setState(() { _error = 'Not logged in'; _loading = false; });
-        return;
-      }
-      final data = await ApiService.instance.getClaims(userId);
-      final raw = data['claims'];
-      final list = raw is List
-          ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
-          : <Map<String, dynamic>>[];
-      setState(() { _claims = list; _loading = false; });
-    } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final mockData = Provider.of<MockDataService>(context);
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bgScreen = theme.scaffoldBackgroundColor;
 
-    // Aggregate stats from real claims
-    int totalClaimed  = _claims.fold(0, (s, c) => s + ((c['gross_payout'] as num?)?.toInt() ?? 0));
-    int totalReceived = _claims
-        .where((c) => (c['status'] as String? ?? '').toUpperCase() == 'APPROVED')
-        .fold(0, (s, c) => s + ((c['gross_payout'] as num?)?.toInt() ?? 0));
-    int pendingCount = _claims
-        .where((c) => (c['status'] as String? ?? '').toUpperCase() == 'PENDING')
+    int totalClaimed = mockData.claims.fold(0, (sum, c) => sum + c.amount);
+    int totalReceived = mockData.claims
+        .where((c) => c.status == "APPROVED")
+        .fold(0, (sum, c) => sum + c.amount);
+    int pendingCount = mockData.claims
+        .where((c) => c.status == "PENDING")
         .length;
 
+    // ── Theme-aware palette ──────────────────────────────────────────────────
+    final bgScreen   = theme.scaffoldBackgroundColor;
+    final mintColor  = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
+    // Rain icon colors
     final blueLight  = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
     final blue       = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1976D2);
+    // Downtime icon colors
     final tealLight  = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFE8F5E9);
     final teal       = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
+    // Heat icon colors
     final amberLight = isDark ? const Color(0xFF2D1B00) : const Color(0xFFFFF3E0);
     final amber      = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
+    // Badge colors
     final greenText  = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
     final greenBg    = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
 
@@ -77,152 +49,90 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                 bottom: false,
                 child: Column(
                   children: [
-                    const _TopBar(),
+                    _TopBar(),
                     Expanded(
-                      child: _loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _error != null
-                              ? _ErrorState(error: _error!, onRetry: _loadClaims)
-                              : RefreshIndicator(
-                                  onRefresh: _loadClaims,
-                                  child: SingleChildScrollView(
-                                    physics: const AlwaysScrollableScrollPhysics(),
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _SummaryRow(
-                                          totalClaimed: totalClaimed,
-                                          totalReceived: totalReceived,
-                                          pendingCount: pendingCount,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        const _EducationBanner(),
-                                        const SizedBox(height: 20),
-                                        Text(
-                                          'RECENT HISTORY',
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            color: theme.colorScheme.onSurface,
-                                            letterSpacing: 0.3,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        if (_claims.isEmpty)
-                                          _EmptyClaimsState()
-                                        else
-                                          ListView.builder(
-                                            shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            itemCount: _claims.length,
-                                            itemBuilder: (context, index) {
-                                              final claim = _claims[index];
-                                              final triggerType = (claim['trigger_type'] as String? ?? '').toLowerCase();
-                                              final status = (claim['status'] as String? ?? 'PENDING').toUpperCase();
-                                              final rawDate = claim['created_at'] as String? ?? '';
-                                              final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-                                              final amount = (claim['gross_payout'] as num?)?.toInt() ?? 0;
-                                              final claimId = claim['id'] ?? '';
-                                              final hasGapWarning = claim['gps_gap_flag'] == true ||
-                                                  claim['frs_flags'] is List &&
-                                                      (claim['frs_flags'] as List).any(
-                                                        (f) => f.toString().contains('gap'),
-                                                      );
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SummaryRow(
+                              totalClaimed: totalClaimed,
+                              totalReceived: totalReceived,
+                              pendingCount: pendingCount,
+                            ),
+                            const SizedBox(height: 16),
+                            const _EducationBanner(),
+                            const SizedBox(height: 20),
+                            Text(
+                              'RECENT HISTORY',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                letterSpacing: 0.3,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: mockData.claims.length,
+                              itemBuilder: (context, index) {
+                                final claim = mockData.claims[index];
 
-                                              // Icon mapping by trigger type
-                                              Color iconBg    = blueLight;
-                                              IconData iconData = Icons.water_drop_rounded;
-                                              Color iconColor = blue;
-                                              String displayName = claim['display_name'] as String? ?? _triggerLabel(triggerType);
+                                Color iconBg    = blueLight;
+                                IconData iconData = Icons.cloud_rounded;
+                                Color iconColor = blue;
 
-                                              if (triggerType.contains('heat') || triggerType.contains('temperature')) {
-                                                iconBg    = amberLight;
-                                                iconData  = Icons.thermostat_rounded;
-                                                iconColor = amber;
-                                              } else if (triggerType.contains('downtime') || triggerType.contains('platform') || triggerType.contains('app')) {
-                                                iconBg    = tealLight;
-                                                iconData  = Icons.cloud_off_rounded;
-                                                iconColor = teal;
-                                              } else if (triggerType.contains('aqi') || triggerType.contains('pollution')) {
-                                                iconBg    = amberLight;
-                                                iconData  = Icons.air_rounded;
-                                                iconColor = amber;
-                                              } else if (triggerType.contains('manual')) {
-                                                iconBg    = tealLight;
-                                                iconData  = Icons.edit_document;
-                                                iconColor = teal;
-                                              }
+                                if (claim.icon == "downtime") {
+                                  iconBg    = tealLight;
+                                  iconData  = Icons.cloud_off_rounded;
+                                  iconColor = teal;
+                                } else if (claim.icon == "heat") {
+                                  iconBg    = amberLight;
+                                  iconData  = Icons.thermostat_rounded;
+                                  iconColor = amber;
+                                }
 
-                                              // Badge colors
-                                              Color statusBg, statusColor;
-                                              if (status == 'APPROVED') {
-                                                statusBg    = greenBg;
-                                                statusColor = greenText;
-                                              } else if (status == 'PENDING' || status == 'PROCESSING') {
-                                                statusBg    = amberLight;
-                                                statusColor = amber;
-                                              } else if (status == 'FLAGGED') {
-                                                statusBg    = isDark ? const Color(0xFF3D1200) : const Color(0xFFFFF0E0);
-                                                statusColor = isDark ? const Color(0xFFFF9800) : const Color(0xFFE65100);
-                                              } else {
-                                                // DECLINED / REJECTED
-                                                statusBg    = isDark ? const Color(0xFF4A0000) : const Color(0xFFFFEBEE);
-                                                statusColor = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
-                                              }
+                                // Badge colors by status
+                                Color statusBg, statusColor;
+                                if (claim.status == 'APPROVED') {
+                                  statusBg    = greenBg;
+                                  statusColor = greenText;
+                                } else if (claim.status == 'PENDING') {
+                                  statusBg    = amberLight;
+                                  statusColor = amber;
+                                } else {
+                                  // DECLINED
+                                  statusBg    = isDark ? const Color(0xFF4A0000) : const Color(0xFFFFEBEE);
+                                  statusColor = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
+                                }
 
-                                              return Padding(
-                                                padding: const EdgeInsets.only(bottom: 12),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    if (hasGapWarning)
-                                                      Container(
-                                                        margin: const EdgeInsets.only(bottom: 6),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                        decoration: BoxDecoration(
-                                                          color: const Color(0xFFFFF8E1),
-                                                          borderRadius: BorderRadius.circular(10),
-                                                          border: Border.all(color: const Color(0xFFFFA000).withOpacity(0.4)),
-                                                        ),
-                                                        child: Row(
-                                                          children: [
-                                                            const Icon(Icons.gps_not_fixed, color: Color(0xFFF57C00), size: 14),
-                                                            const SizedBox(width: 8),
-                                                            const Expanded(
-                                                              child: Text(
-                                                                'GPS signal was interrupted during this event. Claim is under manual verification.',
-                                                                style: TextStyle(fontSize: 11, color: Color(0xFF7B3F00)),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    InkWell(
-                                                      onTap: () => context.push('/claims/$claimId'),
-                                                      borderRadius: BorderRadius.circular(16),
-                                                      child: _ClaimCard(
-                                                        iconBg: iconBg,
-                                                        icon: iconData,
-                                                        iconColor: iconColor,
-                                                        title: displayName,
-                                                        date: dateStr,
-                                                        status: status,
-                                                        statusBg: statusBg,
-                                                        statusColor: statusColor,
-                                                        amount: '₹$amount',
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        const SizedBox(height: 80),
-                                      ],
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: InkWell(
+                                    onTap: () => context.push('/claims/${claim.id}'),
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: _ClaimCard(
+                                      iconBg: iconBg,
+                                      icon: iconData,
+                                      iconColor: iconColor,
+                                      title: claim.type,
+                                      date: claim.date,
+                                      status: claim.status,
+                                      statusBg: statusBg,
+                                      statusColor: statusColor,
+                                      amount: '₹${claim.amount}',
                                     ),
                                   ),
-                                ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 80),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -231,7 +141,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
           ),
           Positioned(
             left: 16,
-            bottom: 24,
+            bottom: 100, // Safe distance above the navigation bar
             child: FloatingActionButton.extended(
               backgroundColor: isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20),
               elevation: 4,
@@ -243,7 +153,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: () => context.push('/claims/evidence'),
+              onPressed: () => _showDisruptionSheet(context),
             ),
           ),
         ],
@@ -251,77 +161,104 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     );
   }
 
-  String _triggerLabel(String triggerType) {
-    if (triggerType.contains('rain'))     return 'Rain Disruption';
-    if (triggerType.contains('heat'))     return 'Extreme Heat';
-    if (triggerType.contains('aqi'))      return 'Air Quality Alert';
-    if (triggerType.contains('downtime')) return 'Platform Downtime';
-    if (triggerType.contains('app'))      return 'App Downtime';
-    if (triggerType.contains('manual'))   return 'Manual Report';
-    return triggerType.isNotEmpty ? triggerType[0].toUpperCase() + triggerType.substring(1) : 'Disruption';
+  void _handleNavTap(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/dashboard');
+        break;
+      case 1:
+        context.go('/policy');
+        break;
+      case 2:
+        break;
+      case 3:
+        context.go('/wallet');
+        break;
+    }
   }
-}
 
-// ─── Error State ───────────────────────────────────────────────────────────────
-class _ErrorState extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.error, required this.onRetry});
+  void _showDisruptionSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg  = isDark ? const Color(0xFF1C1F1C) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final green   = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
-    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
-    final grey    = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cloud_off_rounded, size: 64, color: grey),
-            const SizedBox(height: 16),
-            Text('Could not load claims', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
-            const SizedBox(height: 8),
-            Text(error, style: TextStyle(fontSize: 12, color: grey), textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: isDark ? Colors.black : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: sheetBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'What happened?',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+              Divider(
+                height: 1,
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.06),
+              ),
+              _buildSheetItem(context, 'Road Blocked / Accident',    '🚧', 'Manual claim · 4hr SLA · Photo required'),
+              _buildSheetItem(context, 'Dark Store / Hub Closed',    '🏪', 'Manual claim · 4hr SLA · Photo + screenshot'),
+              _buildSheetItem(context, 'Internet Outage',            '🌐', 'Auto-verified · No photo needed'),
+              _buildSheetItem(context, 'Heavy Traffic Congestion',   '🚦', 'Manual claim · 4hr SLA · Photo + GPS'),
+              _buildSheetItem(context, 'Other Disruption',           '📦', 'Manual claim · 4hr SLA · Photo + description'),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
-}
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
-class _EmptyClaimsState extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final green  = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
-    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
-    final grey   = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
-    return Center(
+  Widget _buildSheetItem(BuildContext context, String title, String emoji, String subtitle) {
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final iconBg     = isDark ? const Color(0xFF2A2D2A) : const Color(0xFFF3F4F6);
+    final titleColor = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
+    final subColor   = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
+    final chevronColor = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
+
+    return InkWell(
+      onTap: () {
+        context.pop();
+        context.push('/claims/evidence?type=$title');
+      },
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
           children: [
-            Icon(Icons.verified_outlined, size: 64, color: green),
-            const SizedBox(height: 16),
-            Text('No claims yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
-            const SizedBox(height: 8),
-            Text('Claims will appear here when disruptions are detected or you file a manual report.',
-                style: TextStyle(fontSize: 13, color: grey), textAlign: TextAlign.center),
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(
+                    fontWeight: FontWeight.w600, color: titleColor, fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: TextStyle(color: subColor, fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: chevronColor),
           ],
         ),
       ),
@@ -346,12 +283,15 @@ class _TopBar extends StatelessWidget {
           const Expanded(child: SizedBox()),
           Text(
             'Claims',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: const NotificationBell(),
+              child: Icon(Icons.notifications_outlined,
+                  color: theme.colorScheme.onSurface, size: 24),
             ),
           ),
         ],
@@ -388,21 +328,24 @@ class _SummaryRow extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.20 : 0.08),
-            blurRadius: 8, offset: const Offset(0, 2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: IntrinsicHeight(
-        child: Row(children: [
-          Expanded(child: _SummarySection(label: 'CLAIMED',  value: '₹$totalClaimed',  valueColor: theme.colorScheme.onSurface)),
-          const _VerticalDivider(),
-          Expanded(child: _SummarySection(
-            label: 'RECEIVED', value: '₹$totalReceived', valueColor: greenText,
-            trailing: Icon(Icons.check_circle, color: greenText, size: 16),
-          )),
-          const _VerticalDivider(),
-          Expanded(child: _SummarySection(label: 'PENDING',  value: '$pendingCount',   valueColor: amber)),
-        ]),
+        child: Row(
+          children: [
+            Expanded(child: _SummarySection(label: 'CLAIMED',  value: '₹$totalClaimed',  valueColor: theme.colorScheme.onSurface)),
+            const _VerticalDivider(),
+            Expanded(child: _SummarySection(
+              label: 'RECEIVED', value: '₹$totalReceived', valueColor: greenText,
+              trailing: Icon(Icons.check_circle, color: greenText, size: 16),
+            )),
+            const _VerticalDivider(),
+            Expanded(child: _SummarySection(label: 'PENDING',  value: '$pendingCount',   valueColor: amber)),
+          ],
+        ),
       ),
     );
   }
@@ -423,18 +366,24 @@ class _SummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme  = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final grey   = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: grey, letterSpacing: 1.0)),
+        Text(label, style: TextStyle(
+          fontSize: 11, fontWeight: FontWeight.w600,
+          color: grey, letterSpacing: 1.0,
+        )),
         const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor)),
+            Text(value, style: TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w700, color: valueColor)),
             if (trailing != null) ...[const SizedBox(width: 4), trailing!],
           ],
         ),
@@ -450,8 +399,10 @@ class _VerticalDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark   = Theme.of(context).brightness == Brightness.dark;
     final divColor = isDark ? const Color(0xFF2A2D2A) : const Color(0xFFE0E0E0);
+
     return Container(
-      width: 1, height: 40, color: divColor,
+      width: 1, height: 40,
+      color: divColor,
       margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
@@ -463,13 +414,16 @@ class _EducationBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark      = Theme.of(context).brightness == Brightness.dark;
-    final bannerBg    = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final bannerBg   = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
     final accentColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1976D2);
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: bannerBg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: bannerBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -478,7 +432,8 @@ class _EducationBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Hustlr auto-detects disruptions and processes claims by Sunday 11 PM for you.',
-              style: TextStyle(fontSize: 13, color: accentColor, height: 1.5),
+              style: TextStyle(
+                fontSize: 13, color: accentColor, height: 1.5),
             ),
           ),
         ],
@@ -498,10 +453,15 @@ class _InfoCircle extends StatelessWidget {
       width: 32, height: 32,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       child: Center(
-        child: Text('i', style: TextStyle(
-          color: isDark ? const Color(0xFF0A0B0A) : Colors.white,
-          fontSize: 16, fontWeight: FontWeight.w700, fontStyle: FontStyle.italic,
-        )),
+        child: Text(
+          'i',
+          style: TextStyle(
+            color: isDark ? const Color(0xFF0A0B0A) : Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
       ),
     );
   }
@@ -533,19 +493,21 @@ class _ClaimCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final theme    = Theme.of(context);
+    final isDark   = theme.brightness == Brightness.dark;
+    final cardBg   = theme.cardColor;
     final errorRed = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.20 : 0.08),
-            blurRadius: 10, offset: const Offset(0, 2),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -570,24 +532,29 @@ class _ClaimCard extends StatelessWidget {
                   fontSize: 13,
                   color: isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B))),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusBg, borderRadius: BorderRadius.circular(20)),
-                    child: Text(status, style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                      color: statusColor, letterSpacing: 0.8)),
-                  ),
-                  if (status == 'DECLINED' || status == 'REJECTED') ...[
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () => context.push('/claims/explanation'),
-                      child: Text('See why →', style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: errorRed)),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(status, style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w700,
+                        color: statusColor, letterSpacing: 0.8)),
                     ),
+                    if (status == 'DECLINED') ...[
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => context.push('/claims/explanation'),
+                        child: Text('See why →', style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold,
+                          color: errorRed)),
+                      ),
+                    ],
                   ],
-                ]),
+                ),
               ],
             ),
           ),

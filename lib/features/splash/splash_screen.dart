@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/services/storage_service.dart';
-import '../../services/location_permission_service.dart';
-import '../../screens/location_permission_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,42 +21,9 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigate() async {
     if (!mounted) return;
     final box = Hive.box('appData');
-    bool isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
+    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
     final isComplete = await StorageService.instance.isOnboardingComplete();
     final userId = await StorageService.instance.getUserId();
-    final permissionShown =
-        box.get('locationPermissionShown', defaultValue: false) as bool;
-
-    // ── Fix: validate Firebase session still exists ──────────────────────────
-    // Demo users (9999999999) never create a Firebase user, so skip Firebase
-    // validation for them. For real users, if Firebase has no current user,
-    // the session is stale (e.g. uninstall+reinstall) — force re-login.
-    if (isLoggedIn) {
-      final isLoggedIn = box.get('isLoggedIn', defaultValue: false);
-
-      if (!isLoggedIn) {
-        if (mounted) context.go('/login');
-        return;
-      }
-    }
-
-    if (!mounted) return;
-
-    // If we haven't shown the permission screen yet, do it first
-    if (!permissionShown) {
-      box.put('locationPermissionShown', true);
-      // Check if permission already granted (reinstall edge case)
-      final alreadyGranted =
-          await LocationPermissionService.hasLocationPermission();
-      if (!alreadyGranted && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-              builder: (_) => const LocationPermissionScreen()),
-        );
-        return;
-      }
-    }
-
     if (!mounted) return;
     if (!isLoggedIn) {
       context.go('/login');
@@ -115,13 +79,10 @@ class _SplashScreenState extends State<SplashScreen> {
                       borderRadius: BorderRadius.circular(32),
                     ),
                     alignment: Alignment.center,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        'assets/icon.png',
-                        width: 72,
-                        height: 72,
-                      ),
+                    child: Icon(
+                      Icons.shield_rounded,
+                      size: 72,
+                      color: green,
                     ),
                   ),
                 ),

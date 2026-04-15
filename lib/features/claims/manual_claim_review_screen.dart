@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
-import '../../services/play_integrity_helper.dart';
 import '../../services/storage_service.dart';
-import '../../services/fraud_sensor_service.dart';
 import 'manual_claim_camera_screen.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
@@ -28,7 +26,6 @@ class ManualClaimReviewScreen extends StatefulWidget {
 class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
   late List<File> _images;
   bool _isSubmitting = false;
-  String _mlStatusText = '';
 
   @override
   void initState() {
@@ -37,65 +34,17 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
   }
 
   Future<void> _submitClaim() async {
-    setState(() { _isSubmitting = true; _mlStatusText = 'Encrypting Telemetry Payload...'; });
+    setState(() => _isSubmitting = true);
     final userId = StorageService.userId;
-
-    // Collect native sensor features (Jitter, Barometer)
-    final sensorFeatures = await FraudSensorService.collectPayload();
-
-    setState(() => _mlStatusText = 'Pinging Isolation Forest Fraud Engine...');
     
-    // NATIVE ML CALL
-    final mlData = await ApiService.instance.validateFraudTelemetry(sensorFeatures);
-    
-    setState(() => _mlStatusText = 'Analyzing ML Confidence Score...');
-    await Future.delayed(const Duration(milliseconds: 1200)); // Let the judges read it
-
-    if (mlData['is_anomalous'] == true) {
-       sensorFeatures['gps_jitter'] = 0.0; // Force flag downstream
-    } else {
-       sensorFeatures['gps_jitter'] = 0.10; // Natural safe jitter
-    }
-
     // Simulate photo upload & get URLs
-    final mockUrls = _images
-        .map((img) => 's3://hustlr/claims/img_${DateTime.now().millisecondsSinceEpoch}.jpg')
-        .toList();
-
-    String? integrityToken;
-    if (Platform.isAndroid) {
-      const cloud = String.fromEnvironment(
-        'PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER',
-        defaultValue: '',
-      );
-      if (cloud.isNotEmpty) {
-        final nonceJson = await ApiService.instance.getPlayIntegrityNonce();
-        final nonce = nonceJson['nonce'] as String?;
-        if (nonce != null && nonce.isNotEmpty) {
-          integrityToken = await obtainPlayIntegrityToken(
-            cloudProjectNumber: cloud,
-            nonce: nonce,
-          );
-        }
-      }
-    }
-    // When backend uses PLAY_INTEGRITY_SIMULATED=true, any non-empty string is enough (no real device token).
-    const simPlaceholder = String.fromEnvironment(
-      'PLAY_INTEGRITY_DEMO_PLACEHOLDER',
-      defaultValue: '',
-    );
-    if ((integrityToken == null || integrityToken.isEmpty) &&
-        simPlaceholder.isNotEmpty) {
-      integrityToken = simPlaceholder;
-    }
-
+    List<String> mockUrls = _images.map((img) => 's3://hustlr/claims/img_${DateTime.now().millisecondsSinceEpoch}.jpg').toList();
+    
     final response = await ApiService.instance.submitManualClaim(
-      userId: userId,
+      userId: userId, 
       disruptionType: widget.disruptionType,
       evidenceUrls: mockUrls,
       deviceSignalStrength: widget.signalStrength,
-      integrityToken: integrityToken,
-      sensorFeatures: sensorFeatures,
     );
 
     if (mounted) {
@@ -146,18 +95,6 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                 ? _buildSignalReview(theme, primaryColor, l10n)
                 : _buildPhotoGrid(theme, primaryColor, l10n),
             ),
-            
-            if (_isSubmitting)
-              Padding(
-                padding: const EdgeInsets.only(left: 24, right: 24, top: 12),
-                child: Center(
-                  child: Text(
-                    _mlStatusText, 
-                    style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace'), 
-                    textAlign: TextAlign.center
-                  )
-                ),
-              ),
             
             Padding(
               padding: const EdgeInsets.all(24),
@@ -243,10 +180,9 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: Colors.black, // Dark background for letterboxing
             image: DecorationImage(
               image: FileImage(_images[idx]),
-              fit: BoxFit.contain,
+              fit: BoxFit.cover,
             ),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),

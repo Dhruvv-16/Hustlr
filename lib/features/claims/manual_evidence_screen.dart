@@ -66,6 +66,17 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
           icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
+            },
+            child: Text(
+              l10n.manual_claim_need_help,
+              style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+            ),
+          )
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -108,8 +119,6 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> type, Color primaryColor) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final isSelected = _selectedType == type['id'];
     return GestureDetector(
       onTap: () => setState(() => _selectedType = type['id']),
@@ -117,19 +126,12 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: const Color(0xFF1C1F1C),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? primaryColor : theme.dividerColor,
+            color: isSelected ? primaryColor : Colors.white.withOpacity(0.05),
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isDark ? [] : [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Row(
           children: [
@@ -142,7 +144,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
               ),
               child: Icon(
                 type['icon'],
-                color: isSelected ? theme.colorScheme.onPrimary : primaryColor,
+                color: isSelected ? Colors.black : primaryColor,
                 size: 24,
               ),
             ),
@@ -153,10 +155,10 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
                 children: [
                   Text(
                     type['title'],
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -164,7 +166,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
                     type['desc'],
                     style: TextStyle(
                       fontSize: 13,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: Colors.white.withOpacity(0.6),
                     ),
                   ),
                 ],
@@ -172,7 +174,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
+              color: Colors.white.withOpacity(0.4),
             ),
           ],
         ),

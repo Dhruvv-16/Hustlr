@@ -1,15 +1,6 @@
 <#
   Start Hustlr full stack: Python ML (8000) + Node API (3000) + Flutter app.
 
-  **One terminal (recommended):** from repo root:
-    npm install
-    cd hustlr-backend && npm install
-    npm run dev              # Android emulator API → 10.0.2.2:3000
-    npm run dev:web          # Chrome → 127.0.0.1:3000
-    npm run dev:stack        # only ML + Node (run Flutter from IDE)
-
-  This script opens separate windows + launches Flutter (legacy flow).
-
   Default Flutter API target is Android emulator loopback (10.0.2.2 → host).
 
   Examples:

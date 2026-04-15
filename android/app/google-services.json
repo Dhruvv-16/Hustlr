@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:998645800995:android:a435a0deb6b335c23e1196",
+        "mobilesdk_app_id": "1:998645800995:android:f383a22367d57c433e1196",
         "android_client_info": {
-          "package_name": "com.hustlr.hustlr"
+          "package_name": "com.hustlr.husltrapp"
         }
       },
       "oauth_client": [],
@@ -26,9 +26,9 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:998645800995:android:4c528848ef98bc753e1196",
+        "mobilesdk_app_id": "1:998645800995:android:a435a0deb6b335c23e1196",
         "android_client_info": {
-          "package_name": "com.shieldgig.shieldgig"
+          "package_name": "com.hustlr.hustlr"
         }
       },
       "oauth_client": [],

@@ -77,7 +77,7 @@ class ApiHealthService extends ChangeNotifier {
       final sw = Stopwatch()..start();
       final res = await http
           .get(Uri.parse('${ApiService.baseUrl}/health'))
-          .timeout(const Duration(seconds: 65)); // Render free-tier cold start up to 60s
+          .timeout(const Duration(seconds: 8));
       sw.stop();
       backendLatency = sw.elapsedMilliseconds;
 
@@ -88,7 +88,7 @@ class ApiHealthService extends ChangeNotifier {
         try {
           final svcRes = await http
               .get(Uri.parse('${ApiService.baseUrl}/health/services'))
-              .timeout(const Duration(seconds: 65)); // same cold-start buffer
+              .timeout(const Duration(seconds: 8));
           if (svcRes.statusCode == 200) {
             backendStatus = jsonDecode(svcRes.body) as Map<String, dynamic>;
           }
@@ -134,106 +134,6 @@ class ApiHealthService extends ChangeNotifier {
       );
     }
 
-    ServiceHealth maxMindFromBackend() {
-      const cat = 'Intelligence';
-      const desc =
-          'IP geolocation for fraud (GeoIP2 web) — MAXMIND_ACCOUNT_ID + MAXMIND_LICENSE_KEY';
-      if (backendApiStatus == ApiStatus.offline) {
-        return const ServiceHealth(
-          name: 'MaxMind GeoIP',
-          description: desc,
-          category: cat,
-          status: ApiStatus.unknown,
-          detail: 'Backend unreachable',
-        );
-      }
-      final raw = backendStatus['maxmind']?.toString();
-      if (raw == 'ok') {
-        return const ServiceHealth(
-          name: 'MaxMind GeoIP',
-          description: desc,
-          category: cat,
-          status: ApiStatus.online,
-          detail: 'Live',
-        );
-      }
-      if (raw == 'partial_key') {
-        return const ServiceHealth(
-          name: 'MaxMind GeoIP',
-          description: desc,
-          category: cat,
-          status: ApiStatus.degraded,
-          detail: 'Set both MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY',
-        );
-      }
-      if (raw == 'missing_key') {
-        return const ServiceHealth(
-          name: 'MaxMind GeoIP',
-          description: desc,
-          category: cat,
-          status: ApiStatus.offline,
-          detail: 'MaxMind credentials not set in .env',
-        );
-      }
-      return ServiceHealth(
-        name: 'MaxMind GeoIP',
-        description: desc,
-        category: cat,
-        status: ApiStatus.unknown,
-        detail: raw ?? 'Not reported',
-      );
-    }
-
-    ServiceHealth ooklaInternetFromBackend() {
-      const cat = 'Weather & Environment';
-      const desc =
-          'Optional paid Ookla Enterprise zone health — OOKLA_API_KEY + USE_OOKLA_INTERNET=true (default: inferred)';
-      if (backendApiStatus == ApiStatus.offline) {
-        return const ServiceHealth(
-          name: 'Ookla internet (optional)',
-          description: desc,
-          category: cat,
-          status: ApiStatus.unknown,
-          detail: 'Backend unreachable',
-        );
-      }
-      final raw = backendStatus['ookla_internet']?.toString() ?? '';
-      if (raw == 'enterprise_live') {
-        return const ServiceHealth(
-          name: 'Ookla internet (optional)',
-          description: desc,
-          category: cat,
-          status: ApiStatus.online,
-          detail: 'Enterprise API enabled',
-        );
-      }
-      if (raw == 'inferred_only') {
-        return const ServiceHealth(
-          name: 'Ookla internet (optional)',
-          description: desc,
-          category: cat,
-          status: ApiStatus.online,
-          detail: 'Inferred connectivity (default — no Ookla billing)',
-        );
-      }
-      if (raw == 'key_present_opt_in_disabled') {
-        return const ServiceHealth(
-          name: 'Ookla internet (optional)',
-          description: desc,
-          category: cat,
-          status: ApiStatus.degraded,
-          detail: 'OOKLA_API_KEY set — set USE_OOKLA_INTERNET=true to call API',
-        );
-      }
-      return ServiceHealth(
-        name: 'Ookla internet (optional)',
-        description: desc,
-        category: cat,
-        status: ApiStatus.unknown,
-        detail: raw.isEmpty ? 'Not reported' : raw,
-      );
-    }
-
     _services = [
       // ── Core Backend ─────────────────────────────────────────────────────
       ServiceHealth(
@@ -272,7 +172,6 @@ class ApiHealthService extends ChangeNotifier {
         category: 'Weather & Environment',
         key: 'traffic',
       ),
-      ooklaInternetFromBackend(),
 
       // ── Intelligence ──────────────────────────────────────────────────────
       fromBackend(
@@ -288,12 +187,11 @@ class ApiHealthService extends ChangeNotifier {
         key: 'cell_tower',
       ),
       fromBackend(
-        name: 'OpenCelliD',
-        description: 'Optional cell-to-location (tried first in /workers/cell-locate) — OPENCELLID_API_KEY',
+        name: 'MaxMind GeoIP',
+        description: 'IP geolocation for fraud check — MAXMIND_LICENSE_KEY',
         category: 'Intelligence',
-        key: 'opencellid',
+        key: 'maxmind',
       ),
-      maxMindFromBackend(),
 
       // ── Payments & Notifications ──────────────────────────────────────────
       fromBackend(

@@ -2,11 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
-import 'package:hive_flutter/hive_flutter.dart';
-import '../../services/location_service.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
@@ -16,15 +11,8 @@ import '../../widgets/notification_bell.dart';
 import '../../widgets/income_tip_card.dart';
 import '../../widgets/hustlr_bottom_nav.dart';
 import '../../services/notification_service.dart';
-import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
-import '../../features/shared/widgets/demo_control_panel.dart';
-import '../../features/shared/widgets/battery_optimization_prompt.dart';
-import '../../services/shift_tracking_service.dart';
-import '../../services/fraud_sensor_service.dart';
-import '../../services/dynamic_translator.dart';
-import '../../services/app_events.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -33,7 +21,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
   Map<String, dynamic>? disruptionData;
@@ -46,172 +34,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String? userName;
   bool isLoading = true;
   Timer? _disruptionRefreshTimer;
-  StreamSubscription<Position>? _locationStream;
-  
-  // Stream subscriptions
-  StreamSubscription? _policySub;
-  StreamSubscription? _walletSub;
-  StreamSubscription? _claimSub;
-  
-  // Realtime Gen ML Status
-  int? liveIssScore;
-  double? liveDynamicPrice;
-
-  // Debug variables
-  bool _debugMode = false;
-  bool _enableLiveML = false;
-  String _locationPermissionStatus = 'unknown';
-  bool _backgroundTrackingActive = false;
-
-  // Live pulled from LocationService.instance on every GPS tick
-  double get _lastLat => LocationService.instance.currentLat;
-  double get _lastLng => LocationService.instance.currentLon;
-  double get _zoneDepthScore => LocationService.instance.depthScore * 100;
-
-  // API health check results
-  Map<String, String> _apiHealthStatus = {};
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _checkLocationPermission();
-    _fetchInitialLocation(); // ← get GPS fix immediately without waiting for movement
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkLocationPermission();
-    });
-
-    // Subscribe to LocationService so debug values refresh on every GPS ping
-    LocationService.instance.addListener(_onLocationUpdate);
-    ShiftTrackingService.instance.addListener(_onShiftUpdate);
-
     _loadDashboardData();
     _disruptionRefreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
       if (!mounted) return;
       _loadDashboardData();
     });
-
-    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadDashboardData());
-    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadDashboardData());
-    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadDashboardData());
-  }
-
-  /// Get a one-shot GPS fix immediately on mount so the debug panel shows
-  /// real coordinates without requiring the user to physically move first.
-  Future<void> _fetchInitialLocation() async {
-    try {
-      final hasPermission = await Permission.locationWhenInUse.isGranted;
-      if (!hasPermission) return;
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
-      );
-      LocationService.instance.updateFromGps(pos.latitude, pos.longitude);
-      if (mounted) setState(() {});
-    } catch (_) {
-      // Silently skip if GPS unavailable
-    }
-  }
-
-  /// Run a live health check against each key API endpoint and store results.
-  bool _isMLFetching = false;
-  Future<void> _fetchLiveMLData(String tier) async {
-    if (!mounted || !_enableLiveML) return;
-    setState(() => _isMLFetching = true);
-    try {
-      final issData = await ApiService.instance.getIssScore();
-      if (!mounted) return;
-      final score = issData['iss_score'] as int?;
-      if (score != null) {
-        liveIssScore = score;
-        final premData = await ApiService.instance.getDynamicPremium(tier, score);
-        if (mounted) {
-          setState(() {
-            liveDynamicPrice = (premData['final_premium'] as num?)?.toDouble();
-            _isMLFetching = false;
-          });
-        }
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isMLFetching = false);
-    }
-  }
-
-  void _checkApiHealth() async {
-    setState(() => _apiHealthStatus = {'_loading': 'true'});
-    final base = ApiService.baseUrl;
-    final results = <String, String>{};
-
-    Future<String> ping(String path) async {
-      try {
-        final res = await http.get(
-          Uri.parse('$base$path'),
-        ).timeout(const Duration(seconds: 8));
-        return res.statusCode < 400 ? '✅ ${res.statusCode}' : '❌ ${res.statusCode}';
-      } on TimeoutException {
-        return '⏱ TIMEOUT';
-      } catch (e) {
-        return '❌ ERR';
-      }
-    }
-
-    results['GET /health']          = await ping('/health');
-    if (userId != null) {
-      results['GET /workers/:id']   = await ping('/workers/$userId');
-      results['GET /policies/:id']  = await ping('/policies/$userId');
-      results['GET /wallet/:id']    = await ping('/wallet/$userId');
-      results['GET /claims/:id']    = await ping('/claims/$userId');
-      final zone = Uri.encodeComponent(userZone ?? 'Adyar Dark Store Zone');
-      results['GET /disruptions']   = await ping('/disruptions/$zone');
-    } else {
-      results['NOTE'] = 'Log in first for user-scoped endpoints';
-    }
-
-    if (mounted) setState(() => _apiHealthStatus = results);
-  }
-
-  Future<void> _checkLocationPermission() async {
-    final status = await Permission.locationWhenInUse.status;
-    final bgStatus = await Permission.locationAlways.status;
-    final gpsEnabled = await Geolocator.isLocationServiceEnabled();
-    
-    if (mounted) {
-      setState(() {
-        if (!gpsEnabled) {
-          _locationPermissionStatus = 'GPS_DISABLED_ON_DEVICE';
-        } else {
-          _locationPermissionStatus = status.toString();
-        }
-        _backgroundTrackingActive = bgStatus.isGranted && gpsEnabled;
-      });
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkLocationPermission();
-    }
-  }
-
-  void _onLocationUpdate() {
-    if (mounted) setState(() {});
-  }
-
-  void _onShiftUpdate() {
-    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    LocationService.instance.removeListener(_onLocationUpdate);
-    ShiftTrackingService.instance.removeListener(_onShiftUpdate);
-    WidgetsBinding.instance.removeObserver(this);
     _disruptionRefreshTimer?.cancel();
-    _locationStream?.cancel();
-    _policySub?.cancel();
-    _walletSub?.cancel();
-    _claimSub?.cancel();
     super.dispose();
   }
 
@@ -238,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         }
         disruptionRes = await ApiService.instance.getDisruptions(
           userZone ?? '',
+          issScore: issScore,
         );
       } catch (_) {}
 
@@ -269,7 +106,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         };
       }
 
-      // The dashboard data has landed! Render it instantly.
       if (mounted) {
         setState(() {
           walletData = walletRes;
@@ -281,22 +117,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         });
       }
 
-      // ── Organic ML Data Fetch (Detached Background Task) ──
-      // This prevents the app from freezing if Render is experiencing a cold start.
-      _fetchLiveMLData(tier ?? 'standard');
-
       // Trigger notifications based on policy status and disruptions
       final hasActivePolicy = policyData != null;
       final hasDisruptions = events.isNotEmpty;
       
-      // Only fire notifications for genuinely new data — not every load
-      // Rain alert: only when disruption is truly active (server-confirmed)
-      if (hasDisruptions && active && hasActivePolicy) {
-        NotificationService.instance.addRainAlert(userZone ?? 'your zone');
-      }
-      // Missed payout: only for users WITHOUT a policy AND confirmed disruptions
-      if (hasDisruptions && active && !hasActivePolicy) {
-        NotificationService.instance.addMissedPayout(350);
+      if (hasDisruptions) {
+        if (hasActivePolicy) {
+          NotificationService.instance.addRainAlert(userZone ?? 'Adyar Dark Store Zone');
+        } else {
+          NotificationService.instance.addMissedPayout(350);
+        }
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
@@ -364,111 +194,32 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       );
     }
 
-    final isLocationDenied = _locationPermissionStatus.contains('denied');
-    final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
-
-    if (isLocationDenied || isGpsOff) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.location_disabled,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Location Required',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isGpsOff
-                      ? 'Your physical GPS sensor is turned off. Hustlr requires active GPS to track your delivery routes and authenticate weather claims.'
-                      : 'Hustlr requires "While using the app" or "Always" location access to protect your income during deliveries. "Only this time" is not supported.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (isGpsOff) {
-                      await Geolocator.openLocationSettings();
-                    } else {
-                      await openAppSettings();
-                    }
-                    _checkLocationPermission();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  ),
-                  child: Text(isGpsOff ? 'Turn On GPS' : 'Open Settings'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     final planName = policyData?['plan_name'] ?? 'Standard Shield';
-    
-    String titleCase(String text) {
-      if (text.isEmpty) return text;
-      return text.split(' ').map((word) {
-        if (word.isEmpty) return word;
-        return word[0].toUpperCase() + word.substring(1).toLowerCase();
-      }).join(' ');
-    }
-    
-    final displayUserName = titleCase(userName ?? 'Karthik');
-    final rawPremium = policyData?['weekly_premium']?.toString();
-    final String premium = liveDynamicPrice != null ? liveDynamicPrice!.toStringAsFixed(0) : (rawPremium == '50' ? '49' : rawPremium ?? 
+    final premium = policyData?['weekly_premium']?.toString() ?? 
         (planName == 'Basic Shield' ? '29' : 
          planName == 'Standard Shield' ? '49' : 
-          planName == 'Full Shield' ? '79' : '109'));
-    
-    // Fallback to MockData shadowMissed or a positive value, never wallet balance!
-    final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
+         planName == 'Full Shield' ? '79' : '109');
+    final pAmount = (walletData?['balance'] as num?)?.toInt() ?? 680;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           Positioned.fill(
-            child: RefreshIndicator(
-              color: const Color(0xFF10B981),
-              backgroundColor: const Color(0xFF161B22),
-              onRefresh: _loadDashboardData,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 24),
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: SafeArea(
-                  bottom: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 100),
+              physics: const BouncingScrollPhysics(),
+              child: SafeArea(
+                bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(context, displayUserName),
+                      _buildHeader(context),
                       const SizedBox(height: 32),
-                      _buildTitleSection(l10n, displayUserName),
+                      _buildTitleSection(l10n),
                       const SizedBox(height: 20),
-                      if (nudgeData != null) ...[
-                        _buildPredictiveNudgeCard(l10n),
-                        const SizedBox(height: 16),
-                      ],
                       _buildRainAlertCard(l10n),
                       if (workAdvisorData != null) ...[
                         const SizedBox(height: 16),
@@ -494,12 +245,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           ],
                         ),
                       ),
-                      if (_debugMode) _buildDebugPanel(),
                     ],
                   ),
                 ),
               ),
-            ),
             ),
           ),
         ],
@@ -507,7 +256,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildHeader(BuildContext context, String displayUserName) {
+  Widget _buildHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
     final borderColor = isDark 
@@ -522,22 +271,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () => showDemoPanel(context, onSubmit: _loadDashboardData),
           child: Container(
-            width: 52,
-            height: 52,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: mintColor.withOpacity(0.15),
+              color: bgColor,
               shape: BoxShape.circle,
-              border: Border.all(color: mintColor, width: 2),
+              border: Border.all(color: borderColor),
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.person, color: mintColor, size: 28),
+            child: Icon(Icons.person, color: iconColor),
           ),
         ),
         const SizedBox(width: 12),
         Text(
-          displayUserName, // passed in
+          userName ?? 'Karthik',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -545,19 +293,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             fontFamily: 'Manrope',
           ),
         ),
-        const SizedBox(width: 8),
-        const ShiftStatusDot(),
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded, () => context.push(AppRoutes.support), mintColor, isDark),
         const SizedBox(width: 12),
-        IconButton(
-          icon: Icon(
-            _debugMode ? Icons.bug_report : Icons.bug_report_outlined,
-            color: _debugMode ? Colors.red : Colors.grey,
-          ),
-          onPressed: () => setState(() => _debugMode = !_debugMode),
-        ),
-        const SizedBox(width: 8),
         _buildMintIconBtn(Icons.notifications_rounded, () => context.push(AppRoutes.notifications), mintColor, isDark),
       ],
     );
@@ -580,7 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildTitleSection(AppLocalizations l10n, String displayUserName) {
+  Widget _buildTitleSection(AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final deepContainer = isDark ? const Color(0xFF003324) : const Color(0xFFE8F5E9);
@@ -612,7 +350,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (DynamicTranslator.of(context).translate(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
+                    (userZone ?? 'BENGALURU, KA').toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
                       fontSize: 10,
@@ -628,7 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ),
         const SizedBox(height: 6),
         Text(
-          '${_getGreetingText(context)}, $displayUserName', // passed in
+          '${_getGreetingText(context)}, ${userName ?? 'Karthik'}',
           style: TextStyle(
             color: subtextColor,
             fontSize: 14,
@@ -671,45 +409,38 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? 'ML ADJUSTED PREMIUM' : 'YOUR WEEKLY PREMIUM'),
+                l10n.dashboard_current_active,
                 style: TextStyle(
-                  color: _isMLFetching ? Colors.orangeAccent : (liveDynamicPrice != null ? Colors.amberAccent : subtleText),
+                  color: mintColor,
                   fontSize: 11,
-                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w800,
                   fontFamily: 'Manrope',
                 ),
               ),
-              const SizedBox(height: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  if (_isMLFetching)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 8.0, bottom: 4.0),
-                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
-                    )
-                  else
-                    Text(
-                      '₹$premium',
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '₹$premium',
                       style: TextStyle(
-                        color: liveDynamicPrice != null ? Colors.amberAccent : mintColor,
-                        fontSize: liveDynamicPrice != null ? 30 : 26,
+                        color: mintColor,
+                        fontSize: 26,
                         fontWeight: FontWeight.w900,
                         fontFamily: 'Manrope',
                       ),
                     ),
-                  if (!_isMLFetching)
-                    Text(
-                      liveDynamicPrice != null ? ' (ML Adjusted)' : '/ week',
+                    TextSpan(
+                      text: l10n.policy_per_week,
                       style: TextStyle(
-                        color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
+                        color: subtleText,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Manrope',
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -779,11 +510,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subColor = textColor.withOpacity(0.65);
 
-    final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
-    final band = t.translate(a['stability_band_label'] as String? ?? 'Earning outlook');
-    final headline = t.translate(a['headline'] as String? ?? '');
-    final nudge = t.translate(a['coverage_nudge'] as String? ?? '');
+    final band = a['stability_band_label'] as String? ?? 'Earning outlook';
+    final headline = a['headline'] as String? ?? '';
+    final nudge = a['coverage_nudge'] as String? ?? '';
     final suggest = a['suggest_activate_coverage'] == true;
     final windows = a['recommended_shift_windows'] as List<dynamic>? ?? [];
 
@@ -867,7 +597,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ...windows.take(2).map((w) {
               final m = w is Map<String, dynamic> ? w : null;
               if (m == null) return const SizedBox.shrink();
-              final label = t.translate(m['label'] as String? ?? '');
+              final label = m['label'] as String? ?? '';
               final hours = m['hours'] as String? ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -972,106 +702,28 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ),
           const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () => context.push('/policy'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: mintColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    l10n.dashboard_activate,
-                    style: TextStyle(
-                      color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Manrope',
-                    ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: mintColor,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  l10n.dashboard_activate,
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Manrope',
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_forward_rounded, 
-                    color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
-                    size: 14),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPredictiveNudgeCard(AppLocalizations l10n) {
-    if (nudgeData == null) return const SizedBox.shrink();
-    
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF0D1410) : const Color(0xFFE8F5E9);
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    
-    final t = DynamicTranslator.of(context);
-    final date = t.translate(nudgeData!['nudge_date'] as String? ?? 'Friday');
-    final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
-    final desc = t.translate(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
-    
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: mintColor.withOpacity(0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: mintColor.withOpacity(0.1),
-            blurRadius: 15,
-            spreadRadius: 2,
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, color: mintColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'PROPHET AI NUDGE',
-                style: TextStyle(
-                  color: mintColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                  fontFamily: 'Manrope',
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '🌧️ $prob% Risk of Heavy Rain on $date',
-            style: TextStyle(
-              color: textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Manrope',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            policyData != null
-                ? '$desc\nYour active ${policyData!['plan_name']} will auto-cover any washout shifts.'
-                : '$desc\nCoverage starts next Monday — activate quarterly plan now to secure your income.',
-            style: TextStyle(
-              color: textColor.withOpacity(0.8),
-              fontSize: 13,
-              height: 1.4,
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w600,
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_forward_rounded, 
+                  color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
+                  size: 14),
+              ],
             ),
           ),
         ],
@@ -1080,17 +732,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
-    return Column(
+    return Row(
       children: [
-        if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
-          BatteryOptimizationPrompt(onAllGranted: () {
-            ShiftTrackingService.instance.startShift(userZone ?? 'Adyar Dark Store Zone');
-          }),
-          const SizedBox(height: 16),
-        ],
-        Row(
-          children: [
-            Expanded(
+        Expanded(
           child: _buildActionCard(
             Icons.shield_outlined, 
             l10n.dashboard_modular,
@@ -1118,10 +762,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         ),
       ],
-    ),
-   ],
-  );
-}
+    );
+  }
 
   Widget _buildActionCard(IconData icon, String kicker, String label, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1256,258 +898,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDebugPanel() {
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '🔧 DEBUG MODE — TESTING ONLY',
-            style: TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-          Divider(color: Colors.red.withOpacity(0.3)),
-          
-          Wrap(
-            spacing: 8,
-            children: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () => _loadDashboardData(),
-                child: const Text('REFRESH', style: TextStyle(color: Colors.white)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () {
-                  // Simulate a rain event locally for UI
-                  if (mounted) {
-                    setState(() {
-                      disruptionData = {
-                        'active': true,
-                        'trigger_type': 'Heavy Rain',
-                        'zone': userZone ?? 'Adyar Dark Store Zone',
-                      };
-                      activeDisruption = disruptionData;
-                    });
-                  }
-                },
-                child: const Text('RAIN', style: TextStyle(color: Colors.white)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () => _checkLocationPermission(),
-                child: const Text('GPS', style: TextStyle(color: Colors.white)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: FraudSensorService.mockFraudSpoofing ? Colors.green : Colors.grey[800],
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () {
-                  if (mounted) {
-                    setState(() {
-                      FraudSensorService.mockFraudSpoofing = !FraudSensorService.mockFraudSpoofing;
-                    });
-                  }
-                },
-                child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _enableLiveML ? Colors.amber[800] : Colors.grey[800],
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () {
-                  if (mounted) {
-                    setState(() {
-                      _enableLiveML = !_enableLiveML;
-                    });
-                    if (_enableLiveML) {
-                       _fetchLiveMLData(policyData?['plan_tier'] ?? 'Standard Shield');
-                    } else {
-                       setState(() { liveDynamicPrice = null; liveIssScore = null; });
-                    }
-                  }
-                },
-                child: Text(_enableLiveML ? 'ML SYNC (ON)' : 'ML SYNC (OFF)', style: const TextStyle(color: Colors.white)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  minimumSize: const Size(60, 28),
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(fontSize: 10),
-                ),
-                onPressed: () async {
-                  await StorageService.clearAll();
-                  try {
-                    final box = Hive.box('appData');
-                    await box.put('isLoggedIn', false);
-                    await box.put('isDemoSession', false);
-                    await box.put('onboardingComplete', false);
-                  } catch (_) {}
-                  if (context.mounted) context.go(AppRoutes.login);
-                },
-                child: const Text('LOGOUT', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 12),
-          _DebugHeader('--- USER STATE ---'),
-          _DebugRow('USER ID', userId ?? 'NULL'),
-          _DebugRow('NAME', userName ?? 'NULL'),
-          _DebugRow('ZONE', userZone ?? 'NULL'),
-
-          _DebugHeader('--- POLICY STATE ---'),
-          _DebugRow('POLICY ID', policyData?['id']?.toString() ?? 'NULL'),
-          _DebugRow('PLAN TIER', policyData?['plan_tier']?.toString() ?? 'NULL'),
-          _DebugRow('WEEKLY PREMIUM', policyData?['weekly_premium']?.toString() ?? 'NULL'),
-          _DebugRow('STATUS', policyData?['status']?.toString() ?? 'NULL'),
-
-          _DebugHeader('--- WALLET STATE ---'),
-          Builder(builder: (context) {
-            final rawBal = (walletData?['balance'] as num?)?.toInt();
-            String balStr = 'NULL';
-            if (rawBal != null) {
-              balStr = rawBal < 0 ? '0 (paid: ${rawBal.abs()})' : rawBal.toString();
-            }
-            return _DebugRow('BALANCE', balStr);
-          }),
-          _DebugRow('TOTAL PAYOUTS', walletData?['total_payouts']?.toString() ?? 'NULL'),
-          _DebugRow('TOTAL PREMIUMS', walletData?['total_premiums']?.toString() ?? 'NULL'),
-          _DebugRow('TRANSACTION COUNT', (walletData?['transactions'] as List?)?.length.toString() ?? '0'),
-
-          _DebugHeader('--- DISRUPTION STATE ---'),
-          _DebugRow('WEATHER SOURCE', weatherData?['station']?.toString() ?? 'NULL'),
-          _DebugRow('RAIN MM', '${weatherData?['rainfall_mm_1h'] ?? 'NULL'}'),
-          _DebugRow('TEMP', '${weatherData?['temp_celsius'] ?? 'NULL'}°C'),
-          _DebugRow('TRIGGER ACTIVE', disruptionData?['active']?.toString() ?? 'false'),
-          _DebugRow('TRIGGER TYPE', disruptionData?['trigger_type']?.toString() ?? 'NONE'),
-
-          _DebugHeader('--- API STATE ---'),
-          _DebugRow('BACKEND URL', ApiService.baseUrl),
-          const SizedBox(height: 8),
-          // ── Live API Health Check ──────────────────────────────────
-          if (_apiHealthStatus.isEmpty)
-            GestureDetector(
-              onTap: _checkApiHealth,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('▶ RUN API HEALTH CHECK',
-                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
-            )
-          else if (_apiHealthStatus['_loading'] == 'true')
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(children: [
-                SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3FFF8B))),
-                SizedBox(width: 10),
-                Text('Pinging endpoints...', style: TextStyle(color: Colors.white70, fontSize: 11)),
-              ]),
-            )
-          else ...[
-            ..._apiHealthStatus.entries.map((e) =>
-              _DebugRow(e.key, e.value)),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: _checkApiHealth,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('↻ RE-RUN CHECK',
-                    style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-
-          _DebugHeader('--- LOCATION STATE ---'),
-          _DebugRow('LOCATION PERMISSION', _locationPermissionStatus),
-          _DebugRow('LAST GPS LAT', _lastLat == 0.0 ? 'NO FIX YET' : _lastLat.toStringAsFixed(6)),
-          _DebugRow('LAST GPS LNG', _lastLng == 0.0 ? 'NO FIX YET' : _lastLng.toStringAsFixed(6)),
-          _DebugRow('ZONE DEPTH SCORE', _zoneDepthScore.toStringAsFixed(1)),
-          _DebugRow('BACKGROUND TRACKING', _backgroundTrackingActive.toString()),
-        ],
-      ),
-    );
-  }
-}
-
-class _DebugHeader extends StatelessWidget {
-  final String title;
-  const _DebugHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.yellow,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-class _DebugRow extends StatelessWidget {
-  final String keyName;
-  final String valName;
-  const _DebugRow(this.keyName, this.valName);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      '$keyName: $valName',
-      style: const TextStyle(
-        color: Colors.greenAccent,
-        fontSize: 11,
-        fontFamily: 'monospace',
       ),
     );
   }

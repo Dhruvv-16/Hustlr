@@ -15,29 +15,29 @@ const _platforms = ['Zepto', 'Blinkit', 'Swiggy Instamart', 'Dunzo', 'BB Now'];
 
 const Map<String, List<String>> _cityZones = {
   'Chennai': [
-    'Adyar', 'Anna Nagar', 'T Nagar',
-    'OMR', 'Velachery', 'Porur',
-    'Tambaram', 'Sholinganallur', 'Mylapore', 'Perambur', 'Guindy', 'Chromepet', 'Korattur'
+    'Adyar Dark Store Zone', 'Anna Nagar Dark Store Zone', 'T Nagar Dark Store Zone',
+    'OMR Dark Store Zone', 'Velachery Dark Store Zone', 'Porur Dark Store Zone',
+    'Tambaram Dark Store Zone', 'Sholinganallur Dark Store Zone', 'Mylapore Dark Store Zone', 'Perambur Dark Store Zone'
   ],
   'Bengaluru': [
-    'Koramangala', 'HSR Layout', 'Indiranagar',
-    'Whitefield', 'Electronic City', 'Jayanagar',
-    'Marathahalli', 'BTM Layout', 'Hebbal', 'Sarjapur'
+    'Koramangala Dark Store Zone', 'HSR Layout Dark Store Zone', 'Indiranagar Dark Store Zone',
+    'Whitefield Dark Store Zone', 'Electronic City Dark Store Zone', 'Jayanagar Dark Store Zone',
+    'Marathahalli Dark Store Zone', 'BTM Layout Dark Store Zone', 'Hebbal Dark Store Zone', 'Sarjapur Dark Store Zone'
   ],
   'Mumbai': [
-    'Andheri', 'Bandra', 'Powai',
-    'Thane', 'Malad', 'Borivali',
-    'Goregaon', 'Kurla', 'Dadar', 'Chembur'
+    'Andheri Dark Store Zone', 'Bandra Dark Store Zone', 'Powai Dark Store Zone',
+    'Thane Dark Store Zone', 'Malad Dark Store Zone', 'Borivali Dark Store Zone',
+    'Goregaon Dark Store Zone', 'Kurla Dark Store Zone', 'Dadar Dark Store Zone', 'Chembur Dark Store Zone'
   ],
   'Delhi': [
-    'Connaught Place', 'Lajpat Nagar', 'Dwarka',
-    'Rohini', 'Saket', 'Noida Sector 18',
-    'Gurugram Sector 29', 'Karol Bagh', 'Pitampura', 'Vasant Kunj'
+    'Connaught Place Dark Store Zone', 'Lajpat Nagar Dark Store Zone', 'Dwarka Dark Store Zone',
+    'Rohini Dark Store Zone', 'Saket Dark Store Zone', 'Noida Sector 18 Dark Store Zone',
+    'Gurugram Sector 29 Dark Store Zone', 'Karol Bagh Dark Store Zone', 'Pitampura Dark Store Zone', 'Vasant Kunj Dark Store Zone'
   ],
   'Hyderabad': [
-    'Banjara Hills', 'Hitech City', 'Gachibowli',
-    'Madhapur', 'Kukatpally', 'Secunderabad',
-    'Ameerpet', 'LB Nagar', 'Kondapur', 'Uppal'
+    'Banjara Hills Dark Store Zone', 'Hitech City Dark Store Zone', 'Gachibowli Dark Store Zone',
+    'Madhapur Dark Store Zone', 'Kukatpally Dark Store Zone', 'Secunderabad Dark Store Zone',
+    'Ameerpet Dark Store Zone', 'LB Nagar Dark Store Zone', 'Kondapur Dark Store Zone', 'Uppal Dark Store Zone'
   ],
 };
 
@@ -54,7 +54,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _selectedCity;
   String? _selectedZone;
   String? _selectedPlatform;
-  final _kycController = TextEditingController();
   bool _saving = false;
 
   int get _activeStep {
@@ -62,8 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_selectedCity == null) return 2;
     if (_selectedZone == null) return 3;
     if (_selectedPlatform == null) return 4;
-    if (_kycController.text.trim().isEmpty) return 5;
-    return 6;
+    return 5;
   }
 
   Future<void> _onContinue() async {
@@ -72,7 +70,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_selectedCity == null) { _showError('Please select your city.'); return; }
     if (_selectedZone == null) { _showError('Please select your zone.'); return; }
     if (_selectedPlatform == null) { _showError('Please select your platform.'); return; }
-    if (_kycController.text.trim().isEmpty) { _showError('Please enter your Platform ID.'); return; }
 
     setState(() => _saving = true);
 
@@ -91,10 +88,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       await StorageService.setUserId(userId);
       await StorageService.setString('userName', name);
-      await StorageService.setString('workerName', name);
       await StorageService.setUserZone(_selectedZone!);
       await StorageService.setString('userCity', _selectedCity!);
-      await StorageService.setString('userPlatform', _selectedPlatform!);
 
       final policyData = await ApiService.instance.createPolicy(
         userId: userId,
@@ -111,7 +106,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       final box = Hive.box('appData');
       await box.put('userName', name);
-      await box.put('workerName', name);
       await box.put('userCity', _selectedCity);
       await box.put('userZone', _selectedZone);
       await box.put('userPlatform', _selectedPlatform);
@@ -258,7 +252,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _kycController.dispose();
     super.dispose();
   }
 
@@ -465,38 +458,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 );
               }).toList(),
             ),
-
-            const SizedBox(height: 40),
-
-            // ── Step 5: KYC / Platform Verification ───────────────────────────
-            Text('PLATFORM VERIFICATION', style: theme.textTheme.labelSmall),
-            const SizedBox(height: 4),
-            Text(
-              'Enter your $_selectedPlatform Delivery ID or registered Aadhaar',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: inputRadius,
-                boxShadow: isDark || _selectedPlatform == null ? [] : [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
-                ],
-              ),
-              child: TextField(
-                controller: _kycController,
-                enabled: _selectedPlatform != null,
-                onChanged: (_) => setState(() {}),
-                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  hintText: _selectedPlatform != null ? 'Enter $_selectedPlatform ID' : 'Select a platform first',
-                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3)),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -510,7 +471,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: PrimaryButton(
                   text: 'Create Profile',
                   isLoading: _saving,
-                  onPressed: _activeStep == 6 ? _onContinue : null,
+                  onPressed: _activeStep == 5 ? _onContinue : null,
                 ),
               ),
             ],

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../models/claim.dart';
 
 import '../../features/splash/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_screen.dart';
-import '../../features/auth/step_up_auth_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/onboarding/onboarding_complete_screen.dart';
 import '../../features/onboarding/onboarding_carousel_screen.dart';
@@ -22,7 +20,6 @@ import '../../features/claims/claim_detail_screen.dart';
 import '../../features/claims/manual_evidence_screen.dart';
 import '../../features/claims/claim_submitted_screen.dart';
 import '../../features/claims/auto_explanation_screen.dart';
-import '../../features/claims/appeal_claim_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/wallet/analytics_dashboard_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -30,7 +27,6 @@ import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/ml_tester_screen.dart';
-import '../../features/ml_live/ml_live_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../shared/widgets/bottom_nav_bar.dart';
 import '../services/storage_service.dart';
@@ -63,8 +59,6 @@ class AppRoutes {
   static const support = '/support';
   static const admin = '/admin';
   static const mlTester = '/admin/ml-tester';
-  static const mlLive = '/ml-live';
-  static const stepUpAuth = '/step-up-auth';
 }
 
 // ─── Initial Route Logic ─────────────────────────────────────────────────────
@@ -115,8 +109,7 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.otp,
       builder: (context, state) {
         final phone = state.uri.queryParameters['phone'] ?? '';
-        final verificationId = state.uri.queryParameters['verificationId'] ?? '';
-        return OTPScreen(phone: phone, verificationId: verificationId);
+        return OTPScreen(phone: phone);
       },
     ),
     GoRoute(
@@ -147,10 +140,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.payment,
-          builder: (context, state) {
-            final extra = state.extra as Map<String, dynamic>?;
-            return PaymentScreen(checkoutData: extra);
-          },
+          builder: (_, __) => const PaymentScreen(),
         ),
         GoRoute(
           path: AppRoutes.claims,
@@ -186,25 +176,13 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.autoExplanation,
-          builder: (context, state) {
-            final extra = state.extra;
-            final Map<String, dynamic>? payload =
-                extra is Map<String, dynamic> ? extra : null;
-            return AutoExplanationScreen(extra: payload);
-          },
+          builder: (_, __) => const AutoExplanationScreen(),
         ),
         GoRoute(
           path: '/claims/:id',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             return ClaimDetailScreen(claimId: id);
-          },
-        ),
-        GoRoute(
-          path: '/claims/:id/appeal',
-          builder: (context, state) {
-            final claim = state.extra as Claim;
-            return AppealClaimScreen(rejectedClaim: claim);
           },
         ),
         GoRoute(
@@ -242,19 +220,6 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.mlTester,
       builder: (_, __) => const MlTesterScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.mlLive,
-      builder: (_, __) => const MLLiveScreen(),
-    ),
-
-    // ── Step-Up Biometric Auth ───────────────────────────────────────────────
-    GoRoute(
-      path: AppRoutes.stepUpAuth,
-      builder: (context, state) {
-        final reason = state.uri.queryParameters['reason'];
-        return StepUpAuthScreen(triggerReason: reason);
-      },
     ),
   ],
 );

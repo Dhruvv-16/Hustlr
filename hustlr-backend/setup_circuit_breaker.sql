@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS circuit_breakers (
 );
 
 ALTER TABLE circuit_breakers ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "allow_all" ON circuit_breakers;
 CREATE POLICY "allow_all" ON circuit_breakers FOR ALL USING (true);
 
 -- Ensure risk_pools exists for our new BCR tracking
@@ -28,5 +27,4 @@ CREATE TABLE IF NOT EXISTS risk_pools (
 );
 
 ALTER TABLE risk_pools ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "allow_all" ON risk_pools;
 CREATE POLICY "allow_all" ON risk_pools FOR ALL USING (true);

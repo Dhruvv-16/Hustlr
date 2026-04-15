@@ -28,7 +28,6 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
     on<ClaimStatusUpdated>(_onClaimStatusUpdated);
     on<RefreshWallet>(_onRefreshWallet);
     on<WithdrawFunds>(_onWithdrawFunds);
-    on<SubmitClaimAppeal>(_onSubmitAppeal);
   }
 
   /// Load a one-shot snapshot of claims + wallet. Does not start polling.
@@ -170,33 +169,6 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
       emit(state.copyWith(
         status: LoadStatus.failure,
         errorMessage: _friendlyMessage(e),
-      ));
-    }
-  }
-
-  Future<void> _onSubmitAppeal(
-    SubmitClaimAppeal event,
-    Emitter<ClaimsState> emit,
-  ) async {
-    emit(state.copyWith(status: LoadStatus.loading));
-    try {
-      await apiService.submitClaimAppeal(
-        claimId: event.claimId,
-        workerId: event.workerId,
-        selectedReason: event.selectedReason,
-        additionalContext: event.additionalContext,
-      );
-      // Refresh claims list so the appealed claim shows updated status
-      final updatedData = await apiService.getClaims(event.workerId);
-      final rawClaims = updatedData['claims'] as List<dynamic>? ?? [];
-      final claims = rawClaims
-          .map((c) => Claim.fromJson(c as Map<String, dynamic>))
-          .toList();
-      emit(state.copyWith(status: LoadStatus.success, claims: claims));
-    } catch (e) {
-      emit(state.copyWith(
-        status: LoadStatus.failure,
-        errorMessage: 'Appeal could not be submitted. Please try again.',
       ));
     }
   }

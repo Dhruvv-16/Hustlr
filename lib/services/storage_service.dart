@@ -92,8 +92,4 @@ class StorageService {
   Future<void> setOnboardingComplete(bool value) async => setOnboarded(value);
 
   Future<bool> isOnboardingComplete() async => isOnboarded;
-
-  Future<void> clearDemoState() async {
-    // Implement any demo specific clearing if necessary
-  }
 }

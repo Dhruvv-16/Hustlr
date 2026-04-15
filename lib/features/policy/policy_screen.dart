@@ -37,7 +37,7 @@ List<_Plan> _getPlans(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
   return [
     _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
-    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
+    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹59/wk', isMostPopular: true),
     _Plan(name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
   ];
 }
@@ -375,9 +375,10 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   int get _totalCost {
     const planPrices = {
-      'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79,
+      'Basic Shield': 35, 'Standard Shield': 59,
+      'Full Shield': 79,
     };
-    int total = planPrices[_selectedPlan ?? 'Standard Shield'] ?? 49;
+    int total = planPrices[_selectedPlan ?? 'Standard Shield'] ?? 59;
 
     const riderPrices = {
       'Cyclone': 20, 'Curfew & Strike': 12,
@@ -464,37 +465,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         ]),
       ),
       Positioned(
-        left: 0, right: 0, bottom: 0,
-        child: _StickyBottomBar(
-          total: _totalCost,
-          onProceed: () {
-            final planPrices = {'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79};
-            final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
-            final planName = _selectedPlan ?? 'Standard Shield';
-            final planCost = planPrices[planName] ?? 49;
-            final bool allIncluded = planName == 'Full Shield';
-
-            List<Map<String, dynamic>> activeRiders = [];
-            if (!allIncluded) {
-              for (final r in _riderToggles.entries) {
-                if (r.key == 'App Downtime' && planName == 'Standard Shield') continue;
-                if (r.value) {
-                  activeRiders.add({
-                    'name': '${r.key} Rider',
-                    'cost': riderPrices[r.key] ?? 0
-                  });
-                }
-              }
-            }
-
-            context.push('/policy/payment', extra: <String, dynamic>{
-              'plan': planName,
-              'planCost': planCost,
-              'total': _totalCost,
-              'riders': activeRiders
-            });
-          }
-        ),
+        left: 0, right: 0, bottom: 96,
+        child: _StickyBottomBar(total: _totalCost, onProceed: widget.onProceed),
       ),
     ]);
   }

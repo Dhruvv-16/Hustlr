@@ -340,7 +340,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get claim_detail_download => 'ரசீது பதிவிறக்கு';
 
   @override
-  String get wallet_title => 'வாலெட்';
+  String get wallet_title => 'வால்ட்';
 
   @override
   String get wallet_balance => 'கிடைக்கும் இருப்பு';
@@ -519,13 +519,6 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get support_faq_3_a =>
       'ஆம். பாலிசி டேப்-க்கு சென்று திட்டத்தை மேம்படுத்து என்பதை தட்டவும்.';
-
-  @override
-  String get support_faq_4_q => 'How are the weekly premiums priced?';
-
-  @override
-  String get support_faq_4_a =>
-      'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.';
 
   @override
   String get support_raise_ticket => 'டிக்கெட் உயர்த்து';

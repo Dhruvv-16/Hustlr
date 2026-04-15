@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
+import 'package:provider/provider.dart';
+import '../../services/mock_data_service.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../blocs/claims/claims_bloc.dart';
-import '../../models/claim.dart';
-import '../../services/storage_service.dart';
-import 'package:intl/intl.dart';
 
 class AnalyticsDashboardScreen extends StatefulWidget {
   const AnalyticsDashboardScreen({super.key});
@@ -16,16 +13,6 @@ class AnalyticsDashboardScreen extends StatefulWidget {
 }
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
-  String _zone = '';
-
-  @override
-  void initState() {
-    super.initState();
-    StorageService.instance.getUserZone().then((z) {
-      if (mounted) setState(() => _zone = z ?? '');
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme  = Theme.of(context);
@@ -67,33 +54,14 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  /// Returns the quarterly policy expiry — 3 months from today — formatted as "Mon YYYY".
-  String _quarterlyExpiry() {
-    final expiry = DateTime.now().add(const Duration(days: 90));
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[expiry.month - 1]} ${expiry.year}';
-  }
-
   Widget _buildHeroCard(BuildContext context) {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
-                          .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
+    final mockData = Provider.of<MockDataService>(context);
+    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
     final green = theme.colorScheme.primary;
     final heroBg = isDark ? const Color(0xFF004734) : const Color(0xFF125117);
     final subText = isDark ? green.withOpacity(0.8) : const Color(0xFFB0F3A6);
-
-    final claimsState = context.watch<ClaimsBloc>().state;
-    final claims = claimsState.claims;
-    
-    int total = 0;
-    int count = 0;
-    for (var c in claims) {
-      if (c.status != ClaimStatus.rejected) {
-        total += c.grossPayout;
-        count++;
-      }
-    }
 
     return Container(
       width: double.infinity,
@@ -116,13 +84,13 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             style: TextStyle(color: subText, fontSize: 14, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
-          Text(
-            '₹$total',
-            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+          const Text(
+            '₹2,190',
+            style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Across $count disruption event${count == 1 ? '' : 's'} in $userZone',
+            'Across 3 disruption events in $userZone zone this month',
             style: TextStyle(color: subText, fontSize: 13),
           ),
         ],
@@ -148,7 +116,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         children: [
           _buildPolicyRow(context, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Policy Valid', value: _quarterlyExpiry()),
+          _buildPolicyRow(context, title: 'Policy Valid', value: 'Oct 2026'),
           const SizedBox(height: 12),
           _buildPolicyRow(context, title: 'Add-ons', value: 'App Downtime (1 active)'),
         ],
@@ -218,13 +186,13 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             child: BarChart(
               BarChartData(
                 barGroups: [
-                  _buildBarGroup(0, 0, empty),
-                  _buildBarGroup(1, 0, empty),
-                  _buildBarGroup(2, 0, empty),
-                  _buildBarGroup(3, 0, empty),
-                  _buildBarGroup(4, 0, empty),
-                  _buildBarGroup(5, 0, empty),
-                  _buildBarGroup(6, 0, empty),
+                  _buildBarGroup(0, 12, green),
+                  _buildBarGroup(1, 8,  const Color(0xFFFF9800)),
+                  _buildBarGroup(2, 0,  empty),
+                  _buildBarGroup(3, 6,  green),
+                  _buildBarGroup(4, 4,  const Color(0xFF2196F3)),
+                  _buildBarGroup(5, 0,  empty),
+                  _buildBarGroup(6, 0,  empty),
                 ],
                 titlesData: FlTitlesData(
                   leftTitles:   AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -295,62 +263,25 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     final theme  = Theme.of(context);
     final green  = theme.colorScheme.primary;
     final text   = theme.colorScheme.onSurface;
-    final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
-                          .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
-
-    final claimsState = context.watch<ClaimsBloc>().state;
-    final claims = claimsState.claims;
+    final mockData = Provider.of<MockDataService>(context);
+    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Payout history', style: TextStyle(color: text, fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
-        if (claims.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Center(
-              child: Text(
-                'No recent payouts to show.',
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-              ),
-            ),
-          )
-        else
-          ...claims.take(3).map((claim) {
-            IconData icon;
-            if (claim.triggerType.contains('rain')) {
-              icon = Icons.water_drop_rounded;
-            } else if (claim.triggerType.contains('heat')) {
-              icon = Icons.wb_sunny_rounded;
-            } else {
-              icon = Icons.phonelink_off_rounded;
-            }
-            
-            Color statusColor;
-            switch (claim.status) {
-              case ClaimStatus.approved: statusColor = green; break;
-              case ClaimStatus.rejected: statusColor = theme.colorScheme.error; break;
-              case ClaimStatus.processing: statusColor = const Color(0xFF2196F3); break;
-              default: statusColor = const Color(0xFFFF9800); break;
-            }
-
-            final dateStr = DateFormat('MMM d, yyyy').format(claim.createdAt);
-            
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildPayoutCard(
-                context, 
-                icon: icon, 
-                trigger: claim.displayLabel,
-                date: dateStr, 
-                zone: userZone, 
-                amount: '₹${claim.grossPayout}',
-                status: claim.status.displayLabel, 
-                statusColor: statusColor
-              ),
-            );
-          }),
+        _buildPayoutCard(context, icon: Icons.water_drop_rounded, trigger: 'Heavy Rain',
+            date: 'Oct 15, 2025', zone: userZone, amount: '₹820',
+            status: 'Approved', statusColor: green),
+        const SizedBox(height: 8),
+        _buildPayoutCard(context, icon: Icons.phonelink_off_rounded, trigger: 'Platform Downtime',
+            date: 'Oct 12, 2025', zone: userZone, amount: '₹450',
+            status: 'Pending', statusColor: const Color(0xFFFF9800)),
+        const SizedBox(height: 8),
+        _buildPayoutCard(context, icon: Icons.wb_sunny_rounded, trigger: 'Extreme Heat',
+            date: 'Oct 8, 2025', zone: userZone, amount: '₹920',
+            status: 'Scheduled', statusColor: const Color(0xFF2196F3)),
       ],
     );
   }

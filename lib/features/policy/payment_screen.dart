@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
-import '../../services/api_service.dart';
-import '../../services/storage_service.dart';
-import '../../services/app_events.dart';
+import '../../services/mock_data_service.dart';
 
 class PaymentScreen extends StatefulWidget {
-  final Map<String, dynamic>? checkoutData;
-  const PaymentScreen({super.key, this.checkoutData});
+  const PaymentScreen({super.key});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -16,64 +14,38 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   int _selectedMethod = 0; // 0 = UPI, 1 = Wallet
   bool _loading = false;
-  int _walletBalance = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBalance();
-  }
-
-  void _loadBalance() async {
-    try {
-      final userId = await StorageService.instance.getUserId();
-      if (userId == null) return;
-      final data = await ApiService.instance.getWallet(userId);
-      if (mounted) {
-        setState(() {
-          _walletBalance = (data['balance'] as num?)?.toInt() ?? 0;
-          if (_walletBalance < 0) _walletBalance = 0;
-        });
-      }
-    } catch (_) {}
-  }
 
   void _confirm() async {
     setState(() => _loading = true);
-    try {
-      final userId = await StorageService.instance.getUserId();
-      if (userId != null) {
-        final planName = widget.checkoutData?['plan'] ?? 'standard';
-        final result = await ApiService.instance.createPolicy(
-          userId: userId,
-          planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
-        );
-        final policyId = result['policy']?['id'] as String?;
-        if (policyId != null) {
-          await StorageService.instance.savePolicyId(policyId);
-          AppEvents.instance.policyUpdated();
-          AppEvents.instance.walletUpdated(); // Premium deducted
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment mock error: $e', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red),
-        );
-        setState(() => _loading = false);
-      }
-      return; // Do not go to dashboard if payment fails, let them see the error
-    }
+
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!mounted) return;
+
+    // Update policy status in mock data
+    final mockData = Provider.of<MockDataService>(context, listen: false);
+    mockData.activePolicy = PolicyModel(
+      plan: mockData.activePolicy.plan,
+      premium: mockData.activePolicy.premium,
+      status: 'ACTIVE',
+      coverageStart: mockData.activePolicy.coverageStart,
+      coverageEnd: mockData.activePolicy.coverageEnd,
+      riders: mockData.activePolicy.riders,
+      coverageDescription: mockData.activePolicy.coverageDescription,
+    );
+
     setState(() => _loading = false);
+
+    if (!mounted) return;
+
     context.go(AppRoutes.dashboard);
 
     final green = Theme.of(context).colorScheme.primary;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
-          'Coverage activated! You are now protected.',
+          'Coverage activated! You are protected\nMon 17 Mar – Sun 23 Mar',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
         ),
         backgroundColor: green,
@@ -93,21 +65,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final primaryText = theme.colorScheme.onSurface;
     final green = theme.colorScheme.primary;
     final divider = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
-
-    final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
-    final planCost = widget.checkoutData?['planCost'] ?? 49;
     
-    // Safely cast riders to prevent type errors from GoRouter extras
-    final rawRiders = widget.checkoutData?['riders'];
-    final List<Map<String, dynamic>> riders = [];
-    if (rawRiders is List) {
-      for (var r in rawRiders) {
-        if (r is Map) riders.add(Map<String, dynamic>.from(r));
-      }
-    }
-    
-    final total = widget.checkoutData?['total'] ?? 49;
-
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
@@ -145,16 +103,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _SummaryRow(label: planName, amount: '₹$planCost/wk'),
-                  if (riders.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    ...riders.map((r) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _SummaryRow(
-                              label: r['name'], amount: '₹${r['cost']}/wk'),
-                        )),
-                  ],
-                  const SizedBox(height: 4),
+                  const _SummaryRow(label: 'Standard Shield', amount: '₹59/wk'),
+                  const SizedBox(height: 12),
+                  const _SummaryRow(label: 'App Downtime Rider', amount: '₹10/wk'),
+                  const SizedBox(height: 16),
                   Container(height: 1, color: divider),
                   const SizedBox(height: 16),
                   Row(
@@ -169,7 +121,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         ),
                       ),
                       Text(
-                        '₹$total/wk',
+                        '₹69/wk',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -212,7 +164,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   _PaymentMethodRow(
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'Hustlr Wallet',
-                    subtitle: 'Balance: ₹${_walletBalance.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},")}',
+                    subtitle: 'Balance: ₹2,340',
                     selected: _selectedMethod == 1,
                     onTap: () => setState(() => _selectedMethod = 1),
                   ),

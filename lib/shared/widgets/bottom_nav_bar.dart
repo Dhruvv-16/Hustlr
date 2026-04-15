@@ -40,9 +40,12 @@ class ScaffoldWithNav extends StatelessWidget {
     ].contains(path);
 
     return Scaffold(
+      extendBody: true,
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          // The main screen content with bottom padding so content isn't
+          // hidden behind the floating nav.
           Positioned.fill(
             child: child,
           ),
@@ -51,25 +54,31 @@ class ScaffoldWithNav extends StatelessWidget {
           if (!isSupport && showNavBar)
             Positioned(
               right: 20,
-              bottom: (path == AppRoutes.policy) ? 100 : 24,
+              bottom: 100,
               child: _FloatingHelpButton(),
+            ),
+
+          // The entirely floating Capsule Nav Bar
+          if (showNavBar)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: HustlrBottomNav(
+                currentIndex: idx,
+                onTap: (i) {
+                  final routes = [
+                    AppRoutes.dashboard,
+                    AppRoutes.policy,
+                    AppRoutes.claims,
+                    AppRoutes.wallet,
+                  ];
+                  context.go(routes[i]);
+                },
+              ),
             ),
         ],
       ),
-      bottomNavigationBar: showNavBar
-          ? HustlrBottomNav(
-              currentIndex: idx,
-              onTap: (i) {
-                final routes = [
-                  AppRoutes.dashboard,
-                  AppRoutes.policy,
-                  AppRoutes.claims,
-                  AppRoutes.wallet,
-                ];
-                context.go(routes[i]);
-              },
-            )
-          : null,
     );
   }
 }

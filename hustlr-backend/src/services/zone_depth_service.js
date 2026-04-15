@@ -1,9 +1,7 @@
 /**
  * Zone depth vs dark-store hub: distance rings → underwriting-style score [0.35, 1.0].
- * Optional PostGIS path: set USE_POSTGIS_ZONE_DEPTH=true and run schema_phase2.sql (RPC hustlr_zone_depth).
+ * Coordinates default to a Chennai dark-store–style anchor (override via env).
  */
-
-const { supabase } = require('../config/supabase');
 
 const EARTH_KM = 6371;
 
@@ -43,44 +41,7 @@ function computeZoneDepth(lat, lon) {
     distance_km: Math.round(distance_km * 1000) / 1000,
     zone_depth_score: Math.round(zone_depth_score * 1000) / 1000,
     hub: { lat: hubLat, lon: hubLon },
-    source: 'haversine',
   };
 }
 
-/**
- * Prefer PostGIS ST_Distance (geography) when enabled and RPC exists.
- */
-async function computeZoneDepthAsync(lat, lon) {
-  const fallback = computeZoneDepth(lat, lon);
-  if (process.env.USE_POSTGIS_ZONE_DEPTH !== 'true') {
-    return fallback;
-  }
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    return fallback;
-  }
-  try {
-    const hubLat = parseFloat(process.env.DARK_STORE_LAT || '12.982');
-    const hubLon = parseFloat(process.env.DARK_STORE_LON || '80.243');
-    const { data, error } = await supabase.rpc('hustlr_zone_depth', {
-      worker_lat: lat,
-      worker_lon: lon,
-      hub_lat: hubLat,
-      hub_lon: hubLon,
-    });
-    if (error) throw error;
-    const row = typeof data === 'string' ? JSON.parse(data) : data;
-    if (row && row.distance_km != null && row.zone_depth_score != null) {
-      return {
-        distance_km: Number(row.distance_km),
-        zone_depth_score: Number(row.zone_depth_score),
-        hub: { lat: hubLat, lon: hubLon },
-        source: row.source || 'postgis',
-      };
-    }
-  } catch (e) {
-    console.warn('[ZoneDepth] PostGIS RPC failed, using haversine:', e.message);
-  }
-  return fallback;
-}
-
-module.exports = { computeZoneDepth, computeZoneDepthAsync, haversineKm };
+module.exports = { computeZoneDepth, haversineKm };

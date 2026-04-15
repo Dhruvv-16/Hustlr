@@ -10,34 +10,26 @@ class ApiService {
   ///
   /// **Local dev:** `--dart-define=HUSTLR_API_BASE=...` or repo [scripts/start-dev.ps1].
   static String get baseUrl {
+    if (kIsWeb) return 'http://127.0.0.1:3000';
+
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
 
-    // Web (e.g. Vercel): same prod URL as mobile — set HUSTLR_API_PROD in the host env and build.sh.
-    if (kIsWeb) {
-      if (prod.isNotEmpty) return prod;
-      if (devOverride.isNotEmpty) return devOverride;
-      if (kReleaseMode) {
-        return 'https://hustlr-ad32.onrender.com';
-      }
-      return 'https://hustlr-ad32.onrender.com';
-    }
-
     if (kReleaseMode) {
       if (prod.isNotEmpty) return prod;
-      return 'https://hustlr-ad32.onrender.com';
+      throw StateError(
+        'Release build needs --dart-define=HUSTLR_API_PROD=https://api.yourdomain.com',
+      );
     }
 
     if (devOverride.isNotEmpty) return devOverride;
-    return 'https://hustlr-ad32.onrender.com';
+    return 'http://192.168.1.10:3000';
   }
 
-  static const _timeout = Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
+  static const _timeout = Duration(seconds: 5); // 5s — real network may be slower
 
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
-
-  static String get mlBackendUrl => const String.fromEnvironment('HUSTLR_ML_PROD', defaultValue: 'https://hustlr-ml-complete.onrender.com');
 
   String? currentUserId;
   String? currentPolicyId;
@@ -184,8 +176,8 @@ class ApiService {
         'policy': {
           'id': 'mock-policy',
           'plan_tier': tier,
-          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
-          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 35),
+          'weekly_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
+          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 59 : 35),
           'zone_adjustment': 0,
           'status': 'active',
         }
@@ -240,136 +232,12 @@ class ApiService {
         Uri.parse('$baseUrl/wallet/$userId'),
         headers: headers,
       ).timeout(_timeout);
-      
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        
-        // Ensure all fields exist — backend may omit some
-        return {
-          'balance':        data['balance'] ?? 0,
-          'total_payouts':  data['total_payouts'] ?? 0,
-          'total_premiums': data['total_premiums'] ?? 0,
-          'transactions':   data['transactions'] ?? [],
-        };
-      }
-      
-      throw Exception('Status ${res.statusCode}');
-      
-    } catch (e) {
-      print('[API] getWallet failed: $e');
-      // Return mock so UI never shows empty
-      return {
-        'balance':        1250,
-        'total_payouts':  450,
-        'total_premiums': 196,
-        'transactions':   [],
-        '_mock':          true,
-      };
-    }
-  }
-
-  /// Shadow policy estimate from zone [disruption_events] (falls back to empty map on error).
-  Future<Map<String, dynamic>> getShadowSummary(String userId, {int days = 14}) async {
-    try {
-      final res = await http
-          .get(
-            Uri.parse(
-              '$baseUrl/policies/shadow/${Uri.encodeComponent(userId)}?days=$days',
-            ),
-            headers: headers,
-          )
-          .timeout(_timeout);
-      if (res.statusCode == 404) return {};
-      final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+      final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-      if (res.statusCode >= 400) {
-        throw Exception(data['error'] ?? 'Request failed');
-      }
-      return data;
+      if (res.statusCode == 200) return data;
+      throw Exception(data['error'] ?? 'Failed to fetch wallet');
     } catch (_) {
-      return {};
-    }
-  }
-
-  /// Server nonce for Play Integrity (Android). Pair with [obtainPlayIntegrityToken].
-  Future<Map<String, dynamic>> getPlayIntegrityNonce() async {
-    try {
-      final res = await http
-          .get(
-            Uri.parse('$baseUrl/integrity/play/nonce'),
-            headers: headers,
-          )
-          .timeout(_timeout);
-      final raw = res.body.isEmpty ? '{}' : res.body;
-      final data = jsonDecode(raw);
-      if (data is! Map<String, dynamic>) return {};
-      if (res.statusCode != 200) return {};
-      return data;
-    } catch (_) {
-      return {};
-    }
-  }
-
-  /// Optional: verify token only (manual claims usually send [integrityToken] on submit).
-  Future<Map<String, dynamic>> verifyPlayIntegrity({
-    required String integrityToken,
-    String? packageName,
-  }) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$baseUrl/integrity/play/verify'),
-            headers: headers,
-            body: jsonEncode({
-              'integrity_token': integrityToken,
-              if (packageName != null) 'package_name': packageName,
-            }),
-          )
-          .timeout(_timeout);
-      final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
-      return data is Map<String, dynamic> ? data : {};
-    } catch (_) {
-      return {'ok': false, 'play_integrity_pass': false};
-    }
-  }
-
-  /// FPS-style body → `{ reasons, summary }` from `/claims/explanation`.
-  Future<Map<String, dynamic>> postClaimExplanation(Map<String, dynamic> body) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$baseUrl/claims/explanation'),
-            headers: headers,
-            body: jsonEncode(body),
-          )
-          .timeout(_timeout);
-      final raw = res.body.isEmpty ? '{}' : res.body;
-      final data = jsonDecode(raw);
-      if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-      if (res.statusCode >= 400) {
-        return {
-          'reasons': [
-            {
-              'title': 'Request failed',
-              'detail': data['error']?.toString() ?? 'Could not build explanation',
-              'severity': 'info',
-            },
-          ],
-          'summary': '',
-        };
-      }
-      return data;
-    } catch (_) {
-      return {
-        'reasons': [
-          {
-            'title': 'Offline',
-            'detail': 'Showing sample signals until the server is reachable.',
-            'severity': 'info',
-          },
-        ],
-        'summary': 'Offline',
-      };
+      return {'balance': 0, 'transactions': []};
     }
   }
 
@@ -493,16 +361,7 @@ class ApiService {
       final data = instance._decodeMap(res);
       return data['user'] as Map<String, dynamic>?;
     } catch (_) {
-      // Offline mock fallback for Demo Mode
-      return {
-        'id': 'mock-karthik-001',
-        'name': 'Karthik',
-        'phone': phone.replaceAll(RegExp(r'\D'), ''),
-        'city': 'Chennai',
-        'zone': 'Adyar',
-        'platform': 'Zepto',
-        'onboarding_complete': true,
-      };
+      return null;
     }
   }
 
@@ -612,8 +471,6 @@ class ApiService {
     String? description,
     List<String>? evidenceUrls,
     int? deviceSignalStrength,
-    String? integrityToken,
-    Map<String, dynamic>? sensorFeatures,
   }) async {
     try {
       final res = await http.post(
@@ -625,260 +482,37 @@ class ApiService {
           'description':            description,
           'evidence_urls':          evidenceUrls ?? [],
           'device_signal_strength': deviceSignalStrength,
-          'sensor_features':        sensorFeatures,
-          if (integrityToken != null && integrityToken.isNotEmpty)
-            'integrity_token': integrityToken,
         }),
       );
       final data = jsonDecode(res.body);
       if (res.statusCode == 201) return data;
       
       // Fallback to mock on API error
-      String mockNote = 'Claim logged — review within 4 hours';
-      String mockStatus = 'PENDING';
-      
-      if (sensorFeatures != null) {
-        final jitter = sensorFeatures['gps_jitter'];
-        if (jitter != null && jitter == 0.0) {
-           mockNote = 'FRAUD ALERT: GPS Spoofing Detected (0.0 Jitter).';
-           mockStatus = 'FLAGGED';
-        } else if (jitter != null && jitter > 0.0) {
-           mockNote = 'Sensors Validated: Natural GPS Variance Detected.';
-           mockStatus = 'APPROVED';
-        }
-      }
-
       return {
         'claim': {
           'id': 'CLM_MOCK_${DateTime.now().millisecondsSinceEpoch}',
-          'display_name': 'Manual Report (Mock)',
-          'status': mockStatus,
+          'display_name': 'Manual Report',
+          'status': 'PENDING',
           'gross_payout': 100,
           'tranche1_amount': 70,
           'tranche2_amount': 30,
-          'provisional_note': mockNote,
+          'provisional_note': 'Claim logged — review within 4 hours',
           '_mock': true,
         }
       };
     } catch (e) {
-      String mockNote = 'Offline mode — will sync when connected';
-      String mockStatus = 'PENDING';
-      
-      if (sensorFeatures != null) {
-        final jitter = sensorFeatures['gps_jitter'];
-        if (jitter != null && jitter == 0.0) {
-           mockNote = 'Offline FRAUD ALERT: GPS Spoofing (Jitter 0.0).';
-           mockStatus = 'FLAGGED';
-        } else if (jitter != null && jitter > 0.0) {
-           mockNote = 'Offline Validated: Natural GPS Variance.';
-           mockStatus = 'APPROVED';
-        }
-      }
-
       return {
         'claim': {
           'id': 'CLM_MOCK_ERR',
-          'display_name': 'Manual Report (Mock)',
-          'status': mockStatus,
+          'display_name': 'Manual Report',
+          'status': 'PENDING',
           'gross_payout': 100,
           'tranche1_amount': 70,
           'tranche2_amount': 30,
-          'provisional_note': mockNote,
+          'provisional_note': 'Offline mode — will sync when connected',
           '_mock': true,
         }
       };
-    }
-  }
-
-  // ── Trust & Cashback ─────────────────────────────────────────────────────────
-
-  Future<Map<String, dynamic>> getTrustProfile(String userId) async {
-    try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/$userId/trust'),
-        headers: headers,
-      ).timeout(_timeout);
-      return _decodeMap(res);
-    } catch (_) {
-      return {
-        'score': 72,
-        'tier': {'label': 'Trusted'},
-        'level': 3,
-        'factors': [],
-        '_mock': true,
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> getCashbackStatus(String userId) async {
-    try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/workers/$userId/cashback'),
-        headers: headers,
-      ).timeout(_timeout);
-      return _decodeMap(res);
-    } catch (_) {
-      return {'eligible': false, 'rate': 0, '_mock': true};
-    }
-  }
-
-  // ── Claims appeal ────────────────────────────────────────────────────────────
-
-  Future<Map<String, dynamic>> submitClaimAppeal({
-    required String claimId,
-    String? workerId,
-    String? reason,
-    String? selectedReason,
-    String? additionalContext,
-    List<String>? evidenceUrls,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/claims/$claimId/appeal'),
-        headers: headers,
-        body: jsonEncode({
-          'reason': selectedReason ?? reason ?? additionalContext ?? '',
-          'additional_context': additionalContext,
-          'worker_id': workerId,
-          'evidence_urls': evidenceUrls ?? [],
-        }),
-      ).timeout(_timeout);
-      return _decodeMap(res);
-    } catch (_) {
-      return {'status': 'APPEAL_PENDING', '_mock': true};
-    }
-  }
-
-  // ── Face liveness (step-up auth) ─────────────────────────────────────────────
-
-  Future<Map<String, dynamic>> verifyFaceLiveness({
-    String? userId,
-    String? workerId,
-    required String imageBase64,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/auth/liveness'),
-        headers: headers,
-        body: jsonEncode({'user_id': userId ?? workerId, 'image': imageBase64}),
-      ).timeout(_timeout);
-      return _decodeMap(res);
-    } catch (_) {
-      return {'verified': true, '_mock': true};
-    }
-  }
-
-  // ── Demo / admin helpers ─────────────────────────────────────────────────────
-
-  Future<Map<String, dynamic>> fileClaim({
-    required String userId,
-    required String triggerType,
-    double severity = 0.8,
-    double durationHours = 2.0,
-  }) => createClaim(
-        userId: userId,
-        triggerType: triggerType,
-        severity: severity,
-        durationHours: durationHours,
-      );
-
-  // ── Shift heartbeat ─────────────────────────────────────────────────────────
-
-  Future<void> postShiftHeartbeat({
-    String? userId,
-    String? workerId,
-    required double lat,
-    required double lng,
-    String? zone,
-    double? accuracy,
-    String? timestamp,
-    bool? isMockLocation,
-    String? activityType,
-    int? batteryLevel,
-    bool? isLowConfidence,
-  }) async {
-    try {
-      await http.post(
-        Uri.parse('$baseUrl/shifts/heartbeat'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': userId ?? workerId,
-          'lat': lat,
-          'lng': lng,
-          if (zone != null) 'zone': zone,
-          if (accuracy != null) 'accuracy': accuracy,
-          if (timestamp != null) 'ts': timestamp,
-          if (isMockLocation != null) 'is_mock': isMockLocation,
-          if (activityType != null) 'activity_type': activityType,
-          if (batteryLevel != null) 'battery_level': batteryLevel,
-          if (isLowConfidence != null) 'low_confidence': isLowConfidence,
-        }),
-      ).timeout(_timeout);
-    } catch (_) {
-      // Best-effort — silently ignore offline heartbeats
-    }
-  }
-
-  // ── Native ML Direct Endpoints (Phase 3 Organic Demo) ──────────────────────
-
-  Future<Map<String, dynamic>> validateFraudTelemetry(Map<String, dynamic> sensorFeatures) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/fraud-score'),
-        headers: headers,
-        body: jsonEncode({
-          "worker_id": currentUserId ?? "demo_worker",
-          "zone_id": "Adyar Dark Store Zone",
-          "claim_timestamp": DateTime.now().toIso8601String(),
-          "feature_vector": {
-            "zone_match": 0.95,
-            "gps_jitter": sensorFeatures['gps_jitter'] ?? 0.10,
-            "accelerometer_match": 0.90,
-            "wifi_home_ssid": false,
-            "days_since_onboarding": 30
-          }
-        }),
-      ).timeout(const Duration(seconds: 15));
-      return jsonDecode(res.body);
-    } catch (_) {
-      return {'is_anomalous': (sensorFeatures['gps_jitter'] == 0.0), 'anomaly_score': 0.99, '_mock': true};
-    }
-  }
-
-  Future<Map<String, dynamic>> getIssScore() async {
-    try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/iss'),
-        headers: headers,
-        body: jsonEncode({
-          "zone_flood_risk": 0.65,
-          "avg_daily_income": 650.0,
-          "disruption_freq_12mo": 3,
-          "platform_tenure_weeks": 12,
-          "city": "Chennai"
-        }),
-      ).timeout(const Duration(seconds: 15));
-      return jsonDecode(res.body);
-    } catch (_) {
-      return {'iss_score': 72, 'trust_tier': 'High Trust', '_mock': true};
-    }
-  }
-
-  Future<Map<String, dynamic>> getDynamicPremium(String planTier, int issScore) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$mlBackendUrl/premium'),
-        headers: headers,
-        body: jsonEncode({
-          "plan_tier": planTier.toLowerCase().contains('full') ? 'full' : 'standard',
-          "zone": "Adyar Dark Store Zone",
-          "iss_score": issScore,
-          "previous_premium": planTier.toLowerCase().contains('full') ? 79.0 : 49.0
-        }),
-      ).timeout(const Duration(seconds: 15));
-      return jsonDecode(res.body);
-    } catch (_) {
-      return {'final_premium': planTier.toLowerCase().contains('full') ? 76.5 : 47.0, 'base_applied': false, '_mock': true};
     }
   }
 }

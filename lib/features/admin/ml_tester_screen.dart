@@ -22,6 +22,50 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
   String _responseLog = '';
   bool _isLoading = false;
 
+  Future<void> _testNLP() async {
+    setState(() { _isLoading = true; _responseLog = 'Testing NLP...'; });
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/nlp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'text': _nlpController.text,
+          'require_dual_source': false,
+          'sources': {'imd': 0.9}
+        }),
+      ).timeout(const Duration(seconds: 70));
+      setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
+    } catch (e) {
+      setState(() { _responseLog = 'Error: $e'; });
+    } finally {
+      setState(() { _isLoading = false; });
+    }
+  }
+
+  Future<void> _testTraffic() async {
+    setState(() { _isLoading = true; _responseLog = 'Testing Traffic...'; });
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/traffic'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'zone': 'Adyar',
+          'traffic_speed_kmh': _trafficSpeed,
+          'baseline_speed_kmh': _trafficBaseline,
+          'traffic_duration_min': 45,
+          'news_confidence': 0.8,
+          'time_of_day': 18,
+          'is_weekend': false,
+        }),
+      ).timeout(const Duration(seconds: 70));
+      setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
+    } catch (e) {
+      setState(() { _responseLog = 'Error: $e'; });
+    } finally {
+      setState(() { _isLoading = false; });
+    }
+  }
+
   Future<void> _testFraud() async {
     setState(() { _isLoading = true; _responseLog = 'Testing Fraud...'; });
     try {
@@ -29,59 +73,9 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
         Uri.parse('$_baseUrl/fraud'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "worker_id": "sim_worker_123",
-          "zone_id": "Adyar Dark Store Zone",
-          "claim_timestamp": DateTime.now().toIso8601String(),
-          "feature_vector": {
-            "zone_match": 0.85,
-            "gps_jitter": 0.10,
-            "accelerometer_match": 0.90,
-            "wifi_home_ssid": false,
-            "days_since_onboarding": 30
-          }
-        }),
-      ).timeout(const Duration(seconds: 70));
-      setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
-    } catch (e) {
-      setState(() { _responseLog = 'Error: $e'; });
-    } finally {
-      setState(() { _isLoading = false; });
-    }
-  }
-
-  Future<void> _testISS() async {
-    setState(() { _isLoading = true; _responseLog = 'Testing ISS Engine...'; });
-    try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/iss'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "zone_flood_risk": 0.60,
-          "avg_daily_income": 600.0,
-          "disruption_freq_12mo": 8,
-          "platform_tenure_weeks": 4,
-          "city": "Chennai"
-        }),
-      ).timeout(const Duration(seconds: 70));
-      setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
-    } catch (e) {
-      setState(() { _responseLog = 'Error: $e'; });
-    } finally {
-      setState(() { _isLoading = false; });
-    }
-  }
-
-  Future<void> _testPremium() async {
-    setState(() { _isLoading = true; _responseLog = 'Testing Premium Pricing...'; });
-    try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/premium'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "plan_tier": "standard",
-          "zone": "Adyar Dark Store Zone",
-          "iss_score": 62,
-          "previous_premium": 0.0
+          'days_since_onboard': 30, 'avg_daily_income': 400, 'platform_app_inactive': 0,
+          'gps_zone_mismatch': 1, 'claim_latency_under30s': 1, 'battery_charging': 1,
+          'ip_home_match': 0, 'accelerometer_idle': 1, 'hw_fingerprint_match': 0, 'wifi_home_ssid': 0
         }),
       ).timeout(const Duration(seconds: 70));
       setState(() { _responseLog = 'Status: ${res.statusCode}\\nResponse:\\n${const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body))}'; });
@@ -108,39 +102,54 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Note: This screen now proxies requests through the Node.js backend to the Phase 3 ML endpoints.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.blueAccent)),
+            const Text('Note: This screen now proxies requests through the Node.js backend. If you get a TimeoutException, ensure the backend is running and can reach the ML service.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.blueAccent)),
             const SizedBox(height: 12),
             TextField(
               onChanged: (val) => _baseUrl = val,
-              decoration: const InputDecoration(labelText: 'Backend URL / IP', hintText: 'http://127.0.0.1:3000/ml', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Backend URL / IP', hintText: 'http://127.0.0.1:8000', border: OutlineInputBorder()),
               controller: TextEditingController(text: _baseUrl),
             ),
             const SizedBox(height: 16),
-            
-            const Text('🛡️ Isolation Forest Fraud Engine', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text('NLP Disruption Model', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            TextField(
+              controller: _nlpController,
+              decoration: const InputDecoration(labelText: 'Test claim text', border: OutlineInputBorder()),
+              maxLines: 2,
+            ),
             const SizedBox(height: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+              onPressed: _isLoading ? null : _testNLP,
+              child: const Text('Test NLP Engine'),
+            ),
+            const Divider(height: 32),
+
+            const Text('Traffic Predictor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Row(
+              children: [
+                Expanded(child: Text('Cur Speed: ${_trafficSpeed.toStringAsFixed(1)} km/h')),
+                Expanded(
+                  flex: 2,
+                  child: Slider(
+                    value: _trafficSpeed, min: 0, max: 60,
+                    activeColor: green,
+                    onChanged: (val) => setState(() => _trafficSpeed = val),
+                  ),
+                ),
+              ],
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+              onPressed: _isLoading ? null : _testTraffic,
+              child: const Text('Test Traffic Engine'),
+            ),
+            const Divider(height: 32),
+
+            const Text('Fraud & Bot Engine', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
               onPressed: _isLoading ? null : _testFraud,
-              child: const Text('Test Fraud Model'),
-            ),
-            const Divider(height: 32),
-
-            const Text('📊 ISS Score Engine (XGBoost)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
-              onPressed: _isLoading ? null : _testISS,
-              child: const Text('Test ISS Pipeline'),
-            ),
-            const Divider(height: 32),
-
-            const Text('💸 Dynamic Premium Pricing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
-              onPressed: _isLoading ? null : _testPremium,
-              child: const Text('Test Actuarial Pricing'),
+              child: const Text('Simulate Suspicious Telemetry'),
             ),
             const Divider(height: 32),
 

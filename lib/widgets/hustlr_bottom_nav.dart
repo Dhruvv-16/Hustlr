@@ -26,21 +26,21 @@ class HustlrBottomNav extends StatelessWidget {
     final activeTextColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final shadowColor = isDark ? Colors.black.withOpacity(0.6) : Colors.black.withOpacity(0.1);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bgColor,
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 40,
-            offset: const Offset(0, -8),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 72,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(40),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 40,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(_items.length, (index) {
@@ -80,7 +80,6 @@ class HustlrBottomNav extends StatelessWidget {
               ),
             );
           }),
-        ),
         ),
       ),
     );

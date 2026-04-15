@@ -61,16 +61,9 @@ async function testNewsAPI() {
 }
 
 async function testMaxMind() {
-  const accountId = (process.env.MAXMIND_ACCOUNT_ID || '').trim();
-  const licenseKey = (process.env.MAXMIND_LICENSE_KEY || '').trim();
-  if (!accountId || !licenseKey) {
-    warn(
-      'MaxMind GeoIP2',
-      'Skipped — set MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY (both required)'
-    );
-    return;
-  }
   try {
+    const accountId = process.env.MAXMIND_ACCOUNT_ID;
+    const licenseKey = process.env.MAXMIND_LICENSE_KEY;
     // Test with Google's public IP
     const r = await axios.get(`https://geolite.info/geoip/v2.1/city/8.8.8.8`, {
       auth: { username: accountId, password: licenseKey },
