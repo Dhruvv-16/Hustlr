@@ -906,11 +906,11 @@ class ApiService {
     String? expectedGesture,
   }) async {
     if (_googleVisionApiKey.isEmpty) {
-      return {
-        'verified': false,
-        'reason': 'Face verification is not configured on this build.',
-        'similarity_score': 0.0,
-      };
+      developer.log('Google Vision API key missing, using local ML Kit face detection');
+      return _verifyFaceLivenessLocal(
+        imageBase64: imageBase64,
+        expectedGesture: expectedGesture,
+      );
     }
     // Try Google Cloud Vision API first (cloud-based, more accurate)
     try {

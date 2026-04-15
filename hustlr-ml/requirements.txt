@@ -10,5 +10,7 @@ supabase>=2.3.0
 python-dotenv>=1.0.0
 prophet>=1.1.5
 requests>=2.25.0
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.0.0
 torch-geometric>=2.3.0
+xgboost>=2.0.0

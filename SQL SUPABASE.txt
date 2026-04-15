@@ -1460,3 +1460,5 @@ WHERE NOT (
   (type = 'credit' AND amount >= 0) OR
   (type = 'debit'  AND amount <= 0)
 );
+-- Manually reload schema cache after script execution
+NOTIFY pgrst, 'reload schema';

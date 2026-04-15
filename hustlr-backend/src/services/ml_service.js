@@ -123,7 +123,7 @@ async function getForecast(zone) {
   try {
     const res = await axios.get(
       `${ML_URL}/forecast/${encodeURIComponent(zoneKey)}`,
-      { timeout: 5000 }
+      { timeout: 30000 }
     );
     return res.data;
   } catch (e) {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
+import '../../shared/widgets/secure_camera_screen.dart';
 import '../../services/api_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/biometric_service.dart';
@@ -136,28 +137,42 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     });
 
     try {
-      final picker = ImagePicker();
-      // On web, camera opens file picker - use gallery instead
-      final XFile? photo = await picker.pickImage(
-        source: kIsWeb ? ImageSource.gallery : ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        maxWidth: 640,
-        maxHeight: 640,
-        imageQuality: 85,
-      );
+      String? base64Image;
 
-      if (photo == null) {
-        setState(() => _state = _VerificationState.idle);
-        return;
+      if (kIsWeb) {
+        final picker = ImagePicker();
+        final XFile? photo = await picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 640,
+          maxHeight: 640,
+          imageQuality: 85,
+        );
+        if (photo == null) {
+          setState(() => _state = _VerificationState.idle);
+          return;
+        }
+        setState(() => _state = _VerificationState.verifying);
+        final bytes = await photo.readAsBytes();
+        base64Image = base64Encode(bytes);
+      } else {
+        final result = await Navigator.push<Map<String, dynamic>>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SecureCameraScreen(
+              mode: CameraMode.kycFace,
+              title: 'Face Verification',
+              instructions: '$_currentGesture\n\nPlease ensure your face is fully visible within the circle.',
+            ),
+          ),
+        );
+
+        if (result == null || result['base64'] == null) {
+          setState(() => _state = _VerificationState.idle);
+          return;
+        }
+        setState(() => _state = _VerificationState.verifying);
+        base64Image = result['base64'] as String;
       }
-
-      setState(() => _state = _VerificationState.verifying);
-
-      // Read bytes differently for web vs mobile
-      final bytes = kIsWeb 
-          ? await photo.readAsBytes()  // Web uses XFile.readAsBytes()
-          : await File(photo.path).readAsBytes();  // Mobile uses File
-      final base64Image = base64Encode(bytes);
       final userId = await StorageService.instance.getUserId();
 
       final result = await ApiService.instance.verifyFaceLiveness(
