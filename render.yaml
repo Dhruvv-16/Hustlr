@@ -1,27 +1,28 @@
 # Render Blueprint — deploy ML + Node API from this monorepo.
 # Dashboard: New → Blueprint → connect this Git repo → Render reads render.yaml
 #
+# PYTHON VERSION: Pinned to 3.12 — xgboost does NOT yet ship wheels for Python 3.14,
+# so pip silently skips it on the default runtime, causing ModuleNotFoundError at startup.
 # After deploy:
 #   1) Set SUPABASE_URL + SUPABASE_SERVICE_KEY on hustlr-api (and any other keys from hustlr-backend/.env.example).
-#   2) Mobile: flutter build apk --dart-define=HUSTLR_API_PROD=https://<hustlr-api>.onrender.com
-#   3) Flutter web on Vercel: set the same URL as HUSTLR_API_PROD in Vercel env; set CORS_ORIGIN on hustlr-api
-#      to your Vercel origin(s), e.g. https://hustlr-xxxxx.vercel.app (comma-separated if multiple).
+#   2) Flutter release: flutter build apk --dart-define=HUSTLR_API_PROD=https://<hustlr-api>.onrender.com
 #
-# ML loads models from repo paths: hustlr-ml/models/trained (consolidated location)
+# ML loads models from repo paths: outputs/trained_models and hustlr_ml/outputs/trained_models
 # (commit full model artifacts or health will show "degraded" — rule fallbacks still run).
 
 services:
   - type: web
     name: hustlr-ml
     runtime: python
-    pythonVersion: "3.12.0"
-
     plan: free
     region: oregon
-    rootDir: hustlr-ml
+    rootDir: hustlr-backend/ml_service
     buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
 
   - type: web
     name: hustlr-api
@@ -40,13 +41,8 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: NODE_VERSION
         value: "20"
-      - key: NODE_ENV
-        value: production
       # Required for API + DB — set values in Render Dashboard when prompted
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
-        sync: false
-      # Flutter web on Vercel (or any browser origin). Example: https://your-app.vercel.app
-      - key: CORS_ORIGIN
         sync: false
