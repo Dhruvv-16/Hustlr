@@ -738,20 +738,22 @@ router.post('/manual', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // POST /claims/:claimId/appeal
 router.post('/:claimId/appeal', async (req, res) => {
   const { claimId } = req.params;
-  const { worker_id, selected_reason, additional_context, submitted_at } = req.body;
+  const { worker_id, user_id, selected_reason, additional_context } = req.body;
+  const claimantId = worker_id || user_id;
 
   try {
+    if (!claimantId || !selected_reason) {
+      return res.status(400).json({ error: 'worker_id (or user_id) and selected_reason are required' });
+    }
     // Verify claim exists and belongs to this worker
     const { data: claim, error: fetchError } = await supabase
       .from('claims')
       .select('*')
       .eq('id', claimId)
-      .eq('worker_id', worker_id)
+      .eq('user_id', claimantId)
       .single();
 
     if (fetchError || !claim) {
@@ -764,32 +766,53 @@ router.post('/:claimId/appeal', async (req, res) => {
     }
 
     // Only one appeal per claim
-    if (claim.appeal_submitted_at) {
+    const { data: existingAppeal, error: existingAppealError } = await supabase
+      .from('appeal_requests')
+      .select('id')
+      .eq('claim_id', claimId)
+      .maybeSingle();
+
+    if (existingAppealError) throw existingAppealError;
+    if (existingAppeal) {
       return res.status(400).json({ error: 'Appeal already submitted for this claim' });
     }
 
-    // Update claim with appeal data
-    const { error: updateError } = await supabase
+    // Create appeal request using schema-backed table
+    const { data: appeal, error: createAppealError } = await supabase
+      .from('appeal_requests')
+      .insert({
+        user_id: claimantId,
+        claim_id: claimId,
+        reason: selected_reason,
+        evidence_urls: additional_context ? [String(additional_context)] : [],
+        status: 'open',
+      })
+      .select('id')
+      .single();
+
+    if (createAppealError) throw createAppealError;
+
+    // Link claim to appeal request
+    const { error: linkError } = await supabase
       .from('claims')
       .update({
-        status: 'APPEAL_PENDING',
-        appeal_selected_reason: selected_reason,
-        appeal_context: additional_context || null,
-        appeal_submitted_at: submitted_at,
+        appeal_id: appeal.id,
         updated_at: new Date().toISOString(),
       })
       .eq('id', claimId);
 
-    if (updateError) throw updateError;
+    if (linkError) throw linkError;
 
-    // Insert into appeals review queue
-    await supabase.from('appeal_queue').insert({
-      claim_id: claimId,
-      worker_id,
-      selected_reason,
-      additional_context: additional_context || null,
-      submitted_at,
-      sla_deadline: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4hr SLA
+    await supabase.from('admin_actions').insert({
+      admin_id: 'system',
+      action_type: 'other',
+      target_type: 'claim_appeal',
+      target_id: claim.id,
+      reason: `Appeal submitted: ${selected_reason}`,
+      metadata: {
+        appeal_id: appeal.id,
+        user_id: claimantId,
+      },
     });
 
     res.json({ success: true, message: 'Appeal submitted. Review within 4 hours.' });
@@ -798,3 +821,5 @@ router.post('/:claimId/appeal', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+module.exports = router;
