@@ -64,6 +64,7 @@ dependencies:
 
   # 3D Risk Map
   webview_flutter: ^4.10.0          # Renders Deck.gl H3 hexagon layer in-app
+  flutter_local_notifications: ^21.0.0
 
 dev_dependencies:
   flutter_test:
