@@ -301,6 +301,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _recheckAllPermissions();
+      _checkLocationPermission();
+      // Re-fetch data in case user just granted permissions (location etc.)
+      // or the app was backgrounded while data was loading.
+      if (!_isDashboardLoading) {
+        _loadDashboardData();
+      }
     }
   }
 
