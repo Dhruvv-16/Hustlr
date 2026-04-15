@@ -23,6 +23,7 @@ class StorageService {
   static const _keyShiftActive = 'shiftActive';
   static const _keyShiftZone = 'shiftZone';
   static const _keyUpiId = 'upiId';
+  static const _keySessionToken = 'sessionToken';
   static const _keyIdentityEnrollmentComplete = 'identityEnrollmentComplete';
   static const _keyLastIdentityVerificationAt = 'lastIdentityVerificationAt';
   static const _keyLastRiskReviewAt = 'lastRiskReviewAt';
@@ -42,6 +43,7 @@ class StorageService {
   static String get userZone => _prefs.getString(_keyUserZone) ?? '';
   static bool get shiftActive => _prefs.getBool(_keyShiftActive) ?? false;
   static String get shiftZone => _prefs.getString(_keyShiftZone) ?? '';
+  static String get sessionToken => _prefs.getString(_keySessionToken) ?? '';
   static String get upiId => _prefs.getString(_keyUpiId) ?? ((phone.isNotEmpty) ? '$phone@ybl' : 'add-upi-id@ybl');
   static bool get identityEnrollmentComplete =>
       _prefs.getBool(_keyIdentityEnrollmentComplete) ?? false;
@@ -77,6 +79,8 @@ class StorageService {
       _prefs.setBool(_keyShiftActive, v);
   static Future<void> setShiftZone(String v) =>
       _prefs.setString(_keyShiftZone, v);
+  static Future<void> setSessionToken(String v) =>
+      _prefs.setString(_keySessionToken, v);
   static Future<void> setUpiId(String v) =>
       _prefs.setString(_keyUpiId, v);
   static Future<void> setIdentityEnrollmentComplete(bool v) =>
@@ -87,6 +91,7 @@ class StorageService {
       _prefs.setInt(_keyLastRiskReviewAt, tsMs);
   static Future<void> setKycDataConsentAccepted(bool v) =>
       _prefs.setBool(_keyKycDataConsentAccepted, v);
+  static Future<void> clearSessionToken() => _prefs.remove(_keySessionToken);
   static Future<void> clearAll() => _prefs.clear();
 
   static Future<void> setBool(String key, bool value) =>
@@ -118,6 +123,13 @@ class StorageService {
 
   Future<String?> getPolicyId() async =>
       policyId.isEmpty ? null : policyId;
+
+  Future<void> saveSessionToken(String token) async => setSessionToken(token);
+
+  Future<String?> getSessionToken() async =>
+      sessionToken.isEmpty ? null : sessionToken;
+
+  Future<void> clearSessionTokenValue() async => clearSessionToken();
 
   Future<void> saveUserName(String name) async =>
       setString('userName', name);

@@ -37,6 +37,7 @@ Future<void> main() async {
 
   // Local storage must be ready before the router reads auth state
   await StorageService.init();
+  await ApiService.instance.restoreSessionTokenFromStorage();
 
   final localeProvider = LocaleProvider();
   await localeProvider.loadSavedLocale();

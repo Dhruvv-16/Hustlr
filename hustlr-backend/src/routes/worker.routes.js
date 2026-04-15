@@ -6,6 +6,7 @@ const {
   recordFingerprint,
   getFingerprintStats,
 } = require('../services/device_fingerprint_service');
+const { requireSession } = require('../middleware/session_auth');
 const router = express.Router();
 
 // GET /workers/phone/:phone
@@ -74,6 +75,9 @@ router.post('/cell-locate', async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+// All routes below this line require an active single-session token.
+router.use(requireSession);
 
 // POST /workers/fingerprint — record device hash for cluster / fraud (Phase 2)
 router.post('/fingerprint', async (req, res) => {

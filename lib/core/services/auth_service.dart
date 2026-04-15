@@ -1,6 +1,7 @@
 import 'storage_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/api_service.dart';
 
 /// Stub auth service. Replace with real API / Firebase Auth later.
 class AuthService {
@@ -32,6 +33,10 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    // Revoke backend session token first (best-effort).
+    try {
+      await ApiService.instance.logoutSession();
+    } catch (_) {}
     // Clear SharedPreferences
     await StorageService.clearAll();
     // Clear Hive session flags so reinstall doesn't carry stale login

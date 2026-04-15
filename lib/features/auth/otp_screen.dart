@@ -90,6 +90,8 @@ class _OTPScreenState extends State<OTPScreen> {
       final phoneNumber = '+91${widget.phone}';
       await box.put('phone', phoneNumber);
       await StorageService.instance.savePhone(phoneNumber);
+      await StorageService.instance.clearSessionTokenValue();
+      ApiService.instance.accessToken = null;
 
       // Check if user already exists
       final existingUser = await ApiService.getWorkerByPhone(phoneNumber);
@@ -99,6 +101,11 @@ class _OTPScreenState extends State<OTPScreen> {
       if (existingUser != null) {
         // User exists, save context and navigate straight to dashboard
         final userId = existingUser['id'] as String;
+        await ApiService.instance.startSession(
+          userId: userId,
+          phone: phoneNumber,
+          deviceLabel: 'hustlr_flutter_app',
+        );
         await StorageService.setUserId(userId);
         await StorageService.setOnboarded(true);
         await StorageService.instance

@@ -89,6 +89,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
 
       final userId = workerData['user']['id'] as String;
+      await ApiService.instance.startSession(
+        userId: userId,
+        phone: phone,
+        deviceLabel: 'hustlr_flutter_app',
+      );
 
       await StorageService.setUserId(userId);
       await StorageService.setString('userName', name);

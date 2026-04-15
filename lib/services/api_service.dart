@@ -81,6 +81,66 @@ class ApiService {
         if (accessToken != null) 'Authorization': 'Bearer $accessToken',
       };
 
+  Future<void> restoreSessionTokenFromStorage() async {
+    final token = await StorageService.instance.getSessionToken();
+    accessToken = (token != null && token.isNotEmpty) ? token : null;
+  }
+
+  Future<Map<String, dynamic>> startSession({
+    required String userId,
+    String? phone,
+    String? deviceId,
+    String? deviceLabel,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/auth/session/login'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': userId,
+            if (phone != null && phone.isNotEmpty) 'phone': phone,
+            if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+            if (deviceLabel != null && deviceLabel.isNotEmpty)
+              'device_label': deviceLabel,
+          }),
+        )
+        .timeout(_timeout);
+
+    final data = _decodeMap(res);
+    final token = data['session_token'] as String?;
+    if (token == null || token.isEmpty) {
+      throw Exception('Session token missing in login response');
+    }
+
+    accessToken = token;
+    currentUserId = userId;
+    await StorageService.instance.saveSessionToken(token);
+    return data;
+  }
+
+  Future<void> logoutSession() async {
+    final token = accessToken ?? await StorageService.instance.getSessionToken();
+    try {
+      if (token != null && token.isNotEmpty) {
+        await http
+            .post(
+              Uri.parse('$baseUrl/auth/session/logout'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+            )
+            .timeout(_timeout);
+      }
+    } catch (_) {
+      // Best-effort logout.
+    } finally {
+      accessToken = null;
+      currentUserId = null;
+      await StorageService.instance.clearSessionTokenValue();
+    }
+  }
+
   Map<String, dynamic> _decodeMap(http.Response res) {
     final raw = res.body.isEmpty ? '{}' : res.body;
     final data = jsonDecode(raw);

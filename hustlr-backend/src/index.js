@@ -13,6 +13,7 @@ const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
 const integrityRoutes = require('./routes/integrity.routes');
 const mlRoutes = require('./routes/ml.routes');
+const { requireSession } = require('./middleware/session_auth');
 // const shiftRoutes = require('./routes/shift.routes');
 const mlService = require('./services/ml_service');
 const { startDisruptionCron, getDisruptionCronStatus } = require('./services/disruption_cron');
@@ -39,21 +40,24 @@ app.use(express.json());
 // Mount routes
 app.use('/auth', authRoutes);
 app.use('/workers', workerRoutes);
-app.use('/policies', policyRoutes);
-app.use('/claims', claimsRoutes);
-app.use('/wallet', walletRoutes);
-app.use('/payments', paymentRoutes);
+app.use('/policies', requireSession, policyRoutes);
+app.use('/claims', requireSession, claimsRoutes);
+app.use('/wallet', requireSession, walletRoutes);
+app.use('/payments', requireSession, paymentRoutes);
 app.use('/disruptions', disruptionRoutes);
 app.use('/guidewire', guidewireRoutes);
 app.use('/cities', citiesRoutes);
-app.use('/integrity', integrityRoutes);
+app.use('/integrity', requireSession, integrityRoutes);
 app.use('/ml', mlRoutes);
 // app.use('/shift', shiftRoutes);
 
 const trustService = require('./services/trust_service');
 
 // GET /workers/trust/:userId
-app.get('/workers/trust/:userId', async (req, res) => {
+app.get('/workers/trust/:userId', requireSession, async (req, res) => {
+  if (req.authUserId !== req.params.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   const profile = await trustService.getUserTrustProfile(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Not found' });
   return res.json(profile);

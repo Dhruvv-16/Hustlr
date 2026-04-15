@@ -86,10 +86,11 @@ Future<String> _getInitialRoute() async {
   if (!Hive.isBoxOpen('appData')) return AppRoutes.splash;
   final isComplete = await StorageService.instance.isOnboardingComplete();
   final userId = await StorageService.instance.getUserId();
+  final sessionToken = await StorageService.instance.getSessionToken();
+  final hasSession = sessionToken != null && sessionToken.isNotEmpty;
   final box = Hive.box('appData');
   final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !hasSession) {
     return AppRoutes.login;
   }
   if (isComplete && userId != null) {
@@ -105,11 +106,12 @@ final GoRouter appRouter = GoRouter(
     if (state.uri.toString() == AppRoutes.splash) {
       final isOnboarded = await StorageService.instance.isOnboardingComplete();
       final userId = await StorageService.instance.getUserId();
+      final sessionToken = await StorageService.instance.getSessionToken();
+      final hasSession = sessionToken != null && sessionToken.isNotEmpty;
       if (!Hive.isBoxOpen('appData')) return null;
       final box = Hive.box('appData');
       final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-
-      if (!isLoggedIn) return AppRoutes.login;
+      if (!isLoggedIn || !hasSession) return AppRoutes.login;
       if (isOnboarded && userId != null) return AppRoutes.dashboard;
       return AppRoutes.carousel;
     }

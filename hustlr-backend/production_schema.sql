@@ -58,6 +58,31 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── 1a2. AUTH SESSIONS (single active session / user) ─────────
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  phone          TEXT NOT NULL,
+  token_hash     TEXT NOT NULL UNIQUE,
+  device_id      TEXT DEFAULT NULL,
+  device_label   TEXT DEFAULT NULL,
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  revoked_reason TEXT DEFAULT NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  last_seen_at   TIMESTAMPTZ DEFAULT NOW(),
+  revoked_at     TIMESTAMPTZ DEFAULT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_active
+  ON auth_sessions (user_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_last_seen
+  ON auth_sessions (user_id, last_seen_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_single_active
+  ON auth_sessions (user_id)
+  WHERE is_active = TRUE;
+
 -- ── 1b. RISK POOLS ────────────────────────────────────────────
 -- Each city × risk_type is a separate actuarial pool.
 -- Chennai Rain ≠ Chennai AQI — correlated perils must be isolated.
