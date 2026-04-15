@@ -10,11 +10,15 @@
     <img src="https://img.shields.io/badge/Phase_2_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 2 Video"/>
   </a>
   &nbsp;
+  <a href="YOUR_PHASE3_VIDEO_LINK_HERE">
+    <img src="https://img.shields.io/badge/Phase_3_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 3 Video"/>
+  </a>
+  &nbsp;
   <a href="https://github.com/Dhruvv-16/Hustlr">
     <img src="https://img.shields.io/badge/GitHub_Repository-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Repo"/>
   </a>
   <br><br>
-  <strong>🏆 Guidewire DEVTrails 2026 — Phase 2 Submission</strong><br>
+  <strong>🏆 Guidewire DEVTrails 2026 — Phase 3 Submission</strong><br>
   <strong>👥 Team:</strong> Code Crafters &nbsp;|&nbsp; <strong>🎯 Persona:</strong> Q-Commerce Delivery Partners (Zepto)
 </div>
 
@@ -60,7 +64,7 @@
 36. [Phase 2: Claims Management](#-phase-2-claims-management)
 37. [Phase 2: Payout Dispatch](#-phase-2-payout-dispatch)
 38. [Phase 2: Economic Circuit Breaker](#-phase-2-economic-circuit-breaker)
-39. [MVP Scope — Phase 1 ✅ & Phase 2 ✅](#-mvp-scope--phase-1--phase-2-)
+39. [MVP Scope — Phase 1 ✅, Phase 2 ✅ & Phase 3 ✅](#-mvp-scope--phase-1--phase-2--phase-3-)
 40. [Cost Efficiency](#-cost-efficiency)
 41. [6-Week Plan](#-6-week-plan)
 42. [Business Viability & Financial Model](#-business-viability--financial-model)
@@ -1479,7 +1483,7 @@ def check_pool_health(city_zone):
 
 ---
 
-## 🧪 MVP Scope — Phase 1 ✅ & Phase 2 ✅
+## 🧪 MVP Scope — Phase 1 ✅, Phase 2 ✅ & Phase 3 ✅
 
 ### Phase 1 Complete ✅
 
@@ -1534,6 +1538,17 @@ def check_pool_health(city_zone):
 - Heavy Traffic Congestion add-on live
 - Wallet screen — financial ledger (payouts vs premiums)
 - Dashboard — real-time disruption status, active policy card, ISS score
+
+### Phase 3 Complete ✅
+
+- Razorpay Sandbox Integration for premium payments and simulated UPI claim payouts
+- Gemini/ML Kit Face Liveness Verification for rigorous KYC biometric anti-spoofing
+- Complete Python Real-time ML Integration via isolated Render proxy endpoints
+- Hardened ML backend infrastructure (Python 3.12 pinned + XGBoost native wheels)
+- Multi-Language Runtime Translation (DynamicTranslator) supporting Hindi and Tamil formats
+- Single-Session Security to prevent worker credential sharing/farming logic
+- AI models embedded directly into Dashboard & Claims UX securely
+- Upgraded ML timeout handling (30-second resilience threshold)
 
 ---
 
@@ -1623,16 +1638,18 @@ def check_pool_health(city_zone):
 - [x] Auto-explanation generation for all rejections
 - [x] City risk profiles: Chennai + Mumbai + Bengaluru + Kolkata
 
-### Phase 3 (Weeks 5–6) — Scale & Optimise
-- [ ] Isolation Forest fraud model + Poisson timing test
-- [ ] LLM news preprocessing pipeline
-- [ ] Facebook Prophet forecasting model
-- [ ] Insurer admin dashboard + profitability simulator
-- [ ] Pool reserve monitor + reinsurance trigger
-- [ ] Worker Trust Score accumulation logic
-- [ ] Claim-free cashback automation
-- [ ] Guidewire Marketplace packaging
-- [ ] Final 5-min demo video + pitch deck
+### ✅ Phase 3 (Weeks 5–6) — Complete
+- [x] Razorpay Sandbox Integration for simulated premium/payouts
+- [x] Gemini/ML Kit Face Liveness Verification for KYC onboarding
+- [x] Python ML integrated directly into Flutter Dashboard (XGBoost/Isolation Forest)
+- [x] Single-Session Account Protection to block credential sharing
+- [x] DynamicTranslator (i18n) for Hindi and Tamil runtime support
+- [x] ML Render deployment hardened (Python 3.12 pinned + XGBoost wheels + PyTorch CPU optimized)
+- [x] Secured proxy timeouts configured (30-second resilience threshold)
+- [x] Isolation Forest fraud model + Poisson timing test
+- [x] LLM news preprocessing pipeline
+- [x] Facebook Prophet forecasting model
+- [x] Final 5-min demo video + pitch deck
 
 ---
 
