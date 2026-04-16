@@ -16,8 +16,8 @@ class _MlTesterScreenState extends State<MlTesterScreen> {
   String _baseUrl = '${ApiService.baseUrl}/ml';
   final TextEditingController _nlpController = TextEditingController(text: 'Extreme flooding in Adyar right now');
   
-  double _trafficSpeed = 15.0;
-  double _trafficBaseline = 35.0;
+  final double _trafficSpeed = 15.0;
+  final double _trafficBaseline = 35.0;
   
   String _responseLog = '';
   bool _isLoading = false;

@@ -2,6 +2,9 @@ import '../models/notification_model.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:convert';
+
+typedef NotificationTapCallback = Future<void> Function(Map<String, dynamic> payload);
 
 class NotificationService {
   static final NotificationService instance = NotificationService._internal();
@@ -11,6 +14,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static int _localNotificationId = 0;
   static bool _localReady = false;
+  static NotificationTapCallback? _onNotificationTap;
 
   static const AndroidNotificationChannel _defaultChannel =
       AndroidNotificationChannel(
@@ -20,14 +24,35 @@ class NotificationService {
     importance: Importance.high,
   );
 
+  /// Set callback for handling notification taps
+  static void setNotificationTapCallback(NotificationTapCallback callback) {
+    _onNotificationTap = callback;
+  }
+
   static Future<void> initialize() async {
     if (!kIsWeb) {
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosInit = DarwinInitializationSettings();
+      const iosInit = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
       const settings =
           InitializationSettings(android: androidInit, iOS: iosInit);
+      
       await _localNotifications.initialize(
         settings: settings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) async {
+          // Handle tap on local notification
+          if (response.payload != null && response.payload!.isNotEmpty) {
+            try {
+              final payload = jsonDecode(response.payload!);
+              await _onNotificationTap?.call(payload);
+            } catch (e) {
+              print('Error handling notification tap: $e');
+            }
+          }
+        },
       );
 
       final androidPlugin = _localNotifications
@@ -43,35 +68,36 @@ class NotificationService {
       _localReady = true;
     }
 
-    // Foreground messages
+    // Foreground messages - display in notification bar
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final title = message.notification?.title ?? 'Hustlr Update';
       final body =
           message.notification?.body ?? 'You have a new activity update.';
-      _showLocalNotification(title: title, body: body);
+      
+      // Include data payload for navigation
+      _showLocalNotification(
+        title: title,
+        body: body,
+        payload: message.data,
+      );
     });
 
-    // When notification is clicked
+    // When notification is clicked (app in background or terminated)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      final route = message.data['route'];
-
-      print("Clicked Notification -> Route: $route");
-
-      if (route == "dashboard") {
-        // Navigator.pushNamed(context, '/dashboard');
-      } else if (route == "wallet") {
-        // Navigator.pushNamed(context, '/wallet');
-      } else if (route == "claims") {
-        // Navigator.pushNamed(context, '/claims');
-      }
+      print('Notification opened app: ${message.data}');
+      _onNotificationTap?.call(message.data);
     });
   }
 
   static Future<void> _showLocalNotification({
     required String title,
     required String body,
+    Map<String, dynamic>? payload,
   }) async {
     if (kIsWeb || !_localReady) return;
+    
+    final payloadJson = payload != null ? jsonEncode(payload) : '';
+    
     const androidDetails = AndroidNotificationDetails(
       'hustlr_default_channel',
       'Hustlr Alerts',
@@ -80,6 +106,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       playSound: true,
+      enableVibration: true,
     );
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
@@ -88,10 +115,12 @@ class NotificationService {
     );
     const details =
         NotificationDetails(android: androidDetails, iOS: iosDetails);
+    
     await _localNotifications.show(
       id: _localNotificationId++,
       title: title,
       body: body,
+      payload: payloadJson,
       notificationDetails: details,
     );
   }

@@ -293,7 +293,7 @@ class _FaqItem extends StatefulWidget {
 }
 
 class _FaqItemState extends State<_FaqItem> {
-  bool _expanded = false;
+  final bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {

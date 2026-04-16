@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
 
+/// Fraud sensor collector used by both live checks and hackathon/demo flows.
+///
+/// Important:
+/// - `mockFraudSpoofing` is intentionally used to simulate spoofed GPS behavior.
+/// - In spoof mode, payload fields are forced to deterministic values for testing.
+/// - Dashboard debug controls and claim/risk screens depend on this behavior.
+/// - Do not "clean up" spoof mode unless demo/testing flows are also updated.
 class FraudSensorService {
+  /// Demo toggle: when enabled, returns a fixed spoof-like payload.
   static bool mockFraudSpoofing = false;
 
   /// Captures a sensor payload including GPS coordinates, GPS jitter (std div), 
@@ -21,7 +27,8 @@ class FraudSensorService {
       payload['altitude'] = 0.0;
       payload['accuracy'] = 1.0;
       payload['is_mocked'] = true;
-      payload['gps_jitter'] = 0.0; // 0.0 triggers FRAUD in backend
+      // Intentional demo signal: backend logic treats 0.0 jitter as high-risk.
+      payload['gps_jitter'] = 0.0;
       payload['samples'] = 4;
       return payload;
     }

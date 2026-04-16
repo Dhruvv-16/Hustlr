@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'; // import for kIsWeb and defaultTarget
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart'; // enable after adding google-services.json
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
 import 'core/services/storage_service.dart';
@@ -22,12 +23,19 @@ import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
 import 'blocs/claims/claims_bloc.dart';
 import 'blocs/claims/claims_event.dart';
-import 'models/claim.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/live_activity_overlay.dart';
+
+/// Background message handler - runs in isolate when app is terminated or backgrounded
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  print('Handling background message: ${message.messageId}');
+  // Firebase automatically displays notification for background messages
+  // No need to show notification here - it's handled by Firebase
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,7 +75,23 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Set up background message handler BEFORE initialize
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
+    // Initialize notification service (handles foreground messages and taps)
     await NotificationService.initialize();
+    
+    // Request notification permission (required for Android 13+, iOS 10+)
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
 
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
@@ -124,8 +148,45 @@ Future<void> main() async {
   );
 }
 
-class HustlrApp extends StatelessWidget {
+class HustlrApp extends StatefulWidget {
   const HustlrApp({super.key});
+
+  @override
+  State<HustlrApp> createState() => _HustlrAppState();
+}
+
+class _HustlrAppState extends State<HustlrApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Set up notification tap handler
+    NotificationService.setNotificationTapCallback((payload) async {
+      final route = payload['route'] ?? payload['type'];
+      print('Notification tapped - Route: $route, Payload: $payload');
+
+      // Use GoRouter for navigation
+      if (mounted && route != null) {
+        _handleNotificationNavigation(route, payload);
+      }
+    });
+  }
+
+  void _handleNotificationNavigation(String route, Map<String, dynamic> payload) {
+    final GoRouter router = GoRouter.of(context);
+    
+    // Map notification routes to app routes
+    if (route == 'dashboard' || route == 'home') {
+      router.go('/dashboard');
+    } else if (route == 'wallet' || route == 'wallet_credited') {
+      router.go('/wallet');
+    } else if (route == 'claims' || route == 'claim_approved' || route == 'claim_created') {
+      router.go('/claims');
+    } else if (route == 'policy' || route == 'premium_deducted') {
+      router.go('/policy');
+    } else if (route == 'disruption' || route == 'disruption_alert') {
+      router.go('/disruptions');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

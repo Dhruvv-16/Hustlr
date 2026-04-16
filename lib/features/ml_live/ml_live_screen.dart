@@ -354,7 +354,7 @@ class _MLLiveScreenState extends State<MLLiveScreen> {
                         f['date'],
                         '${((f['disruption_probability'] ?? 0) * 100).toStringAsFixed(0)}% — ${f['trigger_type']}',
                       ))
-                      .toList(),
+                      ,
                 ],
               ),
               const SizedBox(height: 12),

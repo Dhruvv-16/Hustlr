@@ -168,6 +168,8 @@ class StorageService {
   Future<void> setLastLng(double lng) async => setDouble('lastLng', lng);
   Future<void> setPlanTier(String tier) async => setString('planTier', tier);
   Future<void> setWeeklyPremium(double premium) async => setDouble('weeklyPremium', premium);
+  Future<String?> getPlanTier() async => getString('planTier');
+  Future<double?> getWeeklyPremium() async => getDouble('weeklyPremium');
 
   Future<bool> isIdentityEnrollmentComplete() async =>
       identityEnrollmentComplete;

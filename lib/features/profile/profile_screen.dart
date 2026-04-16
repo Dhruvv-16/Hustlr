@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -217,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             title: const Text('Fingerprint Lock', style: TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: const Text('Require biometrics on app open', style: TextStyle(fontSize: 12)),
                             value: _biometricEnabled,
-                            activeColor: const Color(0xFF2E7D32),
+                            activeThumbColor: const Color(0xFF2E7D32),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                             onChanged: (val) async {
                               if (val) {

@@ -16,7 +16,7 @@ services:
     runtime: python
     plan: free
     region: oregon
-    rootDir: hustlr-backend/ml_service
+    rootDir: hustlr-ml
     buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health

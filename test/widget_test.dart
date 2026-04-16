@@ -1,7 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/widgets/live_activity_overlay.dart';
+import 'package:Hustlr/widgets/live_activity_overlay.dart';
 
 void main() {
   testWidgets('LiveActivityOverlay renders child content', (WidgetTester tester) async {

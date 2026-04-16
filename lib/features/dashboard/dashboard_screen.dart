@@ -12,22 +12,17 @@ import '../../services/location_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/router/app_router.dart';
-import '../../shared/widgets/mobile_container.dart';
-import '../../widgets/notification_bell.dart';
-import '../../widgets/income_tip_card.dart';
-import '../../widgets/hustlr_bottom_nav.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
 
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
-import '../../widgets/demo_controls_sheet.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
+
 import '../../services/dynamic_translator.dart';
 import '../../services/app_events.dart';
-import 'risk_map_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -36,7 +31,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
   Map<String, dynamic>? disruptionData;
@@ -48,10 +44,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String? userZone;
   String? userName;
   bool isLoading = true;
-  bool _isGoingOnline = false; // separate flag so Go Online never blanks the whole dashboard
+  bool _isGoingOnline =
+      false; // separate flag so Go Online never blanks the whole dashboard
   Timer? _disruptionRefreshTimer;
   StreamSubscription<Position>? _locationStream;
-  
+
   // Stream subscriptions
   StreamSubscription? _policySub;
   StreamSubscription? _walletSub;
@@ -63,7 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Debounce timestamps for event-driven reloads
   int _lastWalletReload = 0;
   int _lastClaimReload = 0;
-  
+
   // Realtime Gen ML Status
   int? liveIssScore;
   double? liveDynamicPrice;
@@ -110,7 +107,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       await _loadDashboardData();
       if (policyData != null) {
         final premiumRaw = policyData!['weekly_premium'];
-        final premium = (premiumRaw is num) ? premiumRaw.toDouble() : double.tryParse(premiumRaw.toString()) ?? 49.0;
+        final premium = (premiumRaw is num)
+            ? premiumRaw.toDouble()
+            : double.tryParse(premiumRaw.toString()) ?? 49.0;
         NotificationService.instance.addPremiumDeducted(premium.round());
       }
     });
@@ -170,7 +169,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final score = issData['iss_score'] as int?;
       if (score != null) {
         liveIssScore = score;
-        final premData = await ApiService.instance.getDynamicPremium(tier, score);
+        final premData =
+            await ApiService.instance.getDynamicPremium(tier, score);
         if (mounted) {
           setState(() {
             liveDynamicPrice = (premData['final_premium'] as num?)?.toDouble();
@@ -190,10 +190,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     Future<String> ping(String path) async {
       try {
-        final res = await http.get(
-          Uri.parse('$base$path'),
-        ).timeout(const Duration(seconds: 8));
-        return res.statusCode < 400 ? '✅ ${res.statusCode}' : '❌ ${res.statusCode}';
+        final res = await http
+            .get(
+              Uri.parse('$base$path'),
+            )
+            .timeout(const Duration(seconds: 8));
+        return res.statusCode < 400
+            ? '✅ ${res.statusCode}'
+            : '❌ ${res.statusCode}';
       } on TimeoutException {
         return '⏱ TIMEOUT';
       } catch (e) {
@@ -201,14 +205,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
     }
 
-    results['GET /health']          = await ping('/health');
+    results['GET /health'] = await ping('/health');
     if (userId != null) {
-      results['GET /workers/:id']   = await ping('/workers/$userId');
-      results['GET /policies/:id']  = await ping('/policies/$userId');
-      results['GET /wallet/:id']    = await ping('/wallet/$userId');
-      results['GET /claims/:id']    = await ping('/claims/$userId');
+      results['GET /workers/:id'] = await ping('/workers/$userId');
+      results['GET /policies/:id'] = await ping('/policies/$userId');
+      results['GET /wallet/:id'] = await ping('/wallet/$userId');
+      results['GET /claims/:id'] = await ping('/claims/$userId');
       final zone = Uri.encodeComponent(userZone ?? '');
-      results['GET /disruptions']   = await ping('/disruptions/$zone');
+      results['GET /disruptions'] = await ping('/disruptions/$zone');
     } else {
       results['NOTE'] = 'Log in first for user-scoped endpoints';
     }
@@ -225,11 +229,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       });
       return;
     }
-    
+
     final status = await Permission.locationWhenInUse.status;
     final bgStatus = await Permission.locationAlways.status;
     final gpsEnabled = await Geolocator.isLocationServiceEnabled();
-    
+
     if (mounted) {
       setState(() {
         if (!gpsEnabled) {
@@ -326,7 +330,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void _onLocationUpdate() {
     if (!mounted) return;
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastLocUpdate > 5000) { // Every 5 seconds max
+    if (now - _lastLocUpdate > 5000) {
+      // Every 5 seconds max
       _lastLocUpdate = now;
       setState(() {});
     }
@@ -336,7 +341,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void _onShiftUpdate() {
     if (!mounted) return;
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastShiftUpdate > 5000) { // Every 5 seconds max
+    if (now - _lastShiftUpdate > 5000) {
+      // Every 5 seconds max
       _lastShiftUpdate = now;
       setState(() {});
     }
@@ -397,7 +403,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final events = disruptionRes['disruptions'] as List<dynamic>? ?? [];
       final active = disruptionRes['active'] == true;
       final rawWeather = disruptionRes['weather'] as Map<String, dynamic>?;
-      final rawNudge = disruptionRes['predictive_nudge'] as Map<String, dynamic>?;
+      final rawNudge =
+          disruptionRes['predictive_nudge'] as Map<String, dynamic>?;
       final rawAdvisor = disruptionRes['work_advisor'] as Map<String, dynamic>?;
 
       Map<String, dynamic>? latestDisruption;
@@ -407,8 +414,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         latestDisruption = events.first as Map<String, dynamic>;
         disruptionData = {
           'active': true,
-          'trigger_type': latestDisruption['display_name'] as String? ?? 
-              _disruptionTriggerLabel(latestDisruption['trigger_type'] as String?),
+          'trigger_type': latestDisruption['display_name'] as String? ??
+              _disruptionTriggerLabel(
+                  latestDisruption['trigger_type'] as String?),
           'zone': userZone ?? 'Your Zone',
         };
       }
@@ -432,7 +440,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Trigger notifications based on policy status and disruptions
       final hasActivePolicy = policyData != null;
       final hasDisruptions = events.isNotEmpty;
-      
+
       // Only fire notifications for genuinely new data — not every load
       // Rain alert: only when disruption is truly active (server-confirmed)
       if (hasDisruptions && active && hasActivePolicy) {
@@ -469,7 +477,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       'aqi_hazardous': 'Severe Pollution',
     };
     if (t == null) return 'Rain';
-    return labels[t] ?? (t.isNotEmpty ? '${t[0].toUpperCase()}${t.substring(1).replaceAll('_', ' ')}' : 'Rain');
+    return labels[t] ??
+        (t.isNotEmpty
+            ? '${t[0].toUpperCase()}${t.substring(1).replaceAll('_', ' ')}'
+            : 'Rain');
   }
 
   String _getGreetingText(BuildContext context) {
@@ -500,17 +511,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    
+
     if (isLoading) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(child: CircularProgressIndicator(
+        body: Center(
+            child: CircularProgressIndicator(
           color: Theme.of(context).colorScheme.primary,
         )),
       );
     }
 
-    final isLocationDenied = _locationPermissionStatus.contains('permanentlyDenied');
+    final isLocationDenied =
+        _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
     final rawPlanName = policyData?['plan_name'] ?? 'Standard Shield';
@@ -520,7 +533,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final names = ridersData.map((r) => r['name'].toString()).join(' + ');
       planName = '$rawPlanName + $names';
     }
-    
+
     String titleCase(String text) {
       if (text.isEmpty) return text;
       return text.split(' ').map((word) {
@@ -528,21 +541,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return word[0].toUpperCase() + word.substring(1).toLowerCase();
       }).join(' ');
     }
-    
+
     final displayUserName = titleCase(userName ?? 'Karthik');
     final rawPremium = policyData?['weekly_premium']?.toString();
-    
+
     // Total premium logic: priority to real stored value, fallback to clean tiers
-    final String premium = liveDynamicPrice != null 
-        ? liveDynamicPrice!.toStringAsFixed(0) 
+    final String premium = liveDynamicPrice != null
+        ? liveDynamicPrice!.toStringAsFixed(0)
         : (rawPremium != null && rawPremium != '50' && rawPremium != '0'
-            ? rawPremium 
-            : (rawPlanName == 'Basic Shield' ? '29' : 
-               rawPlanName == 'Standard Shield' ? '49' : 
-               rawPlanName == 'Full Shield' ? '79' : '49'));
-    
+            ? rawPremium
+            : (rawPlanName == 'Basic Shield'
+                ? '29'
+                : rawPlanName == 'Standard Shield'
+                    ? '49'
+                    : rawPlanName == 'Full Shield'
+                        ? '79'
+                        : '49'));
+
     // Fallback to MockData shadowMissed or a positive value, never wallet balance!
-    final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
+    final pAmount =
+        (policyData?['missed_payouts'] as num?)?.toInt().abs() ?? 680;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -558,54 +576,58 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: SafeArea(
                   bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context, displayUserName),
-                      const SizedBox(height: 32),
-                      _buildTitleSection(l10n, displayUserName),
-                      const SizedBox(height: 20),
-                      if (isLocationDenied || isGpsOff) ...[
-                        _buildLocationStatusBanner(context, isGpsOff: isGpsOff),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(context, displayUserName),
+                        const SizedBox(height: 32),
+                        _buildTitleSection(l10n, displayUserName),
+                        const SizedBox(height: 20),
+                        if (isLocationDenied || isGpsOff) ...[
+                          _buildLocationStatusBanner(context,
+                              isGpsOff: isGpsOff),
+                          const SizedBox(height: 16),
+                        ],
+                        if (nudgeData != null) ...[
+                          _buildPredictiveNudgeCard(l10n),
+                          const SizedBox(height: 16),
+                        ],
+                        _buildRainAlertCard(l10n),
+                        if (workAdvisorData != null) ...[
+                          const SizedBox(height: 16),
+                          _buildWorkAdvisorCard(),
+                        ],
+                        const SizedBox(height: 20),
+                        _buildActivePolicyCard(
+                            planName, premium, l10n, ridersData),
                         const SizedBox(height: 16),
-                      ],
-                      if (nudgeData != null) ...[
-                        _buildPredictiveNudgeCard(l10n),
-                        const SizedBox(height: 16),
-                      ],
-                      _buildRainAlertCard(l10n),
-                      if (workAdvisorData != null) ...[
-                        const SizedBox(height: 16),
-                        _buildWorkAdvisorCard(),
-                      ],
-                      const SizedBox(height: 20),
-                      _buildActivePolicyCard(planName, premium, l10n, ridersData),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF111311) : const Color(0xFFF0F4F0),
-                          borderRadius: BorderRadius.circular(32),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildActionCards(context, l10n),
-                            if (policyData != null) ...[
-                              const SizedBox(height: 16),
-                              _buildMissedPayoutsCard(pAmount, context, l10n),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF111311)
+                                : const Color(0xFFF0F4F0),
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildActionCards(context, l10n),
+                              if (policyData != null) ...[
+                                const SizedBox(height: 16),
+                                _buildMissedPayoutsCard(pAmount, context, l10n),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      if (_debugMode) _buildDebugPanel(),
-                    ],
+                        if (_debugMode) _buildDebugPanel(),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
             ),
           ),
         ],
@@ -616,13 +638,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Widget _buildHeader(BuildContext context, String displayUserName) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
-    final borderColor = isDark 
-        ? const Color(0xFF3fff8b).withOpacity(0.1) 
+    final borderColor = isDark
+        ? const Color(0xFF3fff8b).withOpacity(0.1)
         : const Color(0xFF1B5E20).withOpacity(0.2);
-    final iconColor = isDark 
-        ? const Color(0xFFe1e3de).withOpacity(0.8) 
+    final iconColor = isDark
+        ? const Color(0xFFe1e3de).withOpacity(0.8)
         : const Color(0xFF1B5E20);
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
 
     return Row(
       children: [
@@ -653,7 +676,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         const SizedBox(width: 8),
         const ShiftStatusDot(),
         const Spacer(),
-        _buildMintIconBtn(Icons.headset_mic_rounded, () => context.push(AppRoutes.support), mintColor, isDark),
+        _buildMintIconBtn(Icons.headset_mic_rounded,
+            () => context.push(AppRoutes.support), mintColor, isDark),
         const SizedBox(width: 12),
         IconButton(
           icon: Icon(
@@ -663,21 +687,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           onPressed: () => setState(() => _debugMode = !_debugMode),
         ),
         const SizedBox(width: 8),
-        _buildMintIconBtn(Icons.notifications_rounded, () => context.push(AppRoutes.notifications), mintColor, isDark),
+        _buildMintIconBtn(Icons.notifications_rounded,
+            () => context.push(AppRoutes.notifications), mintColor, isDark),
       ],
     );
   }
 
-  Widget _buildMintIconBtn(IconData icon, VoidCallback onTap, Color mintColor, bool isDark) {
+  Widget _buildMintIconBtn(
+      IconData icon, VoidCallback onTap, Color mintColor, bool isDark) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-           color: Colors.transparent,
-           shape: BoxShape.circle,
-           border: Border.all(color: mintColor.withOpacity(0.15)),
+          color: Colors.transparent,
+          shape: BoxShape.circle,
+          border: Border.all(color: mintColor.withOpacity(0.15)),
         ),
         alignment: Alignment.center,
         child: Icon(icon, color: mintColor, size: 18),
@@ -687,9 +713,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   Widget _buildTitleSection(AppLocalizations l10n, String displayUserName) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final deepContainer = isDark ? const Color(0xFF003324) : const Color(0xFFE8F5E9);
-    final subtextColor = isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final deepContainer =
+        isDark ? const Color(0xFF003324) : const Color(0xFFE8F5E9);
+    final subtextColor =
+        isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,7 +745,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (DynamicTranslator.of(context).translateSync(userZone) ?? userZone ?? 'BENGALURU, KA').toUpperCase(),
+                    (DynamicTranslator.of(context).translateSync(userZone) ??
+                            userZone ??
+                            'BENGALURU, KA')
+                        .toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
                       fontSize: 10,
@@ -739,13 +771,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             fontFamily: 'Manrope',
           ),
         ),
-  Widget _buildActivePolicyCard(String planName, String premium, AppLocalizations l10n, List<dynamic>? riders) {
+      ],
+    );
+  }
+
+  Widget _buildActivePolicyCard(String planName, String premium,
+      AppLocalizations l10n, List<dynamic>? riders) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
+    final mintColor =
+        isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final subtleText = isDark ? const Color(0xFFe1e3de) : const Color(0xFF4A6741);
-    final shadowColor = isDark ? const Color(0xFF1B5E20).withOpacity(0.04) : const Color(0xFF1B5E20).withOpacity(0.08);
+    final subtleText =
+        isDark ? const Color(0xFFe1e3de) : const Color(0xFF4A6741);
+    final shadowColor = isDark
+        ? const Color(0xFF1B5E20).withOpacity(0.04)
+        : const Color(0xFF1B5E20).withOpacity(0.08);
 
     return Container(
       width: double.infinity,
@@ -754,12 +795,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-           BoxShadow(
-              color: shadowColor,
-              blurRadius: 40,
-              spreadRadius: 10,
-              offset: const Offset(0, 10),
-           )
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 40,
+            spreadRadius: 10,
+            offset: const Offset(0, 10),
+          )
         ],
       ),
       child: Column(
@@ -769,9 +810,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isMLFetching ? 'CALCULATING AI PREMIUM...' : (liveDynamicPrice != null ? 'ML ADJUSTED PREMIUM' : 'YOUR WEEKLY PREMIUM'),
+                _isMLFetching
+                    ? 'CALCULATING AI PREMIUM...'
+                    : (liveDynamicPrice != null
+                        ? 'ML ADJUSTED PREMIUM'
+                        : 'YOUR WEEKLY PREMIUM'),
                 style: TextStyle(
-                  color: _isMLFetching ? Colors.orangeAccent : (liveDynamicPrice != null ? Colors.amberAccent : subtleText),
+                  color: _isMLFetching
+                      ? Colors.orangeAccent
+                      : (liveDynamicPrice != null
+                          ? Colors.amberAccent
+                          : subtleText),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Manrope',
@@ -785,13 +834,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   if (_isMLFetching)
                     const Padding(
                       padding: EdgeInsets.only(right: 8.0, bottom: 4.0),
-                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
+                      child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.orangeAccent)),
                     )
                   else
                     Text(
                       '₹$premium',
                       style: TextStyle(
-                        color: liveDynamicPrice != null ? Colors.amberAccent : mintColor,
+                        color: liveDynamicPrice != null
+                            ? Colors.amberAccent
+                            : mintColor,
                         fontSize: liveDynamicPrice != null ? 30 : 26,
                         fontWeight: FontWeight.w900,
                         fontFamily: 'Manrope',
@@ -801,7 +856,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     Text(
                       liveDynamicPrice != null ? ' (ML Adjusted)' : '/ week',
                       style: TextStyle(
-                        color: liveDynamicPrice != null ? Colors.amberAccent : subtleText,
+                        color: liveDynamicPrice != null
+                            ? Colors.amberAccent
+                            : subtleText,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Manrope',
@@ -813,7 +870,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
           const SizedBox(height: 12),
           Text(
-            planName.replaceAll(' ', '\n'), 
+            planName.replaceAll(' ', '\n'),
             style: TextStyle(
               color: textColor,
               fontSize: 34,
@@ -827,24 +884,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             spacing: 12,
             runSpacing: 12,
             children: [
-              _buildCoverageChip(l10n.claims_heavy_rain.toUpperCase(), Icons.water_drop_rounded, mintColor, isDark),
-              _buildCoverageChip(l10n.claims_extreme_heat.toUpperCase(), Icons.wb_sunny_rounded, mintColor, isDark),
-              _buildCoverageChip(l10n.claims_platform_downtime.toUpperCase(), Icons.security_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_heavy_rain.toUpperCase(),
+                  Icons.water_drop_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_extreme_heat.toUpperCase(),
+                  Icons.wb_sunny_rounded, mintColor, isDark),
+              _buildCoverageChip(l10n.claims_platform_downtime.toUpperCase(),
+                  Icons.security_rounded, mintColor, isDark),
               if (riders != null)
                 ...riders.map((r) {
                   final name = r['name']?.toString() ?? '';
                   IconData icon = Icons.security_rounded;
                   if (name.contains('Cyclone')) icon = Icons.cyclone_rounded;
                   if (name.contains('Curfew')) icon = Icons.groups_rounded;
-                  if (name.contains('Election')) icon = Icons.how_to_vote_rounded;
-                  if (name.contains('App Downtime')) icon = Icons.phonelink_off_rounded;
-                  
+                  if (name.contains('Election')) {
+                    icon = Icons.how_to_vote_rounded;
+                  }
+                  if (name.contains('App Downtime')) {
+                    icon = Icons.phonelink_off_rounded;
+                  }
+
                   return _buildCoverageChip(
-                    name.replaceAll(' Rider', '').toUpperCase(), 
-                    icon, 
-                    mintColor, 
-                    isDark
-                  );
+                      name.replaceAll(' Rider', '').toUpperCase(),
+                      icon,
+                      mintColor,
+                      isDark);
                 }),
             ],
           ),
@@ -852,7 +915,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ),
     );
   }
-  Widget _buildCoverageChip(String label, IconData icon, Color mintColor, bool isDark) {
+
+  Widget _buildCoverageChip(
+      String label, IconData icon, Color mintColor, bool isDark) {
     final chipBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
 
     return Container(
@@ -887,14 +952,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     if (a == null) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF141614) : const Color(0xFFF8FAF8);
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final cardColor =
+        isDark ? const Color(0xFF141614) : const Color(0xFFF8FAF8);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subColor = textColor.withOpacity(0.65);
 
     final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
-    final band = t.translateSync(a['stability_band_label'] as String? ?? 'Earning outlook');
+    final band = t.translateSync(
+        a['stability_band_label'] as String? ?? 'Earning outlook');
     final headline = t.translateSync(a['headline'] as String? ?? '');
     final nudge = t.translateSync(a['coverage_nudge'] as String? ?? '');
     final suggest = a['suggest_activate_coverage'] == true;
@@ -927,7 +995,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: mintColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -987,7 +1056,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.schedule_rounded, size: 16, color: mintColor.withOpacity(0.85)),
+                    Icon(Icons.schedule_rounded,
+                        size: 16, color: mintColor.withOpacity(0.85)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1027,12 +1097,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Widget _buildRainAlertCard(AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
     final textColor = Theme.of(context).colorScheme.onSurface;
 
     String locality = userZone ?? 'your area';
-    locality = locality.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '');
+    locality = locality.replaceAll(
+        RegExp(r' dark store zone', caseSensitive: false), '');
     locality = locality.replaceAll(RegExp(r' zone', caseSensitive: false), '');
     locality = locality.trim();
     if (locality.isEmpty) locality = 'your area';
@@ -1105,9 +1177,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(Icons.arrow_forward_rounded, 
-                    color: isDark ? const Color(0xFF0a0b0a) : Colors.white, 
-                    size: 14),
+                  Icon(Icons.arrow_forward_rounded,
+                      color: isDark ? const Color(0xFF0a0b0a) : Colors.white,
+                      size: 14),
                 ],
               ),
             ),
@@ -1119,17 +1191,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   Widget _buildPredictiveNudgeCard(AppLocalizations l10n) {
     if (nudgeData == null) return const SizedBox.shrink();
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF0D1410) : const Color(0xFFE8F5E9);
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final cardColor =
+        isDark ? const Color(0xFF0D1410) : const Color(0xFFE8F5E9);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
-    
+
     final t = DynamicTranslator.of(context);
-    final date = t.translateSync(nudgeData!['nudge_date'] as String? ?? 'Friday');
+    final date =
+        t.translateSync(nudgeData!['nudge_date'] as String? ?? 'Friday');
     final prob = nudgeData!['probability_percentage']?.toString() ?? '85';
-    final desc = t.translateSync(nudgeData!['description'] as String? ?? 'Heavy rain expected.');
-    
+    final desc = t.translateSync(
+        nudgeData!['description'] as String? ?? 'Heavy rain expected.');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -1198,12 +1274,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
           BatteryOptimizationPrompt(onAllGranted: () async {
             // Guard: don't start if already active or going online
-            if (_isGoingOnline || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
+            if (_isGoingOnline ||
+                ShiftTrackingService.instance.status != ShiftStatus.offline) {
+              return;
+            }
             setState(() => _isGoingOnline = true);
             // permission_handler is not implemented on web (UnimplementedError).
             if (kIsWeb) {
               try {
-                final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                final zone =
+                    userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
                 await ShiftTrackingService.instance.startShift(zone);
                 AppEvents.instance.profileUpdated();
               } catch (e) {
@@ -1222,7 +1302,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               if (!permStatus.isGranted) {
                 final result = await Permission.locationWhenInUse.request();
                 if (!result.isGranted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permission required')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Location permission required')));
                   setState(() => _isGoingOnline = false);
                   return;
                 }
@@ -1232,41 +1313,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               if (!gpsEnabled) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please turn on device location to go online')),
+                    const SnackBar(
+                        content: Text(
+                            'Please turn on device location to go online')),
                   );
                 }
                 setState(() => _isGoingOnline = false);
                 return;
               }
 
-              final bgPerm = await Permission.locationAlways.status;
-              if (!bgPerm.isGranted && mounted) {
-                await showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Improve background tracking'),
-                    content: const Text(
-                      'To protect payouts while Hustlr is in the background, allow "Always" location on the next screen. '
-                      'You can skip this for now and still go online while the app stays open.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Continue'),
-                      ),
-                    ],
-                  ),
-                );
-                await Permission.locationAlways.request();
-              }
-              final notifPerm = await Permission.notification.status;
-              if (!notifPerm.isGranted) {
-                await Permission.notification.request();
-              }
-              final actPerm = await Permission.activityRecognition.status;
-              if (!actPerm.isGranted) {
-                await Permission.activityRecognition.request();
-              }
               try {
                 final position = await Geolocator.getCurrentPosition(
                   desiredAccuracy: LocationAccuracy.high,
@@ -1277,9 +1332,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 print('[GoOnline] GPS timeout: $gpsError — using last known');
               }
               // Use real zone from storage, no hardcoded fallback
-              final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+              final zone =
+                  userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
               await ShiftTrackingService.instance.startShift(zone);
               AppEvents.instance.profileUpdated();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('You are online.'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
             } catch (e) {
               print('[GoOnline] ERROR: $e');
               if (mounted) {
@@ -1296,44 +1360,48 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         Row(
           children: [
             Expanded(
-          child: _buildActionCard(
-            Icons.shield_outlined, 
-            l10n.dashboard_modular,
-            l10n.dashboard_add_coverage,
-            () => context.push(AppRoutes.policy),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionCard(
-            Icons.article_outlined,
-            l10n.dashboard_legal,
-            l10n.dashboard_view_cert,
-            () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.dashboard_generating_cert),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                ),
-              );
-              await PdfGenerator.generateAndPreviewCertificate();
-            },
-          ),
+              child: _buildActionCard(
+                Icons.shield_outlined,
+                l10n.dashboard_modular,
+                l10n.dashboard_add_coverage,
+                () => context.push(AppRoutes.policy),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                Icons.article_outlined,
+                l10n.dashboard_legal,
+                l10n.dashboard_view_cert,
+                () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.dashboard_generating_cert),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                  );
+                  await PdfGenerator.generateAndPreviewCertificate();
+                },
+              ),
+            ),
+          ],
         ),
       ],
-    ),
-   ],
-  );
-}
+    );
+  }
 
-  Widget _buildActionCard(IconData icon, String kicker, String label, VoidCallback onTap) {
+  Widget _buildActionCard(
+      IconData icon, String kicker, String label, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
-    final subtextColor = isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
+    final subtextColor =
+        isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
     final textColor = Theme.of(context).colorScheme.onSurface;
 
     return GestureDetector(
@@ -1350,13 +1418,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-               padding: const EdgeInsets.all(8),
-               decoration: BoxDecoration(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
                   color: iconBg,
                   shape: BoxShape.circle,
-               ),
-               child: Icon(icon, color: mintColor, size: 22)
-            ),
+                ),
+                child: Icon(icon, color: mintColor, size: 22)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1389,7 +1456,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildLocationStatusBanner(BuildContext context, {required bool isGpsOff}) {
+  Widget _buildLocationStatusBanner(BuildContext context,
+      {required bool isGpsOff}) {
     final theme = Theme.of(context);
     final bg = theme.colorScheme.errorContainer;
     final fg = theme.colorScheme.onErrorContainer;
@@ -1410,7 +1478,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isGpsOff ? 'Turn on GPS before going online' : 'Location access is incomplete',
+                  isGpsOff
+                      ? 'Turn on GPS before going online'
+                      : 'Location access is incomplete',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: fg,
                     fontWeight: FontWeight.w700,
@@ -1443,13 +1513,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildMissedPayoutsCard(int amount, BuildContext context, AppLocalizations l10n) {
+  Widget _buildMissedPayoutsCard(
+      int amount, BuildContext context, AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final pinkColor = isDark ? const Color(0xFFff8ba0) : const Color(0xFFE91E63);
+    final mintColor =
+        isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final pinkColor =
+        isDark ? const Color(0xFFff8ba0) : const Color(0xFFE91E63);
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final subtextColor = isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
+    final subtextColor =
+        isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
 
     return GestureDetector(
       onTap: () => context.push(AppRoutes.shadowPolicy),
@@ -1466,9 +1540,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.savings_rounded, color: pinkColor, size: 32), 
+                Icon(Icons.savings_rounded, color: pinkColor, size: 32),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(24),
@@ -1487,7 +1562,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_rounded, color: mintColor, size: 14),
+                      Icon(Icons.arrow_forward_rounded,
+                          color: mintColor, size: 14),
                     ],
                   ),
                 ),
@@ -1540,7 +1616,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ),
           Divider(color: Colors.red.withOpacity(0.3)),
-          
+
           Wrap(
             spacing: 8,
             children: [
@@ -1552,7 +1628,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   textStyle: const TextStyle(fontSize: 10),
                 ),
                 onPressed: () => _loadDashboardData(),
-                child: const Text('REFRESH', style: TextStyle(color: Colors.white)),
+                child: const Text('REFRESH',
+                    style: TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -1574,7 +1651,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     });
                   }
                 },
-                child: const Text('RAIN', style: TextStyle(color: Colors.white)),
+                child:
+                    const Text('RAIN', style: TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -1588,7 +1666,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: FraudSensorService.mockFraudSpoofing ? Colors.green : Colors.grey[800],
+                  backgroundColor: FraudSensorService.mockFraudSpoofing
+                      ? Colors.green
+                      : Colors.grey[800],
                   minimumSize: const Size(60, 28),
                   padding: EdgeInsets.zero,
                   textStyle: const TextStyle(fontSize: 10),
@@ -1603,7 +1683,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       await StorageService.instance.setLastLat(13.0012);
                       await StorageService.instance.setLastLng(80.2565);
                       setState(() {
-                         disruptionData = {
+                        disruptionData = {
                           'active': true,
                           'trigger_type': 'Heavy Rain',
                           'zone': userZone ?? 'Your Zone',
@@ -1615,23 +1695,31 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       });
                       AppEvents.instance.claimUpdated();
                       AppEvents.instance.walletUpdated();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('🌧 SPOOF ON — Rain disruption injected'), backgroundColor: Color(0xFF10B981))
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content:
+                              Text('🌧 SPOOF ON — Rain disruption injected'),
+                          backgroundColor: Color(0xFF10B981)));
                     } else {
                       setState(() {
                         activeDisruption = null;
                         disruptionData = null;
                       });
                     }
-                    LocationService.instance.updateFromGps(LocationService.instance.currentLat, LocationService.instance.currentLon);
+                    LocationService.instance.updateFromGps(
+                        LocationService.instance.currentLat,
+                        LocationService.instance.currentLon);
                   }
                 },
-                child: Text(FraudSensorService.mockFraudSpoofing ? 'SPOOF (ON)' : 'SPOOF (OFF)', style: const TextStyle(color: Colors.white)),
+                child: Text(
+                    FraudSensorService.mockFraudSpoofing
+                        ? 'SPOOF (ON)'
+                        : 'SPOOF (OFF)',
+                    style: const TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _enableLiveML ? Colors.amber[800] : Colors.grey[800],
+                  backgroundColor:
+                      _enableLiveML ? Colors.amber[800] : Colors.grey[800],
                   minimumSize: const Size(60, 28),
                   padding: EdgeInsets.zero,
                   textStyle: const TextStyle(fontSize: 10),
@@ -1642,13 +1730,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       _enableLiveML = !_enableLiveML;
                     });
                     if (_enableLiveML) {
-                       _fetchLiveMLData(policyData?['plan_tier'] ?? 'Standard Shield');
+                      _fetchLiveMLData(
+                          policyData?['plan_tier'] ?? 'Standard Shield');
                     } else {
-                       setState(() { liveDynamicPrice = null; liveIssScore = null; });
+                      setState(() {
+                        liveDynamicPrice = null;
+                        liveIssScore = null;
+                      });
                     }
                   }
                 },
-                child: Text(_enableLiveML ? 'ML SYNC (ON)' : 'ML SYNC (OFF)', style: const TextStyle(color: Colors.white)),
+                child: Text(_enableLiveML ? 'ML SYNC (ON)' : 'ML SYNC (OFF)',
+                    style: const TextStyle(color: Colors.white)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -1667,11 +1760,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   } catch (_) {}
                   if (context.mounted) context.go(AppRoutes.login);
                 },
-                child: const Text('LOGOUT', style: TextStyle(color: Colors.white)),
+                child:
+                    const Text('LOGOUT', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
-          
+
           const SizedBox(height: 12),
           _DebugHeader('--- USER STATE ---'),
           _DebugRow('USER ID', userId ?? 'NULL'),
@@ -1680,8 +1774,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
           _DebugHeader('--- POLICY STATE ---'),
           _DebugRow('POLICY ID', policyData?['id']?.toString() ?? 'NULL'),
-          _DebugRow('PLAN TIER', policyData?['plan_tier']?.toString() ?? 'NULL'),
-          _DebugRow('WEEKLY PREMIUM', policyData?['weekly_premium']?.toString() ?? 'NULL'),
+          _DebugRow(
+              'PLAN TIER', policyData?['plan_tier']?.toString() ?? 'NULL'),
+          _DebugRow('WEEKLY PREMIUM',
+              policyData?['weekly_premium']?.toString() ?? 'NULL'),
           _DebugRow('STATUS', policyData?['status']?.toString() ?? 'NULL'),
 
           _DebugHeader('--- WALLET STATE ---'),
@@ -1689,20 +1785,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             final rawBal = (walletData?['balance'] as num?)?.toInt();
             String balStr = 'NULL';
             if (rawBal != null) {
-              balStr = rawBal < 0 ? '0 (paid: ${rawBal.abs()})' : rawBal.toString();
+              balStr =
+                  rawBal < 0 ? '0 (paid: ${rawBal.abs()})' : rawBal.toString();
             }
             return _DebugRow('BALANCE', balStr);
           }),
-          _DebugRow('TOTAL PAYOUTS', walletData?['total_payouts']?.toString() ?? 'NULL'),
-          _DebugRow('TOTAL PREMIUMS', walletData?['total_premiums']?.toString() ?? 'NULL'),
-          _DebugRow('TRANSACTION COUNT', (walletData?['transactions'] as List?)?.length.toString() ?? '0'),
+          _DebugRow('TOTAL PAYOUTS',
+              walletData?['total_payouts']?.toString() ?? 'NULL'),
+          _DebugRow('TOTAL PREMIUMS',
+              walletData?['total_premiums']?.toString() ?? 'NULL'),
+          _DebugRow('TRANSACTION COUNT',
+              (walletData?['transactions'] as List?)?.length.toString() ?? '0'),
 
           _DebugHeader('--- DISRUPTION STATE ---'),
-          _DebugRow('WEATHER SOURCE', weatherData?['station']?.toString() ?? 'NULL'),
+          _DebugRow(
+              'WEATHER SOURCE', weatherData?['station']?.toString() ?? 'NULL'),
           _DebugRow('RAIN MM', '${weatherData?['rainfall_mm_1h'] ?? 'NULL'}'),
           _DebugRow('TEMP', '${weatherData?['temp_celsius'] ?? 'NULL'}°C'),
-          _DebugRow('TRIGGER ACTIVE', disruptionData?['active']?.toString() ?? 'false'),
-          _DebugRow('TRIGGER TYPE', disruptionData?['trigger_type']?.toString() ?? 'NONE'),
+          _DebugRow('TRIGGER ACTIVE',
+              disruptionData?['active']?.toString() ?? 'false'),
+          _DebugRow('TRIGGER TYPE',
+              disruptionData?['trigger_type']?.toString() ?? 'NONE'),
 
           _DebugHeader('--- API STATE ---'),
           _DebugRow('BACKEND URL', ApiService.baseUrl),
@@ -1712,49 +1815,63 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             GestureDetector(
               onTap: _checkApiHealth,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2E7D32),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text('▶ RUN API HEALTH CHECK',
-                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
               ),
             )
           else if (_apiHealthStatus['_loading'] == 'true')
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Row(children: [
-                SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3FFF8B))),
+                SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Color(0xFF3FFF8B))),
                 SizedBox(width: 10),
-                Text('Pinging endpoints...', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                Text('Pinging endpoints...',
+                    style: TextStyle(color: Colors.white70, fontSize: 11)),
               ]),
             )
           else ...[
-            ..._apiHealthStatus.entries.map((e) =>
-              _DebugRow(e.key, e.value)),
+            ..._apiHealthStatus.entries.map((e) => _DebugRow(e.key, e.value)),
             const SizedBox(height: 6),
             GestureDetector(
               onTap: _checkApiHealth,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text('↻ RE-RUN CHECK',
-                    style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
               ),
             ),
           ],
 
           _DebugHeader('--- LOCATION STATE ---'),
           _DebugRow('LOCATION PERMISSION', _locationPermissionStatus),
-          _DebugRow('LAST GPS LAT', _lastLat == 0.0 ? 'NO FIX YET' : _lastLat.toStringAsFixed(6)),
-          _DebugRow('LAST GPS LNG', _lastLng == 0.0 ? 'NO FIX YET' : _lastLng.toStringAsFixed(6)),
+          _DebugRow('LAST GPS LAT',
+              _lastLat == 0.0 ? 'NO FIX YET' : _lastLat.toStringAsFixed(6)),
+          _DebugRow('LAST GPS LNG',
+              _lastLng == 0.0 ? 'NO FIX YET' : _lastLng.toStringAsFixed(6)),
           _DebugRow('ZONE DEPTH SCORE', _zoneDepthScore.toStringAsFixed(1)),
-          _DebugRow('BACKGROUND TRACKING', _backgroundTrackingActive.toString()),
+          _DebugRow(
+              'BACKGROUND TRACKING', _backgroundTrackingActive.toString()),
         ],
       ),
     );

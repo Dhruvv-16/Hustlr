@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
-import '../../shared/widgets/hustlr_bottom_nav.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
@@ -33,8 +32,8 @@ class _Plan {
     required this.subtitle,
     required this.price,
     this.accentLeft = false,
-    this.isElite = false,
     this.isMostPopular = false,
+    this.isElite = false,
   });
 }
 
@@ -458,7 +457,7 @@ class _ActiveCoverageCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Policy #${activePolicy?['id']?.toString().toUpperCase() ?? "HS-98234-AX"}',
+        Text('Policy #${activePolicy?['id']?.toString().toUpperCase() ?? "—"}',
             style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7))),
         const SizedBox(height: 12),
         Text('VALIDITY', style: TextStyle(
@@ -915,7 +914,7 @@ class _RiderRow extends StatelessWidget {
         Switch(
           value: isIncluded ? true : value,
           onChanged: isIncluded ? null : onChanged,
-          activeColor: theme.colorScheme.primary,
+          activeThumbColor: theme.colorScheme.primary,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ]),

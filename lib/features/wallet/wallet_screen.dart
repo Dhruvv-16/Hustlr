@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../services/demo_state_service.dart';
 
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
@@ -1142,6 +1140,7 @@ class _LinkedUpiCardState extends State<_LinkedUpiCard> {
                 final newUpi = controller.text.trim();
                 if (newUpi.isNotEmpty) {
                   await StorageService.setUpiId(newUpi);
+                  if (!mounted) return;
                   setState(() {
                     _upiId = newUpi;
                   });

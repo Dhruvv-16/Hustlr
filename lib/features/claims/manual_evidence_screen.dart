@@ -18,7 +18,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
     final primaryColor = theme.colorScheme.primary;
     final l10n = AppLocalizations.of(context)!;
 
-    final List<Map<String, dynamic>> _types = [
+    final List<Map<String, dynamic>> types = [
       {
         'id': 'road_blocked',
         'title': l10n.manual_claim_road_blocked,
@@ -72,7 +72,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 physics: const BouncingScrollPhysics(),
-                children: _types.map((type) => _buildCard(type, primaryColor)).toList(),
+                children: types.map((type) => _buildCard(type, primaryColor)).toList(),
               ),
             ),
             Padding(

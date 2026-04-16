@@ -4,9 +4,9 @@ class DemoStateService {
   static final instance = DemoStateService._();
   DemoStateService._();
 
-  List<Map<String, dynamic>> _claims = [];
+  final List<Map<String, dynamic>> _claims = [];
   int _walletBalance = 0;
-  List<Map<String, dynamic>> _transactions = [];
+  final List<Map<String, dynamic>> _transactions = [];
 
   List<Map<String, dynamic>> get claims => List.from(_claims);
   int get walletBalance => _walletBalance;

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../../core/router/app_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/claims/claims_bloc.dart';
 import '../../blocs/claims/claims_event.dart';
+import '../../blocs/policy/policy_bloc.dart';
+import '../../blocs/policy/policy_state.dart';
 import '../../models/claim.dart';
+import '../../models/policy.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
 import 'package:intl/intl.dart';
@@ -44,10 +45,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     super.initState();
     // Load claims data when analytics screen opens
     final userId = StorageService.userId;
-    if (userId != null) {
-      context.read<ClaimsBloc>().add(LoadClaims(userId));
-    }
-    
+    context.read<ClaimsBloc>().add(LoadClaims(userId));
+      
     StorageService.instance.getUserZone().then((z) {
       if (mounted) setState(() => _zone = z ?? '');
     });
@@ -174,22 +173,40 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   Widget _buildPolicyInfoCard(BuildContext context, bool isDark, Color green, Color primary) {
     final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          _buildPolicyRow(context, isDark, green, primary, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
-          const SizedBox(height: 12),
-          _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
-          const SizedBox(height: 12),
-          _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'App Downtime (1 active)'),
-        ],
-      ),
+    return BlocBuilder<PolicyBloc, PolicyState>(
+      builder: (context, policyState) {
+        String getPlanDisplayName(PlanTier? tier) {
+          if (tier == null) return 'Standard Shield';
+          switch (tier) {
+            case PlanTier.basic:
+              return 'Basic Shield';
+            case PlanTier.standard:
+              return 'Standard Shield';
+            case PlanTier.full:
+              return 'Full Shield';
+          }
+        }
+
+        final activePlanName = getPlanDisplayName(policyState.activePolicy?.tier);
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _buildPolicyRow(context, isDark, green, primary, title: 'Active Plan', value: activePlanName, chip: 'Active'),
+              const SizedBox(height: 12),
+              _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
+              const SizedBox(height: 12),
+              _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'App Downtime coverage'),
+            ],
+          ),
+        );
+      },
     );
   }
 

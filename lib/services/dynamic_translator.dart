@@ -18,6 +18,7 @@
 /// Usage:
 ///   final t = DynamicTranslator.of(context);
 ///   Text(await t.translate('Heavy Rain'))
+library;
 
 import 'dart:convert';
 import 'package:flutter/widgets.dart';

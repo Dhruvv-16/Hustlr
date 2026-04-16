@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -58,7 +57,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     'Look up toward the camera',
   ];
   String? _currentGesture;
-  bool _showGesturePrompt = false;
+  final bool _showGesturePrompt = false;
 
   @override
   void initState() {

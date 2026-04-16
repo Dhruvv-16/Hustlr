@@ -457,8 +457,8 @@ class _CharCounter extends StatelessWidget {
               final tooShort = count > 0 && count < 20;
               return Text(
                 tooShort
-                    ? 'Minimum 20 characters (${count}/300)'
-                    : '${count}/300',
+                    ? 'Minimum 20 characters ($count/300)'
+                    : '$count/300',
                 style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'Manrope',

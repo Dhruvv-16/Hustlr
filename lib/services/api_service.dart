@@ -3,7 +3,6 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'storage_service.dart';
 
@@ -252,16 +251,17 @@ class ApiService {
       if (res.statusCode == 200) return data;
       throw Exception(data['error'] ?? 'Failed to fetch policy');
     } catch (_) {
-      final tier = StorageService.instance.planTier;
-      final premium = StorageService.instance.weeklyPremium;
-      final riders = StorageService.instance.activeRiders;
+      final tier = await StorageService.instance.getPlanTier();
+      final premium = await StorageService.instance.getWeeklyPremium();
+      final riders = StorageService.activeRiders;
+      final savedPolicyId = StorageService.policyId;
       
       return {
         'policy': {
-          'id': StorageService.instance.policyId.isEmpty ? 'mock-policy' : StorageService.instance.policyId,
-          'plan_tier': tier,
-          'plan_name': tier,
-          'weekly_premium': premium,
+          'id': savedPolicyId.isEmpty ? 'mock-policy' : savedPolicyId,
+          'plan_tier': tier ?? 'Standard Shield',
+          'plan_name': tier ?? 'Standard Shield',
+          'weekly_premium': premium?.toString() ?? '49',
           'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(), // Cost is already in premium
           'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 29),
           'zone_adjustment': 0,
@@ -1032,7 +1032,7 @@ class ApiService {
       if (faces.length != 1) {
         return {
           'verified': false,
-          'reason': faces.length == 0 ? 'No face detected' : 'Multiple faces detected',
+          'reason': faces.isEmpty ? 'No face detected' : 'Multiple faces detected',
           'similarity_score': 0.0,
           'method': 'mlkit_local',
         };

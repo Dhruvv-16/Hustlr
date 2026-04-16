@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/router/app_router.dart';
-import '../../shared/widgets/primary_button.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
 
@@ -34,8 +33,12 @@ class _OTPScreenState extends State<OTPScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -133,6 +136,7 @@ class _OTPScreenState extends State<OTPScreen> {
         final authResult = await context.push<Map<String, dynamic>>(
             '${AppRoutes.stepUpAuth}?reason=$reason&requireTwoTier=${!hasEnrollment}');
 
+        if (!mounted) return;
         if (authResult != null && authResult['verified'] == true) {
           context.go(AppRoutes.dashboard);
         } else {
@@ -166,7 +170,9 @@ class _OTPScreenState extends State<OTPScreen> {
   }
 
   void _resendOtp() {
-    for (final c in _controllers) c.clear();
+    for (final c in _controllers) {
+      c.clear();
+    }
     _focusNodes[0].requestFocus();
     setState(() => _error = null);
 

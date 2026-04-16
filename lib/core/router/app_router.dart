@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:io';
@@ -161,7 +160,7 @@ final GoRouter appRouter = GoRouter(
     // ── Shell with BottomNavBar ──────────────────────────────────────────────
     ShellRoute(
       builder: (context, state, child) =>
-          ScaffoldWithNav(child: child, location: state.uri.toString()),
+          ScaffoldWithNav(location: state.uri.toString(), child: child),
       routes: [
         GoRoute(
           path: AppRoutes.dashboard,
