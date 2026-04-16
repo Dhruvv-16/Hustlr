@@ -205,3 +205,6 @@ gcp_key.json
 dart_defines.json
 datasets/
 ml_models/
+
+# Secrets
+lib/core/secrets.dart

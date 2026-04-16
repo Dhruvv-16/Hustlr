@@ -181,5 +181,54 @@ module.exports = {
     adyar: 0.72, korattur: 0.45, t_nagar: 0.68,
     anna_nagar: 0.41, velachery: 0.65, tambaram: 0.55,
     porur: 0.50, chromepet: 0.52, sholinganallur: 0.58, guindy: 0.48,
+    kattankulathur: 0.44,   // SRM Uni corridor, lower flood exposure
   },
+
+  // ── ENUM Sanitizer: maps any raw string to the exact DB enum value. ────────
+  // Usage: const { TRIGGER_TYPE_MAP, sanitizeTriggerType } = require('./constants');
+  //        const dbValue = sanitizeTriggerType(rawInput);
+  TRIGGER_TYPE_MAP: {
+    // Canonical (already correct)
+    'rain_heavy':        'rain_heavy',
+    'rain_moderate':     'rain_heavy',    // treat moderate as heavy for enum
+    'rain_light':        'rain_heavy',
+    'rain_extreme':      'rain_heavy',
+    'heat_severe':       'heat_severe',
+    'heat_stress':       'heat_severe',
+    'aqi_hazardous':     'aqi_hazardous',
+    'aqi_very_unhealthy':'aqi_hazardous',
+    'platform_outage':   'platform_outage',
+    'dark_store_closure':'dark_store_closure',
+    'bandh_strike':      'bandh_strike',
+    'bandh':             'bandh_strike',
+    'internet_blackout': 'internet_blackout',
+    'traffic_congestion':'traffic_congestion',
+    'cyclone_landfall':  'cyclone_landfall',
+    // Title-case / spaced variants from external APIs
+    'Heavy Rain':        'rain_heavy',
+    'Extreme Rain':      'rain_heavy',
+    'Platform Outage':   'platform_outage',
+    'Extreme Heat':      'heat_severe',
+    'Heatwave':          'heat_severe',
+    'Bandh Strike':      'bandh_strike',
+    'Internet Blackout': 'internet_blackout',
+    'Cyclone Landfall':  'cyclone_landfall',
+    'Severe AQI':        'aqi_hazardous',
+    'Dark Store Closure':'dark_store_closure',
+  },
+};
+
+/**
+ * Sanitize any trigger_type string to the exact disruption_trigger_enum value.
+ * Throws a clean 400-level error string if the input is completely unrecognised
+ * so the caller can return { error } before it hits the DB and causes a 500.
+ */
+module.exports.sanitizeTriggerType = (rawInput) => {
+  const map = module.exports.TRIGGER_TYPE_MAP;
+  if (!rawInput) return 'platform_outage';            // safe fallback
+  const direct = map[rawInput];
+  if (direct) return direct;
+  // Last resort: lowercase + underscore
+  const normalised = rawInput.toLowerCase().replace(/[ -]+/g, '_');
+  return map[normalised] ?? normalised;               // return as-is; DB constraint will reject if invalid
 };

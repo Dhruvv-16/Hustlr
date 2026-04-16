@@ -30,23 +30,23 @@ class LocationService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Zone centroids
   static const Map<String, Map<String, double>> ZONE_CENTROIDS = {
-    'Adyar Dark Store Zone':        {'lat': 13.0067, 'lon': 80.2206},
-    'Anna Nagar Dark Store Zone':   {'lat': 13.0850, 'lon': 80.2101},
-    'T Nagar Dark Store Zone':      {'lat': 13.0418, 'lon': 80.2341},
-    'Velachery Dark Store Zone':    {'lat': 12.9815, 'lon': 80.2180},
-    'OMR Dark Store Zone':          {'lat': 12.9165, 'lon': 80.2275},
-    'Tambaram Dark Store Zone':     {'lat': 12.9249, 'lon': 80.1000},
-    'Porur Dark Store Zone':        {'lat': 13.0358, 'lon': 80.1566},
-    'Sholinganallur Dark Store Zone':{'lat': 12.9010, 'lon': 80.2279},
-    'Mylapore Dark Store Zone':     {'lat': 13.0368, 'lon': 80.2676},
-    'Perambur Dark Store Zone':     {'lat': 13.1080, 'lon': 80.2480},
-    'Koramangala Dark Store Zone':  {'lat': 12.9352, 'lon': 77.6245},
-    'HSR Layout Dark Store Zone':   {'lat': 12.9081, 'lon': 77.6476},
-    'Indiranagar Dark Store Zone':  {'lat': 12.9784, 'lon': 77.6408},
-    'Andheri Dark Store Zone':      {'lat': 19.1136, 'lon': 72.8697},
-    'Bandra Dark Store Zone':       {'lat': 19.0596, 'lon': 72.8295},
+    'Adyar Dark Store Zone':              {'lat': 13.0067, 'lon': 80.2206},
+    'Anna Nagar Dark Store Zone':         {'lat': 13.0850, 'lon': 80.2101},
+    'T Nagar Dark Store Zone':            {'lat': 13.0418, 'lon': 80.2341},
+    'Velachery Dark Store Zone':          {'lat': 12.9815, 'lon': 80.2180},
+    'OMR Dark Store Zone':                {'lat': 12.9165, 'lon': 80.2275},
+    'Tambaram Dark Store Zone':           {'lat': 12.9249, 'lon': 80.1000},
+    'Porur Dark Store Zone':              {'lat': 13.0358, 'lon': 80.1566},
+    'Sholinganallur Dark Store Zone':     {'lat': 12.9010, 'lon': 80.2279},
+    'Mylapore Dark Store Zone':           {'lat': 13.0368, 'lon': 80.2676},
+    'Perambur Dark Store Zone':           {'lat': 13.1080, 'lon': 80.2480},
+    'Kattankulathur Dark Store Zone':     {'lat': 12.8185, 'lon': 80.0419}, // SRM Uni corridor
+    'Koramangala Dark Store Zone':        {'lat': 12.9352, 'lon': 77.6245},
+    'HSR Layout Dark Store Zone':         {'lat': 12.9081, 'lon': 77.6476},
+    'Indiranagar Dark Store Zone':        {'lat': 12.9784, 'lon': 77.6408},
+    'Andheri Dark Store Zone':            {'lat': 19.1136, 'lon': 72.8697},
+    'Bandra Dark Store Zone':             {'lat': 19.0596, 'lon': 72.8295},
   };
 
   static const double ZONE_OUTER_RADIUS = 3.0;

@@ -23,6 +23,7 @@ library;
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import '../core/secrets.dart';
 
 class DynamicTranslator {
   final String locale;
@@ -33,7 +34,7 @@ class DynamicTranslator {
     return DynamicTranslator._(tag);
   }
 
-  static const _apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  static const _apiKey = Secrets.geminiApiKey;
 
   // ── In-memory cache to avoid re-calling the API for the same string ──────
   static final Map<String, String> _cache = {};

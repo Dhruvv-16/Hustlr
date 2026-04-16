@@ -235,11 +235,12 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2E7D32);
-    const accentGreen = Color(0xFF4CAF50);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final accentGreen = theme.colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.canvasColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

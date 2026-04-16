@@ -20,6 +20,7 @@ const _darkBorder      = Color(0xFF2a2d2a);
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 class _Plan {
+  final String id;
   final String name;
   final String subtitle;
   final String price;
@@ -28,6 +29,7 @@ class _Plan {
   final bool isMostPopular;
 
   const _Plan({
+    required this.id,
     required this.name,
     required this.subtitle,
     required this.price,
@@ -40,9 +42,9 @@ class _Plan {
 List<_Plan> _getPlans(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
   return [
-    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹29/wk', accentLeft: true),
-    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
-    _Plan(name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
+    _Plan(id: 'basic',    name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
+    _Plan(id: 'standard', name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
+    _Plan(id: 'full',     name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
   ];
 }
 
@@ -563,11 +565,10 @@ class _UpgradeTabState extends State<_UpgradeTab> {
   };
 
   // ── helpers ──────────────────────────────────────────────────────────────
-  static int _planBasePrice(String? plan) {
-    if (plan == null) return 49;
-    final lower = plan.toLowerCase();
-    if (lower.contains('full')) return 79;
-    if (lower.contains('basic')) return 29;
+  static int _planBasePrice(String? planId) {
+    if (planId == null) return 49;
+    if (planId == 'full') return 79;
+    if (planId == 'basic') return 35;
     return 49; // Standard Shield default
   }
 
@@ -579,12 +580,11 @@ class _UpgradeTabState extends State<_UpgradeTab> {
       'Election Day': 8, 'App Downtime': 10,
     };
     
-    final lower = (_selectedPlan ?? '').toLowerCase();
-    final bool allIncluded = lower.contains('full');
+    final bool allIncluded = _selectedPlan == 'full';
 
     if (!allIncluded) {
       for (final r in _riderToggles.entries) {
-        if (r.key == 'App Downtime' && lower.contains('standard')) continue;
+        if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
         if (r.value) total += riderPrices[r.key] ?? 0;
       }
     }
@@ -594,8 +594,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Use hardcoded English default so price map lookups always work
-    _selectedPlan ??= 'Standard Shield';
+    // Use hardcoded internal ID default
+    _selectedPlan ??= 'standard';
 
     return Stack(children: [
       SingleChildScrollView(
@@ -609,12 +609,12 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           const SizedBox(height: 12),
           ..._getPlans(context).map((p) => _PlanCard(
                 plan: p,
-                isSelected: _selectedPlan == p.name,
+                isSelected: _selectedPlan == p.id,
                 onTap: () => setState(() {
-                  _selectedPlan = p.name;
-                  if (_selectedPlan == AppLocalizations.of(context)!.policy_basic) {
+                  _selectedPlan = p.id;
+                  if (_selectedPlan == 'basic') {
                     _riderToggles['App Downtime'] = false;
-                  } else if (_selectedPlan == AppLocalizations.of(context)!.policy_standard) {
+                  } else if (_selectedPlan == 'standard') {
                     _riderToggles['App Downtime'] = true;
                   }
                 }),
@@ -625,8 +625,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           ]),
           const SizedBox(height: 12),
           ..._riders.map((r) {
-            final bool allIncluded = (_selectedPlan == AppLocalizations.of(context)!.policy_full);
-            final bool thisIncluded = allIncluded || (_selectedPlan == AppLocalizations.of(context)!.policy_standard && r.name == 'App Downtime');
+            final bool allIncluded = (_selectedPlan == 'full');
+            final bool thisIncluded = allIncluded || (_selectedPlan == 'standard' && r.name == 'App Downtime');
             return _RiderRow(
               rider: r,
               value: _riderToggles[r.name] ?? r.defaultOn,
@@ -666,15 +666,16 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           selectedPlan: _selectedPlan,
           onProceed: () {
             final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
-            final planName = _selectedPlan ?? 'Standard Shield';
-            final planCost = _planBasePrice(planName);
-            final lowerPlan = planName.toLowerCase();
-            final bool allIncluded = lowerPlan.contains('full');
+            final plans = _getPlans(context);
+            final selectedPlanObj = plans.firstWhere((p) => p.id == _selectedPlan, orElse: () => plans[1]);
+            final planName = selectedPlanObj.name;
+            final planCost = _planBasePrice(_selectedPlan);
+            final bool allIncluded = _selectedPlan == 'full';
 
             List<Map<String, dynamic>> activeRiders = [];
             if (!allIncluded) {
               for (final r in _riderToggles.entries) {
-                if (r.key == 'App Downtime' && lowerPlan.contains('standard')) continue;
+                if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
                 if (r.value) {
                   activeRiders.add({
                     'name': '${r.key} Rider',
@@ -1047,7 +1048,7 @@ class _HistoryTab extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = [
       ('Standard Shield', 'Mar 2025 – Mar 2026', '₹49/wk'),
-      ('Basic Shield',    'Sep 2024 – Mar 2025', '₹29/wk'),
+      ('Basic Shield',    'Sep 2024 – Mar 2025', '₹35/wk'),
     ];
     final theme    = Theme.of(context);
     final isDark   = theme.brightness == Brightness.dark;

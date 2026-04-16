@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } else {
       // Biometric lock check
       final prefs = await SharedPreferences.getInstance();
-      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? true;
 
       if (bioEnabled) {
         final biometric = BiometricService.instance;

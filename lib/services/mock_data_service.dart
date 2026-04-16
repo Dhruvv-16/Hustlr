@@ -326,7 +326,7 @@ class MockDataService extends ChangeNotifier {
   );
 
   Map<String, List<String>> autocompleteCities = {
-    'Chennai': ['Velachery', 'Anna Nagar', 'OMR (Old Mahabalipuram Road)', 'Adyar', 'Tambaram', 'Porur', 'Perambur', 'Korattur', 'T Nagar', 'Mylapore'],
+    'Chennai': ['Velachery', 'Anna Nagar', 'OMR (Old Mahabalipuram Road)', 'Adyar', 'Tambaram', 'Porur', 'Perambur', 'Korattur', 'T Nagar', 'Mylapore', 'Kattankulathur'],
     'Bengaluru': ['Koramangala', 'HSR Layout', 'Whitefield', 'Electronic City', 'Indiranagar', 'Marathahalli', 'Jayanagar', 'BTM Layout', 'Hebbal', 'Sarjapur Road'],
     'Mumbai': ['Andheri', 'Bandra', 'Powai', 'Thane', 'Borivali', 'Kurla', 'Dadar', 'Malad', 'Goregaon', 'Vile Parle'],
     'Delhi': ['Lajpat Nagar', 'Dwarka', 'Rohini', 'Saket', 'Noida Sector 18', 'Greater Kailash', 'Janakpuri', 'Vasant Kunj', 'Pitampura', 'Karol Bagh'],

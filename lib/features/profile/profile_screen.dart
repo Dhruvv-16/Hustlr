@@ -88,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } catch (_) {}
       
       final prefs = await SharedPreferences.getInstance();
-      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? true;
 
       if (mounted) {
         setState(() {

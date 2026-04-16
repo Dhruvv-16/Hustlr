@@ -768,6 +768,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
   final formattedBalance = balance.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
   final parentContext = context;
+  bool _bankDirect = false;
 
   showModalBottomSheet(
     context: context,
@@ -777,95 +778,177 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
     useSafeArea: true,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetCtx) {
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
-          left: 24, right: 24, top: 32,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(AppLocalizations.of(sheetCtx)!.wallet_withdraw,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
-            const SizedBox(height: 8),
-            Text('Enter your UPI ID to receive ₹$formattedBalance',
-                style: TextStyle(fontSize: 14, color: grey)),
-            const SizedBox(height: 32),
-            Container(
-              decoration: BoxDecoration(
-                color: inputBg, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: divider),
-              ),
-              child: TextField(
-                controller: upiController,
-                style: TextStyle(color: primary),
-                decoration: InputDecoration(
-                  labelText: 'UPI ID',
-                  labelStyle: TextStyle(color: grey),
-                  hintText: 'yourname@upi',
-                  hintStyle: TextStyle(color: grey),
-                  prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: green),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              decoration: BoxDecoration(
-                color: lightGreen, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: green.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      return StatefulBuilder(builder: (ctx, setSheetState) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+            left: 24, right: 24, top: 32,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(AppLocalizations.of(sheetCtx)!.wallet_withdraw,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
+              const SizedBox(height: 8),
+              Text('Transfer ₹$formattedBalance to:',
+                  style: TextStyle(fontSize: 14, color: grey)),
+              const SizedBox(height: 16),
+
+              // ── Payout destination toggle ──────────────────────────────
+              Row(
                 children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setSheetState(() => _bankDirect = false),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: !_bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                          border: Border.all(color: green.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.account_balance_wallet_rounded,
+                                size: 16, color: !_bankDirect ? btnTxt : grey),
+                            const SizedBox(width: 6),
+                            Text('Wallet / UPI',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13,
+                                  color: !_bankDirect ? btnTxt : grey,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setSheetState(() => _bankDirect = true),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
+                          borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+                          border: Border.all(color: green.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.account_balance_rounded,
+                                size: 16, color: _bankDirect ? btnTxt : grey),
+                            const SizedBox(width: 6),
+                            Text('Bank Direct',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13,
+                                  color: _bankDirect ? btnTxt : grey,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Only show UPI field if NOT bank direct
+              if (!_bankDirect) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: inputBg, borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: divider),
+                  ),
+                  child: TextField(
+                    controller: upiController,
+                    style: TextStyle(color: primary),
+                    decoration: InputDecoration(
+                      labelText: 'UPI ID',
+                      labelStyle: TextStyle(color: grey),
+                      hintText: 'yourname@upi',
+                      hintStyle: TextStyle(color: grey),
+                      prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: green),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: lightGreen, borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: green.withOpacity(0.3)),
+                  ),
+                  child: Row(children: [
+                    Icon(Icons.account_balance_rounded, color: green, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Transfers directly to your bank account\nlinked with your registered phone number.',
+                        style: TextStyle(fontSize: 12, color: green, height: 1.5)),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  color: lightGreen, borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: green.withOpacity(0.3)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('₹$formattedBalance',
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: green)),
                   const SizedBox(height: 2),
                   Text('Full available balance', style: TextStyle(fontSize: 12, color: green)),
-                ],
+                ]),
               ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity, height: 56,
-              child: ElevatedButton(
-                onPressed: () {
-                  final upi = upiController.text.trim();
-                  if (upi.isEmpty) return;
-                  StorageService.setUpiId(upi);
-                  Navigator.pop(sheetCtx);
-                  _processWithdrawal(parentContext, balance, upi);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: green, foregroundColor: btnTxt,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity, height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final upi = _bankDirect ? '' : upiController.text.trim();
+                    if (!_bankDirect && upi.isEmpty) return;
+                    if (!_bankDirect) StorageService.setUpiId(upi);
+                    Navigator.pop(sheetCtx);
+                    _processWithdrawal(parentContext, balance, upi, bankDirect: _bankDirect);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: green, foregroundColor: btnTxt,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  ),
+                  child: Text(_bankDirect ? 'Transfer to Bank →' : 'Initiate Transfer →',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
                 ),
-                child: Text('Initiate Transfer →',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
               ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel',
-                    style: TextStyle(color: grey, fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel',
+                      style: TextStyle(color: grey, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      );
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      });
     },
   );
 }
 
-void _processWithdrawal(BuildContext context, int amount, String upiId) {
+
+void _processWithdrawal(BuildContext context, int amount, String upiId, {bool bankDirect = false}) async {
   final isDark    = Theme.of(context).brightness == Brightness.dark;
   final green     = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2D6A2D);
   final primary   = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
@@ -875,37 +958,79 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
   final refText   = isDark ? const Color(0xFFE1E3DE) : Colors.black87;
   final btnTxt    = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
-  try {
-    context.read<MockDataService>().withdrawToUPI(amount, upiId);
-  } catch (_) {}
-  AppEvents.instance.walletUpdated();
+  bool _cancelled = false;
 
   showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: successBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(green)),
-            const SizedBox(height: 24),
-            Text('Initiating transfer...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
-            const SizedBox(height: 8),
-            Text('Connecting to UPI network', style: TextStyle(fontSize: 14, color: grey)),
-          ],
-        ),
-      ),
-    ),
+    builder: (dialogCtx) {
+      // After 8s show a cancel button
+      Future.delayed(const Duration(seconds: 8), () {
+        if (!_cancelled && dialogCtx.mounted) {
+          (dialogCtx as Element).markNeedsBuild();
+        }
+      });
+      return StatefulBuilder(builder: (ctx, setDialogState) {
+        return Dialog(
+          backgroundColor: successBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(green)),
+                const SizedBox(height: 24),
+                Text('Initiating transfer...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
+                const SizedBox(height: 8),
+                Text(bankDirect ? 'Connecting to bank account' : 'Connecting to UPI network', style: TextStyle(fontSize: 14, color: grey)),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    _cancelled = true;
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Transfer cancelled.')),
+                    );
+                  },
+                  child: Text('Cancel', style: TextStyle(color: grey, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        );
+      });
+    },
   );
 
-  Future.delayed(const Duration(seconds: 2), () {
+  try {
+    final userId = await StorageService.instance.getUserId();
+    if (userId == null) throw Exception('User not logged in');
+
+    // Call real API with 15s timeout
+    final result = await ApiService.instance.withdrawToBank(
+      userId: userId,
+      amount: amount,
+      upiId: bankDirect ? null : upiId,
+      bankDirect: bankDirect,
+    ).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException('UPI network timed out. Try again.'),
+    );
+
+    if (_cancelled) return;
     if (!context.mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // Dismiss first dialog safely
-    final formattedBalance = amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+
+    // Also update mock service so demo mode shows change
+    try { context.read<MockDataService>().withdrawToUPI(amount, upiId); } catch (_) {}
+    AppEvents.instance.walletUpdated();
+
+    final formattedBalance = amount.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    final txnRef = result['transaction_id']?.toString() ??
+        'TXN-HUSTLR-${DateTime.now().millisecondsSinceEpoch % 100000}';
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -916,38 +1041,32 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: successBg,
-              borderRadius: BorderRadius.circular(16),
-            ),
+            decoration: BoxDecoration(color: successBg, borderRadius: BorderRadius.circular(16)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 56, height: 56,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2D6A2D),
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Color(0xFF2D6A2D), shape: BoxShape.circle),
                   child: const Icon(Icons.check_rounded, color: Colors.white, size: 32),
                 ),
                 const SizedBox(height: 24),
                 Text('Withdrawal successful', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
                 const SizedBox(height: 8),
-                Text('Your transfer of ₹$formattedBalance to $upiId is complete.', style: TextStyle(color: grey), textAlign: TextAlign.center),
+                Text(bankDirect
+                    ? 'Your transfer of ₹$formattedBalance to your linked bank account is complete.'
+                    : 'Your transfer of ₹$formattedBalance to $upiId is complete.',
+                    style: TextStyle(color: grey), textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(color: refBg, borderRadius: BorderRadius.circular(12)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Reference Number', style: TextStyle(fontSize: 12, color: grey)),
-                      const SizedBox(height: 4),
-                      Text('TXN-HUSTLR-892374${DateTime.now().millisecondsSinceEpoch % 1000}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: refText)),
-                    ],
-                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Reference Number', style: TextStyle(fontSize: 12, color: grey)),
+                    const SizedBox(height: 4),
+                    Text(txnRef, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: refText)),
+                  ]),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -958,13 +1077,10 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
                       AppEvents.instance.walletUpdated();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: green,
-                      foregroundColor: btnTxt,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: green, foregroundColor: btnTxt,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
                     ),
-                    child: Text('Done', style: TextStyle(color: btnTxt, fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: Text('Done', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
                   ),
                 ),
               ],
@@ -973,7 +1089,20 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
         ),
       ),
     );
-  });
+  } on TimeoutException catch (e) {
+    if (_cancelled || !context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.message ?? 'Transfer timed out. Please try again.'), backgroundColor: Colors.redAccent),
+    );
+  } catch (e) {
+    if (_cancelled || !context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    final errMsg = e.toString().replaceAll('Exception: ', '');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Transfer failed: $errMsg'), backgroundColor: Colors.redAccent),
+    );
+  }
 }
 
 // ─── Cashback Status Card ─────────────────────────────────────────────────────

@@ -3,8 +3,19 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
+
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'storage_service.dart';
+import '../core/secrets.dart';
+
+class ApiServiceException implements Exception {
+  final String message;
+  final int statusCode;
+  ApiServiceException(this.message, this.statusCode);
+
+  @override
+  String toString() => message;
+}
 
 class ApiService {
   /// **Production (like Swiggy / Facebook):** users install one app; it talks to **your cloud API**
@@ -41,10 +52,7 @@ class ApiService {
   static const _timeout =
       Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
 
-  static const _googleVisionApiKey = String.fromEnvironment(
-    'GOOGLE_VISION_API_KEY',
-    defaultValue: '',
-  );
+  static const _googleVisionApiKey = Secrets.googleVisionApiKey;
 
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
@@ -147,7 +155,8 @@ class ApiService {
       throw Exception('Invalid response');
     }
     if (res.statusCode >= 400) {
-      throw Exception(data['error'] ?? 'Request failed (${res.statusCode})');
+      final msg = data['error'] ?? 'Request failed (${res.statusCode})';
+      throw ApiServiceException(msg, res.statusCode);
     }
     return data;
   }
@@ -709,6 +718,33 @@ class ApiService {
     );
     return instance._decodeMap(res);
   }
+
+  /// Withdraw from wallet — routes to UPI or bank direct based on [bankDirect].
+  Future<Map<String, dynamic>> withdrawToBank({
+    required String userId,
+    required int amount,
+    String? upiId,
+    bool bankDirect = false,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/wallet/withdraw'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'amount': amount,
+          'destination': bankDirect ? 'bank' : 'upi',
+          if (upiId != null && !bankDirect) 'upi_id': upiId,
+        }),
+      ).timeout(_timeout);
+      return _decodeMap(res);
+    } catch (e) {
+      if (e is ApiServiceException) rethrow;
+      throw ApiServiceException('Network or timeout error', 0);
+    }
+  }
+
+
 
   Future<Map<String, dynamic>> getPaymentSandboxConfig() async {
     try {

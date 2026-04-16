@@ -19,6 +19,7 @@ import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
 import 'services/background_heartbeat_service.dart';
 import 'services/notification_service.dart';
+import 'widgets/restart_widget.dart';
 import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
 import 'blocs/claims/claims_bloc.dart';
@@ -27,7 +28,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'widgets/live_activity_overlay.dart';
+
 
 /// Background message handler - runs in isolate when app is terminated or backgrounded
 @pragma('vm:entry-point')
@@ -39,6 +40,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Add this Error Trap to stop the flood and reveal the real bug
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    print("🚨 REAL ERROR CAUGHT: ${details.exception}");
+    print("🚨 STACKTRACE: ${details.stack}");
+  };
 
   await Hive.initFlutter();
   final appBox = await Hive.openBox('appData');
@@ -120,29 +128,31 @@ Future<void> main() async {
   await BackgroundHeartbeatService.initialize();
 
   runApp(
-    MultiBlocProvider(
-      providers: [
-        // Lazily initialized. Dispatch LoadUser/LoadPolicy/WatchClaims after
-        // OTP login succeeds (in the auth screen) using:
-        //   context.read<UserBloc>().add(LoadUser(userId));
-        //   context.read<PolicyBloc>().add(LoadPolicy(userId));
-        //   context.read<ClaimsBloc>().add(WatchClaims(userId));
-        BlocProvider<UserBloc>(
-          create: (_) => UserBloc(apiService: ApiService.instance),
-        ),
-        BlocProvider<PolicyBloc>(
-          create: (_) => PolicyBloc(apiService: ApiService.instance),
-        ),
-        BlocProvider<ClaimsBloc>.value(value: claimsBloc),
-      ],
-      child: MultiProvider(
+    RestartWidget(
+      child: MultiBlocProvider(
         providers: [
-          ChangeNotifierProvider.value(value: LocationService.instance),
-          ChangeNotifierProvider.value(value: mockService),
-          ChangeNotifierProvider(create: (_) => ThemeProvider(appBox: appBox)),
-          ChangeNotifierProvider.value(value: localeProvider),
+          // Lazily initialized. Dispatch LoadUser/LoadPolicy/WatchClaims after
+          // OTP login succeeds (in the auth screen) using:
+          //   context.read<UserBloc>().add(LoadUser(userId));
+          //   context.read<PolicyBloc>().add(LoadPolicy(userId));
+          //   context.read<ClaimsBloc>().add(WatchClaims(userId));
+          BlocProvider<UserBloc>(
+            create: (_) => UserBloc(apiService: ApiService.instance),
+          ),
+          BlocProvider<PolicyBloc>(
+            create: (_) => PolicyBloc(apiService: ApiService.instance),
+          ),
+          BlocProvider<ClaimsBloc>.value(value: claimsBloc),
         ],
-        child: const HustlrApp(),
+        child: MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: LocationService.instance),
+            ChangeNotifierProvider.value(value: mockService),
+            ChangeNotifierProvider(create: (_) => ThemeProvider(appBox: appBox)),
+            ChangeNotifierProvider.value(value: localeProvider),
+          ],
+          child: const HustlrApp(),
+        ),
       ),
     ),
   );
@@ -172,19 +182,20 @@ class _HustlrAppState extends State<HustlrApp> {
   }
 
   void _handleNotificationNavigation(String route, Map<String, dynamic> payload) {
-    final GoRouter router = GoRouter.of(context);
+    // Use the global appRouter directly to avoid context-related lookup errors
+    // (the current context is above the MaterialApp.router in the tree)
     
     // Map notification routes to app routes
     if (route == 'dashboard' || route == 'home') {
-      router.go('/dashboard');
+      appRouter.go('/dashboard');
     } else if (route == 'wallet' || route == 'wallet_credited') {
-      router.go('/wallet');
+      appRouter.go('/wallet');
     } else if (route == 'claims' || route == 'claim_approved' || route == 'claim_created') {
-      router.go('/claims');
+      appRouter.go('/claims');
     } else if (route == 'policy' || route == 'premium_deducted') {
-      router.go('/policy');
+      appRouter.go('/policy');
     } else if (route == 'disruption' || route == 'disruption_alert') {
-      router.go('/disruptions');
+      appRouter.go('/disruptions');
     }
   }
 
@@ -193,27 +204,26 @@ class _HustlrAppState extends State<HustlrApp> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
 
-    return LiveActivityOverlay(
-      child: MaterialApp.router(
-        title: 'Hustlr',
-        debugShowCheckedModeBanner: false,
-        locale: localeProvider.locale,
-        supportedLocales: const [
-          Locale('en'),
-          Locale('ta'),
-          Locale('hi'),
-        ],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: themeProvider.themeMode,
-        routerConfig: appRouter,
-      ),
+    return MaterialApp.router(
+      title: 'Hustlr',
+      debugShowCheckedModeBanner: false,
+      locale: localeProvider.locale,
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ta'),
+        Locale('hi'),
+      ],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeProvider.themeMode,
+      routerConfig: appRouter,
     );
   }
 }
+

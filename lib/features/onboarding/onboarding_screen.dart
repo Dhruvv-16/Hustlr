@@ -17,7 +17,8 @@ const Map<String, List<String>> _cityZones = {
   'Chennai': [
     'Adyar', 'Anna Nagar', 'T Nagar',
     'OMR', 'Velachery', 'Porur',
-    'Tambaram', 'Sholinganallur', 'Mylapore', 'Perambur', 'Guindy', 'Chromepet', 'Korattur'
+    'Tambaram', 'Sholinganallur', 'Mylapore', 'Perambur', 'Guindy', 'Chromepet', 'Korattur',
+    'Kattankulathur'
   ],
   'Bengaluru': [
     'Koramangala', 'HSR Layout', 'Indiranagar',

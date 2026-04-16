@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const router = express.Router();
 
@@ -71,34 +72,78 @@ router.get('/cashback-status/:user_id', async (req, res) => {
 
 // POST /wallet/credit
 router.post('/credit', async (req, res) => {
-  const { user_id, amount, description, reference } = req.body;
+  const { user_id, amount, description, reference, idempotency_key } = req.body;
   try {
+    const minuteWindow = new Date().toISOString().slice(0, 16);
+    const key = idempotency_key || crypto.createHash('sha256').update(`credit-${user_id}-${amount}-${minuteWindow}`).digest('hex');
+
     const { data: transaction, error } = await supabase
       .from('wallet_transactions')
-      .insert([{ user_id, amount, type: 'credit', description, reference }])
+      .insert([{ user_id, amount: Math.abs(amount), type: 'credit', description, reference, idempotency_key: key }])
       .select()
       .single();
     if (error) throw error;
     res.json({ transaction });
   } catch (e) {
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'Duplicate transaction detected.' });
+    }
     res.status(500).json({ error: e.message });
   }
 });
 
 // POST /wallet/debit
 router.post('/debit', async (req, res) => {
-  const { user_id, amount, description, reference } = req.body;
+  const { user_id, amount, description, reference, idempotency_key } = req.body;
   try {
+    const minuteWindow = new Date().toISOString().slice(0, 16);
+    const key = idempotency_key || crypto.createHash('sha256').update(`debit-${user_id}-${amount}-${minuteWindow}`).digest('hex');
+
     const { data: transaction, error } = await supabase
       .from('wallet_transactions')
-      .insert([{ user_id, amount, type: 'debit', description, reference }])
+      .insert([{ user_id, amount: Math.abs(amount), type: 'debit', description, reference, idempotency_key: key }])
       .select()
       .single();
     if (error) throw error;
     res.json({ transaction });
   } catch (e) {
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'Duplicate transaction detected.' });
+    }
     res.status(500).json({ error: e.message });
   }
+});
+
+// POST /wallet/initiate-upi
+router.post('/initiate-upi', async (req, res) => {
+  const { user_id, amount, upi_id } = req.body;
+  
+  if (!user_id || !amount) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
+  // Create a deterministic key based on user, amount, and the current minute
+  // This prevents accidental double-taps within the same minute
+  const minuteWindow = new Date().toISOString().slice(0, 16); 
+  const idempotencyKey = crypto.createHash('sha256').update(`withdraw-${user_id}-${amount}-${minuteWindow}`).digest('hex');
+
+  const { error } = await supabase.from('wallet_transactions').insert({
+    user_id, 
+    amount: Math.abs(amount), 
+    type: 'debit', 
+    category: 'withdrawal', 
+    upi_ref: upi_id,
+    idempotency_key: idempotencyKey // DB will safely reject if this key already exists
+  });
+  
+  if (error) {
+    if (error.code === '23505') { // Postgres Unique Violation
+      return res.status(409).json({ error: 'Duplicate transaction detected. Please wait a minute before retrying.' });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  
+  res.json({ message: 'Withdrawal initiated successfully', amount, upi_id });
 });
 
 module.exports = router;

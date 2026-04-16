@@ -277,8 +277,6 @@ class _OTPScreenState extends State<OTPScreen> {
                   fontSize: 14,
                   height: 1.4,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.visible,
               ),
 
               const SizedBox(height: 32),

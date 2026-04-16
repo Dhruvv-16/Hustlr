@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../l10n/app_localizations.dart';
+import '../../core/secrets.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -12,7 +13,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  static const _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  static const _geminiApiKey = Secrets.geminiApiKey;
   final TextEditingController _messageController = TextEditingController();
 
   bool _isTyping = false;

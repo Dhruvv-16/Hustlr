@@ -82,7 +82,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       clipBehavior: Clip.hardEdge,
-                                      child: _buildThumbnail(i),
+                                      child: _buildThumbnail(i, theme, isDark),
                                     ),
                                   ),
                                   if (i == 0) const SizedBox(width: 16),
@@ -152,30 +152,30 @@ class ClaimSubmittedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildThumbnail(int i) {
+  Widget _buildThumbnail(int i, ThemeData theme, bool isDark) {
     // Priority 1: local file paths passed from camera
     if (imagePaths != null && imagePaths!.length > i) {
       final path = imagePaths![i];
       if (path.startsWith('http')) {
         return Image.network(path, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+          errorBuilder: (_, __, ___) => _brokenImagePlaceholder(theme, isDark));
       } else {
         return Image.file(File(path), fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+          errorBuilder: (_, __, ___) => _brokenImagePlaceholder(theme, isDark));
       }
     }
     // Priority 2: network URLs from server response
     final urls = claimData?['evidence_urls'];
     if (urls is List && urls.length > i) {
       return Image.network(urls[i].toString(), fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _brokenImagePlaceholder());
+        errorBuilder: (_, __, ___) => _brokenImagePlaceholder(theme, isDark));
     }
-    return _brokenImagePlaceholder();
+    return _brokenImagePlaceholder(theme, isDark);
   }
 
-  Widget _brokenImagePlaceholder() {
+  Widget _brokenImagePlaceholder(ThemeData theme, bool isDark) {
     return Container(
-      color: const Color(0xFF1A1A1A),
+      color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF0F0F0),
       child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

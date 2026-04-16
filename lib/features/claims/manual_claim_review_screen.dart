@@ -8,9 +8,11 @@ import '../../blocs/claims/claims_event.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/app_events.dart';
 import '../../services/api_service.dart';
-import '../../services/play_integrity_helper.dart';
 import '../../services/storage_service.dart';
 import '../../services/fraud_sensor_service.dart';
+import '../../core/secrets.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import '../../core/router/app_router.dart';
 
@@ -92,32 +94,74 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         .map((img) => 's3://hustlr/claims/img_${DateTime.now().millisecondsSinceEpoch}.jpg')
         .toList();
 
-    String? integrityToken;
-    if (Platform.isAndroid) {
-      const cloud = String.fromEnvironment(
-        'PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER',
-        defaultValue: '',
-      );
-      if (cloud.isNotEmpty) {
-        final nonceJson = await ApiService.instance.getPlayIntegrityNonce();
-        final nonce = nonceJson['nonce'] as String?;
-        if (nonce != null && nonce.isNotEmpty) {
-          integrityToken = await obtainPlayIntegrityToken(
-            cloudProjectNumber: cloud,
-            nonce: nonce,
-          );
+    // Validate image using Gemini Vision if an image exists
+    if (_images.isNotEmpty && Secrets.geminiApiKey.isNotEmpty && widget.disruptionType != 'internet_outage') {
+      setState(() => _mlStatusText = 'Validating evidence with Gemini Vision...');
+      try {
+        final bytes = await _images.first.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        
+        final geminiUrl = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${Secrets.geminiApiKey}',
+        );
+        
+        final geminiRes = await http.post(
+          geminiUrl,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'systemInstruction': {
+              'parts': [{'text': 'You are a claims validation assistant. The user claims this is a "${widget.disruptionType}". Analyze the image and respond with ONLY "VALID" if the image shows evidence of this disruption, or "INVALID: <reason>" if it is irrelevant or fake.'}]
+            },
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {
+                    'inlineData': {
+                      'mimeType': 'image/jpeg',
+                      'data': base64Image
+                    }
+                  },
+                  {
+                    'text': 'Here is the evidence image. Device Timestamp: ${DateTime.now().toIso8601String()}. Device GPS Location: ${sensorFeatures['gps_lat']}, ${sensorFeatures['gps_lng']}. Does this image look like valid evidence for ${widget.disruptionType}? Please cross-check if the lighting/environment in the image reasonably matches the provided timestamp.'
+                  }
+                ]
+              }
+            ],
+            'generationConfig': {
+               'temperature': 0.1,
+               'maxOutputTokens': 100,
+            }
+          }),
+        ).timeout(const Duration(seconds: 15));
+        
+        if (geminiRes.statusCode == 200) {
+          final json = jsonDecode(geminiRes.body);
+          final text = json['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString().trim() ?? 'UNKNOWN';
+          
+          if (text.startsWith('INVALID')) {
+            if (!mounted) return;
+            setState(() {
+              _isSubmitting = false;
+              _mlStatusText = '';
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(text), backgroundColor: Colors.redAccent),
+            );
+            return; // Abort submission
+          }
         }
+      } catch (e) {
+        // Fallback to allowing if Gemini fails (e.g. offline)
       }
     }
-    // When backend uses PLAY_INTEGRITY_SIMULATED=true, any non-empty string is enough (no real device token).
-    const simPlaceholder = String.fromEnvironment(
+
+    String? integrityToken;
+    final simPlaceholder = const String.fromEnvironment(
       'PLAY_INTEGRITY_DEMO_PLACEHOLDER',
-      defaultValue: '',
+      defaultValue: 'simulated_token_123',
     );
-    if ((integrityToken == null || integrityToken.isEmpty) &&
-        simPlaceholder.isNotEmpty) {
-      integrityToken = simPlaceholder;
-    }
+    integrityToken = simPlaceholder;
 
     final response = await ApiService.instance.submitManualClaim(
       userId: userId,

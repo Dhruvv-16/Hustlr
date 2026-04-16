@@ -16,6 +16,7 @@ import '../../services/notification_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
+import '../../models/policy.dart';
 
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
@@ -253,17 +254,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     final lastRiskReview = StorageService.getInt('lastRiskReviewAt') ?? 0;
     const minGapMs = 15 * 60 * 1000; // do not recheck too frequently
     if (now - lastRiskReview < minGapMs) return;
-    await StorageService.setLastRiskReviewAt(now);
+    // Note: write the timestamp only after we decide to actually challenge,
+    // so an early unmount doesn't consume the 15-min window.
 
     final hasEnrollment =
         await StorageService.instance.isIdentityEnrollmentComplete();
+    if (!mounted) return; // guard: widget may unmount during storage read
     bool shouldChallenge = !hasEnrollment;
     bool isRiskTriggered = false;
 
     if (!shouldChallenge) {
       try {
         final sensor = await FraudSensorService.collectPayload();
+        if (!mounted) return; // guard: GPS sampling takes 1–2 seconds
         final ml = await ApiService.instance.validateFraudTelemetry(sensor);
+        if (!mounted) return; // guard: network call
         final anomalous = ml['is_anomalous'] == true;
         final fps = (ml['fps_score'] as num?)?.toDouble() ?? 0.0;
         isRiskTriggered = anomalous || fps >= 0.75;
@@ -276,6 +281,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (!shouldChallenge || !mounted) return;
 
+    // Commit the review timestamp only now that we are actually challenging
+    await StorageService.setLastRiskReviewAt(now);
+    if (!mounted) return;
+
     _reverifyPromptOpen = true;
     final reason = Uri.encodeComponent(
       !hasEnrollment
@@ -285,7 +294,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               : 'Quick security check: please re-verify your identity.'),
     );
     final requireTwoTier = !hasEnrollment;
-    final result = await context.push<Map<String, dynamic>>(
+    // Use the global appRouter instead of context.push — avoids stale context
+    // crash when the widget tree switches (e.g. shift going active mid-await)
+    final result = await appRouter.push<Map<String, dynamic>>(
       '${AppRoutes.stepUpAuth}?reason=$reason&requireTwoTier=$requireTwoTier',
     );
     _reverifyPromptOpen = false;
@@ -380,11 +391,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       final walletRes = await ApiService.instance.getWallet(userId!);
       Map<String, dynamic> disruptionRes = {};
       try {
-        int? issScore;
         final w = await ApiService.instance.getWorkerById(userId!);
         final rawIss = w['iss_score'];
-        if (rawIss is num) {
-          issScore = rawIss.round().clamp(0, 100);
+        if (rawIss is num && mounted) {
+          setState(() => liveIssScore = rawIss.round().clamp(0, 100));
         }
         disruptionRes = await ApiService.instance.getDisruptions(
           userZone ?? '',
@@ -393,12 +403,22 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       final rawPolicy = policyRes['policy'] as Map<String, dynamic>?;
       final tier = rawPolicy?['plan_tier'] as String?;
-      policyData = rawPolicy == null
-          ? null
-          : {
-              ...rawPolicy,
-              'plan_name': _planDisplayName(tier),
-            };
+
+      // Support new schema field names: coverage_start / commitment_end
+      final policyWithAliases = rawPolicy == null ? null : {
+        ...rawPolicy,
+        // Ensure start_date / end_date are always populated for legacy code paths
+        if (!rawPolicy.containsKey('start_date'))
+          'start_date': rawPolicy['coverage_start'],
+        if (!rawPolicy.containsKey('end_date'))
+          'end_date': rawPolicy['commitment_end'] ?? rawPolicy['paid_until'],
+        'plan_name': _planDisplayName(tier),
+      };
+
+      // Gate: only show policyData if status is active or renewed
+      final rawStatus = rawPolicy?['status']?.toString().toLowerCase() ?? '';
+      final isPolicyActive = rawStatus == 'active' || rawStatus == 'renewed';
+      policyData = isPolicyActive ? policyWithAliases : null;
 
       final events = disruptionRes['disruptions'] as List<dynamic>? ?? [];
       final active = disruptionRes['active'] == true;
@@ -543,24 +563,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     final displayUserName = titleCase(userName ?? 'Karthik');
-    final rawPremium = policyData?['weekly_premium']?.toString();
 
-    // Total premium logic: priority to real stored value, fallback to clean tiers
+    // Total premium: use the canonical tier price (from Policy model), NOT raw DB value
+    // This ensures ₹60 stale DB entries show as ₹49 for standard, etc.
     final String premium = liveDynamicPrice != null
         ? liveDynamicPrice!.toStringAsFixed(0)
-        : (rawPremium != null && rawPremium != '50' && rawPremium != '0'
-            ? rawPremium
-            : (rawPlanName == 'Basic Shield'
-                ? '29'
-                : rawPlanName == 'Standard Shield'
-                    ? '49'
-                    : rawPlanName == 'Full Shield'
-                        ? '79'
-                        : '49'));
+        : PlanTierPrice.fromString(
+            policyData?['plan_tier']?.toString() ?? 'standard',
+          ).weeklyPremium.toString();
 
-    // Fallback to MockData shadowMissed or a positive value, never wallet balance!
-    final pAmount =
-        (policyData?['missed_payouts'] as num?)?.toInt().abs() ?? 680;
+    // Derive missed-payout amount from shadow_policies nudge data (real DB field),
+    // then fall back to a disruption-based estimate — never reads a non-existent field.
+    final shadowPayout = (nudgeData?['simulated_payout'] as num?)?.toInt()
+        ?? (nudgeData?['missed_amount'] as num?)?.toInt();
+    final disruptionCount = ((nudgeData?['disruption_count'] as num?)?.toInt() ?? 0);
+    final pAmount = shadowPayout ?? (disruptionCount > 0 ? disruptionCount * 120 : 350);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -615,7 +632,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           child: Column(
                             children: [
                               _buildActionCards(context, l10n),
-                              if (policyData != null) ...[
+                              // Show missed-payouts card only for UNINSURED users
+                              // so it serves as a conversion nudge, not a bug.
+                              if (policyData == null) ...[
                                 const SizedBox(height: 16),
                                 _buildMissedPayoutsCard(pAmount, context, l10n),
                               ],
@@ -745,9 +764,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Icon(Icons.location_on, color: mintColor, size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    (DynamicTranslator.of(context).translateSync(userZone) ??
-                            userZone ??
-                            'BENGALURU, KA')
+                    DynamicTranslator.of(context)
+                            .translateSync(userZone ?? 'BENGALURU, KA')
                         .toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
@@ -1278,6 +1296,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ShiftTrackingService.instance.status != ShiftStatus.offline) {
               return;
             }
+
+            // Request permissions BEFORE state change to prevent UI overlay deadlocks
+            if (!kIsWeb) {
+              final locStatus = await Permission.locationAlways.request();
+              final batStatus = await Permission.ignoreBatteryOptimizations.request();
+              
+              if (locStatus.isPermanentlyDenied || batStatus.isPermanentlyDenied) {
+                await openAppSettings();
+                return;
+              }
+              if (!locStatus.isGranted && !await Permission.locationWhenInUse.status.isGranted) {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Location permission required')));
+                 return;
+              }
+            }
+
             setState(() => _isGoingOnline = true);
             // permission_handler is not implemented on web (UnimplementedError).
             if (kIsWeb) {
@@ -1297,18 +1332,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               }
               return;
             }
+            
             try {
-              final permStatus = await Permission.locationWhenInUse.status;
-              if (!permStatus.isGranted) {
-                final result = await Permission.locationWhenInUse.request();
-                if (!result.isGranted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Location permission required')));
-                  setState(() => _isGoingOnline = false);
-                  return;
-                }
-              }
-
               final gpsEnabled = await Geolocator.isLocationServiceEnabled();
               if (!gpsEnabled) {
                 if (mounted) {
@@ -1383,7 +1408,24 @@ class _DashboardScreenState extends State<DashboardScreen>
                       backgroundColor: Theme.of(context).colorScheme.primary,
                     ),
                   );
-                  await PdfGenerator.generateAndPreviewCertificate();
+                  // Parse real dates from the new schema field names
+                  final rawStart = policyData?['coverage_start'] as String?
+                      ?? policyData?['start_date'] as String?;
+                  final rawEnd   = policyData?['commitment_end'] as String?
+                      ?? policyData?['paid_until'] as String?
+                      ?? policyData?['end_date'] as String?;
+                  final policyId = policyData?['id'] as String? ?? 'HS-PENDING';
+                  final tier     = policyData?['plan_tier'] as String? ?? 'standard';
+                  final premium  = PlanTierPrice.fromString(tier).weeklyPremium;
+                  await PdfGenerator.generateAndPreviewCertificate(
+                    name:          userName ?? 'Hustlr Worker',
+                    zone:          userZone ?? 'Your Zone',
+                    planName:      policyData?['plan_name'] as String? ?? 'Standard Shield',
+                    policyNumber:  'HS-${policyId.substring(0, 8).toUpperCase()}',
+                    coverageStart: rawStart != null ? DateTime.tryParse(rawStart) : null,
+                    coverageEnd:   rawEnd   != null ? DateTime.tryParse(rawEnd)   : null,
+                    weeklyPremium: premium,
+                  );
                 },
               ),
             ),
@@ -1571,12 +1613,21 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const SizedBox(height: 24),
             Text(
-              '₹$amount ${l10n.dashboard_missed_payouts}',
+              '₹$amount',
               style: TextStyle(
                 color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.w900,
                 height: 1.2,
+                fontFamily: 'Manrope',
+              ),
+            ),
+            Text(
+              l10n.dashboard_missed_payouts,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
                 fontFamily: 'Manrope',
               ),
             ),
@@ -1799,7 +1850,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           _DebugHeader('--- DISRUPTION STATE ---'),
           _DebugRow(
-              'WEATHER SOURCE', weatherData?['station']?.toString() ?? 'NULL'),
+              'WEATHER SOURCE',
+              // API sends 'source'; some older responses have 'station'
+              weatherData?['source']?.toString()
+                  ?? weatherData?['station']?.toString()
+                  ?? 'NULL'),
           _DebugRow('RAIN MM', '${weatherData?['rainfall_mm_1h'] ?? 'NULL'}'),
           _DebugRow('TEMP', '${weatherData?['temp_celsius'] ?? 'NULL'}°C'),
           _DebugRow('TRIGGER ACTIVE',

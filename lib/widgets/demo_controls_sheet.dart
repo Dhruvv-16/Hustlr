@@ -4,6 +4,9 @@ import '../services/api_service.dart';
 import '../services/app_events.dart';
 import '../services/storage_service.dart';
 import '../services/notification_service.dart';
+import 'package:provider/provider.dart';
+import '../services/mock_data_service.dart';
+import 'restart_widget.dart';
 
 class DemoControlsSheet extends StatefulWidget {
   const DemoControlsSheet({super.key});
@@ -219,12 +222,12 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 ),
                 // Reset button
                 TextButton(
-                  onPressed: _resetDemo,
-                  child: const Text('Reset',
+                  onPressed: _hardReset,
+                  child: const Text('Hard Reset',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF2E7D32),
-                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFC62828), // Red for "surgical strike"
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -481,14 +484,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
       // 2. Create claim
       _showStep('Creating rain claim...');
-      await ApiService.instance.createClaim(
-        userId:        userId,
-        triggerType:   'rain_heavy',
-        severity:      0.85,
-        durationHours: 3.0,
-      );
-      AppEvents.instance.claimUpdated();
-      AppEvents.instance.walletUpdated();
+      context.read<MockDataService>().triggerRainDisruption();
 
       // 3. Fire notification
       NotificationService.instance.addClaimCreated(
@@ -523,14 +519,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       await Future.delayed(const Duration(milliseconds: 800));
 
       _showStep('Compound trigger firing...');
-      await ApiService.instance.createClaim(
-        userId:        userId,
-        triggerType:   'platform_outage',
-        severity:      1.0,
-        durationHours: 4.0,
-      );
-      AppEvents.instance.claimUpdated();
-      AppEvents.instance.walletUpdated();
+      context.read<MockDataService>().triggerExtremeHeat(); // Mock representation
 
       NotificationService.instance.addDisruptionAlert(
         triggerType: 'Platform + Rain (Compound)',
@@ -577,20 +566,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
     // Create a claim that will be flagged
     try {
-      await ApiService.instance.createClaim(
-        userId:        userId,
-        triggerType:   'rain_heavy',
-        severity:      1.0,
-        durationHours: 3.0,
-        // Pass spoofing signals
-        extraData: {
-          'gps_jitter':     0.0,
-          'demo_fraud_mode': true,
-          'fps_override':   87,
-        },
-      );
-      AppEvents.instance.claimUpdated();
-      AppEvents.instance.walletUpdated();
+      context.read<MockDataService>().triggerExtremeHeat(); // Use mock
     } catch (e) {
       // Even if API doesn't support extra fields, show the UI
     }
@@ -637,14 +613,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     await Future.delayed(const Duration(milliseconds: 800));
 
     try {
-      await ApiService.instance.createClaim(
-        userId:        userId,
-        triggerType:   'internet_blackout',
-        severity:      0.90,
-        durationHours: 2.5,
-      );
-      AppEvents.instance.claimUpdated();
-      AppEvents.instance.walletUpdated();
+      context.read<MockDataService>().triggerPlatformDowntime();
 
       NotificationService.instance.addClaimCreated(
         triggerType: 'Internet Zone Blackout',
@@ -661,19 +630,14 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     }
   }
 
-  Future<void> _resetDemo() async {
-    setState(() {
-      _activePersona = -1;
-      _isRunning = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Demo state reset'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  Future<void> _hardReset() async {
+    // Demo Armor: Surgical strike to re-initialize entire app
+    if (mounted) {
+      RestartWidget.restartApp(context);
+    }
   }
+
+  Future<void> _resetDemo() async {
 
   void _showStep(String message) {
     if (!mounted) return;
