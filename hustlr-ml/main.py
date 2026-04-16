@@ -169,17 +169,24 @@ class FeatureVector(BaseModel):
     wifi_home_ssid:        bool  = False
     days_since_onboarding: int   = 30
 
-    # ?????? Fields Python model natively expects ???????????????????????????
-    # These are optional ??? defaults used if Node doesn't send them
-    claim_latency_seconds:               float        = 120.0
-    simultaneous_zone_claims:            int          = 1
-    account_age_days:                    Optional[int] = None
-    historical_clean_claim_ratio:        float        = 0.80
-    shift_gap_count_today:               int          = 0
-    device_shared_with_n_accounts:       int          = 1
-    zone_depth_score:                    float        = 0.75
-    orders_completed_during_disruption:  int          = 0
-    is_mock_location_ever:               bool         = False
+    # ?????? Additional fields to match 20 training features ????????????????????????????
+    gps_zone_mismatch:               bool         = False
+    battery_charging:                 bool         = False
+    platform_app_inactive:            bool         = False
+    ip_home_match:                     bool         = True
+    claim_latency_under30s:            bool         = False
+    gps_jitter_perfect:                bool         = False
+    barometer_mismatch:               bool         = False
+    hw_fingerprint_match:              bool         = True
+    app_install_cluster:               int          = 1
+    referral_depth:                    int          = 2
+    claim_hour_sin:                    float        = 0.0
+    claim_hour_cos:                    float        = 1.0
+    city_behavioral_risk:              float        = 0.55
+    zone_depth_score:                  float        = 0.75
+    has_real_disruption:               bool         = True
+    simultaneous_zone_claims:           int          = 1
+    iss_score:                         float        = 50.0
 
     def to_model_features(self) -> dict:
         """
@@ -187,35 +194,26 @@ class FeatureVector(BaseModel):
         to Python model features intelligently.
         """
         return {
-            "claim_latency_seconds":
-                self.claim_latency_seconds,
-            "simultaneous_zone_claims":
-                self.simultaneous_zone_claims,
-            "account_age_days":
-                self.account_age_days
-                if self.account_age_days is not None
-                else self.days_since_onboarding,
-            "historical_clean_claim_ratio":
-                self.historical_clean_claim_ratio,
-            "shift_gap_count_today":
-                self.shift_gap_count_today,
-            "device_shared_with_n_accounts":
-                self.device_shared_with_n_accounts,
-            "zone_depth_score":
-                self.zone_depth_score
-                if self.zone_depth_score != 0.75
-                else max(0.0, 1.0 - self.gps_jitter * 10),
-            "orders_completed_during_disruption":
-                self.orders_completed_during_disruption,
-            "is_mock_location_ever":
-                self.is_mock_location_ever,
-            # CRITICAL: zero gps_jitter = definitive spoofing
-            "gps_jitter_raw":
-                self.gps_jitter,
-            "wifi_home_ssid_flag":
-                1 if self.wifi_home_ssid else 0,
-            "zone_match_flag":
-                self.zone_match,
+            "gps_zone_mismatch": 1 if self.gps_zone_mismatch else 0,
+            "wifi_home_ssid": 1 if self.wifi_home_ssid else 0,
+            "battery_charging": 1 if self.battery_charging else 0,
+            "accelerometer_idle": 1 if (1.0 - self.accelerometer_match) > 0.5 else 0,
+            "platform_app_inactive": 1 if self.platform_app_inactive else 0,
+            "ip_home_match": 1 if self.ip_home_match else 0,
+            "claim_latency_under30s": 1 if self.claim_latency_under30s else 0,
+            "gps_jitter_perfect": 1 if self.gps_jitter_perfect else 0,
+            "barometer_mismatch": 1 if self.barometer_mismatch else 0,
+            "hw_fingerprint_match": 1 if self.hw_fingerprint_match else 0,
+            "app_install_cluster": self.app_install_cluster,
+            "days_since_onboard": self.days_since_onboarding,
+            "referral_depth": self.referral_depth,
+            "claim_hour_sin": self.claim_hour_sin,
+            "claim_hour_cos": self.claim_hour_cos,
+            "city_behavioral_risk": self.city_behavioral_risk,
+            "zone_depth_score": self.zone_depth_score,
+            "has_real_disruption": 1 if self.has_real_disruption else 0,
+            "simultaneous_zone_claims": self.simultaneous_zone_claims,
+            "iss_score": self.iss_score,
         }
 
 class ClaimScoreRequest(BaseModel):
@@ -428,34 +426,38 @@ async def fraud_score(req: ClaimScoreRequest):
         
     p_val = poisson_timing_test(req.worker_id, ts, req.zone_id)
 
-    mapped_feats = req.feature_vector.to_model_features()
-    event = ClaimEvent(
-        claim_latency_seconds=mapped_feats["claim_latency_seconds"],
-        simultaneous_zone_claims=mapped_feats["simultaneous_zone_claims"],
-        account_age_days=mapped_feats["account_age_days"],
-        historical_clean_claim_ratio=mapped_feats["historical_clean_claim_ratio"],
-        shift_gap_count_today=mapped_feats["shift_gap_count_today"],
-        device_shared_with_n_accounts=mapped_feats["device_shared_with_n_accounts"],
-        zone_depth_score=mapped_feats["zone_depth_score"],
-        orders_completed_during_disruption=mapped_feats["orders_completed_during_disruption"],
-        is_mock_location_ever=mapped_feats["is_mock_location_ever"],
-        poisson_p_value=p_val
-    )
-
-    result = score_claim(event, _MODEL_BUNDLE)
-
-    anomaly_score = result["anomaly_score"]
+    # Direct scoring with the 20 features from to_model_features()
+    features = req.feature_vector.to_model_features()
     
+    # Create numpy array with the 20 features in the correct order
+    import numpy as np
+    feature_order = [
+        "gps_zone_mismatch", "wifi_home_ssid", "battery_charging", "accelerometer_idle",
+        "platform_app_inactive", "ip_home_match", "claim_latency_under30s", "gps_jitter_perfect",
+        "barometer_mismatch", "hw_fingerprint_match", "app_install_cluster", "days_since_onboard",
+        "referral_depth", "claim_hour_sin", "claim_hour_cos", "city_behavioral_risk",
+        "zone_depth_score", "has_real_disruption", "simultaneous_zone_claims", "iss_score"
+    ]
+    
+    X = np.array([[features[col] for col in feature_order]], dtype=float)
+    
+    model = _MODEL_BUNDLE["model"]
+    raw = model.decision_function(X)[0]
+    anomaly_score = float(1.0 - (1.0 / (1.0 + np.exp(-raw * 4.0))))
+    
+    from services.fraud_model import ANOMALY_THRESHOLD
+    is_anomalous = anomaly_score > ANOMALY_THRESHOLD
+
     # Hard override ??? zero GPS jitter = definitive spoofing
     if req.feature_vector.gps_jitter < 0.000001:
         anomaly_score = max(anomaly_score, 0.85)
-        result["is_anomalous"] = True
+        is_anomalous = True
 
     return ClaimScoreResponse(
-        is_anomalous    = result["is_anomalous"],
+        is_anomalous    = is_anomalous,
         anomaly_score   = anomaly_score,
-        top_features    = result["top_features"],
-        poisson_p_value = result["poisson_p_value"],
+        top_features    = list(features.keys())[:5],  # Return top 5 feature names
+        poisson_p_value = p_val,
     )
 
 # ?????? Prophet Actuarial Pricing ??????
