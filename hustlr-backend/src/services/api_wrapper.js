@@ -60,7 +60,10 @@ function shouldSkipAPI(apiName) {
 async function withFallback(apiName, apiFn, fallbackData) {
   // Skip real API if it has been failing repeatedly
   if (shouldSkipAPI(apiName)) {
-    console.log(`[APIWrapper] ${apiName} degraded — using fallback`);
+    console.warn(`[APIWrapper] ${apiName} degraded — using fallback`);
+    if (Array.isArray(fallbackData)) {
+      return fallbackData.map(item => ({ ...item, _source: 'fallback_degraded' }));
+    }
     return { ...fallbackData, _source: 'fallback_degraded' };
   }
 
@@ -70,7 +73,10 @@ async function withFallback(apiName, apiFn, fallbackData) {
     return result;
   } catch (e) {
     recordFailure(apiName, e);
-    console.log(`[APIWrapper] ${apiName} failed — using fallback`);
+    console.warn(`[APIWrapper] ${apiName} failed — using fallback`);
+    if (Array.isArray(fallbackData)) {
+      return fallbackData.map(item => ({ ...item, _source: 'fallback' }));
+    }
     return { ...fallbackData, _source: 'fallback' };
   }
 }
