@@ -77,11 +77,12 @@ class _WalletScreenState extends State<WalletScreen> {
         final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
         
         if (isDemoMode) {
-          // In demo mode: use demo data only
-          _balance        = DemoStateService.instance.walletBalance;
-          _totalPayouts   = DemoStateService.instance.totalPayouts;
-          _totalPremiums  = 0;
-          _transactions   = List<Map<String, dynamic>>.from(DemoStateService.instance.transactions);
+          // In demo mode: use data from MockDataService which receives socket updates
+          final mockSvc   = context.read<MockDataService>();
+          _balance        = mockSvc.walletBalance;
+          _totalPayouts   = mockSvc.monthlySavings; // Note: using monthlySavings as totalPayouts for mock consistency
+          _totalPremiums  = mockSvc.totalPremiums;
+          _transactions   = List<Map<String, dynamic>>.from(mockSvc.transactions);
           _isMock         = true;
         } else {
           // Real mode: use API data only
@@ -884,7 +885,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
   showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (context) => Dialog(
+    builder: (dialogCtx) => Dialog(
       backgroundColor: successBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
@@ -905,12 +906,12 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
 
   Future.delayed(const Duration(seconds: 2), () {
     if (!context.mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
+    Navigator.of(context, rootNavigator: true).pop(); // Dismiss first dialog safely
     final formattedBalance = amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (successCtx) => Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Center(
@@ -955,7 +956,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId) {
                   width: double.infinity, height: 50,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context, rootNavigator: true).pop();
+                      Navigator.of(successCtx, rootNavigator: true).pop();
                       AppEvents.instance.walletUpdated();
                     },
                     style: ElevatedButton.styleFrom(

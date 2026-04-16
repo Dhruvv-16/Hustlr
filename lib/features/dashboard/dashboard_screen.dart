@@ -48,6 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String? userZone;
   String? userName;
   bool isLoading = true;
+  bool _isGoingOnline = false; // separate flag so Go Online never blanks the whole dashboard
   Timer? _disruptionRefreshTimer;
   StreamSubscription<Position>? _locationStream;
   
@@ -108,8 +109,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _policySub = AppEvents.instance.onPolicyUpdated.listen((_) async {
       await _loadDashboardData();
       if (policyData != null) {
-        final premiumRaw = policyData!['policy_card_premium'];
-        final premium = (premiumRaw is num) ? premiumRaw.toDouble() : double.tryParse(premiumRaw.toString()) ?? 60.0;
+        final premiumRaw = policyData!['weekly_premium'];
+        final premium = (premiumRaw is num) ? premiumRaw.toDouble() : double.tryParse(premiumRaw.toString()) ?? 49.0;
         NotificationService.instance.addPremiumDeducted(premium.round());
       }
     });
@@ -512,7 +513,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final isLocationDenied = _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
-    final planName = policyData?['plan_name'] ?? 'Standard Shield';
+    final rawPlanName = policyData?['plan_name'] ?? 'Standard Shield';
+    final List<dynamic>? ridersData = policyData?['riders'];
+    String planName = rawPlanName;
+    if (ridersData != null && ridersData.isNotEmpty) {
+      final names = ridersData.map((r) => r['name'].toString()).join(' + ');
+      planName = '$rawPlanName + $names';
+    }
     
     String titleCase(String text) {
       if (text.isEmpty) return text;
@@ -524,10 +531,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     
     final displayUserName = titleCase(userName ?? 'Karthik');
     final rawPremium = policyData?['weekly_premium']?.toString();
-    final String premium = liveDynamicPrice != null ? liveDynamicPrice!.toStringAsFixed(0) : (rawPremium == '50' ? '49' : rawPremium ?? 
-        (planName == 'Basic Shield' ? '29' : 
-         planName == 'Standard Shield' ? '49' : 
-          planName == 'Full Shield' ? '79' : '109'));
+    
+    // Total premium logic: priority to real stored value, fallback to clean tiers
+    final String premium = liveDynamicPrice != null 
+        ? liveDynamicPrice!.toStringAsFixed(0) 
+        : (rawPremium != null && rawPremium != '50' && rawPremium != '0'
+            ? rawPremium 
+            : (rawPlanName == 'Basic Shield' ? '29' : 
+               rawPlanName == 'Standard Shield' ? '49' : 
+               rawPlanName == 'Full Shield' ? '79' : '49'));
     
     // Fallback to MockData shadowMissed or a positive value, never wallet balance!
     final pAmount = (policyData?['missed_payouts'] as num?)?.toInt()?.abs() ?? 680;
@@ -569,7 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         _buildWorkAdvisorCard(),
                       ],
                       const SizedBox(height: 20),
-                      _buildActivePolicyCard(planName, premium, l10n),
+                      _buildActivePolicyCard(planName, premium, l10n, ridersData),
                       const SizedBox(height: 16),
                       Container(
                         width: double.infinity,
@@ -616,14 +628,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         GestureDetector(
           onTap: () => context.push(AppRoutes.profile),
-          onLongPress: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => const DemoControlsSheet(),
-            );
-          },
           child: Container(
             width: 52,
             height: 52,
@@ -735,19 +739,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             fontFamily: 'Manrope',
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildActivePolicyCard(String planName, String premium, AppLocalizations l10n) {
+  Widget _buildActivePolicyCard(String planName, String premium, AppLocalizations l10n, List<dynamic>? riders) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final mintColor = isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subtleText = isDark ? const Color(0xFFe1e3de) : const Color(0xFF4A6741);
-    final shadowColor = isDark 
-        ? const Color(0xFF3fff8b).withOpacity(0.04) 
-        : const Color(0xFF1B5E20).withOpacity(0.08);
+    final shadowColor = isDark ? const Color(0xFF1B5E20).withOpacity(0.04) : const Color(0xFF1B5E20).withOpacity(0.08);
 
     return Container(
       width: double.infinity,
@@ -826,19 +824,34 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
           const SizedBox(height: 28),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               _buildCoverageChip(l10n.claims_heavy_rain.toUpperCase(), Icons.water_drop_rounded, mintColor, isDark),
               _buildCoverageChip(l10n.claims_extreme_heat.toUpperCase(), Icons.wb_sunny_rounded, mintColor, isDark),
               _buildCoverageChip(l10n.claims_platform_downtime.toUpperCase(), Icons.security_rounded, mintColor, isDark),
+              if (riders != null)
+                ...riders.map((r) {
+                  final name = r['name']?.toString() ?? '';
+                  IconData icon = Icons.security_rounded;
+                  if (name.contains('Cyclone')) icon = Icons.cyclone_rounded;
+                  if (name.contains('Curfew')) icon = Icons.groups_rounded;
+                  if (name.contains('Election')) icon = Icons.how_to_vote_rounded;
+                  if (name.contains('App Downtime')) icon = Icons.phonelink_off_rounded;
+                  
+                  return _buildCoverageChip(
+                    name.replaceAll(' Rider', '').toUpperCase(), 
+                    icon, 
+                    mintColor, 
+                    isDark
+                  );
+                }),
             ],
           ),
         ],
       ),
     );
   }
-
   Widget _buildCoverageChip(String label, IconData icon, Color mintColor, bool isDark) {
     final chipBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
 
@@ -1184,9 +1197,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       children: [
         if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
           BatteryOptimizationPrompt(onAllGranted: () async {
-            // Guard: don't start if already active or loading
-            if (isLoading || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
-            setState(() => isLoading = true);
+            // Guard: don't start if already active or going online
+            if (_isGoingOnline || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
+            setState(() => _isGoingOnline = true);
             // permission_handler is not implemented on web (UnimplementedError).
             if (kIsWeb) {
               try {
@@ -1200,7 +1213,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   );
                 }
               } finally {
-                if (mounted) setState(() => isLoading = false);
+                if (mounted) setState(() => _isGoingOnline = false);
               }
               return;
             }
@@ -1210,7 +1223,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 final result = await Permission.locationWhenInUse.request();
                 if (!result.isGranted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permission required')));
-                  setState(() => isLoading = false);
+                  setState(() => _isGoingOnline = false);
                   return;
                 }
               }
@@ -1222,7 +1235,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     const SnackBar(content: Text('Please turn on device location to go online')),
                   );
                 }
-                setState(() => isLoading = false);
+                setState(() => _isGoingOnline = false);
                 return;
               }
 
@@ -1275,7 +1288,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 );
               }
             } finally {
-              if (mounted) setState(() => isLoading = false);
+              if (mounted) setState(() => _isGoingOnline = false);
             }
           }),
           const SizedBox(height: 16),

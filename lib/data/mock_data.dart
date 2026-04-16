@@ -50,7 +50,7 @@ class MockData {
       'threshold': 'NLP confidence > 80%',
       'source': 'NewsAPI + NLP',
       'status': 'NORMAL',
-      'rate': '₹60/hr activated',
+      'rate': '₹49/wk activated',
     },
   ];
 }

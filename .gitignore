@@ -197,3 +197,6 @@ build/
 # GuideWire assets (large video files)
 GuideWire/
 
+
+# Local dart-define secrets - never commit this
+dart_defines.json

@@ -28,6 +28,7 @@ class StorageService {
   static const _keyLastIdentityVerificationAt = 'lastIdentityVerificationAt';
   static const _keyLastRiskReviewAt = 'lastRiskReviewAt';
   static const _keyKycDataConsentAccepted = 'kycDataConsentAccepted';
+  static const _keyActiveRiders = 'activeRiders';
 
   // ── Static sync API (after [init]) ─────────────────────────────────────────
   static bool get isLoggedIn => _prefs.getBool(_keyIsLoggedIn) ?? false;
@@ -55,6 +56,8 @@ class StorageService {
   /// User accepted in-app KYC / data-processing disclosure (DPDP-style).
   static bool get kycDataConsentAccepted =>
       _prefs.getBool(_keyKycDataConsentAccepted) ?? false;
+  static List<String> get activeRiders =>
+      _prefs.getStringList(_keyActiveRiders) ?? [];
 
   /// New users must see consent before profile onboarding; completed users skip.
   static bool get needsKycDataConsent =>
@@ -91,6 +94,8 @@ class StorageService {
       _prefs.setInt(_keyLastRiskReviewAt, tsMs);
   static Future<void> setKycDataConsentAccepted(bool v) =>
       _prefs.setBool(_keyKycDataConsentAccepted, v);
+  static Future<void> setActiveRiders(List<String> riders) =>
+      _prefs.setStringList(_keyActiveRiders, riders);
   static Future<void> clearSessionToken() => _prefs.remove(_keySessionToken);
   static Future<void> clearAll() => _prefs.clear();
 

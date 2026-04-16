@@ -185,10 +185,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         return;
       }
       final planName = widget.checkoutData?['plan'] ?? 'standard';
+      final riders = widget.checkoutData?['riders'] as List<Map<String, dynamic>>?;
 
       final result = await ApiService.instance.createPolicy(
         userId: userId,
         planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
+        riders: riders,
       );
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {

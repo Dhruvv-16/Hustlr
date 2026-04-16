@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
+const ML_URL = process.env.ML_SERVICE_URL || 'https://hustlr-ml-complete.onrender.com';
 const TIMEOUT = 60000; // 60s — allows for Render free tier cold start (~30-50s)
 
 // Legacy endpoints to prevent jsonDecode crash on old APK

@@ -18,8 +18,8 @@ class ManualClaimCameraScreen extends StatefulWidget {
 class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
   final ImagePicker _picker = ImagePicker();
 
-  /// On phones we show an explainer first; then open the front camera only.
-  bool _showSelfieIntro = true;
+  // We are taking evidence photos, so no selfie intro needed.
+  bool _showSelfieIntro = false;
 
   @override
   void initState() {
@@ -40,6 +40,8 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
 
     if (kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _capturePhoto());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _capturePhoto());
     }
   }
 
@@ -47,7 +49,7 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
     try {
       final XFile? photo = await _picker.pickImage(
         source: kIsWeb ? ImageSource.gallery : ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
+        preferredCameraDevice: CameraDevice.rear,
         maxWidth: 1600,
         maxHeight: 1600,
         imageQuality: 88,

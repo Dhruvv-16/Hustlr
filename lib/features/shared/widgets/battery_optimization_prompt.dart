@@ -78,11 +78,6 @@ class _BatteryOptimizationPromptState
         _checking = false;
       });
     }
-
-    // Gate: require at least foreground location + battery unrestricted
-    if (locationForeground && batteryUnrestricted) {
-      widget.onAllGranted();
-    }
   }
 
   Future<void> _requestLocation() async {
@@ -119,14 +114,17 @@ class _BatteryOptimizationPromptState
     const primaryGreen = Color(0xFF2E7D32);
 
     if (_checking) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+      return const SizedBox(
+        height: 120,
+        child: Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+      );
     }
 
     final allGranted = _locationAlways && _batteryUnrestricted;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),

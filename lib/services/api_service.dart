@@ -252,18 +252,18 @@ class ApiService {
       if (res.statusCode == 200) return data;
       throw Exception(data['error'] ?? 'Failed to fetch policy');
     } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      final tier = prefs.getString('mockPlanTier') ?? 'Standard Shield';
+      final tier = StorageService.instance.planTier;
+      final premium = StorageService.instance.weeklyPremium;
+      final riders = StorageService.instance.activeRiders;
+      
       return {
         'policy': {
-          'id': 'mock-policy',
+          'id': StorageService.instance.policyId.isEmpty ? 'mock-policy' : StorageService.instance.policyId,
           'plan_tier': tier,
-          'weekly_premium': tier == 'Full Shield'
-              ? 79
-              : (tier == 'Standard Shield' ? 49 : 35),
-          'base_premium': tier == 'Full Shield'
-              ? 79
-              : (tier == 'Standard Shield' ? 49 : 35),
+          'plan_name': tier,
+          'weekly_premium': premium,
+          'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(), // Cost is already in premium
+          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 29),
           'zone_adjustment': 0,
           'status': 'active',
         }
@@ -821,7 +821,7 @@ class ApiService {
           if (integrityToken != null && integrityToken.isNotEmpty)
             'integrity_token': integrityToken,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
       final data = jsonDecode(res.body);
       if (res.statusCode == 201) return data;
 
@@ -1211,6 +1211,7 @@ class ApiService {
   Future<Map<String, dynamic>> createPolicy({
     required String userId,
     required String planTier,
+    List<Map<String, dynamic>>? riders,
   }) async {
     try {
       final res = await http
@@ -1220,6 +1221,7 @@ class ApiService {
             body: jsonEncode({
               'user_id': userId,
               'plan_tier': planTier,
+              'riders': riders,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -1232,6 +1234,15 @@ class ApiService {
           final policy = data['policy'];
           await StorageService.instance.savePolicyId(policy['id']);
           await StorageService.instance.setPlanTier(policy['plan_tier']);
+          
+          // Store riders if present
+          if (riders != null) {
+            final names = riders.map((r) => r['name'].toString()).toList();
+            await StorageService.setActiveRiders(names);
+          } else {
+            await StorageService.setActiveRiders([]);
+          }
+
           await StorageService.instance
               .setWeeklyPremium((policy['weekly_premium'] ?? 49).toDouble());
         }
@@ -1241,17 +1252,26 @@ class ApiService {
       throw Exception('Status ${res.statusCode}: ${res.body}');
     } catch (e) {
       // Backend-safe fallback:
-      // Some deployed environments may be temporarily out of sync on schema
-      // (e.g., missing active_days_last_30). Do not block onboarding/payment flow.
       final normalizedTier = planTier.toLowerCase();
-      final premium = normalizedTier.contains('full')
+      double premium = normalizedTier.contains('full')
           ? 79
-          : (normalizedTier.contains('basic') ? 35 : 49);
+          : (normalizedTier.contains('basic') ? 29 : 49);
+      
+      List<String> riderNames = [];
+      if (riders != null) {
+        for (final r in riders) {
+          final cost = (r['cost'] as num?)?.toDouble() ?? 0.0;
+          premium += cost;
+          riderNames.add(r['name'].toString());
+        }
+      }
+
       final mockPolicyId = 'mock-policy-${DateTime.now().millisecondsSinceEpoch}';
       final now = DateTime.now();
       final expiry = now.add(const Duration(days: 30));
 
       await StorageService.instance.savePolicyId(mockPolicyId);
+      await StorageService.setActiveRiders(riderNames);
       await StorageService.instance.setPlanTier(
         normalizedTier.contains('full')
             ? 'Full Shield'
@@ -1259,7 +1279,7 @@ class ApiService {
                 ? 'Basic Shield'
                 : 'Standard Shield'),
       );
-      await StorageService.instance.setWeeklyPremium(premium.toDouble());
+      await StorageService.instance.setWeeklyPremium(premium);
 
       return {
         'policy': {
@@ -1274,6 +1294,7 @@ class ApiService {
                   ? 'Basic Shield'
                   : 'Standard Shield'),
           'weekly_premium': premium,
+          'riders': riders,
           'status': 'active',
           'created_at': now.toIso8601String(),
           'expires_at': expiry.toIso8601String(),

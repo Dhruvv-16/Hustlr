@@ -16,7 +16,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
-import '../../features/shared/widgets/demo_control_panel.dart';
+import '../../widgets/demo_controls_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -65,7 +65,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     
     try {
-      final worker = await ApiService.instance.getWorkerById(userId);
+      final rawWorker = await ApiService.instance.getWorkerById(userId);
+      final worker = Map<String, dynamic>.from(rawWorker);
+      
+      final localName = await StorageService.instance.getUserName();
+      final localPhone = await StorageService.instance.getPhone();
+      final localZone = await StorageService.instance.getUserZone();
+      final localCity = await StorageService.instance.getUserCity();
+      
+      worker['name'] = worker['name'] ?? localName;
+      worker['phone'] = worker['phone'] ?? localPhone;
+      worker['zone'] = worker['zone'] ?? localZone;
+      worker['city'] = worker['city'] ?? localCity;
+
       Map<String, dynamic>? policy;
       Map<String, dynamic>? trustProfile;
       try {
@@ -286,8 +298,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: () => showDemoPanel(context),
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => const DemoControlsSheet(),
+                          );
+                        },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         decoration: BoxDecoration(

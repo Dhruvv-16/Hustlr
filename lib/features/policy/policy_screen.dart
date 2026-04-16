@@ -41,7 +41,7 @@ class _Plan {
 List<_Plan> _getPlans(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
   return [
-    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
+    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹29/wk', accentLeft: true),
     _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
     _Plan(name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
   ];
@@ -338,10 +338,6 @@ class _LiveHistoryTab extends StatelessWidget {
               ),
             ),
           ),
-        const SizedBox(height: 28),
-        _sectionLabel(context, 'POLICY DISCLOSURE'),
-        const SizedBox(height: 12),
-        _policyDisclosureCard(context),
       ],
     );
   }
@@ -368,9 +364,7 @@ class _CurrentPlanTab extends StatelessWidget {
         _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
         _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
         _coverageItem(context, Icons.edit_document,         'Manual Disruption Filing', 'Report untracked disruptions manually'),
-        const SizedBox(height: 24),
-        _sectionLabel(context, 'POLICY DISCLOSURE'),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         _policyDisclosureCard(context),
       ]),
     );
@@ -569,22 +563,29 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     'Cyclone': false,
   };
 
+  // ── helpers ──────────────────────────────────────────────────────────────
+  static int _planBasePrice(String? plan) {
+    if (plan == null) return 49;
+    final lower = plan.toLowerCase();
+    if (lower.contains('full')) return 79;
+    if (lower.contains('basic')) return 29;
+    return 49; // Standard Shield default
+  }
+
   int get _totalCost {
-    const planPrices = {
-      'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79,
-    };
-    int total = planPrices[_selectedPlan ?? 'Standard Shield'] ?? 49;
+    int total = _planBasePrice(_selectedPlan);
 
     const riderPrices = {
       'Cyclone': 20, 'Curfew & Strike': 12,
       'Election Day': 8, 'App Downtime': 10,
     };
     
-    final bool allIncluded = _selectedPlan == 'Full Shield';
+    final lower = (_selectedPlan ?? '').toLowerCase();
+    final bool allIncluded = lower.contains('full');
 
     if (!allIncluded) {
       for (final r in _riderToggles.entries) {
-        if (r.key == 'App Downtime' && _selectedPlan == 'Standard Shield') continue;
+        if (r.key == 'App Downtime' && lower.contains('standard')) continue;
         if (r.value) total += riderPrices[r.key] ?? 0;
       }
     }
@@ -594,7 +595,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    _selectedPlan ??= AppLocalizations.of(context)!.policy_standard;
+    // Use hardcoded English default so price map lookups always work
+    _selectedPlan ??= 'Standard Shield';
 
     return Stack(children: [
       SingleChildScrollView(
@@ -654,8 +656,6 @@ class _UpgradeTabState extends State<_UpgradeTab> {
             ),
           ),
           const SizedBox(height: 20),
-          _sectionLabel(context, 'POLICY DISCLOSURE'),
-          const SizedBox(height: 12),
           _policyDisclosureCard(context),
         ]),
       ),
@@ -666,16 +666,16 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           activePolicy: widget.activePolicy,
           selectedPlan: _selectedPlan,
           onProceed: () {
-            final planPrices = {'Basic Shield': 35, 'Standard Shield': 49, 'Full Shield': 79};
             final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
             final planName = _selectedPlan ?? 'Standard Shield';
-            final planCost = planPrices[planName] ?? 49;
-            final bool allIncluded = planName == 'Full Shield';
+            final planCost = _planBasePrice(planName);
+            final lowerPlan = planName.toLowerCase();
+            final bool allIncluded = lowerPlan.contains('full');
 
             List<Map<String, dynamic>> activeRiders = [];
             if (!allIncluded) {
               for (final r in _riderToggles.entries) {
-                if (r.key == 'App Downtime' && planName == 'Standard Shield') continue;
+                if (r.key == 'App Downtime' && lowerPlan.contains('standard')) continue;
                 if (r.value) {
                   activeRiders.add({
                     'name': '${r.key} Rider',
@@ -947,13 +947,16 @@ class _StickyBottomBar extends StatelessWidget {
 
     int getRank(String? p) {
       if (p == null) return 0;
-      if (p.contains('Full')) return 3;
-      if (p.contains('Standard')) return 2;
-      if (p.contains('Basic')) return 1;
+      final lower = p.toLowerCase();
+      if (lower.contains('full')) return 3;
+      if (lower.contains('standard')) return 2;
+      if (lower.contains('basic')) return 1;
       return 0;
     }
     
-    final currentRank = getRank(activePolicy?['plan_name'] as String?);
+    final currentRank = getRank(
+      (activePolicy?['plan_name'] ?? activePolicy?['plan_tier']) as String?,
+    );
     final selectedRank = getRank(selectedPlan);
 
     final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
