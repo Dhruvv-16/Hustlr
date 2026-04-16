@@ -4,6 +4,7 @@ const { PLAN_CONFIG } = require('../config/constants');
 const mlService = require('../services/ml_service');
 const router = express.Router();
 const { getShadowSummary } = require('../services/shadow_policy_service');
+const { requireSession } = require('../middleware/session_auth');
 
 // GET /policies/shadow/:user_id — live shadow payout estimate from disruption_events
 router.get('/shadow/:user_id', async (req, res) => {
@@ -69,6 +70,26 @@ router.post('/create', async (req, res) => {
       .single();
     if (policyError) throw policyError;
 
+    // Fix #3: Check balance BEFORE debiting — DB constraint is merciless at ₹0
+    const { data: walletBal } = await supabase
+      .from('wallet_balances')
+      .select('balance')
+      .eq('user_id', user_id)
+      .maybeSingle();
+
+    const currentBalance = walletBal?.balance ?? 0;
+    if (currentBalance < finalPremium) {
+      // Insufficient funds — suspend instead of crashing
+      await supabase.from('policies').update({ status: 'suspended' }).eq('id', policy.id);
+      console.warn(`[Policy] Insufficient balance for ${user_id}: ₹${currentBalance} < ₹${finalPremium}. Policy suspended.`);
+      return res.status(402).json({
+        error: 'insufficient_balance',
+        message: `Wallet balance ₹${currentBalance} is below required premium ₹${finalPremium}. Please top up to activate coverage.`,
+        policy_status: 'suspended',
+        policy_id: policy.id,
+      });
+    }
+
     // Deduct the final premium from the user's wallet
     await supabase
       .from('wallet_transactions')
@@ -76,6 +97,7 @@ router.post('/create', async (req, res) => {
         user_id,
         amount: finalPremium,
         type: 'debit',
+        category: 'premium',
         description: `Premium for ${plan_tier} Shield`,
         reference: `policy_${policy.id}`,
       }]);
@@ -131,7 +153,7 @@ router.patch('/:id/upgrade', async (req, res) => {
 
     const { data: existingPolicy, error: policyFetchError } = await supabase
       .from('policies')
-      .select('user_id')
+      .select('user_id, plan_tier')
       .eq('id', id)
       .single();
     if (policyFetchError) throw policyFetchError;
@@ -179,6 +201,220 @@ router.patch('/:id/upgrade', async (req, res) => {
         forward_risk_surcharge: 0,
         final_with_surcharge: premiumResult.final_premium,
       } 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ADD RIDER - with tier-lock validation
+router.post('/riders/add', requireSession, async (req, res) => {
+  const { policy_id, rider_type, premium_per_week } = req.body;
+
+  try {
+    // 1. Check tier eligibility
+    const { data: policy } = await supabase.from('policies').select('plan_tier, commitment_end').eq('id', policy_id).single();
+    
+    if (!policy) {
+        return res.status(404).json({ error: 'Policy not found' });
+    }
+
+    const requiresFull = ['cyclone_cover', 'traffic_congestion'];
+    const requiresStandard = ['internet_blackout', 'curfew_strike', 'accident_blockspot'];
+
+    if (requiresFull.includes(rider_type) && policy.plan_tier !== 'full') {
+      return res.status(403).json({ error: `The ${rider_type} rider requires the Full Shield plan.` });
+    }
+    
+    if (requiresStandard.includes(rider_type) && policy.plan_tier === 'basic') {
+      return res.status(403).json({ error: `The ${rider_type} rider requires at least the Standard Shield plan.` });
+    }
+
+    // 2. Insert the rider, locking its end date to the policy's quarterly end date
+    const blackoutEnd = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const { data: rider, error } = await supabase.from('riders').insert({
+      policy_id,
+      rider_type,
+      premium_per_week: premium_per_week || 0,
+      effective_to: policy.commitment_end, // Inherited directly from the parent policy
+      blackout_until: blackoutEnd, // 72-hour anti-gaming blackout
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: policy.commitment_end,
+      blackout_end: blackoutEnd,
+      status: 'active'
+    }).select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(200).json({ success: true, rider: rider[0], blackout_until: blackoutEnd });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// REMOVE RIDER
+router.delete('/:id/riders/:riderId', async (req, res) => {
+  try {
+    const { id, riderId } = req.params;
+
+    const { data: rider, error: riderError } = await supabase
+      .from('riders')
+      .update({ status: 'cancelled' })
+      .eq('id', riderId)
+      .eq('policy_id', id)
+      .select()
+      .single();
+
+    if (riderError) throw riderError;
+
+    if (!rider) {
+      return res.status(404).json({ error: 'Rider not found' });
+    }
+
+    res.json({ 
+      rider,
+      message: 'Rider cancelled successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET POLICY RIDERS
+router.get('/:id/riders', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: riders, error } = await supabase
+      .from('riders')
+      .select('*')
+      .eq('policy_id', id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ riders });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// RENEW POLICY - quarterly renewal system
+router.post('/:id/renew', requireSession, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.authUserId;
+
+  try {
+    // 1. Fetch current policy and ensure they own it
+    const { data: policy, error: fetchErr } = await supabase
+      .from('policies')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchErr || !policy) return res.status(404).json({ error: 'Policy not found' });
+    if (policy.status !== 'active') return res.status(400).json({ error: 'Only active policies can be renewed' });
+
+    // 2. Lock Wallet & Deduct Premium Safely (Using the DB constraints we built)
+    const { error: walletErr } = await supabase
+      .from('wallet_transactions')
+      .insert({
+        user_id: userId,
+        amount: policy.weekly_premium,
+        type: 'debit',
+        category: 'premium',
+        description: 'Quarterly policy renewal deduction'
+      });
+
+    if (walletErr) {
+       // Our DB constraint caught an insufficient balance
+       await supabase.from('policies').update({ status: 'suspended' }).eq('id', id);
+       return res.status(402).json({ error: 'Insufficient funds. Policy suspended.' });
+    }
+
+    // 3. Extend the Commitment by 91 days
+    const newCommitmentEnd = new Date(policy.commitment_end);
+    newCommitmentEnd.setDate(newCommitmentEnd.getDate() + 91);
+
+    const { data: updatedPolicy, error: updateErr } = await supabase
+      .from('policies')
+      .update({
+        commitment_end: newCommitmentEnd.toISOString().split('T')[0],
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
+
+    if (updateErr) throw updateErr;
+
+    // 4. Log the audit trail
+    await supabase.from('renewal_history').insert({
+        user_id: userId,
+        policy_id: id,
+        old_commitment_end: policy.commitment_end,
+        new_commitment_end: newCommitmentEnd.toISOString().split('T')[0],
+        weekly_premium: policy.weekly_premium,
+        renewal_type: 'manual',
+        renewed_at: new Date().toISOString()
+    });
+
+    res.status(200).json({ success: true, policy: updatedPolicy[0] });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to renew policy', details: err.message });
+  }
+});
+
+// GET RENEWAL HISTORY
+router.get('/:id/renewal-history', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: history, error } = await supabase
+      .from('renewal_history')
+      .select('*')
+      .eq('policy_id', id)
+      .order('renewed_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ history });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET ELIGIBLE RIDERS FOR PLAN TIER
+router.get('/riders/available/:planTier', async (req, res) => {
+  try {
+    const { planTier } = req.params;
+
+    const allRiders = [
+      { type: 'cyclone_cover', name: 'Cyclone Cover', description: 'Coverage for cyclone-related disruptions', required_tier: 'full' },
+      { type: 'internet_blackout', name: 'Internet Blackout', description: 'Coverage for internet service disruptions', required_tier: 'standard' },
+      { type: 'curfew_strike', name: 'Curfew & Strike', description: 'Coverage for curfew and strike disruptions', required_tier: 'standard' },
+      { type: 'accident_blockspot', name: 'Accident Blockspot', description: 'Coverage for traffic accident disruptions', required_tier: 'standard' },
+      { type: 'traffic_congestion', name: 'Traffic Congestion', description: 'Coverage for severe traffic congestion', required_tier: 'full' },
+      { type: 'election_day', name: 'Election Day', description: 'Coverage for election-related disruptions', required_tier: 'basic' }
+    ];
+
+    const availableRiders = allRiders.filter(rider => {
+      switch (planTier) {
+        case 'basic':
+          return rider.required_tier === 'basic';
+        case 'standard':
+          return ['basic', 'standard'].includes(rider.required_tier);
+        case 'full':
+          return true; // All riders available
+        default:
+          return false;
+      }
+    });
+
+    res.json({ 
+      available_riders: availableRiders,
+      plan_tier: planTier
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
