@@ -8,20 +8,26 @@ const LIMITS = {
 
 async function checkCircuitBreaker(zone, city, triggerType) {
   
-  // Check 1 — hourly zone limit
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  // Check 1 — hourly zone limit (ATOMIC DATABASE LOCK)
+  const { data, error } = await supabase.rpc('check_and_increment_circuit_breaker_atomic', {
+    p_zone: zone,
+    p_city: city,
+    p_limit: LIMITS.claims_per_zone_per_hour,
+  });
+
+  if (error) {
+    console.error('[CircuitBreaker] Failed to call atomic limit check RPC:', error.message);
+    throw error;
+  }
   
-  const { count: hourlyCount } = await supabase
-    .from('claims')
-    .select('*', { count: 'exact', head: true })
-    .eq('zone', zone)
-    .gte('created_at', oneHourAgo);
+  // The first element in the array is the returned object from the RPC
+  const { allowed, current_count } = data[0] || { allowed: true, current_count: 0 };
   
-  if (hourlyCount >= LIMITS.claims_per_zone_per_hour) {
+  if (!allowed) {
     await tripBreaker(zone, city, triggerType, 'HOURLY_LIMIT');
     return {
       tripped: true,
-      reason: `Abnormal claim spike in ${zone} — system paused for safety`,
+      reason: `Abnormal claim spike: ${current_count} claims in ${zone} — system paused for safety`,
       code: 'HOURLY_LIMIT_EXCEEDED',
     };
   }
