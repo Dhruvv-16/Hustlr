@@ -200,3 +200,8 @@ GuideWire/
 
 # Local dart-define secrets - never commit this
 dart_defines.json
+
+gcp_key.json
+dart_defines.json
+datasets/
+ml_models/
