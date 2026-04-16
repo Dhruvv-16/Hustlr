@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/router/app_router.dart';
 import '../../services/mock_data_service.dart';
 import '../../shared/widgets/primary_button.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class OnboardingCompleteScreen extends StatelessWidget {
   const OnboardingCompleteScreen({super.key});
@@ -30,6 +33,8 @@ class OnboardingCompleteScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: theme.canvasColor,
       body: SafeArea(
+        top: true,
+        bottom: false,
         child: Column(
           children: [
             // Top App Bar Area
@@ -85,9 +90,17 @@ class OnboardingCompleteScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "You're all set,\n${worker.name}.",
+                    worker.name.trim().isEmpty 
+                        ? "You're all set!"
+                        : "You're all set, ${worker.name.trim()}.",
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.displayMedium,
+                    overflow: TextOverflow.visible,
+                    softWrap: true,
+                    maxLines: 2,
                   ),
                 ],
               ),
@@ -134,12 +147,55 @@ class OnboardingCompleteScreen extends StatelessWidget {
 
             const Spacer(),
 
-            // Continue Button Strip
+            // Permission Request & Continue Button Strip
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 0, 28, 32),
-              child: PrimaryButton(
-                text: 'Go to Dashboard',
-                onPressed: () => _goToDashboard(context),
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                children: [
+                  Text(
+                    "Hustlr monitors your zone position during shifts to protect your payouts. Location tracking runs only when you are working.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 24),
+                    child: PrimaryButton(
+                      text: 'Enable Zone Protection →',
+                      onPressed: () async {
+                        if (kIsWeb) {
+                          // permission_handler is not implemented on web.
+                          try {
+                            await Geolocator.getCurrentPosition(
+                              locationSettings: const LocationSettings(
+                                accuracy: LocationAccuracy.high,
+                                timeLimit: Duration(seconds: 8),
+                              ),
+                            );
+                          } catch (_) {}
+                          if (context.mounted) _goToDashboard(context);
+                          return;
+                        }
+                        final status = await Permission.locationWhenInUse.request();
+                        if (!status.isGranted) return;
+
+                        try {
+                          await Geolocator.getCurrentPosition(
+                            locationSettings: const LocationSettings(
+                              accuracy: LocationAccuracy.high,
+                              timeLimit: Duration(seconds: 8),
+                            ),
+                          );
+                        } catch (_) {}
+
+                        if (context.mounted) _goToDashboard(context);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

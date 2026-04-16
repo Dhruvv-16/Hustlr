@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
@@ -5,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../../shared/widgets/hustlr_bottom_nav.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/api_service.dart';
+import '../../services/app_events.dart';
+import '../../services/storage_service.dart';
 
 // Dark mode palette
 const _darkGreen       = Color(0xFF3FFF8B);
@@ -36,8 +41,8 @@ class _Plan {
 List<_Plan> _getPlans(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
   return [
-    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
-    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹59/wk', isMostPopular: true),
+    _Plan(name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹29/wk', accentLeft: true),
+    _Plan(name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
     _Plan(name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
   ];
 }
@@ -72,15 +77,52 @@ class PolicyScreen extends StatefulWidget {
 class _PolicyScreenState extends State<PolicyScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Map<String, dynamic>? activePolicy;
+  List<Map<String, dynamic>> policyHistory = [];
+  bool isLoading = true;
+  StreamSubscription<void>? _policySub;
+  StreamSubscription<void>? _walletSub;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    _loadPolicy();
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadPolicy());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadPolicy());
+  }
+
+  Future<void> _loadPolicy() async {
+    final uid = await StorageService.instance.getUserId();
+    if (uid != null) {
+      try {
+        final data = await ApiService.instance.getPolicyInstance(uid);
+        if (mounted) {
+          final rawPolicy = data['policy'];
+          final rawHistory = data['history'];
+          setState(() {
+            activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            policyHistory = rawHistory is List
+                ? rawHistory
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList()
+                : [];
+            isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => isLoading = false);
+      }
+    } else {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
   @override
   void dispose() {
+    _policySub?.cancel();
+    _walletSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -139,12 +181,15 @@ class _PolicyScreenState extends State<PolicyScreen>
         children: [
           Positioned.fill(
             child: MobileContainer(
-              child: TabBarView(
+              child: isLoading ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) : TabBarView(
                 controller: _tabController,
                 children: [
-                  _CurrentPlanTab(),
-                  _UpgradeTab(onProceed: () => context.push('/policy/payment')),
-                  _HistoryTab(),
+                  _CurrentPlanTab(activePolicy: activePolicy),
+                  _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
+                  _LiveHistoryTab(
+                    activePolicy: activePolicy,
+                    policyHistory: policyHistory,
+                  ),
                 ],
               ),
             ),
@@ -171,8 +216,138 @@ class _PolicyScreenState extends State<PolicyScreen>
   }
 }
 
+class _LiveHistoryTab extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  final List<Map<String, dynamic>> policyHistory;
+
+  const _LiveHistoryTab({
+    this.activePolicy,
+    this.policyHistory = const [],
+  });
+
+  List<Map<String, dynamic>> _entries() {
+    final items = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final item in policyHistory) {
+      final id = item['id']?.toString() ?? '${item['plan_tier']}_${item['created_at']}';
+      if (seen.add(id)) items.add(item);
+    }
+    if (items.isEmpty && activePolicy != null) {
+      items.add(activePolicy!);
+    }
+    return items;
+  }
+
+  String _planLabel(Map<String, dynamic> item) {
+    final tier = item['plan_tier']?.toString().trim();
+    return (tier == null || tier.isEmpty) ? 'Shield Plan' : tier;
+  }
+
+  String _premiumLabel(Map<String, dynamic> item) {
+    final raw = item['weekly_premium'];
+    final amount = raw is num ? raw.round() : int.tryParse('${raw ?? ''}');
+    return amount == null ? '—' : '₹$amount/wk';
+  }
+
+  String _dateRange(Map<String, dynamic> item) {
+    final start = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final end = DateTime.tryParse(item['expires_at']?.toString() ?? '');
+    String fmt(DateTime? value) {
+      if (value == null) return '—';
+      return '${value.day} ${[
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ][value.month - 1]} ${value.year}';
+    }
+    if (start != null && end != null) {
+      return '${fmt(start)} - ${fmt(end)}';
+    }
+    return fmt(start);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _entries();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = theme.cardColor;
+    final borderCol = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE5E7EB);
+    final green = theme.colorScheme.primary;
+    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _sectionLabel(context, 'POLICY HISTORY'),
+        const SizedBox(height: 12),
+        if (items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                'No policy history yet',
+                style: TextStyle(color: hintColor, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...items.map(
+            (item) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderCol),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_rounded, color: green, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _planLabel(item),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _dateRange(item),
+                          style: TextStyle(fontSize: 12, color: hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _premiumLabel(item),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 // ─── Tab 1: Current Plan ──────────────────────────────────────────────────────
 class _CurrentPlanTab extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  const _CurrentPlanTab({this.activePolicy});
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -180,7 +355,7 @@ class _CurrentPlanTab extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel(context, 'ACTIVE COVERAGE'),
         const SizedBox(height: 12),
-        _ActiveCoverageCard(),
+        _ActiveCoverageCard(activePolicy: activePolicy),
         const SizedBox(height: 24),
         _sectionLabel(context, 'COVERAGE DETAILS'),
         const SizedBox(height: 12),
@@ -189,6 +364,8 @@ class _CurrentPlanTab extends StatelessWidget {
         _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
         _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
         _coverageItem(context, Icons.edit_document,         'Manual Disruption Filing', 'Report untracked disruptions manually'),
+        const SizedBox(height: 20),
+        _policyDisclosureCard(context),
       ]),
     );
   }
@@ -237,6 +414,18 @@ Widget _coverageItem(BuildContext context, IconData icon, String title, String s
 
 // ─── Active Coverage Card ─────────────────────────────────────────────────────
 class _ActiveCoverageCard extends StatelessWidget {
+  final Map<String, dynamic>? activePolicy;
+  const _ActiveCoverageCard({this.activePolicy});
+
+  String _formatPolicyDates(Map<String, dynamic>? policy) {
+    if (policy == null) return '—';
+    final start = DateTime.tryParse(policy['created_at']?.toString() ?? '');
+    final end = DateTime.tryParse(policy['expires_at']?.toString() ?? '');
+    if (start == null || end == null) return '—';
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${start.day} ${months[start.month - 1]} ${start.year} - ${end.day} ${months[end.month - 1]} ${end.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context)!;
@@ -256,7 +445,7 @@ class _ActiveCoverageCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Text(l10n.policy_standard, style: TextStyle(
+            child: Text(activePolicy?['plan_name'] ?? l10n.policy_standard, style: TextStyle(
               fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           ),
           Container(
@@ -269,14 +458,14 @@ class _ActiveCoverageCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Policy #HS-98234-AX',
+        Text('Policy #${activePolicy?['id']?.toString().toUpperCase() ?? "HS-98234-AX"}',
             style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7))),
         const SizedBox(height: 12),
         Text('VALIDITY', style: TextStyle(
           fontSize: 10, fontWeight: FontWeight.w700,
           color: textColor.withOpacity(0.6), letterSpacing: 0.8)),
         const SizedBox(height: 4),
-        Text('26 Oct 2025 - 25 Oct 2026',
+        Text(_formatPolicyDates(activePolicy),
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 16),
         Row(children: [
@@ -358,7 +547,8 @@ class _GhostButton extends StatelessWidget {
 // ─── Tab 2: Upgrade ───────────────────────────────────────────────────────────
 class _UpgradeTab extends StatefulWidget {
   final VoidCallback onProceed;
-  const _UpgradeTab({required this.onProceed});
+  final Map<String, dynamic>? activePolicy;
+  const _UpgradeTab({required this.onProceed, this.activePolicy});
 
   @override
   State<_UpgradeTab> createState() => _UpgradeTabState();
@@ -373,23 +563,29 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     'Cyclone': false,
   };
 
+  // ── helpers ──────────────────────────────────────────────────────────────
+  static int _planBasePrice(String? plan) {
+    if (plan == null) return 49;
+    final lower = plan.toLowerCase();
+    if (lower.contains('full')) return 79;
+    if (lower.contains('basic')) return 29;
+    return 49; // Standard Shield default
+  }
+
   int get _totalCost {
-    const planPrices = {
-      'Basic Shield': 35, 'Standard Shield': 59,
-      'Full Shield': 79,
-    };
-    int total = planPrices[_selectedPlan ?? 'Standard Shield'] ?? 59;
+    int total = _planBasePrice(_selectedPlan);
 
     const riderPrices = {
       'Cyclone': 20, 'Curfew & Strike': 12,
       'Election Day': 8, 'App Downtime': 10,
     };
     
-    final bool allIncluded = _selectedPlan == 'Full Shield';
+    final lower = (_selectedPlan ?? '').toLowerCase();
+    final bool allIncluded = lower.contains('full');
 
     if (!allIncluded) {
       for (final r in _riderToggles.entries) {
-        if (r.key == 'App Downtime' && _selectedPlan == 'Standard Shield') continue;
+        if (r.key == 'App Downtime' && lower.contains('standard')) continue;
         if (r.value) total += riderPrices[r.key] ?? 0;
       }
     }
@@ -398,12 +594,9 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
-    final textSub = theme.colorScheme.onSurface.withOpacity(0.5);
-    _selectedPlan ??= AppLocalizations.of(context)!.policy_standard;
+    final theme = Theme.of(context);
+    // Use hardcoded English default so price map lookups always work
+    _selectedPlan ??= 'Standard Shield';
 
     return Stack(children: [
       SingleChildScrollView(
@@ -411,7 +604,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _sectionLabel(context, 'ACTIVE COVERAGE'),
           const SizedBox(height: 12),
-          _ActiveCoverageCard(),
+          _ActiveCoverageCard(activePolicy: widget.activePolicy),
           const SizedBox(height: 24),
           _sectionLabel(context, 'UPGRADE YOUR PROTECTION'),
           const SizedBox(height: 12),
@@ -462,11 +655,44 @@ class _UpgradeTabState extends State<_UpgradeTab> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          _policyDisclosureCard(context),
         ]),
       ),
       Positioned(
-        left: 0, right: 0, bottom: 96,
-        child: _StickyBottomBar(total: _totalCost, onProceed: widget.onProceed),
+        left: 0, right: 0, bottom: 0,
+        child: _StickyBottomBar(
+          total: _totalCost,
+          activePolicy: widget.activePolicy,
+          selectedPlan: _selectedPlan,
+          onProceed: () {
+            final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
+            final planName = _selectedPlan ?? 'Standard Shield';
+            final planCost = _planBasePrice(planName);
+            final lowerPlan = planName.toLowerCase();
+            final bool allIncluded = lowerPlan.contains('full');
+
+            List<Map<String, dynamic>> activeRiders = [];
+            if (!allIncluded) {
+              for (final r in _riderToggles.entries) {
+                if (r.key == 'App Downtime' && lowerPlan.contains('standard')) continue;
+                if (r.value) {
+                  activeRiders.add({
+                    'name': '${r.key} Rider',
+                    'cost': riderPrices[r.key] ?? 0
+                  });
+                }
+              }
+            }
+
+            context.push('/policy/payment', extra: <String, dynamic>{
+              'plan': planName,
+              'planCost': planCost,
+              'total': _totalCost,
+              'riders': activeRiders
+            });
+          }
+        ),
       ),
     ]);
   }
@@ -701,8 +927,10 @@ class _RiderRow extends StatelessWidget {
 class _StickyBottomBar extends StatelessWidget {
   final int total;
   final VoidCallback onProceed;
+  final Map<String, dynamic>? activePolicy;
+  final String? selectedPlan;
 
-  const _StickyBottomBar({required this.total, required this.onProceed});
+  const _StickyBottomBar({required this.total, required this.onProceed, this.activePolicy, this.selectedPlan});
 
   @override
   Widget build(BuildContext context) {
@@ -716,6 +944,34 @@ class _StickyBottomBar extends StatelessWidget {
     final green     = theme.colorScheme.primary;
     // dark-mode: mint text on dark bg; light-mode: white text on green bg
     final btnTextColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+
+    int getRank(String? p) {
+      if (p == null) return 0;
+      final lower = p.toLowerCase();
+      if (lower.contains('full')) return 3;
+      if (lower.contains('standard')) return 2;
+      if (lower.contains('basic')) return 1;
+      return 0;
+    }
+    
+    final currentRank = getRank(
+      (activePolicy?['plan_name'] ?? activePolicy?['plan_tier']) as String?,
+    );
+    final selectedRank = getRank(selectedPlan);
+
+    final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
+    final bool isSame = selectedRank == currentRank && currentRank > 0;
+    final bool isDisabled = isDowngrade || isSame;
+
+    String btnText = 'Proceed to\nPayment';
+    IconData btnIcon = Icons.arrow_forward_rounded;
+    if (isSame) {
+      btnText = 'Already Active';
+      btnIcon = Icons.check_circle_rounded;
+    } else if (isDowngrade) {
+      btnText = 'Downgrade\nUnavailable';
+      btnIcon = Icons.block_rounded;
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -757,7 +1013,7 @@ class _StickyBottomBar extends StatelessWidget {
           child: SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: onProceed,
+              onPressed: isDisabled ? null : onProceed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: btnTextColor,
@@ -769,13 +1025,13 @@ class _StickyBottomBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Proceed to\nPayment',
+                  Text(btnText,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.bold,
-                          color: btnTextColor, height: 1.3)),
+                          color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
                   const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 18, color: btnTextColor),
+                  Icon(btnIcon, size: 18, color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor),
                 ],
               ),
             ),
@@ -837,6 +1093,59 @@ class _HistoryTab extends StatelessWidget {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Regulatory / IRDAI disclosure; opens [InsuranceComplianceScreen].
+Widget _policyDisclosureCard(BuildContext context) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final green = theme.colorScheme.primary;
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: () => context.push(AppRoutes.insuranceCompliance),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: green.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.verified_user_rounded, color: green, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Insurance & data disclosure',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'IRDAI norms, DPDP, triggers & payouts — tap to read',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: green, size: 16),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 Widget _sectionLabel(BuildContext context, String text) {
   final hintColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.4);
   return Text(

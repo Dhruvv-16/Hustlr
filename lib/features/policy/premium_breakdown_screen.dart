@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../data/mock_data.dart';
+
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
 
@@ -15,6 +15,7 @@ class PremiumBreakdownScreen extends StatefulWidget {
 class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
   Map<String, dynamic>? policyData;
   String? userId;
+  String userZone = '';
   bool isLoading = true;
 
   @override
@@ -25,6 +26,8 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
 
   Future<void> _loadPolicyData() async {
     userId = await StorageService.instance.getUserId();
+    userZone = await StorageService.instance.getUserZone() ?? '';
+    
     if (userId == null) {
       if (mounted) setState(() => isLoading = false);
       return;
@@ -67,18 +70,17 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
       'behavioral_adjustment': riskAdj,
       'platform_discount': -3,
       'clean_history_discount': 0,
-      'final_rate': policyData?['weekly_premium'] ?? 59,
+      'final_rate': policyData?['weekly_premium'] ?? 49,
       'min_bound': (basePremium * 0.7).round(),
       'max_bound': (basePremium * 2.0).round(),
       'zone_comparison': [
-        {'zone': 'Adyar', 'rate': zoneAdj, 'risk': 'HIGH'},
+        {'zone': userZone.isNotEmpty ? userZone : 'Your Zone', 'rate': zoneAdj, 'risk': 'YOUR ZONE'},
         {'zone': 'T Nagar', 'rate': zoneAdj - 2, 'risk': 'MODERATE'},
         {'zone': 'OMR', 'rate': zoneAdj + 3, 'risk': 'EXTREME'},
       ],
     };
     final activePlan = policyData?['plan_name'] ?? 'Standard Shield';
-    final weeklyPremium = policyData?['weekly_premium'] ?? 59;
-    final userZone = 'Adyar Dark Store Zone'; // Ideally from StorageService, mocking for UI
+    final weeklyPremium = policyData?['weekly_premium'] ?? 49;
     final userPlatform = 'Platform';
 
 
@@ -98,7 +100,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium),
+            _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium, policyData),
             const SizedBox(height: 16),
             _buildCalculationCard(breakdown, theme, isDark, userZone, userPlatform),
             const SizedBox(height: 16),
@@ -114,7 +116,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
     );
   }
 
-  Widget _buildCurrentPlanCard(ThemeData theme, bool isDark, String activePlan, int weeklyPremium) {
+  Widget _buildCurrentPlanCard(ThemeData theme, bool isDark, String activePlan, int weeklyPremium, Map<String, dynamic>? policyData) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -140,12 +142,12 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Policy #${MockData.policyNumber}',
+            'Policy #${policyData?['id']?.toString().toUpperCase() ?? "HS-98234-AX"}',
             style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.6) : theme.colorScheme.onPrimary.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
           Text(
-            'VALID UNTIL: ${MockData.policyValidity}',
+            'VALID UNTIL: ${policyData?['valid_until'] ?? "26 Oct 2026"}',
             style: TextStyle(color: isDark ? theme.colorScheme.onSurface.withOpacity(0.8) : theme.colorScheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
           ),
           const SizedBox(height: 32),
@@ -204,7 +206,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '₹59 per week · Fixed price',
+            '₹49 per week · Fixed price',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: theme.colorScheme.primary),
           ),
           const SizedBox(height: 16),
@@ -279,7 +281,8 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           const SizedBox(height: 24),
           ...zones.map((z) {
             final double ratio = (z['rate'] as int) / maxRate;
-            final bool isAdyar = z['zone'] == 'Adyar';
+            final String currentZ = z['zone'] as String;
+            final bool isAdyar = userZone.contains(currentZ) || currentZ == userZone;
             final String note = isAdyar ? 'YOUR ZONE' : '${z['risk']} RISK';
 
             return Padding(
@@ -289,7 +292,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
                 children: [
                   SizedBox(
                     width: 76,
-                    child: Text(z['zone'], style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
+                    child: Text(currentZ, style: TextStyle(fontSize: 12, fontWeight: isAdyar ? FontWeight.w900 : FontWeight.w700, color: isAdyar ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7))),
                   ),
                   const SizedBox(width: 12),
                   SizedBox(

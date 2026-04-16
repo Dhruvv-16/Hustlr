@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
-import '../../services/mock_data_service.dart';
+import '../../core/router/app_router.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../blocs/claims/claims_bloc.dart';
+import '../../blocs/claims/claims_event.dart';
+import '../../models/claim.dart';
+import '../../services/mock_data_service.dart';
+import '../../services/storage_service.dart';
+import 'package:intl/intl.dart';
 
 class AnalyticsDashboardScreen extends StatefulWidget {
   const AnalyticsDashboardScreen({super.key});
@@ -13,20 +19,61 @@ class AnalyticsDashboardScreen extends StatefulWidget {
 }
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
+  String _zone = '';
+
+  DateTime _parseDemoClaimDate(ClaimModel claim) {
+    if (claim.date.toLowerCase() == 'just now') return DateTime.now();
+    for (final pattern in ['yyyy-MM-dd', 'MMM d, yyyy', 'dd MMM yyyy']) {
+      try {
+        return DateFormat(pattern).parse(claim.date);
+      } catch (_) {}
+    }
+    return DateTime.now();
+  }
+
+  int _demoClaimHours(ClaimModel claim) {
+    if (claim.durationHours != null && claim.durationHours! > 0) {
+      return claim.durationHours!;
+    }
+    final gross = claim.grossAmount ?? claim.amount;
+    return gross <= 0 ? 1 : (gross / 40).round().clamp(1, 6);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Load claims data when analytics screen opens
+    final userId = StorageService.userId;
+    if (userId != null) {
+      context.read<ClaimsBloc>().add(LoadClaims(userId));
+    }
+    
+    StorageService.instance.getUserZone().then((z) {
+      if (mounted) setState(() => _zone = z ?? '');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final bgScreen = isDark ? const Color(0xFF0a0b0a) : const Color(0xFFF4F6F4);
+    final green    = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final primary  = isDark ? Colors.white : const Color(0xFF0D1B0F);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgScreen,
       appBar: AppBar(
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface), onPressed: () => context.pop()),
-        title: Text('My Protection Analytics',
-            style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w700)),
-        backgroundColor: Colors.transparent,
-        foregroundColor: theme.colorScheme.onSurface,
+        backgroundColor: bgScreen,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: primary),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'My Protection Analytics',
+          style: TextStyle(color: primary, fontWeight: FontWeight.bold, fontSize: 22),
+        ),
+        centerTitle: false,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -36,15 +83,15 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                _buildHeroCard(context),
+                _buildHeroCard(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildPolicyInfoCard(context),
+                _buildPolicyInfoCard(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildDisruptionChart(context),
+                _buildDisruptionChart(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildPayoutHistory(context),
+                _buildPayoutHistory(context, isDark, green, primary),
                 const SizedBox(height: 16),
-                _buildUpgradeNudge(context),
+                _buildUpgradeNudge(context, isDark, green, primary),
                 const SizedBox(height: 32),
               ],
             ),
@@ -54,14 +101,40 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildHeroCard(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final mockData = Provider.of<MockDataService>(context);
-    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
-    final green = theme.colorScheme.primary;
-    final heroBg = isDark ? const Color(0xFF004734) : const Color(0xFF125117);
-    final subText = isDark ? green.withOpacity(0.8) : const Color(0xFFB0F3A6);
+  /// Returns the quarterly policy expiry — 3 months from today — formatted as "Mon YYYY".
+  String _quarterlyExpiry() {
+    final expiry = DateTime.now().add(const Duration(days: 90));
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[expiry.month - 1]} ${expiry.year}';
+  }
+
+  Widget _buildHeroCard(BuildContext context, bool isDark, Color green, Color primary) {
+    final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
+                          .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
+    final heroBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final subText = isDark ? Colors.white70 : Colors.black54;
+
+    final claimsState = context.watch<ClaimsBloc>().state;
+    final claims = claimsState.claims;
+    final mockClaims = context.watch<MockDataService>().claims;
+    
+    int total = 0;
+    int count = 0;
+    if (mockClaims.isNotEmpty) {
+      for (final c in mockClaims) {
+        if (c.status.toUpperCase() != 'REJECTED') {
+          total += c.grossAmount ?? c.amount;
+          count++;
+        }
+      }
+    } else {
+      for (var c in claims) {
+        if (c.status != ClaimStatus.rejected) {
+          total += c.grossPayout;
+          count++;
+        }
+      }
+    }
 
     return Container(
       width: double.infinity,
@@ -84,13 +157,13 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             style: TextStyle(color: subText, fontSize: 14, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '₹2,190',
-            style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+          Text(
+            '₹$total',
+            style: TextStyle(color: primary, fontSize: 36, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Across 3 disruption events in $userZone zone this month',
+            'Across $count disruption event${count == 1 ? '' : 's'} in $userZone',
             style: TextStyle(color: subText, fontSize: 13),
           ),
         ],
@@ -98,41 +171,34 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildPolicyInfoCard(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildPolicyInfoCard(BuildContext context, bool isDark, Color green, Color primary) {
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         children: [
-          _buildPolicyRow(context, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Active Plan', value: 'Standard Shield', chip: 'Active'),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Policy Valid', value: 'Oct 2026'),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
           const SizedBox(height: 12),
-          _buildPolicyRow(context, title: 'Add-ons', value: 'App Downtime (1 active)'),
+          _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'App Downtime (1 active)'),
         ],
       ),
     );
   }
 
-  Widget _buildPolicyRow(BuildContext context, {
+  Widget _buildPolicyRow(BuildContext context, bool isDark, Color green, Color primary, {
     required String title,
     required String value,
     String? chip,
   }) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
     return Row(
@@ -156,22 +222,55 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildDisruptionChart(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
-    final empty  = theme.colorScheme.onSurface.withOpacity(0.2);
+  Widget _buildDisruptionChart(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final empty = isDark ? Colors.white24 : Colors.black12;
+    final orange = const Color(0xFFFF9800);
+    final blue = const Color(0xFF2196F3);
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final mockClaims = context.watch<MockDataService>().claims;
+
+    final rain = List<int>.filled(7, 0);
+    final heat = List<int>.filled(7, 0);
+    final platform = List<int>.filled(7, 0);
+
+    for (final claim in mockClaims) {
+      if (claim.status.toUpperCase() == 'REJECTED') continue;
+      final idx = _parseDemoClaimDate(claim).weekday - 1;
+      final hours = _demoClaimHours(claim);
+      final type = claim.type.toLowerCase();
+      if (type.contains('rain')) {
+        rain[idx] += hours;
+      } else if (type.contains('heat')) {
+        heat[idx] += hours;
+      } else {
+        platform[idx] += hours;
+      }
+    }
+
+    List<BarChartGroupData> groups() {
+      return List.generate(7, (index) {
+        final total = rain[index] + heat[index] + platform[index];
+        Color color = empty;
+        if (total > 0) {
+          if (rain[index] >= heat[index] && rain[index] >= platform[index]) {
+            color = green;
+          } else if (heat[index] >= platform[index]) {
+            color = orange;
+          } else {
+            color = blue;
+          }
+        }
+        return _buildBarGroup(index, total, color);
+      });
+    }
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,15 +284,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             height: 180,
             child: BarChart(
               BarChartData(
-                barGroups: [
-                  _buildBarGroup(0, 12, green),
-                  _buildBarGroup(1, 8,  const Color(0xFFFF9800)),
-                  _buildBarGroup(2, 0,  empty),
-                  _buildBarGroup(3, 6,  green),
-                  _buildBarGroup(4, 4,  const Color(0xFF2196F3)),
-                  _buildBarGroup(5, 0,  empty),
-                  _buildBarGroup(6, 0,  empty),
-                ],
+                barGroups: groups(),
                 titlesData: FlTitlesData(
                   leftTitles:   AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -222,11 +313,11 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLegendItem(context, 'Rain',     green),
+              _buildLegendItem(context, 'Rain',     green, isDark),
               const SizedBox(width: 16),
-              _buildLegendItem(context, 'Heat',     const Color(0xFFFF9800)),
+              _buildLegendItem(context, 'Heat',     const Color(0xFFFF9800), isDark),
               const SizedBox(width: 16),
-              _buildLegendItem(context, 'Platform', const Color(0xFF2196F3)),
+              _buildLegendItem(context, 'Platform', const Color(0xFF2196F3), isDark),
             ],
           ),
         ],
@@ -248,8 +339,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildLegendItem(BuildContext context, String label, Color color) {
-    final text = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+  Widget _buildLegendItem(BuildContext context, String label, Color color, bool isDark) {
+    final text = isDark ? Colors.white70 : Colors.black54;
     return Row(
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
@@ -259,34 +350,106 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildPayoutHistory(BuildContext context) {
-    final theme  = Theme.of(context);
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
-    final mockData = Provider.of<MockDataService>(context);
-    final userZone = mockData.worker.zone.isNotEmpty ? mockData.worker.zone : 'Adyar Dark Store Zone';
+  Widget _buildPayoutHistory(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final userZone = _zone.replaceAll(RegExp(r' dark store zone', caseSensitive: false), '')
+                          .replaceAll(RegExp(r' zone', caseSensitive: false), '').trim();
+
+    final claimsState = context.watch<ClaimsBloc>().state;
+    final claims = claimsState.claims;
+    final mockClaims = context.watch<MockDataService>().claims;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Payout history', style: TextStyle(color: text, fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
-        _buildPayoutCard(context, icon: Icons.water_drop_rounded, trigger: 'Heavy Rain',
-            date: 'Oct 15, 2025', zone: userZone, amount: '₹820',
-            status: 'Approved', statusColor: green),
-        const SizedBox(height: 8),
-        _buildPayoutCard(context, icon: Icons.phonelink_off_rounded, trigger: 'Platform Downtime',
-            date: 'Oct 12, 2025', zone: userZone, amount: '₹450',
-            status: 'Pending', statusColor: const Color(0xFFFF9800)),
-        const SizedBox(height: 8),
-        _buildPayoutCard(context, icon: Icons.wb_sunny_rounded, trigger: 'Extreme Heat',
-            date: 'Oct 8, 2025', zone: userZone, amount: '₹920',
-            status: 'Scheduled', statusColor: const Color(0xFF2196F3)),
+        if (mockClaims.isEmpty && claims.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Center(
+              child: Text(
+                'No recent payouts to show.',
+                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+              ),
+            ),
+          )
+        else if (mockClaims.isNotEmpty)
+          ...mockClaims.take(3).map((claim) {
+            IconData icon;
+            final type = claim.type.toLowerCase();
+            if (type.contains('rain')) {
+              icon = Icons.water_drop_rounded;
+            } else if (type.contains('heat')) {
+              icon = Icons.wb_sunny_rounded;
+            } else {
+              icon = Icons.phonelink_off_rounded;
+            }
+
+            Color statusColor;
+            switch (claim.status.toUpperCase()) {
+              case 'APPROVED': statusColor = green; break;
+              case 'REJECTED': statusColor = Colors.red; break;
+              case 'PROCESSING': statusColor = const Color(0xFF2196F3); break;
+              default: statusColor = const Color(0xFFFF9800); break;
+            }
+
+            final dateStr = DateFormat('MMM d, yyyy').format(_parseDemoClaimDate(claim));
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildPayoutCard(
+                context, isDark, green, primary,
+                icon: icon,
+                trigger: claim.type,
+                date: dateStr,
+                zone: claim.zone.isNotEmpty ? claim.zone : userZone,
+                amount: '₹${claim.grossAmount ?? claim.amount}',
+                status: claim.status,
+                statusColor: statusColor,
+              ),
+            );
+          })
+        else
+          ...claims.take(3).map((claim) {
+            IconData icon;
+            if (claim.triggerType.contains('rain')) {
+              icon = Icons.water_drop_rounded;
+            } else if (claim.triggerType.contains('heat')) {
+              icon = Icons.wb_sunny_rounded;
+            } else {
+              icon = Icons.phonelink_off_rounded;
+            }
+            
+            Color statusColor;
+            switch (claim.status) {
+              case ClaimStatus.approved: statusColor = green; break;
+              case ClaimStatus.rejected: statusColor = Colors.red; break;
+              case ClaimStatus.processing: statusColor = const Color(0xFF2196F3); break;
+              default: statusColor = const Color(0xFFFF9800); break;
+            }
+
+            final dateStr = DateFormat('MMM d, yyyy').format(claim.createdAt);
+            
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildPayoutCard(
+                context, isDark, green, primary,
+                icon: icon, 
+                trigger: claim.displayLabel,
+                date: dateStr, 
+                zone: userZone, 
+                amount: '₹${claim.grossPayout}',
+                status: claim.status.displayLabel, 
+                statusColor: statusColor
+              ),
+            );
+          }),
       ],
     );
   }
 
-  Widget _buildPayoutCard(BuildContext context, {
+  Widget _buildPayoutCard(BuildContext context, bool isDark, Color green, Color primary, {
     required IconData icon,
     required String trigger,
     required String date,
@@ -295,22 +458,17 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     required String status,
     required Color statusColor,
   }) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final text   = theme.colorScheme.onSurface;
-    final sub    = theme.colorScheme.onSurface.withOpacity(0.5);
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final sub = isDark ? Colors.white70 : Colors.black54;
     final iconBg = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F4EF);
-    final green  = theme.colorScheme.primary;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
       ),
       child: Row(
         children: [
@@ -347,18 +505,16 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildUpgradeNudge(BuildContext context) {
-    final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final green  = theme.colorScheme.primary;
-    final text   = theme.colorScheme.onSurface;
+  Widget _buildUpgradeNudge(BuildContext context, bool isDark, Color green, Color primary) {
+    final text = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardBg,
         border: Border.all(color: green.withOpacity(isDark ? 0.4 : 1.0)),
         borderRadius: BorderRadius.circular(16),
       ),

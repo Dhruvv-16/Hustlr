@@ -1,204 +1,130 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// If your services are directly inside lib/services:
 import '../../../services/mock_data_service.dart';
 
+/// Shows the demo control panel bottom sheet.
 void showDemoPanel(BuildContext context) {
   showModalBottomSheet(
     context: context,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) {
-      final mockData = Provider.of<MockDataService>(
-        context, listen: false);
-
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle bar
-            Center(
-              child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Title
-            const Text(
-              "Demo Controls",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const Text(
-              "Internal use only — tap to simulate disruptions",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-
-            // Rain button
-            _DemoButton(
-              icon: Icons.water_drop,
-              label: "Trigger Rain Disruption",
-              subtitle: "Simulates 67mm rainfall → ₹595 payout",
-              color: const Color(0xFF1976D2),
-              bgColor: const Color(0xFFE3F2FD),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerRainDisruption();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "🌧 Rain disruption detected — claim processing"),
-                    backgroundColor: Color(0xFF1976D2),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // Downtime button
-            _DemoButton(
-              icon: Icons.cloud_off,
-              label: "Trigger Platform Downtime",
-              subtitle: "Simulates Zepto outage → ₹280 payout",
-              color: const Color(0xFF00897B),
-              bgColor: const Color(0xFFE0F2F1),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerPlatformDowntime();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "📵 Platform downtime detected — claim processing"),
-                    backgroundColor: Color(0xFF00897B),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // Heat button
-            _DemoButton(
-              icon: Icons.thermostat,
-              label: "Trigger Extreme Heat",
-              subtitle: "Simulates 43°C heatwave → ₹210 payout",
-              color: const Color(0xFFF57C00),
-              bgColor: const Color(0xFFFFF8E1),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.triggerExtremeHeat();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "🌡 Extreme heat detected — claim processing"),
-                    backgroundColor: Color(0xFFF57C00),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // Reset button
-            _DemoButton(
-              icon: Icons.refresh,
-              label: "Reset Demo",
-              subtitle: "Restores all data to default state",
-              color: Colors.grey,
-              bgColor: const Color(0xFFF3F4F6),
-              onTap: () {
-                Navigator.pop(context);
-                mockData.resetDemo();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Demo reset to default state"),
-                    backgroundColor: Colors.grey,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      );
-    },
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => const _DemoControlPanel(),
   );
 }
 
-class _DemoButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final Color color;
-  final Color bgColor;
-  final VoidCallback onTap;
+class _DemoControlPanel extends StatefulWidget {
+  const _DemoControlPanel();
 
-  const _DemoButton({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.bgColor,
-    required this.onTap,
-  });
+  @override
+  State<_DemoControlPanel> createState() => _DemoControlPanelState();
+}
+
+class _DemoControlPanelState extends State<_DemoControlPanel> {
+  bool _isTriggering = false;
+
+  Future<void> _trigger(void Function(MockDataService) action) async {
+    if (_isTriggering) return;
+    setState(() => _isTriggering = true);
+    try {
+      final svc = context.read<MockDataService>();
+      action(svc);
+      await Future.delayed(const Duration(milliseconds: 300));
+    } finally {
+      if (mounted) setState(() => _isTriggering = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: const Border(top: BorderSide(color: Color(0xFF10B981), width: 2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const Text(
+            '🎮  Demo Controls',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Manrope'),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Trigger live claim scenarios for the demo presentation.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.5), fontFamily: 'Manrope'),
+          ),
+          const SizedBox(height: 20),
+
+          _demoButton(context, '🌧  Rain Disruption', 'Triggers ₹120 parametric payout', const Color(0xFF3B82F6),
+              () => _trigger((s) => s.triggerRainDisruption())),
+          const SizedBox(height: 10),
+          _demoButton(context, '🌡  Extreme Heat', 'Triggers ₹130 parametric payout', const Color(0xFFF59E0B),
+              () => _trigger((s) => s.triggerExtremeHeat())),
+          const SizedBox(height: 10),
+          _demoButton(context, '📱  Platform Downtime', 'Triggers ₹140 parametric payout', const Color(0xFF8B5CF6),
+              () => _trigger((s) => s.triggerPlatformDowntime())),
+          const SizedBox(height: 20),
+
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.onSurface.withOpacity(0.6),
+              side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.15)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text('Close', style: TextStyle(fontFamily: 'Manrope')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _demoButton(BuildContext context, String title, String subtitle, Color color, VoidCallback onTap) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: _isTriggering ? null : onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: bgColor,
+          color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Row(
           children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: color,
-                    ),
-                  ),
-                  Text(subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  Text(title, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Manrope')),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: Color(0xFF8B949E), fontSize: 11, fontFamily: 'Manrope')),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: color),
+            if (_isTriggering)
+              SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: color, strokeWidth: 2))
+            else
+              Icon(Icons.play_circle_outline_rounded, color: color, size: 22),
           ],
         ),
       ),

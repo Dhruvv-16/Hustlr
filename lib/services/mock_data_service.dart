@@ -269,12 +269,12 @@ class MockDataService extends ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────────────
 
   WorkerModel worker = WorkerModel(
-    id: "HS-9821",
-    name: "Karthik",
-    platform: "Zepto",
-    city: "Chennai",
-    zone: "Adyar Dark Store Zone",
-    weeklyIncomeEstimate: 4200,
+    id: '',
+    name: '',
+    platform: '',
+    city: '',
+    zone: '',
+    weeklyIncomeEstimate: 0,
   );
 
   PolicyModel activePolicy = PolicyModel(
@@ -344,12 +344,12 @@ class MockDataService extends ChangeNotifier {
   NudgeModel get currentNudge => nudges[currentNudgeIndex];
 
   bool showShadowNudge = true;
-  int missedAmount = 680;
+  int missedAmount = 220;
   int missedEventsCount = 2;
 
   List<ShadowEventModel> shadowEvents = [
-    ShadowEventModel(triggerIcon: "rain", triggerName: "Rain Disruption", date: "Oct 12, 2025", claimableAmount: 450),
-    ShadowEventModel(triggerIcon: "downtime", triggerName: "Platform Downtime", date: "Oct 8, 2025", claimableAmount: 230),
+    ShadowEventModel(triggerIcon: "rain", triggerName: "Rain Disruption", date: "Oct 12, 2025", claimableAmount: 120),
+    ShadowEventModel(triggerIcon: "downtime", triggerName: "Platform Downtime", date: "Oct 8, 2025", claimableAmount: 100),
   ];
 
   ZoneRiskModel zoneRisk = ZoneRiskModel(
@@ -380,20 +380,51 @@ class MockDataService extends ChangeNotifier {
   /// Populate from local storage (fast) then hydrate from API (async).
   void syncWithStorage() {
     final box = Hive.box('appData');
-    final name = box.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? "Karthik";
-    final city = box.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? "Chennai";
-    final zone = box.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? "Adyar Dark Store Zone";
-    final platform = box.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? "Zepto";
+    final name = box.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? '';
+    final city = box.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? '';
+    final zone = box.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? '';
+    final platform = box.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? '';
     final userId = StorageService.userId;
 
     worker = WorkerModel(
-      id: userId.isNotEmpty ? userId : "HS-9821",
+      id: userId.isNotEmpty ? userId : '',
       name: name,
       platform: platform,
       city: city,
       zone: zone,
-      weeklyIncomeEstimate: 4200,
+      weeklyIncomeEstimate: 0,
     );
+
+    // Restore persisted demo state (survives app restarts)
+    final savedBalance = box.get('demo_walletBalance');
+    final savedSavings = box.get('demo_monthlySavings');
+    final savedTx = box.get('demo_transactions');
+    final savedClaims = box.get('demo_claims');
+
+    if (savedBalance != null) walletBalance = savedBalance as int;
+    if (savedSavings != null) monthlySavings = savedSavings as int;
+    if (savedTx != null) {
+      transactions = (savedTx as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    if (savedClaims != null) {
+      final rawClaims = savedClaims as List;
+      claims = rawClaims.map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return ClaimModel(
+          id: m['id'] as String,
+          type: m['type'] as String,
+          date: m['date'] as String,
+          amount: m['amount'] as int,
+          status: m['status'] as String,
+          zone: m['zone'] as String,
+          icon: m['icon'] as String,
+          grossAmount: m['grossAmount'] as int?,
+          immediateAmount: m['immediateAmount'] as int?,
+          heldAmount: m['heldAmount'] as int?,
+        );
+      }).toList();
+    }
+
     notifyListeners();
 
     // Always load live zone data (AQI, Weather, NewsAPI) — no login required
@@ -403,6 +434,26 @@ class MockDataService extends ChangeNotifier {
     if (userId.isNotEmpty) {
       _hydrateFromApi(userId);
     }
+  }
+
+  /// Persist demo state to Hive so it survives hot restarts.
+  Future<void> _persistDemoState() async {
+    final box = Hive.box('appData');
+    await box.put('demo_walletBalance', walletBalance);
+    await box.put('demo_monthlySavings', monthlySavings);
+    await box.put('demo_transactions', transactions);
+    await box.put('demo_claims', claims.map((c) => {
+      'id': c.id,
+      'type': c.type,
+      'date': c.date,
+      'amount': c.amount,
+      'status': c.status,
+      'zone': c.zone,
+      'icon': c.icon,
+      'grossAmount': c.grossAmount,
+      'immediateAmount': c.immediateAmount,
+      'heldAmount': c.heldAmount,
+    }).toList());
   }
 
   /// Loads live zone-specific data (AQI, Weather, Bandh/NLP) — no userId needed.
@@ -509,41 +560,47 @@ class MockDataService extends ChangeNotifier {
 
   Future<void> _hydrateFromApi(String userId) async {
     try {
+      final box = Hive.box('appData');
+      final hasDemoData = box.containsKey('demo_walletBalance');
+
       // Fetch wallet
       final wallet = await ApiService.instance.getWallet(userId);
-      walletBalance = (wallet['balance'] as num?)?.toInt() ?? 0;
-      monthlySavings = (wallet['total_payouts'] as num?)?.toInt() ?? 0;
-      totalPremiums = (wallet['total_premiums'] as num?)?.toInt() ?? 0;
-      final rawTx = wallet['transactions'] as List<dynamic>? ?? [];
-      transactions = rawTx.map((t) => {
-        'type': t['type'],
-        'title': t['description'] ?? (t['type'] == 'credit' ? 'Payout Credited' : 'Premium Deducted'),
-        'subtitle': t['reference'] ?? '',
-        'amount': (t['amount'] as num).toInt(),
-        'date': _formatDate(t['created_at'] as String?),
-      }).toList();
-
-      // Fetch claims
-      final rawClaims = await ApiService.getClaimsList(userId);
-      if (rawClaims.isNotEmpty) {
-        claims = rawClaims.map<ClaimModel>((c) {
-          final tranche1 = (c['tranche1'] as num?)?.toInt() ?? 0;
-          final tranche2 = (c['tranche2'] as num?)?.toInt() ?? 0;
-          final gross = (c['gross_payout'] as num?)?.toInt() ?? 0;
-          return ClaimModel(
-            id: c['id'] as String,
-            type: _triggerLabel(c['trigger_type'] as String),
-            date: _formatDate(c['created_at'] as String?),
-            amount: gross,
-            status: c['status'] as String,
-            zone: c['zone'] as String,
-            icon: _triggerIcon(c['trigger_type'] as String),
-            grossAmount: gross,
-            immediateAmount: tranche1,
-            heldAmount: tranche2,
-          );
+      // Don't overwrite demo state — demo claims/balance take priority for presentation
+      if (!hasDemoData) {
+        walletBalance = (wallet['balance'] as num?)?.toInt() ?? 0;
+        monthlySavings = (wallet['total_payouts'] as num?)?.toInt() ?? 0;
+        totalPremiums = (wallet['total_premiums'] as num?)?.toInt() ?? 0;
+        final rawTx = wallet['transactions'] as List<dynamic>? ?? [];
+        transactions = rawTx.map((t) => {
+          'type': t['type'],
+          'title': t['description'] ?? (t['type'] == 'credit' ? 'Payout Credited' : 'Premium Deducted'),
+          'subtitle': t['reference'] ?? '',
+          'amount': (t['amount'] as num).toInt(),
+          'date': _formatDate(t['created_at'] as String?),
         }).toList();
-      }
+
+        // Fetch claims
+        final rawClaims = await ApiService.getClaimsList(userId);
+        if (rawClaims.isNotEmpty) {
+          claims = rawClaims.map<ClaimModel>((c) {
+            final tranche1 = (c['tranche1'] as num?)?.toInt() ?? 0;
+            final tranche2 = (c['tranche2'] as num?)?.toInt() ?? 0;
+            final gross = (c['gross_payout'] as num?)?.toInt() ?? 0;
+            return ClaimModel(
+              id: c['id'] as String,
+              type: _triggerLabel(c['trigger_type'] as String),
+              date: _formatDate(c['created_at'] as String?),
+              amount: gross,
+              status: c['status'] as String,
+              zone: c['zone'] as String,
+              icon: _triggerIcon(c['trigger_type'] as String),
+              grossAmount: gross,
+              immediateAmount: tranche1,
+              heldAmount: tranche2,
+            );
+          }).toList();
+        }
+      } // end !hasDemoData guard
 
       // Fetch active policy
       final policy = await ApiService.getPolicyDocument(userId);
@@ -663,44 +720,49 @@ class MockDataService extends ChangeNotifier {
     ));
     notifyListeners();
 
-    if (userId.isEmpty) {
-      // No API: fallback to mock amounts so demo still works offline
-      Future.delayed(const Duration(seconds: 3), () {
-        const payout = 150;
-        claims.first.status = 'APPROVED';
-        if (claims.first.id == tempId) {
-          claims[0] = ClaimModel(
-            id: tempId, type: _triggerLabel(triggerType),
-            date: 'Just now', amount: payout, status: 'APPROVED',
-            zone: worker.zone, icon: _triggerIcon(triggerType),
-            grossAmount: payout, immediateAmount: (payout * 0.7).round(),
-            heldAmount: (payout * 0.3).round(),
-          );
-        }
-        walletBalance += payout;
-        monthlySavings += payout;
-        transactions.insert(0, {
-          'type': 'credit',
-          'title': '${_triggerLabel(triggerType)} Payout',
-          'subtitle': 'Auto-triggered · ${worker.zone}',
-          'amount': payout,
-          'date': 'Just now',
-        });
-        // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
-        onClaimApproved?.call(domain.Claim(
-          id: tempId,
-          userId: '',
-          triggerType: triggerType,
-          displayLabel: _triggerLabel(triggerType),
-          status: domain.ClaimStatus.approved,
-          grossPayout: payout,
-          tranche1: (payout * 0.7).round(),
-          tranche2: (payout * 0.3).round(),
-          zone: worker.zone,
-          createdAt: DateTime.now(),
-        ));
-        notifyListeners();
+    // Bypass real API for hackathon demo to ensure optimistic UI consistency
+    // Automatic instant payout in mock mode
+    if (userId.isEmpty || true) {
+      final payout = switch (triggerType) {
+        'rain_heavy' => 120,   // ₹40/hr × 3hrs = ₹120 (within Standard ₹150 daily cap)
+        'platform_outage' => 140, // ₹50/hr × 2.8hrs ≈ ₹140 (within Standard ₹150 daily cap)
+        'heat_severe' => 130,  // ₹45/hr × 2.9hrs ≈ ₹130 (within Standard ₹150 daily cap)
+        _ => 100,
+      };
+      claims.first.status = 'APPROVED';
+      if (claims.first.id == tempId) {
+        claims[0] = ClaimModel(
+          id: tempId, type: _triggerLabel(triggerType),
+          date: 'Just now', amount: payout, status: 'APPROVED',
+          zone: worker.zone, icon: _triggerIcon(triggerType),
+          grossAmount: payout, immediateAmount: (payout * 0.7).round(),
+          heldAmount: (payout * 0.3).round(),
+        );
+      }
+      walletBalance += payout;
+      monthlySavings += payout;
+      transactions.insert(0, {
+        'type': 'credit',
+        'title': '${_triggerLabel(triggerType)} Payout',
+        'subtitle': 'Auto-triggered · ${worker.zone}',
+        'amount': payout,
+        'date': 'Just now',
       });
+      // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
+      onClaimApproved?.call(domain.Claim(
+        id: tempId,
+        userId: '',
+        triggerType: triggerType,
+        displayLabel: _triggerLabel(triggerType),
+        status: domain.ClaimStatus.approved,
+        grossPayout: payout,
+        tranche1: (payout * 0.7).round(),
+        tranche2: (payout * 0.3).round(),
+        zone: worker.zone,
+        createdAt: DateTime.now(),
+      ));
+      _persistDemoState(); // ← save so it survives refresh
+      notifyListeners();
       return;
     }
 
@@ -834,6 +896,12 @@ class MockDataService extends ChangeNotifier {
     showPredictiveNudge = true;
     claims = [];
     transactions = [];
+    // Clear persisted demo state from Hive so restart also resets cleanly
+    final box = Hive.box('appData');
+    box.delete('demo_walletBalance');
+    box.delete('demo_monthlySavings');
+    box.delete('demo_transactions');
+    box.delete('demo_claims');
     notifyListeners();
     final userId = StorageService.userId;
     if (userId.isNotEmpty) _hydrateFromApi(userId);

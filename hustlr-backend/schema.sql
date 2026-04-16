@@ -30,6 +30,33 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ─────────────────────────────────────────────
+-- AUTH SESSIONS (single active session / user)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  phone          TEXT NOT NULL,
+  token_hash     TEXT NOT NULL UNIQUE,
+  device_id      TEXT DEFAULT NULL,
+  device_label   TEXT DEFAULT NULL,
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  revoked_reason TEXT DEFAULT NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  last_seen_at   TIMESTAMPTZ DEFAULT NOW(),
+  revoked_at     TIMESTAMPTZ DEFAULT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_active
+  ON auth_sessions (user_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_last_seen
+  ON auth_sessions (user_id, last_seen_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_single_active
+  ON auth_sessions (user_id)
+  WHERE is_active = TRUE;
+
+-- ─────────────────────────────────────────────
 -- RISK POOLS
 -- Separate pool per city + risk type
 -- Delhi → AQI pool, Mumbai → Rain pool etc.
@@ -510,9 +537,14 @@ CREATE TABLE IF NOT EXISTS circuit_breakers (
   daily_limit   INTEGER DEFAULT 500,
   tripped       BOOLEAN DEFAULT FALSE,
   tripped_at    TIMESTAMPTZ DEFAULT NULL,
+  reset_at      TIMESTAMPTZ DEFAULT NULL,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(zone, trigger_type)
 );
+
+-- Legacy DBs created before reset_at (tripBreaker upsert in circuit_breaker.js)
+ALTER TABLE circuit_breakers
+  ADD COLUMN IF NOT EXISTS reset_at TIMESTAMPTZ DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS pool_health (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -529,4 +561,35 @@ ALTER TABLE claims
   ADD COLUMN IF NOT EXISTS payout_attempts  INTEGER DEFAULT 0,
   ADD COLUMN IF NOT EXISTS payout_error     TEXT DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS payout_failed_at TIMESTAMPTZ DEFAULT NULL;
+
+-- ─────────────────────────────────────────────
+-- Phase 2 additions (also in schema_phase2.sql — keep in sync)
+-- device_fingerprint_events + RLS for service/anon clients
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS device_fingerprint_events (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fingerprint_hash   TEXT NOT NULL,
+  zone               TEXT,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dfe_hash_created
+  ON device_fingerprint_events (fingerprint_hash, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dfe_zone_created
+  ON device_fingerprint_events (zone, created_at DESC)
+  WHERE zone IS NOT NULL;
+
+ALTER TABLE device_fingerprint_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all" ON device_fingerprint_events;
+CREATE POLICY "allow_all" ON device_fingerprint_events FOR ALL USING (true);
+
+ALTER TABLE circuit_breakers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all" ON circuit_breakers;
+CREATE POLICY "allow_all" ON circuit_breakers FOR ALL USING (true);
+
+ALTER TABLE pool_health ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all" ON pool_health;
+CREATE POLICY "allow_all" ON pool_health FOR ALL USING (true);
 

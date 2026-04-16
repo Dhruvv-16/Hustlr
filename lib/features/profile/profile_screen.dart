@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -5,6 +6,9 @@ import 'package:provider/provider.dart';
 
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
+import '../../services/app_events.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/biometric_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../widgets/language_switcher.dart';
@@ -12,6 +16,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
+import '../../widgets/demo_controls_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,12 +28,33 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _worker;
   Map<String, dynamic>? _policy;
+  Map<String, dynamic>? _trustProfile = {
+    'score': 124,
+    'tier': {'label': '🥇 Gold'},
+    'clean_weeks': 3,
+    'cashback_earned': 49,
+  };
   bool _isLoading = true;
+  bool _biometricEnabled = false;
+  StreamSubscription<void>? _policySub;
+  StreamSubscription<void>? _claimSub;
+  StreamSubscription<void>? _walletSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadData());
+    _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadData());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _policySub?.cancel();
+    _claimSub?.cancel();
+    _walletSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -39,28 +65,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     
     try {
-      final worker = await ApiService.instance.getWorkerById(userId);
+      final rawWorker = await ApiService.instance.getWorkerById(userId);
+      final worker = Map<String, dynamic>.from(rawWorker);
+      
+      final localName = await StorageService.instance.getUserName();
+      final localPhone = await StorageService.instance.getPhone();
+      final localZone = await StorageService.instance.getUserZone();
+      final localCity = await StorageService.instance.getUserCity();
+      
+      worker['name'] = worker['name'] ?? localName;
+      worker['phone'] = worker['phone'] ?? localPhone;
+      worker['zone'] = worker['zone'] ?? localZone;
+      worker['city'] = worker['city'] ?? localCity;
+
       Map<String, dynamic>? policy;
+      Map<String, dynamic>? trustProfile;
       try {
         final policyData = await ApiService.instance.getPolicy(userId);
         policy = policyData['policy'] as Map<String, dynamic>?;
       } catch (_) {}
       
+      try {
+        trustProfile = await ApiService.instance.getTrustProfile(userId);
+      } catch (_) {}
+      
+      final prefs = await SharedPreferences.getInstance();
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
       if (mounted) {
         setState(() {
           _worker = worker;
           _policy = policy;
+          _trustProfile = trustProfile ?? _trustProfile; // fallback if fails completely
+          _biometricEnabled = bioEnabled;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
@@ -91,9 +134,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        l10n.profile_title.toUpperCase(),
-                        style: theme.textTheme.displayMedium,
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
+                            onPressed: () {
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/dashboard');
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.profile_title.toUpperCase(),
+                            style: theme.textTheme.displayMedium,
+                          ),
+                        ],
                       ),
                       // Mode Toggle
                       const _ThemeToggle(),
@@ -138,7 +196,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (Icons.calendar_today_rounded, l10n.profile_validity, _policy != null ? 'Active' : 'N/A'),
                       ],
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 32),
+
+                    // ── Security ──────────────────────────────────────────────
+                    Text('SECURITY', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: isDark ? [] : [
+                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+                        ],
+                      ),
+                      child: FutureBuilder<bool>(
+                        future: BiometricService.instance.isAvailable(),
+                        builder: (context, snap) {
+                          if (!(snap.data ?? false)) return const SizedBox.shrink();
+                          return SwitchListTile(
+                            title: const Text('Fingerprint Lock', style: TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Require biometrics on app open', style: TextStyle(fontSize: 12)),
+                            value: _biometricEnabled,
+                            activeColor: const Color(0xFF2E7D32),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            onChanged: (val) async {
+                              if (val) {
+                                final result = await BiometricService.instance.authenticate(
+                                  reason: 'Enable fingerprint lock for Hustlr');
+                                if (!result.success) return;
+                              }
+                              setState(() => _biometricEnabled = val);
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool('biometric_enabled', val);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 32),
 
                     // ── Language Switcher ───────────────────────────────────────
                     Container(
@@ -202,6 +297,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => const DemoControlsSheet(),
+                          );
+                        },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B5E20).withOpacity(0.2) : const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.build_circle_rounded, color: Color(0xFF3FFF8B), size: 24),
+                            const SizedBox(width: 16),
+                            const Expanded(child: Text("Developer: Demo Controls", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
+                            const Icon(Icons.chevron_right_rounded, color: Color(0xFF3FFF8B)),
+                          ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 24),
 
                     // ── Logout ────────────────────────────────────────────
@@ -211,7 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () async {
                           await AuthService.logout();
                           if (context.mounted) {
-                            context.go('/auth/phone');
+                            context.go('/login');
                           }
                         },
                         child: Container(

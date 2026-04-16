@@ -1,41 +1,67 @@
 /*
-  ACTUARIAL PRICING MODEL — Updated from image-validated model
-  Formula: Premium = (Trigger Probability × Avg Daily Income Lost × Exposed Days) ÷ Target BCR
+  ACTUARIAL PRICING MODEL — Subsidised Entry, Sustainable at Scale
+  Guidewire formula: Trigger Probability × Avg Income Lost × Weekly Exposed Days ÷ Target BCR
 
-  Basic Shield:    (0.18 × ₹420 × 1.4 days) ÷ 0.62 = ₹170 pure → 20% load → ₹35/wk
-  Standard Shield: (0.27 × ₹420 × 1.8 days) ÷ 0.63 = ₹325 pure → 18% load → ₹59/wk
-  Full Shield:     (0.35 × ₹420 × 2.1 days) ÷ 0.65 = ₹474 pure → 17% load → ₹79/wk
+  Basic Shield:    0.18 × ₹420 × 0.33d/wk ÷ 0.62 = ₹40 pure → 20% load → ₹35/wk  (27% subsidy)
+  Standard Shield: 0.27 × ₹420 × 0.50d/wk ÷ 0.63 = ₹90 pure → 18% load → ₹49/wk  (54% subsidy)
+  Full Shield:     0.35 × ₹420 × 0.65d/wk ÷ 0.65 = ₹147 pure → 17% load → ₹79/wk (54% subsidy)
 
-  Avg daily income used: ₹420 (validated Chennai gig worker data)
-  Old ₹29/wk would have produced BCR ~0.83 → suspend-enrollment threshold.
+  Cap discipline: All plans maintain 6–7× cap-to-premium ratio.
+    Basic:    ₹210 ÷ ₹35 = 6.0×
+    Standard: ₹340 ÷ ₹49 = 6.9×
+    Full:     ₹500 ÷ ₹79 = 6.3×
+
+  Previous ₹900 Full Shield cap produced 11.4× — unsustainably high, removed.
+  Compound multipliers accelerate payout velocity, never the cap ceiling.
 */
 const PLAN_CONFIG = {
   basic:    {
     base: 35,
-    max_payout: 400,         // weekly cap
-    daily_cap: 120,          // max payout per day
+    max_payout: 210,         // weekly cap ₹210/week (6.0× premium)
+    daily_cap: 100,          // max payout per day ₹100/day
     name: 'Basic Shield',
     target_bcr: 0.62,
-    covered_triggers: ['rain_heavy', 'rain_extreme', 'heat_severe'],
+    multiplier: 6.0,
+    covered_triggers: ['rain_heavy', 'heat_severe'],
   },
   standard: {
-    base: 59,
-    max_payout: 500,         // weekly cap
-    daily_cap: 150,          // max payout per day
+    base: 49,
+    max_payout: 340,         // weekly cap ₹340/week (6.9× premium)
+    daily_cap: 150,          // max payout per day ₹150/day
     name: 'Standard Shield',
     target_bcr: 0.63,
-    covered_triggers: ['rain_heavy', 'rain_extreme', 'heat_severe', 'aqi_hazardous', 'platform_outage', 'bandh'],
+    multiplier: 6.9,
+    covered_triggers: ['rain_heavy', 'rain_extreme', 'heat_severe', 'aqi_hazardous', 'platform_outage', 'bandh', 'internet_blackout'],
   },
   full:     {
     base: 79,
-    max_payout: 650,         // weekly cap
-    daily_cap: 200,          // max payout per day
+    max_payout: 500,         // weekly cap ₹500/week (6.3× premium) — HARD CEILING, zero exceptions
+    daily_cap: 250,          // max payout per day ₹250/day
     name: 'Full Shield',
     target_bcr: 0.65,
-    covered_triggers: 'all', // all 9 triggers + compound bonus
-    compound_bonus: true,
+    multiplier: 6.3,
+    covered_triggers: 'all', // all 9 triggers + compound acceleration
+    compound_bonus: true,    // compound = cap acceleration, NOT cap lifting
   },
 };
+
+// ── Add-on tier-lock requirements ────────────────────────────────────────────
+// An add-on can only be purchased if the worker's BASE plan meets the minimum.
+// This is enforced at policy creation AND at add-on purchase endpoints.
+// Add-ons are QUARTERLY commitments — not weekly toggles.
+const ADD_ON_TIER_REQUIREMENTS = {
+  cyclone_cover:      'full',      // Cyclone: ₹80/hr, ₹250/day — Full Shield only (canonical)
+  internet_blackout:  'standard',  // Blackout: ₹45/hr — Standard+ only
+  curfew_strike:      'standard',  // Bandh/curfew: ₹55/hr — Standard+ only
+  accident_blockspot: 'standard',  // Accident blockspot — Standard+ only
+  traffic_congestion: 'full',      // Heavy traffic — Full Shield only (trigger itself is Full Shield)
+  election_day:       'basic',     // Election day: available to all plans
+  app_downtime:       'basic',     // App downtime: Basic only (already included in Standard+)
+};
+
+// Plan tier order for comparison (used in add-on eligibility checks)
+const PLAN_TIER_RANK = { basic: 1, standard: 2, full: 3 };
+
 
 // TIER FACTORS for ISS multiplier (plan tier multiplier)
 // Basic = 1.0×, Standard = 1.25×, Full = 1.5× (+ 1.2-1.3× on compound)
@@ -44,7 +70,7 @@ module.exports = {
   PLAN_CONFIG,
 
   // Tier factors for ISS-based premium multiplier
-  TIER_FACTORS: { basic: 1.0, standard: 1.25, full: 1.5 },
+  TIER_FACTORS: { basic: 1.0, standard: 1.0, full: 1.0 },
 
   // ── Per-trigger hourly rates (from actuarial model image) ─────────────────
   // Payout = hourly_rate × disruption_hours (capped by daily_cap)
@@ -60,7 +86,10 @@ module.exports = {
     cyclone_landfall:  80,   // IMD Cat 1-5 Oct-Dec · 0.4×/yr · Critical
   },
 
-  // ── Per-trigger daily payout caps ────────────────────────────────────────
+  // ── Per-trigger daily payout caps (trigger-level maximums) ─────────────────────
+  // NOTE: Plan-level daily caps in PLAN_CONFIG always take precedence.
+  // If trigger cap > plan daily cap → plan daily cap applies.
+  // Cyclone ₹250/day is only achievable at Full Shield (₹250 plan daily_cap).
   DAILY_CAPS: {
     rain_heavy:        120,
     rain_extreme:      200,
@@ -70,7 +99,7 @@ module.exports = {
     bandh:             150,
     traffic_severe:    80,
     internet_blackout: 110,   // 2-hour cap built in
-    cyclone_landfall:  300,
+    cyclone_landfall:  250,   // Full Shield only. Basic gets ₹100/day (plan cap wins).
   },
 
   // ── Trigger frequencies (events/year in Chennai) ─────────────────────────
@@ -87,11 +116,14 @@ module.exports = {
   },
 
   // ── Compound trigger bonuses (Full Shield only) ───────────────────────────
+  // RULE: Compound multipliers increase payout VELOCITY, not the cap ceiling.
+  // The Full Shield ₹500/week cap is an ABSOLUTE hard ceiling. Zero exceptions.
+  // 130% on Extreme Rain means worker hits ₹500 FASTER — in ~6hrs not ~8hrs.
   COMPOUND_BONUSES: {
-    'rain_heavy+platform_outage': { multiplier: 1.0, type: 'additive', note: '100% of both rates, no cap overlap' },
-    'cyclone_landfall+bandh':     { multiplier: 1.2, type: 'multiplicative', note: '20% bonus on top cyclone cap' },
-    'heat_severe+aqi_hazardous':  { multiplier: 1.1, type: 'multiplicative', note: '10% bonus on higher rate' },
-    'rain_extreme+internet_blackout': { multiplier: 1.3, type: 'multiplicative', weekly_cap_override: 800, note: 'Catastrophic — weekly cap lifted to ₹800' },
+    'rain_heavy+platform_outage': { multiplier: 1.0, type: 'additive',       note: '100% of both rates simultaneously' },
+    'cyclone_landfall+bandh':     { multiplier: 1.2, type: 'multiplicative', note: '120% on cyclone rate — cap still ₹500' },
+    'heat_severe+aqi_hazardous':  { multiplier: 1.1, type: 'multiplicative', note: '110% on higher rate — cap still ₹500' },
+    'rain_extreme+internet_blackout': { multiplier: 1.3, type: 'multiplicative', note: 'Catastrophic — 130% accelerates to ₹500 cap faster. NO cap lift.' },
   },
 
   // ── Shift-hour payout multipliers ────────────────────────────────────────
@@ -110,18 +142,24 @@ module.exports = {
   },
 
   // ── Add-on pricing ────────────────────────────────────────────────────────
+  // All add-ons are QUARTERLY commitments (13 weeks), not weekly toggles.
+  // Cannot be activated within 72hrs of IMD alert or 48hrs of known civil event.
   ADDONS: {
-    cyclone_cover:   { weekly: 20, note: 'Oct–Dec season only. 0.04×/yr, ₹300/day payout.' },
-    curfew_strike:   { weekly: 12, note: 'NewsAPI NLP trigger. ~3 events/yr Chennai avg.' },
-    election_day:    { weekly: 8,  note: 'Fixed event calendar. Low adverse selection risk.' },
-    app_downtime:    { weekly: 10, note: 'Basic plan only. Already included in Standard+.' },
+    cyclone_cover:      { weekly: 20, min_plan: 'full',     note: 'Full Shield only. Oct–Dec season. ₹250/day cap. 0.4×/yr.' },
+    curfew_strike:      { weekly: 12, min_plan: 'standard', note: 'Standard+ only. NewsAPI NLP. ~3 events/yr Chennai.' },
+    internet_blackout:  { weekly: 18, min_plan: 'standard', note: 'Standard+ only. ₹45/hr. 2×/yr. Ookla+TRAI.' },
+    accident_blockspot: { weekly: 15, min_plan: 'standard', note: 'Standard+ only. Tier 1/2/3 hotspot corridors.' },
+    traffic_congestion: { weekly: 15, min_plan: 'full', note: 'Full Shield only. ₹30/hr. Speed 40% below baseline ≥45min.' },
+    election_day:       { weekly: 8,  min_plan: 'basic',    note: 'All plans. Fixed calendar. Low adverse selection risk.' },
+    app_downtime:       { weekly: 10, min_plan: 'basic',    note: 'Basic only. Platform outage >60%. Already in Standard+.' },
   },
 
-  // ── Worker activity loading ───────────────────────────────────────────────
+  // ── Worker activity tier underwriting ─────────────────────────────────────
+  // README canonical (min changed from 10 to 7 days per Guidewire mandate)
   ACTIVITY_LOADING: {
-    above_20_days:   1.00,  // standard rate
-    between_10_20:   1.08,  // +8% loading (less behavioral baseline)
-    below_10_days:   null,  // declined — insufficient fraud baseline
+    above_20_days:    1.00,  // standard rate — full behavioral baseline
+    between_7_20:     1.08,  // +8% loading — reduced behavioral baseline
+    below_7_days:     null,  // DECLINED — per Guidewire minimum activity mandate
   },
 
   // ── Monsoon season surcharge (Oct–Dec) ───────────────────────────────────

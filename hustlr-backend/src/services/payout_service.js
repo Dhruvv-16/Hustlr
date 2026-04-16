@@ -15,17 +15,20 @@ async function bumpPayoutAttempts(claimId) {
 }
 
 /**
- * When USE_REAL_PAYOUT=true and Razorpay keys exist, verifies REST credentials.
- * Full RazorpayX fund transfers need extra setup; wallet credit still runs on success.
+ * When USE_REAL_PAYOUT=true and PayPal keys exist, verifies REST credentials.
+ * Actual Paypal payout is disabled in sandbox demo; wallet credit still runs on success.
  */
-async function razorpayCredentialsOk() {
-  const id = process.env.RAZORPAY_KEY_ID;
-  const secret = process.env.RAZORPAY_KEY_SECRET;
+async function paypalCredentialsOk() {
+  const id = process.env.PAYPAL_CLIENT_ID;
+  const secret = process.env.PAYPAL_CLIENT_SECRET;
   if (!id || !secret) return false;
   try {
     const auth = Buffer.from(`${id}:${secret}`).toString('base64');
-    const res = await axios.get('https://api.razorpay.com/v1/payments?count=1', {
-      headers: { Authorization: `Basic ${auth}` },
+    const res = await axios.post('https://api-m.sandbox.paypal.com/v1/oauth2/token', 'grant_type=client_credentials', {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
       timeout: 12000,
       validateStatus: () => true,
     });
@@ -46,12 +49,12 @@ async function releasePayout({
 
   try {
     if (process.env.USE_REAL_PAYOUT === 'true') {
-      const gatewayOk = await razorpayCredentialsOk();
+      const gatewayOk = await paypalCredentialsOk();
       if (!gatewayOk) {
-        throw new Error('Razorpay API verification failed (check keys or network)');
+        throw new Error('PayPal API verification failed (check keys or network)');
       }
       console.log(
-        `[Payout] Razorpay credentials verified — crediting wallet (₹${amount}) claim=${claimId}`
+        `[Payout] PayPal sandbox credentials verified — crediting wallet (₹${amount}) claim=${claimId}`
       );
     }
 
@@ -116,4 +119,4 @@ async function releasePayout({
   }
 }
 
-module.exports = { releasePayout };
+module.exports = { releasePayout, paypalCredentialsOk };

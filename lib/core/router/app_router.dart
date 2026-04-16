@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
+import '../../models/claim.dart';
 
 import '../../features/splash/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_screen.dart';
+import '../../features/auth/step_up_auth_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/onboarding/kyc_data_consent_screen.dart';
 import '../../features/onboarding/onboarding_complete_screen.dart';
 import '../../features/onboarding/onboarding_carousel_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
@@ -15,18 +19,25 @@ import '../../features/policy/shadow_policy_screen.dart';
 import '../../features/policy/premium_breakdown_screen.dart';
 import '../../features/policy/payment_screen.dart';
 import '../../features/policy/compound_triggers_screen.dart';
+import '../../features/policy/insurance_compliance_screen.dart';
 import '../../features/claims/claims_screen.dart';
 import '../../features/claims/claim_detail_screen.dart';
 import '../../features/claims/manual_evidence_screen.dart';
 import '../../features/claims/claim_submitted_screen.dart';
 import '../../features/claims/auto_explanation_screen.dart';
+import '../../features/claims/appeal_claim_screen.dart';
+import '../../features/claims/manual_claim_camera_screen.dart';
+import '../../features/claims/manual_claim_review_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/wallet/analytics_dashboard_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
+import '../../features/support/chat_screen.dart';
+import '../../features/dashboard/risk_map_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/ml_tester_screen.dart';
+import '../../features/ml_live/ml_live_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../shared/widgets/bottom_nav_bar.dart';
 import '../services/storage_service.dart';
@@ -36,6 +47,7 @@ class AppRoutes {
   static const splash = '/';
   static const login = '/login';
   static const otp = '/otp';
+  static const kycConsent = '/kyc-consent';
   static const onboarding = '/onboarding';
   static const onboardingComplete = '/onboarding/complete';
   static const carousel = '/carousel';
@@ -46,6 +58,7 @@ class AppRoutes {
   static const premiumBreakdown = '/policy/premium';
   static const payment = '/policy/payment';
   static const compoundTriggers = '/policy/compound';
+  static const insuranceCompliance = '/policy/compliance';
   static const claims = '/claims';
   static const manualEvidence = '/claims/evidence';
   static const claimSubmitted = '/claims/submitted';
@@ -59,6 +72,13 @@ class AppRoutes {
   static const support = '/support';
   static const admin = '/admin';
   static const mlTester = '/admin/ml-tester';
+  static const mlLive = '/ml-live';
+  static const stepUpAuth = '/step-up-auth';
+  
+  static const supportChat = '/support/chat';
+  static const riskMap = '/dashboard/risk-map';
+  static const manualClaimCamera = '/claims/evidence/camera';
+  static const manualClaimReview = '/claims/evidence/review';
 }
 
 // ─── Initial Route Logic ─────────────────────────────────────────────────────
@@ -66,10 +86,11 @@ Future<String> _getInitialRoute() async {
   if (!Hive.isBoxOpen('appData')) return AppRoutes.splash;
   final isComplete = await StorageService.instance.isOnboardingComplete();
   final userId = await StorageService.instance.getUserId();
+  final sessionToken = await StorageService.instance.getSessionToken();
+  final hasSession = sessionToken != null && sessionToken.isNotEmpty;
   final box = Hive.box('appData');
   final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !hasSession) {
     return AppRoutes.login;
   }
   if (isComplete && userId != null) {
@@ -85,11 +106,12 @@ final GoRouter appRouter = GoRouter(
     if (state.uri.toString() == AppRoutes.splash) {
       final isOnboarded = await StorageService.instance.isOnboardingComplete();
       final userId = await StorageService.instance.getUserId();
+      final sessionToken = await StorageService.instance.getSessionToken();
+      final hasSession = sessionToken != null && sessionToken.isNotEmpty;
       if (!Hive.isBoxOpen('appData')) return null;
       final box = Hive.box('appData');
       final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-
-      if (!isLoggedIn) return AppRoutes.login;
+      if (!isLoggedIn || !hasSession) return AppRoutes.login;
       if (isOnboarded && userId != null) return AppRoutes.dashboard;
       return AppRoutes.carousel;
     }
@@ -109,7 +131,8 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.otp,
       builder: (context, state) {
         final phone = state.uri.queryParameters['phone'] ?? '';
-        return OTPScreen(phone: phone);
+        final verificationId = state.uri.queryParameters['verificationId'] ?? '';
+        return OTPScreen(phone: phone, verificationId: verificationId);
       },
     ),
     GoRoute(
@@ -117,7 +140,17 @@ final GoRouter appRouter = GoRouter(
       builder: (_, __) => const OnboardingCarouselScreen(),
     ),
     GoRoute(
+      path: AppRoutes.kycConsent,
+      builder: (_, __) => const KycDataConsentScreen(),
+    ),
+    GoRoute(
       path: AppRoutes.onboarding,
+      redirect: (context, state) {
+        if (StorageService.needsKycDataConsent) {
+          return AppRoutes.kycConsent;
+        }
+        return null;
+      },
       builder: (_, __) => const OnboardingScreen(),
     ),
     GoRoute(
@@ -140,7 +173,10 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.payment,
-          builder: (_, __) => const PaymentScreen(),
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return PaymentScreen(checkoutData: extra);
+          },
         ),
         GoRoute(
           path: AppRoutes.claims,
@@ -164,25 +200,53 @@ final GoRouter appRouter = GoRouter(
           builder: (_, __) => const CompoundTriggersScreen(),
         ),
         GoRoute(
+          path: AppRoutes.insuranceCompliance,
+          builder: (_, __) => const InsuranceComplianceScreen(),
+        ),
+        GoRoute(
           path: AppRoutes.manualEvidence,
           builder: (_, __) => const ManualEvidenceScreen(),
         ),
         GoRoute(
           path: AppRoutes.claimSubmitted,
           builder: (context, state) {
-            final data = state.extra as Map<String, dynamic>?;
-            return ClaimSubmittedScreen(claimData: data);
+            final extra = state.extra;
+            Map<String, dynamic>? claimData;
+            List<String>? imagePaths;
+            if (extra is Map<String, dynamic>) {
+              // New format: {'claim': {...}, 'imagePaths': [...]}
+              if (extra.containsKey('claim')) {
+                claimData = extra['claim'] as Map<String, dynamic>?;
+                imagePaths = (extra['imagePaths'] as List?)?.cast<String>();
+              } else {
+                // Old format: the claim map directly
+                claimData = extra;
+              }
+            }
+            return ClaimSubmittedScreen(claimData: claimData, imagePaths: imagePaths);
           },
         ),
         GoRoute(
           path: AppRoutes.autoExplanation,
-          builder: (_, __) => const AutoExplanationScreen(),
+          builder: (context, state) {
+            final extra = state.extra;
+            final Map<String, dynamic>? payload =
+                extra is Map<String, dynamic> ? extra : null;
+            return AutoExplanationScreen(extra: payload);
+          },
         ),
         GoRoute(
           path: '/claims/:id',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             return ClaimDetailScreen(claimId: id);
+          },
+        ),
+        GoRoute(
+          path: '/claims/:id/appeal',
+          builder: (context, state) {
+            final claim = state.extra as Claim;
+            return AppealClaimScreen(rejectedClaim: claim);
           },
         ),
         GoRoute(
@@ -209,6 +273,35 @@ final GoRouter appRouter = GoRouter(
           path: AppRoutes.support,
           builder: (_, __) => const SupportScreen(),
         ),
+        GoRoute(
+          path: AppRoutes.supportChat,
+          builder: (_, __) => const ChatScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.riskMap,
+          builder: (_, __) => const RiskMapScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.manualClaimCamera,
+          builder: (context, state) {
+            final type = state.uri.queryParameters['disruptionType'] ?? 'manual';
+            return ManualClaimCameraScreen(disruptionType: type);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.manualClaimReview,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            final type = extra?['disruptionType'] as String? ?? 'manual';
+            final images = extra?['images'] as List<dynamic>? ?? [];
+            final signal = extra?['signalStrength'] as int?;
+            return ManualClaimReviewScreen(
+              disruptionType: type,
+              capturedImages: images.cast<File>(),
+              signalStrength: signal,
+            );
+          },
+        ),
       ],
     ),
 
@@ -220,6 +313,24 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.mlTester,
       builder: (_, __) => const MlTesterScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.mlLive,
+      builder: (_, __) => const MLLiveScreen(),
+    ),
+
+    // ── Step-Up Biometric Auth ───────────────────────────────────────────────
+    GoRoute(
+      path: AppRoutes.stepUpAuth,
+      builder: (context, state) {
+        final reason = state.uri.queryParameters['reason'];
+        final requireTwoTier =
+            state.uri.queryParameters['requireTwoTier'] == 'true';
+        return StepUpAuthScreen(
+          triggerReason: reason,
+          requireTwoTier: requireTwoTier,
+        );
+      },
     ),
   ],
 );

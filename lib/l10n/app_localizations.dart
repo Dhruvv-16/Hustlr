@@ -226,6 +226,12 @@ abstract class AppLocalizations {
   /// **'Start Protection'**
   String get onboarding_submit;
 
+  /// No description provided for @onboarding_kyc_helper.
+  ///
+  /// In en, this message translates to:
+  /// **'Your platform worker ID (or linked ID) is used for KYC and to match your gig account. You already agreed to identity and ML checks on the consent screen.'**
+  String get onboarding_kyc_helper;
+
   /// No description provided for @onboarding_complete_title.
   ///
   /// In en, this message translates to:
@@ -745,7 +751,7 @@ abstract class AppLocalizations {
   /// No description provided for @wallet_title.
   ///
   /// In en, this message translates to:
-  /// **'Vault'**
+  /// **'Wallet'**
   String get wallet_title;
 
   /// No description provided for @wallet_balance.
@@ -1069,7 +1075,7 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_1_a.
   ///
   /// In en, this message translates to:
-  /// **'Claims are triggered automatically when a disruption is detected in your zone. You never need to file anything manually.'**
+  /// **'In parametric insurance, there is no filing, no investigation, and no approval. Claims trigger automatically when official thresholds are crossed (e.g., AQI > 300 via CPCB, or rain > 50mm). The worker does nothing.'**
   String get support_faq_1_a;
 
   /// No description provided for @support_faq_2_q.
@@ -1081,7 +1087,7 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_2_a.
   ///
   /// In en, this message translates to:
-  /// **'70% is credited immediately. The remaining 30% is released after a 48-hour fraud review on Tuesday night.'**
+  /// **'If your GPS cross-checks with your platform login data (proving you were active), funds are transferred directly to your UPI within 2 hours.'**
   String get support_faq_2_a;
 
   /// No description provided for @support_faq_3_q.
@@ -1095,6 +1101,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yes. Go to the Policy tab and tap Upgrade Plan to change your coverage tier.'**
   String get support_faq_3_a;
+
+  /// No description provided for @support_faq_4_q.
+  ///
+  /// In en, this message translates to:
+  /// **'How are the weekly premiums priced?'**
+  String get support_faq_4_q;
+
+  /// No description provided for @support_faq_4_a.
+  ///
+  /// In en, this message translates to:
+  /// **'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.'**
+  String get support_faq_4_a;
 
   /// No description provided for @support_raise_ticket.
   ///
@@ -1323,6 +1341,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No photo needed'**
   String get camera_no_photo;
+
+  /// No description provided for @kyc_consent_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Data consent & KYC'**
+  String get kyc_consent_title;
+
+  /// No description provided for @kyc_consent_intro.
+  ///
+  /// In en, this message translates to:
+  /// **'Before you create your profile, confirm how we use your data. This supports fair payouts and fraud prevention under Indian insurance and data protection norms.'**
+  String get kyc_consent_intro;
+
+  /// No description provided for @kyc_consent_location_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Location (GPS)'**
+  String get kyc_consent_location_title;
+
+  /// No description provided for @kyc_consent_location_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We use your device location to verify you are in a covered trigger zone when you are on shift and to reduce false claims. You can manage location in system settings.'**
+  String get kyc_consent_location_body;
+
+  /// No description provided for @kyc_consent_identity_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Selfie photos & identity checks'**
+  String get kyc_consent_identity_title;
+
+  /// No description provided for @kyc_consent_identity_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We capture photos only with your front (selfie) camera for face verification and liveness checks. Images may be processed by automated fraud and ML systems to protect the insurance pool.'**
+  String get kyc_consent_identity_body;
+
+  /// No description provided for @kyc_consent_payout_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Payouts & bank / UPI'**
+  String get kyc_consent_payout_title;
+
+  /// No description provided for @kyc_consent_payout_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We collect payment details (UPI or bank) to send payouts. Accurate KYC-linked information is required for disbursement.'**
+  String get kyc_consent_payout_body;
+
+  /// No description provided for @kyc_consent_view_compliance.
+  ///
+  /// In en, this message translates to:
+  /// **'Full regulatory summary'**
+  String get kyc_consent_view_compliance;
+
+  /// No description provided for @kyc_consent_continue.
+  ///
+  /// In en, this message translates to:
+  /// **'I agree — continue'**
+  String get kyc_consent_continue;
+
+  /// No description provided for @claim_camera_selfie_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Selfie camera only'**
+  String get claim_camera_selfie_title;
+
+  /// No description provided for @claim_camera_selfie_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence photos must be taken with your front camera so we can verify you fairly and reduce fraud. This step does not use the rear camera.'**
+  String get claim_camera_selfie_body;
+
+  /// No description provided for @claim_camera_selfie_cta.
+  ///
+  /// In en, this message translates to:
+  /// **'Open selfie camera'**
+  String get claim_camera_selfie_cta;
+
+  /// No description provided for @claim_camera_selfie_hint.
+  ///
+  /// In en, this message translates to:
+  /// **'If prompted, allow camera access. Good lighting helps verification.'**
+  String get claim_camera_selfie_hint;
+
+  /// No description provided for @step_up_face_selfie_notice.
+  ///
+  /// In en, this message translates to:
+  /// **'Front (selfie) camera only. Your photo is sent securely for liveness and gesture checks.'**
+  String get step_up_face_selfie_notice;
+
+  /// No description provided for @step_up_face_ml_notice.
+  ///
+  /// In en, this message translates to:
+  /// **'Automated checks (including ML) help prevent fraud and protect payouts.'**
+  String get step_up_face_ml_notice;
+
+  /// No description provided for @step_up_face_capturing.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening selfie camera…'**
+  String get step_up_face_capturing;
+
+  /// No description provided for @step_up_face_hold.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold still; face the camera.'**
+  String get step_up_face_hold;
 
   /// No description provided for @review_title.
   ///

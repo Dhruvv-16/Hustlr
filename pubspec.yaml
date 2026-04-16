@@ -44,12 +44,41 @@ dependencies:
   equatable: ^2.0.5
   supabase_flutter: ^2.8.3
   image_picker: ^1.2.1
+  permission_handler: ^12.0.1
+  firebase_auth: ^6.3.0
+  # Android Play Integrity token (server verifies via Google API)
+
+  # Biometric Authentication (Phase 3)
+  local_auth: ^2.3.0           # Native fingerprint / Face ID (Android + iOS)
+
+  # ML Kit Face Detection for local face recognition
+  google_mlkit_face_detection: ^0.11.0
+
+  # Razorpay Payment SDK (Sandbox mode for testing)
+  razorpay_flutter: ^1.3.5
+
+  # Background Geolocation + Anti-Spoofing (Phase 3)
+  flutter_foreground_task: ^8.15.0  # Native Android Foreground Service (MIT, free)
+  background_fetch: ^1.3.8
+  app_settings: ^5.1.1              # Deep-links to battery optimization settings
+
+  # 3D Risk Map
+  webview_flutter: ^4.10.0          # Renders Deck.gl H3 hexagon layer in-app
+  flutter_local_notifications: ^21.0.0
+  camera: ^0.12.0+1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.4.13
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icon.png"
+  min_sdk_size: 21
 
 flutter:
   generate: true
@@ -58,3 +87,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/lottie/
+    - assets/html/

@@ -9,7 +9,7 @@ import 'claims_state.dart';
 
 class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   final ApiService apiService;
-  final SupabaseClient supabase;
+  final SupabaseClient? supabase;
 
   /// Supabase real-time stream subscription for claim updates.
   StreamSubscription<List<Map<String, dynamic>>>? _claimsSubscription;
@@ -22,12 +22,14 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   /// a ClaimStatusUpdated event through the BLoC layer.
   void Function(ClaimStatusUpdated event)? onDemoClaimReady;
 
-  ClaimsBloc({required this.apiService, required this.supabase}) : super(const ClaimsState()) {
+  ClaimsBloc({required this.apiService, required this.supabase})
+      : super(const ClaimsState()) {
     on<LoadClaims>(_onLoadClaims);
     on<WatchClaims>(_onWatchClaims);
     on<ClaimStatusUpdated>(_onClaimStatusUpdated);
     on<RefreshWallet>(_onRefreshWallet);
     on<WithdrawFunds>(_onWithdrawFunds);
+    on<SubmitClaimAppeal>(_onSubmitAppeal);
   }
 
   /// Load a one-shot snapshot of claims + wallet. Does not start polling.
@@ -78,18 +80,19 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
     // Perform an immediate load before starting the stream.
     await _onLoadClaims(LoadClaims(event.userId), emit);
 
+    if (supabase == null) {
+      return;
+    }
+
     try {
-      final stream = supabase
+      final stream = supabase!
           .from('claims')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', event.userId);
+          .stream(primaryKey: ['id']).eq('user_id', event.userId);
 
       _claimsSubscription = stream.listen((payload) {
         if (payload.isEmpty || isClosed) return;
 
-        final freshClaims = payload
-            .map((c) => Claim.fromJson(c))
-            .toList();
+        final freshClaims = payload.map((c) => Claim.fromJson(c)).toList();
 
         // Detect status changes compared to current state.
         for (final fresh in freshClaims) {
@@ -169,6 +172,33 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
       emit(state.copyWith(
         status: LoadStatus.failure,
         errorMessage: _friendlyMessage(e),
+      ));
+    }
+  }
+
+  Future<void> _onSubmitAppeal(
+    SubmitClaimAppeal event,
+    Emitter<ClaimsState> emit,
+  ) async {
+    emit(state.copyWith(status: LoadStatus.loading));
+    try {
+      await apiService.submitClaimAppeal(
+        claimId: event.claimId,
+        workerId: event.workerId,
+        selectedReason: event.selectedReason,
+        additionalContext: event.additionalContext,
+      );
+      // Refresh claims list so the appealed claim shows updated status
+      final updatedData = await apiService.getClaims(event.workerId);
+      final rawClaims = updatedData['claims'] as List<dynamic>? ?? [];
+      final claims = rawClaims
+          .map((c) => Claim.fromJson(c as Map<String, dynamic>))
+          .toList();
+      emit(state.copyWith(status: LoadStatus.success, claims: claims));
+    } catch (e) {
+      emit(state.copyWith(
+        status: LoadStatus.failure,
+        errorMessage: 'Appeal could not be submitted. Please try again.',
       ));
     }
   }

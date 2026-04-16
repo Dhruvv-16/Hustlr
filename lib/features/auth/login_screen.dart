@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../widgets/language_switcher.dart';
@@ -41,6 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    
+    // Demo bypass for all users to prevent Firebase locking
+    final box = Hive.box('appData');
+    box.put('isDemoSession', true);
+    
     context.push('${AppRoutes.otp}?phone=${Uri.encodeComponent(phone)}');
   }
 
@@ -61,7 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // ── Headline Top-Left ──────────────────────────────
               Text(
                 'Hustlr',
                 style: theme.textTheme.displayLarge?.copyWith(

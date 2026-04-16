@@ -72,6 +72,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboarding_submit => 'Start Protection';
 
   @override
+  String get onboarding_kyc_helper =>
+      'Your platform worker ID (or linked ID) is used for KYC and to match your gig account. You already agreed to identity and ML checks on the consent screen.';
+
+  @override
   String get onboarding_complete_title => 'You\'re all set';
 
   @override
@@ -334,7 +338,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get claim_detail_download => 'Download Receipt';
 
   @override
-  String get wallet_title => 'Vault';
+  String get wallet_title => 'Wallet';
 
   @override
   String get wallet_balance => 'Available Balance';
@@ -498,14 +502,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get support_faq_1_a =>
-      'Claims are triggered automatically when a disruption is detected in your zone. You never need to file anything manually.';
+      'In parametric insurance, there is no filing, no investigation, and no approval. Claims trigger automatically when official thresholds are crossed (e.g., AQI > 300 via CPCB, or rain > 50mm). The worker does nothing.';
 
   @override
   String get support_faq_2_q => 'When will I receive my payout?';
 
   @override
   String get support_faq_2_a =>
-      '70% is credited immediately. The remaining 30% is released after a 48-hour fraud review on Tuesday night.';
+      'If your GPS cross-checks with your platform login data (proving you were active), funds are transferred directly to your UPI within 2 hours.';
 
   @override
   String get support_faq_3_q => 'Can I update my coverage?';
@@ -513,6 +517,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get support_faq_3_a =>
       'Yes. Go to the Policy tab and tap Upgrade Plan to change your coverage tier.';
+
+  @override
+  String get support_faq_4_q => 'How are the weekly premiums priced?';
+
+  @override
+  String get support_faq_4_a =>
+      'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.';
 
   @override
   String get support_raise_ticket => 'Raise a Ticket';
@@ -637,6 +648,68 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get camera_no_photo => 'No photo needed';
+
+  @override
+  String get kyc_consent_title => 'Data consent & KYC';
+
+  @override
+  String get kyc_consent_intro =>
+      'Before you create your profile, confirm how we use your data. This supports fair payouts and fraud prevention under Indian insurance and data protection norms.';
+
+  @override
+  String get kyc_consent_location_title => 'Location (GPS)';
+
+  @override
+  String get kyc_consent_location_body =>
+      'We use your device location to verify you are in a covered trigger zone when you are on shift and to reduce false claims. You can manage location in system settings.';
+
+  @override
+  String get kyc_consent_identity_title => 'Selfie photos & identity checks';
+
+  @override
+  String get kyc_consent_identity_body =>
+      'We capture photos only with your front (selfie) camera for face verification and liveness checks. Images may be processed by automated fraud and ML systems to protect the insurance pool.';
+
+  @override
+  String get kyc_consent_payout_title => 'Payouts & bank / UPI';
+
+  @override
+  String get kyc_consent_payout_body =>
+      'We collect payment details (UPI or bank) to send payouts. Accurate KYC-linked information is required for disbursement.';
+
+  @override
+  String get kyc_consent_view_compliance => 'Full regulatory summary';
+
+  @override
+  String get kyc_consent_continue => 'I agree — continue';
+
+  @override
+  String get claim_camera_selfie_title => 'Selfie camera only';
+
+  @override
+  String get claim_camera_selfie_body =>
+      'Evidence photos must be taken with your front camera so we can verify you fairly and reduce fraud. This step does not use the rear camera.';
+
+  @override
+  String get claim_camera_selfie_cta => 'Open selfie camera';
+
+  @override
+  String get claim_camera_selfie_hint =>
+      'If prompted, allow camera access. Good lighting helps verification.';
+
+  @override
+  String get step_up_face_selfie_notice =>
+      'Front (selfie) camera only. Your photo is sent securely for liveness and gesture checks.';
+
+  @override
+  String get step_up_face_ml_notice =>
+      'Automated checks (including ML) help prevent fraud and protect payouts.';
+
+  @override
+  String get step_up_face_capturing => 'Opening selfie camera…';
+
+  @override
+  String get step_up_face_hold => 'Hold still; face the camera.';
 
   @override
   String get review_title => 'Evidence Captured';

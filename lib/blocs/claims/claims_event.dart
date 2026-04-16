@@ -56,3 +56,20 @@ class WithdrawFunds extends ClaimsEvent {
   @override
   List<Object?> get props => [userId, amount];
 }
+
+class SubmitClaimAppeal extends ClaimsEvent {
+  final String claimId;
+  final String workerId;
+  final String selectedReason;
+  final String? additionalContext;
+
+  const SubmitClaimAppeal({
+    required this.claimId,
+    required this.workerId,
+    required this.selectedReason,
+    this.additionalContext,
+  });
+
+  @override
+  List<Object?> get props => [claimId, workerId, selectedReason, additionalContext];
+}

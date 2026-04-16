@@ -11,9 +11,12 @@ import 'core/theme/theme_provider.dart';
 
 import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'firebase_options.dart';
 import 'services/api_service.dart';
+import 'services/location_service.dart';
 import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
+import 'services/background_heartbeat_service.dart';
 import 'services/notification_service.dart';
 import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
@@ -24,44 +27,61 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/live_activity_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await Hive.initFlutter();
   final appBox = await Hive.openBox('appData');
 
   // Local storage must be ready before the router reads auth state
   await StorageService.init();
+  await ApiService.instance.restoreSessionTokenFromStorage();
 
   final localeProvider = LocaleProvider();
   await localeProvider.loadSavedLocale();
 
-  // Supabase initialization with placeholders for environment keys
-  await Supabase.initialize(
-    url: 'https://vmoihldysiswqzseyypn.supabase.co',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY', // Placeholder to be replaced
-  );
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  final hasSupabaseConfig = supabaseUrl.isNotEmpty &&
+      supabaseAnonKey.isNotEmpty &&
+      !supabaseAnonKey.contains('YOUR_');
 
-  // Firebase (messaging)
-  // Skip on Web and Windows because DefaultFirebaseOptions are missing for this demo
-  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+  if (hasSupabaseConfig) {
     try {
-      await Firebase.initializeApp();
-      NotificationService.initialize();
-
-      String? token = await FirebaseMessaging.instance.getToken();
-      print("FCM TOKEN: $token");
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
     } catch (e) {
-      print("Firebase initialization error: $e");
+      print('Supabase initialization skipped: $e');
     }
   } else {
-    print("Skipped Firebase initialization (Running on Web/Desktop for testing)");
+    print(
+        'Supabase initialization skipped: missing SUPABASE_URL / SUPABASE_ANON_KEY');
+  }
+
+  // Firebase (messaging & cross platform)
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await NotificationService.initialize();
+
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      String? token = await FirebaseMessaging.instance.getToken();
+      print("FCM TOKEN: $token");
+    }
+  } catch (e) {
+    print("Firebase initialization error: $e");
   }
 
   final claimsBloc = ClaimsBloc(
     apiService: ApiService.instance,
-    supabase: Supabase.instance.client,
+    supabase: hasSupabaseConfig ? Supabase.instance.client : null,
   );
 
   // Demo bridge: long-press disruption triggers flow through ClaimsBloc
@@ -73,6 +93,7 @@ Future<void> main() async {
 
   // Start API health monitoring (auto-refreshes every 60s)
   ApiHealthService.instance.startAutoRefresh();
+  await BackgroundHeartbeatService.initialize();
 
   runApp(
     MultiBlocProvider(
@@ -92,6 +113,7 @@ Future<void> main() async {
       ],
       child: MultiProvider(
         providers: [
+          ChangeNotifierProvider.value(value: LocationService.instance),
           ChangeNotifierProvider.value(value: mockService),
           ChangeNotifierProvider(create: (_) => ThemeProvider(appBox: appBox)),
           ChangeNotifierProvider.value(value: localeProvider),
@@ -109,26 +131,28 @@ class HustlrApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
-    
-    return MaterialApp.router(
-      title: 'Hustlr',
-      debugShowCheckedModeBanner: false,
-      locale: localeProvider.locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ta'),
-        Locale('hi'),
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeProvider.themeMode,
-      routerConfig: appRouter,
+
+    return LiveActivityOverlay(
+      child: MaterialApp.router(
+        title: 'Hustlr',
+        debugShowCheckedModeBanner: false,
+        locale: localeProvider.locale,
+        supportedLocales: const [
+          Locale('en'),
+          Locale('ta'),
+          Locale('hi'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeProvider.themeMode,
+        routerConfig: appRouter,
+      ),
     );
   }
 }

@@ -29,8 +29,8 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
     },
     {
       'icon': Icons.savings_rounded,
-      'title': 'Starts at ₹29/week.',
-      'subtitle': 'Less than a cup of chai. Cancel anytime.',
+      'title': 'Starts at ₹35/week.',
+      'subtitle': 'Affordable, transparent, and cancel anytime.',
       'chip': 'Pricing',
     },
     {
@@ -49,7 +49,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
 
   void _onNext() {
     if (_currentPage == _slides.length - 1) {
-      if (mounted) context.go(AppRoutes.onboarding);
+      if (mounted) context.go(AppRoutes.kycConsent);
     } else {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 600),

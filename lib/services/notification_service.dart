@@ -1,14 +1,54 @@
 import '../models/notification_model.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
   static final NotificationService instance = NotificationService._internal();
   NotificationService._internal();
 
-  static void initialize() {
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static int _localNotificationId = 0;
+  static bool _localReady = false;
+
+  static const AndroidNotificationChannel _defaultChannel =
+      AndroidNotificationChannel(
+    'hustlr_default_channel',
+    'Hustlr Alerts',
+    description: 'Important payment and protection alerts from Hustlr',
+    importance: Importance.high,
+  );
+
+  static Future<void> initialize() async {
+    if (!kIsWeb) {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosInit = DarwinInitializationSettings();
+      const settings =
+          InitializationSettings(android: androidInit, iOS: iosInit);
+      await _localNotifications.initialize(
+        settings: settings,
+      );
+
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(_defaultChannel);
+      await androidPlugin?.requestNotificationsPermission();
+
+      final iosPlugin = _localNotifications.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+
+      _localReady = true;
+    }
+
     // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("Foreground Notification: ${message.notification?.title}");
+      final title = message.notification?.title ?? 'Hustlr Update';
+      final body =
+          message.notification?.body ?? 'You have a new activity update.';
+      _showLocalNotification(title: title, body: body);
     });
 
     // When notification is clicked
@@ -25,6 +65,35 @@ class NotificationService {
         // Navigator.pushNamed(context, '/claims');
       }
     });
+  }
+
+  static Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+  }) async {
+    if (kIsWeb || !_localReady) return;
+    const androidDetails = AndroidNotificationDetails(
+      'hustlr_default_channel',
+      'Hustlr Alerts',
+      channelDescription:
+          'Important payment and protection alerts from Hustlr',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const details =
+        NotificationDetails(android: androidDetails, iOS: iosDetails);
+    await _localNotifications.show(
+      id: _localNotificationId++,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
   }
 
   final List<HustlrNotification> _notifications = [];
@@ -45,47 +114,133 @@ class NotificationService {
   }
 
   void addRainAlert(String zone) {
-    _notifications.insert(0, HustlrNotification(
+    final item = HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: 'rain_alert',
       title: 'Heavy rain expected in $zone',
       body: 'Your coverage auto-activates. No action needed.',
       color: 'blue',
       createdAt: DateTime.now(),
-    ));
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
   }
 
   void addClaimApproved(int tranche1Amount) {
-    _notifications.insert(0, HustlrNotification(
+    final item = HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: 'claim_approved',
       title: 'Claim approved — ₹$tranche1Amount credited',
       body: '70% of your payout has been added to your wallet.',
       color: 'green',
       createdAt: DateTime.now(),
-    ));
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addClaimCreated({required String triggerType, required int amount}) {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'claim_created',
+      title: '$triggerType — Claim Filed',
+      body: 'Your claim has been created. Awaiting verification.',
+      color: 'blue',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addWalletCredited({required int amount}) {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'wallet_credited',
+      title: '₹$amount credited to wallet',
+      body: 'Payout has been added to your wallet balance.',
+      color: 'green',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addDisruptionAlert({required String triggerType, required String zone}) {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'disruption_alert',
+      title: '$triggerType in $zone',
+      body: 'Disruption detected in your zone. Coverage may apply.',
+      color: 'amber',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
   }
 
   void addPremiumDeducted(int amount) {
-    _notifications.insert(0, HustlrNotification(
+    final item = HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: 'premium_deducted',
       title: 'Weekly premium deducted — ₹$amount',
       body: 'You are covered for this week. Stay safe.',
       color: 'green',
       createdAt: DateTime.now(),
-    ));
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
   }
 
   // Only call this when user has NO active policy
   void addMissedPayout(int amount) {
-    _notifications.insert(0, HustlrNotification(
+    final item = HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: 'missed_payout',
       title: 'You missed ₹$amount today',
       body: 'If you were covered, this would be in your wallet right now.',
       color: 'amber',
       createdAt: DateTime.now(),
-    ));
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addShiftPaused() {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'shift_paused',
+      title: 'GPS signal lost — coverage paused',
+      body: 'Re-enable location to resume your shift protection. Claims during this gap cannot be verified.',
+      color: 'red',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addShiftResumed() {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'shift_resumed',
+      title: 'Location restored — you\'re covered again',
+      body: 'Your shift protection has resumed. The gap has been logged.',
+      color: 'green',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
+  }
+
+  void addFraudAlert() {
+    final item = HustlrNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: 'fraud_alert',
+      title: 'Suspicious Location Activity',
+      body: 'Your coverage is temporarily suspended due to impossible GPS jumping (Velocity Fraud).',
+      color: 'red',
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, item);
+    _showLocalNotification(title: item.title, body: item.body);
   }
 }

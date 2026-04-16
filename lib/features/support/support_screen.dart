@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/router/app_router.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../l10n/app_localizations.dart';
-import 'chat_screen.dart';
 
 Future<void> _launch(String url) async {
   final uri = Uri.parse(url);
@@ -147,7 +147,7 @@ class _QuickHelpGrid extends StatelessWidget {
           subtitle: l10n.support_live_chat_sub.toUpperCase(),
           isGreenCaps: true,
           onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
+            context.push(AppRoutes.supportChat);
           },
         ),
         _GridCard(
@@ -156,7 +156,7 @@ class _QuickHelpGrid extends StatelessWidget {
           iconBg: lightBlue,
           title: l10n.support_call,
           subtitle: l10n.support_call_sub,
-          onTap: () => _launch('tel:+918001234567'),
+          onTap: () => _launch('tel:+911234567890'),
         ),
         _GridCard(
           icon: Icons.message_rounded,
@@ -164,7 +164,7 @@ class _QuickHelpGrid extends StatelessWidget {
           iconBg: lightGreen,
           title: l10n.support_whatsapp,
           subtitle: l10n.support_whatsapp_sub,
-          onTap: () => _launch('https://wa.me/918001234567'),
+          onTap: () => _launch('https://wa.me/911234567890'),
         ),
         _GridCard(
           icon: Icons.email_outlined,
@@ -272,6 +272,11 @@ class _FaqAccordion extends StatelessWidget {
             question: l10n.support_faq_3_q,
             answer: l10n.support_faq_3_a,
           ),
+          const SizedBox(height: 12),
+          _FaqItem(
+            question: l10n.support_faq_4_q,
+            answer: l10n.support_faq_4_a,
+          ),
         ],
       ),
     );
@@ -315,7 +320,7 @@ class _FaqItemState extends State<_FaqItem> {
           collapsedIconColor: chevron,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          onExpansionChanged: (val) => setState(() => _expanded = val),
+          onExpansionChanged: (_) {},
           children: [
             Text(widget.answer, style: TextStyle(fontSize: 13, color: aColor, height: 1.5)),
           ],

@@ -1,6 +1,12 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
-const { computeZoneDepth } = require('../services/zone_depth_service');
+const { computeZoneDepthAsync } = require('../services/zone_depth_service');
+const { estimateLocation } = require('../services/cell_tower_service');
+const {
+  recordFingerprint,
+  getFingerprintStats,
+} = require('../services/device_fingerprint_service');
+const { requireSession } = require('../middleware/session_auth');
 const router = express.Router();
 
 // GET /workers/phone/:phone
@@ -49,17 +55,6 @@ router.post('/register', async (req, res) => {
 
     if (error) throw error;
 
-    // Seed first premium debit in wallet
-    await supabase
-      .from('wallet_transactions')
-      .insert([{
-        user_id:     user.id,
-        amount:      49,
-        type:        'debit',
-        description: 'Standard Shield Premium — Week 1',
-        reference:   'onboarding',
-      }]);
-
     return res.status(201).json({ user });
 
   } catch (e) {
@@ -68,8 +63,55 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// POST /workers/zone-depth/compute — lat/lon → score (no DB write)
-router.post('/zone-depth/compute', (req, res) => {
+// POST /workers/cell-locate — OpenCelliD and/or Unwired Labs (see .env.example)
+router.post('/cell-locate', async (req, res) => {
+  try {
+    const result = await estimateLocation(req.body || {});
+    if (result.error) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// All routes below this line require an active single-session token.
+router.use(requireSession);
+
+// POST /workers/fingerprint — record device hash for cluster / fraud (Phase 2)
+router.post('/fingerprint', async (req, res) => {
+  try {
+    const { user_id, fingerprint_hash, zone } = req.body || {};
+    const out = await recordFingerprint(user_id, fingerprint_hash, zone);
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    return res.status(201).json(out);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /workers/fingerprint/stats — shared-hash clusters (judge / admin)
+router.get('/fingerprint/stats', async (req, res) => {
+  try {
+    const zone = req.query.zone || null;
+    const days = req.query.days != null ? parseInt(String(req.query.days), 10) : 7;
+    const limit = req.query.limit != null ? parseInt(String(req.query.limit), 10) : 30;
+    const stats = await getFingerprintStats({
+      zone: zone || null,
+      days: Number.isFinite(days) ? days : 7,
+      limit: Number.isFinite(limit) ? limit : 30,
+    });
+    return res.json(stats);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /workers/zone-depth/compute — lat/lon → score (no DB write); PostGIS when enabled
+router.post('/zone-depth/compute', async (req, res) => {
   const lat = Number(req.body?.lat);
   const lon = Number(req.body?.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -78,7 +120,11 @@ router.post('/zone-depth/compute', (req, res) => {
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     return res.status(400).json({ error: 'lat/lon out of range' });
   }
-  res.json(computeZoneDepth(lat, lon));
+  try {
+    res.json(await computeZoneDepthAsync(lat, lon));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /workers/:id
@@ -123,7 +169,7 @@ router.patch('/:id/iss', async (req, res) => {
   }
 });
 
-// PATCH /workers/:id/zone-depth — persist zone_depth_score from lat/lon
+// PATCH /workers/:id/zone-depth — persist zone_depth_score from lat/lon (PostGIS when USE_POSTGIS_ZONE_DEPTH=true)
 router.patch('/:id/zone-depth', async (req, res) => {
   try {
     const { id } = req.params;
@@ -132,7 +178,7 @@ router.patch('/:id/zone-depth', async (req, res) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       return res.status(400).json({ error: 'lat and lon must be finite numbers' });
     }
-    const { zone_depth_score, distance_km, hub } = computeZoneDepth(lat, lon);
+    const { zone_depth_score, distance_km, hub, source } = await computeZoneDepthAsync(lat, lon);
     const { data: updated_user, error } = await supabase
       .from('users')
       .update({ zone_depth_score })
@@ -140,7 +186,7 @@ router.patch('/:id/zone-depth', async (req, res) => {
       .select()
       .single();
     if (error) throw error;
-    res.json({ updated_user, distance_km, hub });
+    res.json({ updated_user, distance_km, hub, source });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

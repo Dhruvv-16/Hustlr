@@ -40,85 +40,33 @@ class ScaffoldWithNav extends StatelessWidget {
     ].contains(path);
 
     return Scaffold(
-      extendBody: true,
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // The main screen content with bottom padding so content isn't
-          // hidden behind the floating nav.
           Positioned.fill(
             child: child,
           ),
 
-          // The floating Help Button — hidden on /support itself
-          if (!isSupport && showNavBar)
-            Positioned(
-              right: 20,
-              bottom: 100,
-              child: _FloatingHelpButton(),
-            ),
-
-          // The entirely floating Capsule Nav Bar
-          if (showNavBar)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: HustlrBottomNav(
-                currentIndex: idx,
-                onTap: (i) {
-                  final routes = [
-                    AppRoutes.dashboard,
-                    AppRoutes.policy,
-                    AppRoutes.claims,
-                    AppRoutes.wallet,
-                  ];
-                  context.go(routes[i]);
-                },
-              ),
-            ),
         ],
       ),
+      bottomNavigationBar: showNavBar
+          ? HustlrBottomNav(
+              currentIndex: idx,
+              onTap: (i) {
+                final routes = [
+                  AppRoutes.dashboard,
+                  AppRoutes.policy,
+                  AppRoutes.claims,
+                  AppRoutes.wallet,
+                ];
+                context.go(routes[i]);
+              },
+            )
+          : null,
     );
   }
 }
 
-// ─── Floating Help Button ─────────────────────────────────────────────────────
-class _FloatingHelpButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor   = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
-    final iconColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
-    final glowColor = isDark
-        ? const Color(0xFF3FFF8B).withOpacity(0.25)
-        : const Color(0xFF1B5E20).withOpacity(0.40);
-
-    return GestureDetector(
-      onTap: () => context.push(AppRoutes.support),
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: bgColor,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: glowColor,
-              blurRadius: isDark ? 20 : 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Icon(
-          Icons.headset_mic_rounded,
-          color: iconColor,
-          size: 24,
-        ),
-      ),
-    );
-  }
-}
 
 // ─── Dual-Mode Floating Bottom Nav Bar ───────────────────────────────────────
 class AppBottomNavBar extends StatelessWidget {

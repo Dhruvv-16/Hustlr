@@ -25,6 +25,7 @@
   "onboarding_zone_hint": "अपना Zepto डार्क स्टोर ज़ोन खोजें...",
   "onboarding_continue": "जारी रखें",
   "onboarding_submit": "सुरक्षा शुरू करें",
+  "onboarding_kyc_helper": "Your platform worker ID (or linked ID) is used for KYC and to match your gig account. You already agreed to identity and ML checks on the consent screen.",
 
   "onboarding_complete_title": "आप तैयार हैं",
   "onboarding_complete_subtitle": "आपकी व्यक्तिगत सुरक्षा योजना तैयार है।",
@@ -115,7 +116,7 @@
   "claim_detail_clean": "हरा — साफ",
   "claim_detail_download": "रसीद डाउनलोड करें",
 
-  "wallet_title": "वॉल्ट",
+  "wallet_title": "वॉलेट",
   "wallet_balance": "उपलब्ध बैलेंस",
   "wallet_withdraw": "UPI में निकालें",
   "wallet_smart_savings": "स्मार्ट बचत",
@@ -217,6 +218,27 @@
   "camera_scanning": "एआई स्कैन कर रहा है...",
   "camera_internet_auto": "सिग्नल स्ट्रेंथ: 1 बार स्वतः डिटेक्ट किया गया",
   "camera_no_photo": "फोटो की आवश्यकता नहीं",
+
+  "kyc_consent_title": "Data consent & KYC",
+  "kyc_consent_intro": "Before you create your profile, confirm how we use your data. This supports fair payouts and fraud prevention under Indian insurance and data protection norms.",
+  "kyc_consent_location_title": "Location (GPS)",
+  "kyc_consent_location_body": "We use your device location to verify you are in a covered trigger zone when you are on shift and to reduce false claims. You can manage location in system settings.",
+  "kyc_consent_identity_title": "Selfie photos & identity checks",
+  "kyc_consent_identity_body": "We capture photos only with your front (selfie) camera for face verification and liveness checks. Images may be processed by automated fraud and ML systems to protect the insurance pool.",
+  "kyc_consent_payout_title": "Payouts & bank / UPI",
+  "kyc_consent_payout_body": "We collect payment details (UPI or bank) to send payouts. Accurate KYC-linked information is required for disbursement.",
+  "kyc_consent_view_compliance": "Full regulatory summary",
+  "kyc_consent_continue": "I agree — continue",
+
+  "claim_camera_selfie_title": "Selfie camera only",
+  "claim_camera_selfie_body": "Evidence photos must be taken with your front camera so we can verify you fairly and reduce fraud. This step does not use the rear camera.",
+  "claim_camera_selfie_cta": "Open selfie camera",
+  "claim_camera_selfie_hint": "If prompted, allow camera access. Good lighting helps verification.",
+
+  "step_up_face_selfie_notice": "Front (selfie) camera only. Your photo is sent securely for liveness and gesture checks.",
+  "step_up_face_ml_notice": "Automated checks (including ML) help prevent fraud and protect payouts.",
+  "step_up_face_capturing": "Opening selfie camera…",
+  "step_up_face_hold": "Hold still; face the camera.",
 
   "review_title": "प्रमाण कैप्चर किया गया",
   "review_subtitle": "सबमिट करने से पहले अपनी तस्वीरों की समीक्षा करें",

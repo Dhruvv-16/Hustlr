@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../core/services/storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/biometric_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,22 +17,70 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2500), _navigate);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      Future.delayed(const Duration(seconds: 2), _navigate);
+    });
   }
 
   Future<void> _navigate() async {
     if (!mounted) return;
     final box = Hive.box('appData');
-    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
+    bool isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
     final isComplete = await StorageService.instance.isOnboardingComplete();
     final userId = await StorageService.instance.getUserId();
+
+    if (isLoggedIn) {
+      final loggedInFlag = box.get('isLoggedIn', defaultValue: false);
+      if (!loggedInFlag) {
+        if (mounted) context.go('/login');
+        return;
+      }
+    }
+
     if (!mounted) return;
     if (!isLoggedIn) {
       context.go('/login');
     } else if (!isComplete || userId == null) {
       context.go('/carousel');
     } else {
-      context.go('/dashboard');
+      // Biometric lock check
+      final prefs = await SharedPreferences.getInstance();
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
+      if (bioEnabled) {
+        final biometric = BiometricService.instance;
+        final available = await biometric.isAvailable();
+
+        if (available) {
+          final result = await biometric.authenticate(
+            reason: 'Unlock Hustlr to access your wallet',
+          );
+
+          if (!result.success && !result.notAvailable) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => AlertDialog(
+                  title: const Text('Authentication Required'),
+                  content: const Text('Please authenticate to access Hustlr'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _navigate();
+                      },
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+      if (mounted) context.go('/dashboard');
     }
   }
 
@@ -79,10 +129,13 @@ class _SplashScreenState extends State<SplashScreen> {
                       borderRadius: BorderRadius.circular(32),
                     ),
                     alignment: Alignment.center,
-                    child: Icon(
-                      Icons.shield_rounded,
-                      size: 72,
-                      color: green,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/icon.png',
+                        width: 72,
+                        height: 72,
+                      ),
                     ),
                   ),
                 ),
