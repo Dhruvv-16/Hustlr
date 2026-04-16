@@ -637,7 +637,6 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     }
   }
 
-  Future<void> _resetDemo() async {
 
   void _showStep(String message) {
     if (!mounted) return;
