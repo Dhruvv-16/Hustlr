@@ -13,6 +13,7 @@ const {
   isSimulatedMode,
 } = require('../services/play_integrity_service');
 const { getSharedDeviceFraudBump } = require('../services/device_fingerprint_service');
+const crypto = require('crypto');
 const router = express.Router();
 
 // ML microservice — Isolation Forest + Ring Detector
@@ -197,20 +198,8 @@ router.post('/create', async (req, res) => {
       .eq('id', user_id)
       .maybeSingle();
 
-    // Circuit breaker — block if zone/city limit exceeded
-    const cbResult = await checkCircuitBreaker(
-      user?.zone ?? 'Unknown',
-      user?.city ?? 'Chennai',
-      trigger_type,
-    );
-    if (cbResult.tripped) {
-      return res.status(503).json({
-        error:       'System protection active',
-        detail:      cbResult.reason,
-        code:        cbResult.code,
-        retry_after: '1 hour',
-      });
-    }
+    // The Circuit Breaker check is now performed ATOMICALLY in the database!
+    // We only perform the ML and fraud signals in Node before pushing to Postgres.
 
     // Get active policy (required for claim)
     const { data: policy } = await supabase
@@ -334,28 +323,54 @@ router.post('/create', async (req, res) => {
       };
     }
 
-    // Insert claim — uses existing schema column names (tranche1, tranche2)
-    const { data: claim, error: insertError } = await supabase
-      .from('claims')
-      .insert({
-        user_id,
-        trigger_type,
-        zone:           user?.zone ?? 'unknown',
-        city:           user?.city ?? 'Chennai',
-        severity:       severity || 1.0,
-        duration_hours: duration_hours || 3,
-        gross_payout:   grossPayout,
-        tranche1,
-        tranche2,
-        status:       'PENDING',
-        fraud_status: fraudStatus,
-        fraud_score: fraudScore,
-        fps_signals: fpsSignals,
-      })
-      .select()
-      .single();
+    // ── Generate Time-Bound Idempotency Hash ──
+    const timeWindow = new Date().toISOString().slice(0, 13); // e.g., "2026-04-17T14"
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(`${user_id}-${user?.zone}-${trigger_type}-${timeWindow}`)
+      .digest('hex');
+
+    // ── ATOMIC DATABASE EXECUTION (Lock -> Check -> Insert) ──
+    const { data, error: insertError } = await supabase.rpc('submit_claim_atomic', {
+      p_idempotency_key: idempotencyKey,
+      p_user_id: user_id,
+      p_trigger_type: trigger_type,
+      p_zone: user?.zone ?? 'unknown',
+      p_city: user?.city ?? 'Chennai',
+      p_severity: severity || 1.0,
+      p_duration_hours: duration_hours || 3,
+      p_gross_payout: grossPayout,
+      p_tranche1: tranche1,
+      p_tranche2: tranche2,
+      p_fraud_score: fraudScore,
+      p_fraud_status: fraudStatus,
+      p_fps_signals: fpsSignals,
+      p_limit: 50 // Hourly limit per zone
+    });
 
     if (insertError) throw insertError;
+    const dbResult = data?.[0] || data;
+
+    if (!dbResult.success) {
+      if (dbResult.error_code === 'DUPLICATE_REQUEST') {
+        return res.status(409).json({ error: 'Claim already submitted for this timeframe.' });
+      }
+      if (dbResult.error_code === 'CIRCUIT_BREAKER_TRIPPED') {
+         return res.status(503).json({
+          error: 'System protection active',
+          detail: 'Abnormal claim spike — system paused for safety',
+          code: 'HOURLY_LIMIT_EXCEEDED',
+          retry_after: '1 hour',
+        });
+      }
+    }
+
+    // Mock claim object for downstream background pipelines
+    const claim = { 
+      id: dbResult.claim_id, 
+      fps_signals: fpsSignals,
+      status: 'PENDING'
+    };
 
     // ── ML Ring Detection (background, non-blocking) ───────────────────────
     // Fetches recent claims in the same zone+trigger in the last 30 minutes
