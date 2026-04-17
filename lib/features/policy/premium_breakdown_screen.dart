@@ -101,7 +101,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
           children: [
             _buildCurrentPlanCard(theme, isDark, activePlan, weeklyPremium, policyData),
             const SizedBox(height: 16),
-            _buildCalculationCard(breakdown, theme, isDark, userZone, userPlatform),
+            _buildCalculationCard(breakdown, theme, isDark, userZone, userPlatform, activePlan, weeklyPremium),
             const SizedBox(height: 16),
             _buildZoneComparisonCard(breakdown, theme, isDark),
             const SizedBox(height: 16),
@@ -186,7 +186,7 @@ class _PremiumBreakdownScreenState extends State<PremiumBreakdownScreen> {
     );
   }
 
-  Widget _buildCalculationCard(Map<String, dynamic> breakdown, ThemeData theme, bool isDark, String userZone, String userPlatform) {
+  Widget _buildCalculationCard(Map<String, dynamic> breakdown, ThemeData theme, bool isDark, String userZone, String userPlatform, String activePlan, int weeklyPremium) {
     return _SurfaceCard(
       theme: theme, isDark: isDark,
       child: Column(
