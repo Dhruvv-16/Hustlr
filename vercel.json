@@ -1,24 +1,11 @@
 {
   "version": 2,
-  "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": "build/web",
-  "installCommand": "echo 'Flutter install handled in build script'",
-  "framework": null,
+  "buildCommand": "cd hustlr-admin && npm install && npm run build",
+  "framework": "nextjs",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
     {
-      "source": "/flutter_service_worker.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache" }
-      ]
-    },
-    {
-      "source": "/(.*\\.js)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
+      "source": "/(.*)",
+      "destination": "/hustlr-admin/$1"
     }
   ]
 }
