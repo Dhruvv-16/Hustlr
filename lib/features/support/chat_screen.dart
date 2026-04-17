@@ -19,7 +19,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isTyping = false;
 
   static const _responses = {
-    'claim': 'Your claim is processed automatically once a disruption trigger is confirmed. No manual filing is needed! Payouts are typically credited within 2 hours.',
+    'claim': 'Most claims are processed automatically once a disruption trigger is confirmed. If a trigger is missed, you can file a manual claim from the app. Payout timing depends on risk checks and review status.',
     'payout': 'Hustlr uses parametric insurance — payouts are triggered automatically when official thresholds are crossed (e.g., IMD rain > 64.5mm/day, AQI > 300). 70% is paid immediately, and 30% within 48 hours.',
     'rain': 'Heavy rain payouts activate when rainfall exceeds 64.5mm/hr as confirmed by IMD sensors in your zone. Your coverage includes rain, extreme heat, AQI alerts, and platform downtime.',
     'premium': 'Your weekly premium is calculated based on your zone\'s historical risk, the platform you work on, and your claim history. Standard Shield is ₹49/week.',
@@ -30,8 +30,8 @@ class _ChatScreenState extends State<ChatScreen> {
     'zone': 'Your zone is detected from your onboarding location. Disruption events are validated zone-specifically using live sensor data from IMD, CPCB, and platform APIs.',
     'heat': 'Extreme heat payouts are triggered when your zone temperature exceeds 43°C (IMD), sustained for 2+ hours during active delivery shifts.',
     'aqi': 'Air quality payouts trigger when AQI exceeds 300 (Hazardous) as measured by CPCB sensors within 10km of your delivery zone.',
-    'fraud': 'Hustlr prevents fraud using AWS Rekognition for facial liveness checks during suspicious claims, combined with local device sensor telemetry (accelerometer anomalies) to verify true delivery conditions.',
-    'tracking': 'Your location is tracked via our resilient foreground service. It stays alive even if you clear the app, ensuring your zone depth score is maintained accurately in the background.',
+    'fraud': 'Hustlr prevents fraud using Google Cloud Vision for facial liveness checks during suspicious claims, combined with local device sensor telemetry (accelerometer anomalies) to verify true delivery conditions.',
+    'tracking': 'Your location is tracked in the background during active shifts. On some devices with aggressive battery policies, background tracking can pause unless app permissions and battery settings are optimized.',
     'camera': 'If an automatic trigger misses a localized event, you can file a manual claim. Our camera auto-launches and requires live capture with timestamp and EXIF integrity to prevent screenshot fraud.',
     'ml': 'Our backend uses an Isolation Forest ML model to detect anomalous patterns in your phone\'s telemetry, mixed with historical claim frequencies on a gradient-boosted tree, to calculate your customized fraud risk score.',
     'default': 'I\'m here to help! You can ask me about your policy, payouts, claims, premiums, zone coverage, fraud prevention, ML tracking, or how to withdraw your balance.',
@@ -51,7 +51,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (m.contains('zone') || m.contains('location') || m.contains('area')) return _responses['zone']!;
     if (m.contains('heat') || m.contains('temperature') || m.contains('hot')) return _responses['heat']!;
     if (m.contains('aqi') || m.contains('air') || m.contains('pollution')) return _responses['aqi']!;
-    if (m.contains('fraud') || m.contains('fake') || m.contains('liveness') || m.contains('rekognition')) return _responses['fraud']!;
+    if (m.contains('fraud') || m.contains('fake') || m.contains('liveness') || m.contains('vision')) return _responses['fraud']!;
     if (m.contains('track') || m.contains('gps') || m.contains('background') || m.contains('foreground')) return _responses['tracking']!;
     if (m.contains('camera') || m.contains('photo') || m.contains('picture')) return _responses['camera']!;
     if (m.contains('ml') || m.contains('machine learning') || m.contains('ai') || m.contains('model')) return _responses['ml']!;

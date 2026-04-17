@@ -65,10 +65,14 @@ sequenceDiagram
 - Persistent app state with Hive and local session restoration.
 - Supabase-backed worker, policy, claim, and wallet data.
 - Disruption monitoring from weather, AQI, traffic, news, and zone-depth services.
-- Fraud scoring through an Isolation Forest model plus statistical ring checks.
-- Optional Graph Neural Network ring detection behind a feature flag.
+- Fraud scoring through an Isolation Forest model plus Poisson + DBSCAN ring checks.
+- Manual fallback claims with disruption-type selection, evidence capture, and ML-assisted fraud validation.
+- Face liveness verification via Google Cloud Vision with local ML Kit fallback in step-up auth.
+- Play Integrity checks for Android manual-claim submissions.
+- Provisional tranche payouts for manual claims (70% immediate + 30% after timed review path).
 - ISS scoring and premium calculation via the ML service.
 - Automated claim and payout flows with fallback logic when a service is offline.
+- Economic circuit-breaker limits for zone/hour, city/day, and pool health (BCR) protection.
 - Guidewire payload builders for ClaimCenter, PolicyCenter, and BillingCenter style integrations.
 - Admin console views for fraud queue, policies, payouts, pool health, stress testing, and an H3 risk map.
 
@@ -152,6 +156,21 @@ Model type: GraphSAGE.
 Input: worker graph nodes and edges built from shared devices, UPI IDs, zone clustering, and registration bursts.
 
 Output: fraud probability per node and detected ring groups.
+
+Status: implemented in the ML service, but not yet proxied from backend `ml.routes.js` into the app-facing API.
+
+### 8. Face liveness verification
+
+Model type: Google Cloud Vision API with local ML Kit fallback.
+
+Input: Base64 image captured during step-up authentication.
+
+Output: verified boolean, similarity/liveness confidence, and reason metadata.
+
+Checks:
+- Single-face detection and confidence thresholding.
+- Screen/photo replay indicators.
+- Fallback to local ML Kit detection when cloud key is missing.
 
 ## Architecture / Workflow
 
@@ -371,18 +390,20 @@ The code uses several runtime values and feature flags. The most important ones 
 | Mobile runtime | `SUPABASE_ANON_KEY`, `HUSTLR_API_BASE`, `HUSTLR_API_PROD`, `HUSTLR_ML_BASE` |
 | Payments | `RAZORPAY_KEY_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `STRIPE_PUBLISHABLE_KEY` |
 | External data | `OWM_API_KEY`, `AQICN_API_KEY`, `NEWSAPI_KEY`, `BRAVE_SEARCH_KEY`, `OPENROUTE_API_KEY` |
-| Integrity and auth | `PLAY_INTEGRITY_BYPASS_DEV`, `PLAY_INTEGRITY_SIMULATED`, `PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON`, `GOOGLE_APPLICATION_CREDENTIALS` |
+| Integrity and auth | `PLAY_INTEGRITY_BYPASS_DEV`, `PLAY_INTEGRITY_SIMULATED`, `PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_VISION_API_KEY` |
 | Optional integrations | `GUIDEWIRE_WEBHOOK_URL`, `GUIDEWIRE_WEBHOOK_SECRET`, `FIREBASE_SERVER_KEY`, `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` |
-| Feature flags | `ENABLE_GUIDEWIRE_ROUTES`, `ENABLE_GNN_FRAUD`, `DISABLE_DISRUPTION_CRON`, `DISABLE_REGIONAL_WEEKLY_CRON` |
+| Feature flags | `ENABLE_GUIDEWIRE_ROUTES`, `ENABLE_GNN_FRAUD`, `PLAY_INTEGRITY_BYPASS_DEV`, `PLAY_INTEGRITY_SIMULATED`, `DISABLE_DISRUPTION_CRON`, `DISABLE_REGIONAL_WEEKLY_CRON` |
 
 Some values are required only when the corresponding integration is enabled. If a value is missing, the code usually falls back to a mock, stub, or degraded mode.
 
 ## Limitations & Future Improvements
 
 - The chatbot is a lightweight intent classifier, not a generative LLM.
-- GNN fraud ring detection is optional and disabled unless `ENABLE_GNN_FRAUD=true` and the model file exists.
+- GNN fraud ring detection exists in the ML service, but backend routing for app consumption is not yet wired.
 - Several payment and Guidewire paths are stubs or sandbox-style adapters unless real credentials are provided.
 - Some backend services fall back to cached, mock, or deterministic logic when external APIs are unavailable.
+- Background tracking hardening for aggressive OEM task killers is tracked in the Phase 3 roadmap.
+- Foreground-only location degradation UX is tracked in the Phase 3 roadmap.
 - The README can reference the supplied architecture diagram most cleanly in the Architecture section, but the image itself is not present as a workspace file.
 - A good next step would be a committed `.env.example` that groups all required variables by service.
 

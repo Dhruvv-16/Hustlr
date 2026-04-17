@@ -10,13 +10,13 @@ import '../../core/services/storage_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../l10n/app_localizations.dart';
 
-/// AWS Rekognition Step-Up Identity Verification Screen
+/// Google Cloud Vision Step-Up Identity Verification Screen
 /// Triggered on: behavioral anomaly, high-value claims (>=300),
 /// new device detected, or 1% random weekly audit.
 ///
 /// Auth flow (two-tier):
 ///   Tier 1 → Native biometric (fingerprint / Face ID via local_auth)
-///   Tier 2 → Camera selfie → AWS Rekognition (fallback or high-risk escalation)
+///   Tier 2 → Camera selfie → Google Cloud Vision (fallback or high-risk escalation)
 class StepUpAuthScreen extends StatefulWidget {
   /// Optional reason string shown to the user explaining why this was triggered
   final String? triggerReason;
@@ -607,7 +607,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           onPressed: () => _completeAndExit(
             method: _tier == _AuthTier.biometric 
                 ? 'biometric' 
-                : (widget.requireTwoTier ? 'biometric+rekognition' : 'rekognition'),
+                : (widget.requireTwoTier ? 'biometric+google_cloud_vision' : 'google_cloud_vision'),
             similarityScore: _similarityScore,
           ),
           style: ElevatedButton.styleFrom(

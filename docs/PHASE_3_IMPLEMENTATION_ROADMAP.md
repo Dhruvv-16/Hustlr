@@ -3,7 +3,7 @@
 ## 🚀 Phase 3 Features (Weeks 5–6)
 
 ### Feature 1: Biometric Auth (Two-Tier) ✅ Partially
-**Status:** Tier 1 (local_auth) complete. Tier 2 (AWS Rekognition fallback) needs implementation.
+**Status:** Tier 1 (local_auth) complete. Tier 2 (Google Cloud Vision fallback) needs implementation.
 
 #### Tier 1 — Native OS Biometric (COMPLETE)
 - **Location:** `lib/services/biometric_service.dart`
@@ -26,7 +26,7 @@
 2. **Camera Capture Service**
    - Location: `lib/services/camera_liveness_service.dart`
    - Capture 3-frame sequence for liveness (blink detection)
-   - Upload frames to AWS Rekognition
+  - Upload frames to Google Cloud Vision API
 
 3. **Biometric Fallback Logic** (Update)
    - Location: `lib/services/biometric_service.dart` 

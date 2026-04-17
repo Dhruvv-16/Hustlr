@@ -84,7 +84,7 @@ DATA = [
 
     # Fraud
     {"text": "how do you detect fake claims", "intent": "fraud"},
-    {"text": "aws rekognition liveness", "intent": "fraud"},
+    {"text": "google cloud vision liveness", "intent": "fraud"},
     {"text": "anti spoofing", "intent": "fraud"},
     {"text": "fraud detection", "intent": "fraud"},
 
@@ -113,7 +113,7 @@ DATA = [
 ]
 
 RESPONSES = {
-    'claim': 'Your claim is processed automatically once a disruption trigger is confirmed. No manual filing is needed! Payouts are typically credited within 2 hours.',
+    'claim': 'Most claims are processed automatically once a disruption trigger is confirmed. If a trigger is missed, you can file a manual claim from the app. Payout timing depends on risk checks and review status.',
     'withdraw': 'You can withdraw your payout balance to any UPI ID from the Wallet tab. Transfers reflect within 2 hours via Razorpay.',
     'payout': 'Hustlr uses parametric insurance — payouts are triggered automatically when official thresholds are crossed. 70% is paid immediately, and 30% within 48 hours.',
     'rain': 'Heavy rain payouts activate when rainfall exceeds 64.5mm/hr as confirmed by IMD sensors in your zone.',
@@ -125,8 +125,8 @@ RESPONSES = {
     'zone': 'Your zone is detected from your onboarding location. Disruption events are validated zone-specifically using live sensor data from IMD, CPCB, and platform APIs.',
     'heat': 'Extreme heat payouts are triggered when your zone temperature exceeds 43°C (IMD), sustained for 2+ hours during active delivery shifts.',
     'aqi': 'Air quality payouts trigger when AQI exceeds 300 (Hazardous) as measured by CPCB sensors within 10km of your delivery zone.',
-    'fraud': 'Hustlr prevents fraud using AWS Rekognition for facial liveness checks, combined with local device sensor telemetry (accelerometer anomalies) to verify true delivery conditions.',
-    'tracking': 'Your location is tracked via our resilient foreground service. It stays alive even if you clear the app, ensuring your zone depth score is maintained accurately.',
+    'fraud': 'Hustlr prevents fraud using Google Cloud Vision for facial liveness checks, combined with local device sensor telemetry (accelerometer anomalies) to verify true delivery conditions.',
+    'tracking': 'Your location is tracked in the background during active shifts. On some devices with aggressive battery policies, background tracking can pause unless app permissions and battery settings are optimized.',
     'camera': 'Our camera auto-launches and requires live capture with timestamp and EXIF integrity to prevent screenshot fraud.',
     'ml': 'Our backend uses an Isolation Forest ML model to detect anomalous patterns in your phone\'s telemetry, mixed with historical claim frequencies on a gradient-boosted tree.',
     'default': 'I\'m here to help! You can ask me about your policy, payouts, claims, premiums, zone coverage, fraud prevention, ML tracking, or how to withdraw your balance.'
