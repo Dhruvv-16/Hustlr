@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../services/supabase');
+const { supabase } = require('../config/supabase');
 // const { authMiddleware } = require('../middleware/auth');
 
 // Admin middleware - bypassed for local dashboard integration
