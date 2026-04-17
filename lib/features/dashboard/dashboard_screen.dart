@@ -157,6 +157,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     )..repeat();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _disruptionRefreshTimer?.cancel();
+    _locationStream?.cancel();
+    _policySub?.cancel();
+    _walletSub?.cancel();
+    _claimSub?.cancel();
+    _eventSub?.cancel();
+    _radarController.dispose();
+    LocationService.instance.removeListener(_onLocationUpdate);
+    ShiftTrackingService.instance.removeListener(_onShiftUpdate);
+    super.dispose();
+  }
+
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
   /// real coordinates without requiring the user to physically move first.
   Future<void> _fetchInitialLocation() async {

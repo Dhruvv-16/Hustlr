@@ -977,13 +977,17 @@ class _StickyBottomBar extends StatelessWidget {
     );
     final selectedRank = getRank(selectedPlan);
 
+    final bool hasActivePolicy = activePolicy != null;
     final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
     final bool isSame = selectedRank == currentRank && currentRank > 0;
-    final bool isDisabled = isDowngrade || isSame;
+    final bool isDisabled = isDowngrade || isSame || hasActivePolicy;
 
     String btnText = 'Proceed to\nPayment';
     IconData btnIcon = Icons.arrow_forward_rounded;
-    if (isSame) {
+    if (hasActivePolicy) {
+      btnText = 'ACTIVE PLAN';
+      btnIcon = Icons.verified_user_rounded;
+    } else if (isSame) {
       btnText = 'Already Active';
       btnIcon = Icons.check_circle_rounded;
     } else if (isDowngrade) {
@@ -1007,23 +1011,28 @@ class _StickyBottomBar extends StatelessWidget {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('WEEKLY PREMIUM',
+            Text(hasActivePolicy ? 'CURRENT PLAN' : 'WEEKLY PREMIUM',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
                     color: hintColor, letterSpacing: 0.5)),
             const SizedBox(height: 2),
-            RichText(
-              text: TextSpan(children: [
-                TextSpan(
-                  text: '₹$total',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface),
-                ),
-                TextSpan(
-                  text: '/week',
-                  style: TextStyle(fontSize: 13, color: hintColor),
-                ),
-              ]),
-            ),
+            if (hasActivePolicy)
+              Text(activePolicy!['plan_name']?.toString() ?? 'Hustlr Shield',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface), maxLines: 1, overflow: TextOverflow.ellipsis)
+            else
+              RichText(
+                text: TextSpan(children: [
+                  TextSpan(
+                    text: '₹$total',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface),
+                  ),
+                  TextSpan(
+                    text: '/week',
+                    style: TextStyle(fontSize: 13, color: hintColor),
+                  ),
+                ]),
+              ),
           ]),
         ),
         const SizedBox(width: 16),

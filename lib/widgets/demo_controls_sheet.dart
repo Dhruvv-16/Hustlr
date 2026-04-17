@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import 'package:provider/provider.dart';
 import '../services/mock_data_service.dart';
 import '../services/location_service.dart';
+import '../services/fraud_sensor_service.dart';
 import 'restart_widget.dart';
 
 class DemoControlsSheet extends StatefulWidget {
@@ -499,6 +500,132 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 const SizedBox(height: 4),
                 Text('Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
                   style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.5))),
+              ],
+            ),
+          ),
+          // --- ML SYNC ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(top: 16),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.sync_rounded, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text('ML SYNC', style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w900, 
+                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                  ],
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Force ML Resync', style: theme.textTheme.bodyMedium),
+                  subtitle: Text('Pulls latest ISS & Pricing from proxy', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  trailing: OutlinedButton(
+                    onPressed: () {
+                      NotificationService.instance.addEvent("ML Data Synced from Python Backend");
+                      _showSuccess("ML synchronization requested.");
+                    },
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('SYNC NOW', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --- EXTERNAL DISRUPTIONS ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(top: 16),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.cloud_rounded, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text('EXTERNAL DISRUPTIONS', style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w900, 
+                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                  ],
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Trigger Heavy Rain', style: theme.textTheme.bodyMedium),
+                  subtitle: Text('Mocks OWM alert & starts claim', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  trailing: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+                    onPressed: () {
+                      context.read<MockDataService>().triggerRainDisruption();
+                      Navigator.pop(context);
+                    },
+                    child: const Text('FIRE', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Trigger Heatwave', style: theme.textTheme.bodyMedium),
+                  subtitle: Text('Mocks extreme temperature alert', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  trailing: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
+                    onPressed: () {
+                      context.read<MockDataService>().triggerExtremeHeat();
+                      Navigator.pop(context);
+                    },
+                    child: const Text('FIRE', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --- SPOOF OPTIONS ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(top: 16),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.gps_off_rounded, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text('SPOOF OPTIONS', style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w900, 
+                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                  ],
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Mock GPS Spoofing (Fraud)', style: theme.textTheme.bodyMedium),
+                  subtitle: Text('Sets GPS jitter to 0.0 & isMocked=true', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  value: FraudSensorService.mockFraudSpoofing,
+                  activeColor: Colors.redAccent,
+                  onChanged: (val) {
+                    setState(() => FraudSensorService.mockFraudSpoofing = val);
+                  },
+                ),
               ],
             ),
           ),
