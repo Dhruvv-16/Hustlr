@@ -2183,6 +2183,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
       ),
     );
+  }
+
   Widget _buildSystemStatusFeed() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFF0F4F0);

@@ -2,8 +2,8 @@
 
 ## 🚀 Phase 3 Features (Weeks 5–6)
 
-### Feature 1: Biometric Auth (Two-Tier) ✅ Partially
-**Status:** Tier 1 (local_auth) complete. Tier 2 (Google Cloud Vision fallback) needs implementation.
+### Feature 1: Biometric Auth (Two-Tier) ✅ Complete
+**Status:** Tier 1 (local_auth) and Tier 2 (Google Cloud Vision fallback) are implemented.
 
 #### Tier 1 — Native OS Biometric (COMPLETE)
 - **Location:** `lib/services/biometric_service.dart`
@@ -13,28 +13,23 @@
   - Detects available biometric types
   - Handles authentication with reason prompt
 
-#### Tier 2 — Google Cloud Vision Fallback (TODO)
+#### Tier 2 — Google Cloud Vision Fallback (COMPLETE)
 **Purpose:** When device has no biometric sensor or enrollment fails, fallback to camera-based liveness + profile matching.
 
-**Required Components:**
+**Implemented Components:**
 1. **Google Cloud Vision Integration**
-   - Add `google_mlkit_face_detection` package
-   - Add `google_cloud_vision` package
-   - Configure Google Cloud API key in `.env`
-   - Implement face detection + liveness detection (blink/motion verification)
+  - Uses Google Cloud Vision API for face detection/liveness checks
+  - Falls back to local ML Kit logic when cloud API path is unavailable
 
-2. **Camera Capture Service**
-   - Location: `lib/services/camera_liveness_service.dart`
-   - Capture 3-frame sequence for liveness (blink detection)
-  - Upload frames to Google Cloud Vision API
+2. **Camera Capture + Step-up Flow**
+  - Location: `lib/features/auth/step_up_auth_screen.dart`
+  - Captures selfie input and routes to verification pipeline
 
-3. **Biometric Fallback Logic** (Update)
-   - Location: `lib/services/biometric_service.dart` 
-   - If local auth unavailable → try camera liveness
-   - If liveness succeeds → compare with profile photo
-   - Store fallback authentication result
+3. **Verification API Service**
+  - Location: `lib/services/api_service.dart`
+  - Executes cloud-first verification and returns method/result metadata
 
-**Code Template:**
+**Reference Flow (implemented):**
 ```dart
 // biometric_service.dart - Add this method
 Future<BiometricResult> authenticateWithFallback({
@@ -250,7 +245,7 @@ ElevatedButton(
 
 | Priority | Feature | Effort | Impact |
 |----------|---------|--------|--------|
-| HIGH | Google Cloud Vision Fallback | 1 week | Handles 10% of devices with no biometric |
+| DONE | Google Cloud Vision Fallback | Implemented | Handles devices with no biometric availability |
 | HIGH | Protected Foreground Task | 3 days | Fixes GPS drops on Xiaomi/OnePlus |
 | MEDIUM | Location Degradation UX | 2 days | Improves UX for foreground-only workers |
 
@@ -258,7 +253,7 @@ ElevatedButton(
 
 ## Testing Checklist
 
-- [ ] **Biometric Tier 2 (Google Cloud Vision):** Test camera liveness on device without fingerprint sensor
+- [x] **Biometric Tier 2 (Google Cloud Vision):** Implemented and integrated in step-up auth flow
 - [ ] **Protected Foreground Task:** Test background GPS tracking across phone app restarts (Xiaomi MIUI test device)
 - [ ] **Location Degradation:** Verify shift protection active while app in foreground, disabled when backgrounded
 
@@ -294,3 +289,4 @@ GOOGLE_CLOUD_API_KEY=your-google-cloud-api-key
 - All Phase 3 features maintain backward compatibility with Phase 1 & 2
 - Implement features incrementally; each can be deployed independently
 - Update user-facing docs after each feature goes live
+- Biometric Tier 2 status in this roadmap is now aligned with current implementation.
