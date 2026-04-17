@@ -91,6 +91,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df["age_x_rating"] = df["Delivery_person_Age"] * df["Delivery_person_Ratings"]
     df["rating_sq"] = df["Delivery_person_Ratings"] ** 2
     df["distance_x_rating"] = df["distance_km"] * df["Delivery_person_Ratings"]
+    df["distance_x_multi"] = df["distance_km"] * df["multiple_deliveries"].fillna(0)
 
     for col in ["order_hour", "pickup_hour"]:
         df[f"{col}_sin"] = np.sin(2 * np.pi * df[col] / 24.0)
