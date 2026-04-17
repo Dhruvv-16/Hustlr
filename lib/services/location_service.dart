@@ -197,9 +197,9 @@ class LocationService extends ChangeNotifier {
             return;
           }
         }
-      }
 
-        _traveledDistance += (distanceDelta / 1000.0); // convert to km
+        // Accumulate distance
+        _traveledDistance += (distanceDelta / 1000.0);
       }
 
       _currentLat = position.latitude;
