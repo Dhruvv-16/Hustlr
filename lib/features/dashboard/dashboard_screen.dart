@@ -1545,6 +1545,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
             // Request permissions BEFORE state change to prevent UI overlay deadlocks
             if (!kIsWeb) {
+              await [
+                Permission.notification,
+                Permission.activityRecognition,
+              ].request();
+              
               final locStatus = await Permission.locationAlways.request();
               final batStatus = await Permission.ignoreBatteryOptimizations.request();
               

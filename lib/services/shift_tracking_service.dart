@@ -7,6 +7,7 @@ import 'api_service.dart';
 import 'notification_service.dart';
 import 'shift_tracking_notifier.dart';
 import 'storage_service.dart';
+import 'location_service.dart';
 
 enum ShiftStatus { offline, active, paused }
 
@@ -102,6 +103,8 @@ class ShiftTrackingService extends ChangeNotifier {
       await _positionSubscription?.cancel();
       _heartbeatTimer?.cancel();
 
+      await LocationService.instance.startTracking(zone);
+
       _status = ShiftStatus.active;
       notifyListeners();
 
@@ -161,6 +164,9 @@ class ShiftTrackingService extends ChangeNotifier {
       await _positionSubscription?.cancel();
       _positionSubscription = null;
       await StorageService.instance.setShiftTrackingActive(false);
+      
+      await LocationService.instance.stopTracking();
+
       _status = ShiftStatus.offline;
       _frsSignals.clear();
       notifyListeners();
