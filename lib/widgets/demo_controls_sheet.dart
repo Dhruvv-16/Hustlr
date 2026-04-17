@@ -222,6 +222,19 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                     ],
                   ),
                 ),
+                // Test Notification button
+                TextButton(
+                  onPressed: () {
+                    NotificationService.instance.addWalletCredited(amount: 500);
+                  },
+                  child: const Text('Test Notif',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF2E7D32),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
                 // Reset button
                 TextButton(
                   onPressed: _hardReset,

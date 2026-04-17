@@ -35,8 +35,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Handling background message: ${message.messageId}');
-  // Firebase automatically displays notification for background messages
-  // No need to show notification here - it's handled by Firebase
+  // Ensure the notification is shown even for data messages
+  await NotificationService.showBackgroundNotification(message);
 }
 
 Future<void> main() async {

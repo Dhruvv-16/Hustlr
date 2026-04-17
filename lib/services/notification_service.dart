@@ -21,7 +21,7 @@ class NotificationService {
     'hustlr_default_channel',
     'Hustlr Alerts',
     description: 'Important payment and protection alerts from Hustlr',
-    importance: Importance.high,
+    importance: Importance.max,
   );
 
   /// Set callback for handling notification taps
@@ -103,10 +103,11 @@ class NotificationService {
       'Hustlr Alerts',
       channelDescription:
           'Important payment and protection alerts from Hustlr',
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: Importance.max,
+      priority: Priority.max,
       playSound: true,
       enableVibration: true,
+      fullScreenIntent: true, // Helps with heads-up
     );
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
@@ -271,5 +272,23 @@ class NotificationService {
     );
     _notifications.insert(0, item);
     _showLocalNotification(title: item.title, body: item.body);
+  }
+  static Future<void> showBackgroundNotification(RemoteMessage message) async {
+    final title = message.notification?.title ?? message.data['title'] ?? 'Hustlr Update';
+    final body = message.notification?.body ?? message.data['body'] ?? 'New activity detected.';
+    
+    // We need to re-initialize for background isolate if not ready
+    if (!_localReady) {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const settings = InitializationSettings(android: androidInit);
+      await _localNotifications.initialize(settings: settings);
+      _localReady = true;
+    }
+
+    await _showLocalNotification(
+      title: title,
+      body: body,
+      payload: message.data,
+    );
   }
 }
