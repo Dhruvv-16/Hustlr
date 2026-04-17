@@ -347,6 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () async {
                           await AuthService.logout();
                           if (context.mounted) {
+                            context.read<MockDataService>().resetDemo();
                             context.go('/login');
                           }
                         },

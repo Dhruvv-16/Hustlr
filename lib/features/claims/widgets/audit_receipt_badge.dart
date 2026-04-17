@@ -329,8 +329,6 @@ class _PayloadChips extends StatelessWidget {
     final display = <MapEntry<String, String>>[
       if (payload['trigger_type']     != null) MapEntry('Trigger',    payload['trigger_type'].toString()),
       if (payload['trigger_value']    != null) MapEntry('Value',      payload['trigger_value'].toString()),
-      if (payload['fps_tier']         != null) MapEntry('Fraud tier', payload['fps_tier'].toString()),
-      if (payload['zone_depth_score'] != null) MapEntry('Zone depth', payload['zone_depth_score'].toString()),
       if (payload['gross_payout']     != null) MapEntry('Gross',      '₹${payload["gross_payout"]}'),
       if (payload['plan_tier']        != null) MapEntry('Plan',       payload['plan_tier'].toString()),
     ];

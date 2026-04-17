@@ -499,15 +499,34 @@ class _WeeklySummarySection extends StatelessWidget {
           ...recentTx.map((tx) {
             final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
             final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
-            final rawDate = tx['created_at'] as String? ?? '';
-            final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+            
+            String title = tx['description'] as String? ?? '';
+            if (title.isEmpty || title.toLowerCase() == 'transaction') {
+              final cat = tx['category'] as String? ?? '';
+              if (cat.contains('payout') || cat.contains('tranche')) title = 'Claim Payout';
+              else if (cat.contains('premium')) title = 'Premium Payment';
+              else title = 'Wallet Transfer';
+            }
+            
+            final rawDate = tx['created_at'] as String? ?? tx['date'] as String? ?? '';
+            String dateStr = '';
+            if (rawDate.isNotEmpty) {
+              final dt = DateTime.tryParse(rawDate);
+              if (dt != null) {
+                dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+              } else {
+                dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+              }
+            } else {
+              dateStr = 'Today';
+            }
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _buildCard(
                 icon: isCredit ? Icons.account_balance_wallet_rounded : Icons.shield_rounded,
                 iconBg: isCredit ? lightGreen : lightRed,
                 iconColor: isCredit ? green : red,
-                title: tx['description'] ?? 'Transaction',
+                title: title,
                 date: dateStr,
                 amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                 amountColor: isCredit ? green : red,
@@ -652,13 +671,32 @@ class _InsuranceTransactionsSection extends StatelessWidget {
                 final tx = transactions[index];
                 final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
                 final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
-                final rawDate = tx['created_at'] as String? ?? '';
-                final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+                
+                String title = tx['description'] as String? ?? '';
+                if (title.isEmpty || title.toLowerCase() == 'transaction') {
+                  final cat = tx['category'] as String? ?? '';
+                  if (cat.contains('payout') || cat.contains('tranche')) title = 'Claim Payout';
+                  else if (cat.contains('premium')) title = 'Premium Payment';
+                  else title = 'Wallet Transfer';
+                }
+                
+                final rawDate = tx['created_at'] as String? ?? tx['date'] as String? ?? '';
+                String dateStr = '';
+                if (rawDate.isNotEmpty) {
+                  final dt = DateTime.tryParse(rawDate);
+                  if (dt != null) {
+                    dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+                  } else {
+                    dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+                  }
+                } else {
+                  dateStr = 'Today';
+                }
                 return _buildTransactionRow(
                   icon: isCredit ? Icons.card_giftcard_rounded : Icons.shield_rounded,
                   iconColor: isCredit ? blue : red,
                   iconBg: isCredit ? lightBlue : const Color(0xFFFFEBEE),
-                  title: tx['description'] ?? 'Transaction',
+                  title: title,
                   subtitle: dateStr,
                   amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                   amountColor: isCredit ? green : red,

@@ -269,19 +269,15 @@ class _LiveHistoryTab extends StatelessWidget {
   }
 
   String _dateRange(Map<String, dynamic> item) {
-    final start = DateTime.tryParse(item['created_at']?.toString() ?? '');
-    final end = DateTime.tryParse(item['expires_at']?.toString() ?? '');
-    String fmt(DateTime? value) {
-      if (value == null) return '—';
+    final start = DateTime.tryParse(item['created_at']?.toString() ?? '') ?? DateTime.now();
+    final end = DateTime.tryParse(item['expires_at']?.toString() ?? '') ?? start.add(const Duration(days: 7));
+    String fmt(DateTime value) {
       return '${value.day} ${[
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ][value.month - 1]} ${value.year}';
     }
-    if (start != null && end != null) {
-      return '${fmt(start)} - ${fmt(end)}';
-    }
-    return fmt(start);
+    return '${fmt(start)} - ${fmt(end)}';
   }
 
   @override
@@ -330,7 +326,7 @@ class _LiveHistoryTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _planLabel(item),
+                          _planLabel(item).toUpperCase(),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -438,9 +434,8 @@ class _ActiveCoverageCard extends StatelessWidget {
 
   String _formatPolicyDates(Map<String, dynamic>? policy) {
     if (policy == null) return '—';
-    final start = DateTime.tryParse(policy['created_at']?.toString() ?? '');
-    final end = DateTime.tryParse(policy['expires_at']?.toString() ?? '');
-    if (start == null || end == null) return '—';
+    final start = DateTime.tryParse(policy['created_at']?.toString() ?? '') ?? DateTime.now();
+    final end = DateTime.tryParse(policy['expires_at']?.toString() ?? '') ?? start.add(const Duration(days: 7));
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${start.day} ${months[start.month - 1]} ${start.year} - ${end.day} ${months[end.month - 1]} ${end.year}';
   }

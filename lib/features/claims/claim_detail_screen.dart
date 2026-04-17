@@ -331,16 +331,6 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
   }
 
   Widget _buildFraudShieldCard(int score, ThemeData theme, bool isDark) {
-    const layers = [
-      ('Layer 0', 'Play Integrity + device signals', 'Token verified on server when configured; ML + heuristics always'),
-      ('Layer 1', 'GPS zone match', 'Adyar zone confirmed'),
-      ('Layer 1', 'Wi-Fi fingerprint', 'No home SSID detected'),
-      ('Layer 1', 'IP geolocation', 'Outdoor IP confirmed'),
-      ('Layer 1', 'Accelerometer', 'Outdoor motion pattern'),
-      ('Layer 2', 'Behavioral baseline', 'Normal work pattern'),
-      ('Layer 3', 'News corroboration', 'IMD rain alert confirmed'),
-    ];
-
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -358,32 +348,7 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
               Text('Hustlr Fraud Shield', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: theme.colorScheme.primary, letterSpacing: -0.3)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('Your claim passed all 7 verification layers', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600)),
           const SizedBox(height: 24),
-          ...layers.map((l) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 55,
-                  child: Text(l.$1, style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.4), fontWeight: FontWeight.w900)),
-                ),
-                Expanded(
-                  child: Text(l.$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-                ),
-                Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary, size: 14),
-                    const SizedBox(width: 6),
-                    Text(l.$3, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ],
-            ),
-          )),
-          Divider(height: 32, color: theme.colorScheme.primary.withOpacity(0.1)),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
