@@ -13,7 +13,9 @@ import '../../blocs/policy/policy_event.dart';
 import '../../core/router/app_router.dart';
 import '../../services/api_service.dart';
 import '../../services/app_events.dart';
+import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
+import 'package:provider/provider.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Map<String, dynamic>? checkoutData;
@@ -192,6 +194,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
         riders: riders,
       );
+
+      // ── Demo Sync ─────────────────────────────────────────────────────────
+      final tier = planName.toString().toLowerCase().replaceAll(' shield', '');
+      final mock = context.read<MockDataService>();
+      if (mock.worker.id.isNotEmpty) {
+        mock.activatePolicy(tier);
+      }
+      
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
         await StorageService.instance.savePolicyId(policyId);
@@ -259,6 +269,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         userId: userId,
         planTier: planName.toString().toLowerCase().replaceAll(' shield', ''),
       );
+
+      // ── Demo Sync ─────────────────────────────────────────────────────────
+      final tier = planName.toString().toLowerCase().replaceAll(' shield', '');
+      final mock = context.read<MockDataService>();
+      if (mock.worker.id.isNotEmpty) {
+        mock.activatePolicy(tier);
+      }
+
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
         await StorageService.instance.savePolicyId(policyId);

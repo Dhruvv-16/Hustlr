@@ -102,7 +102,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         final base64Image = base64Encode(bytes);
         
         final geminiUrl = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${Secrets.geminiApiKey}',
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Secrets.geminiApiKey}',
         );
         
         final geminiRes = await http.post(

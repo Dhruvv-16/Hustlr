@@ -71,7 +71,7 @@ export default function PoolHealth({ pool, loading }: Props) {
               <Tooltip
                 contentStyle={{ background: '#111311', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
                 labelStyle={{ color: '#E1E3DE' }}
-                formatter={(v: number) => [fmt(v)]}
+                formatter={(value) => [fmt(typeof value === 'number' ? value : Number(value ?? 0)), 'Amount']}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: '#91938D' }} />
               <Bar dataKey="premiums" name="Premiums" fill="#3FFF8B" radius={[4,4,0,0]} />
@@ -91,7 +91,7 @@ export default function PoolHealth({ pool, loading }: Props) {
             </Pie>
             <Tooltip
               contentStyle={{ background: '#111311', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-              formatter={(v: number) => [`${v}%`]}
+              formatter={(value) => [`${Number(value ?? 0)}%`, 'Share']}
             />
           </PieChart>
 

@@ -3,6 +3,8 @@ import '../core/services/storage_service.dart';
 import '../core/services/api_service.dart';
 import '../models/claim.dart' as domain;
 import 'package:hive_flutter/hive_flutter.dart';
+import 'location_service.dart';
+import 'app_events.dart';
 
 class WorkerModel {
   final String id;
@@ -23,6 +25,21 @@ class WorkerModel {
     required this.weeklyIncomeEstimate,
     this.issScore = 62,
   });
+
+  WorkerModel copyWith({
+    String? zone,
+    int? issScore,
+  }) {
+    return WorkerModel(
+      id: id,
+      name: name,
+      platform: platform,
+      city: city,
+      zone: zone ?? this.zone,
+      weeklyIncomeEstimate: weeklyIncomeEstimate,
+      issScore: issScore ?? this.issScore,
+    );
+  }
 }
 
 class PolicyModel {
@@ -164,14 +181,16 @@ class LiveStatusModel {
 }
 
 class ActiveDisruption {
-  final String type;
+  final String triggerName;
+  final String triggerIcon;
   final String message;
   final int payoutExpected;
   final String creditDate;
   bool isActive;
 
   ActiveDisruption({
-    required this.type,
+    required this.triggerName,
+    required this.triggerIcon,
     required this.message,
     required this.payoutExpected,
     required this.creditDate,
@@ -277,6 +296,7 @@ class MockDataService extends ChangeNotifier {
     weeklyIncomeEstimate: 0,
   );
 
+  bool hasActivePolicy = true;
   PolicyModel activePolicy = PolicyModel(
     plan: "Standard Shield",
     premium: 49,
@@ -292,6 +312,11 @@ class MockDataService extends ChangeNotifier {
   int totalPremiums = 0;
   int potentialLoss = 2100;
   bool showPredictiveNudge = true;
+
+  // ML & Debug Overrides
+  bool simulateHighIss = true;
+  bool forceFraudFlag = false;
+  String? spoofedZone;
 
   List<ClaimModel> claims = [];
 
@@ -403,6 +428,13 @@ class MockDataService extends ChangeNotifier {
 
     if (savedBalance != null) walletBalance = savedBalance as int;
     if (savedSavings != null) monthlySavings = savedSavings as int;
+    if (box.containsKey('demo_hasActivePolicy')) {
+      hasActivePolicy = box.get('demo_hasActivePolicy') as bool;
+      final savedTier = box.get('demo_activePolicyTier') as String?;
+      if (savedTier != null && hasActivePolicy) {
+        _updateActivePolicyModel(savedTier);
+      }
+    }
     if (savedTx != null) {
       transactions = (savedTx as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
@@ -442,6 +474,8 @@ class MockDataService extends ChangeNotifier {
     await box.put('demo_walletBalance', walletBalance);
     await box.put('demo_monthlySavings', monthlySavings);
     await box.put('demo_transactions', transactions);
+    await box.put('demo_hasActivePolicy', hasActivePolicy);
+    await box.put('demo_activePolicyTier', activePolicy.plan.toLowerCase().replaceAll(' shield', ''));
     await box.put('demo_claims', claims.map((c) => {
       'id': c.id,
       'type': c.type,
@@ -542,7 +576,8 @@ class MockDataService extends ChangeNotifier {
           final d = disruptions.first as Map<String, dynamic>;
           final tType = d['trigger_type'] as String? ?? 'disruption';
           activeDisruption = ActiveDisruption(
-            type: _triggerLabel(tType),
+            triggerName: _triggerLabel(tType),
+            triggerIcon: tType.contains('rain') ? 'rain' : (tType.contains('heat') ? 'heat' : 'app'),
             message: '${_triggerLabel(tType)} active in your zone',
             payoutExpected: (d['hourly_rate'] as num?)?.toInt() ?? 0,
             creditDate: 'Auto-disbursed upon confirmation',
@@ -646,7 +681,8 @@ class MockDataService extends ChangeNotifier {
           if (isRecent && activeDisruption == null) {
             final tType = latest['trigger_type'] as String? ?? 'disruption';
             activeDisruption = ActiveDisruption(
-              type: _triggerLabel(tType),
+              triggerName: _triggerLabel(tType),
+              triggerIcon: tType.contains('rain') ? 'rain' : (tType.contains('heat') ? 'heat' : 'app'),
               message: '${_triggerLabel(tType)} active in your zone',
               payoutExpected: 0,
               creditDate: 'Auto-disbursed upon confirmation',
@@ -700,7 +736,8 @@ class MockDataService extends ChangeNotifier {
 
     // Show active disruption banner immediately
     activeDisruption = ActiveDisruption(
-      type: type,
+      triggerName: type,
+      triggerIcon: triggerType.contains('rain') ? 'rain' : (triggerType.contains('heat') ? 'heat' : 'app'),
       message: message,
       payoutExpected: 0,
       creditDate: "Credited instantly",
@@ -724,9 +761,9 @@ class MockDataService extends ChangeNotifier {
     // Automatic instant payout in mock mode
     if (userId.isEmpty || true) {
       final payout = switch (triggerType) {
-        'rain_heavy' => 120,   // ₹40/hr × 3hrs = ₹120 (within Standard ₹150 daily cap)
-        'platform_outage' => 140, // ₹50/hr × 2.8hrs ≈ ₹140 (within Standard ₹150 daily cap)
-        'heat_severe' => 130,  // ₹45/hr × 2.9hrs ≈ ₹130 (within Standard ₹150 daily cap)
+        'rain_heavy' => 120,    // README: ₹120
+        'platform_outage' => 140, // README: ₹140
+        'heat_severe' => 130,   // README: ₹130
         _ => 100,
       };
       claims.first.status = 'APPROVED';
@@ -807,7 +844,8 @@ class MockDataService extends ChangeNotifier {
         'date': 'Just now',
       });
       activeDisruption = ActiveDisruption(
-        type: type,
+        triggerName: type,
+        triggerIcon: triggerType.contains('rain') ? 'rain' : (triggerType.contains('heat') ? 'heat' : 'app'),
         message: message,
         payoutExpected: gross,
         creditDate: 'Credited instantly',
@@ -827,6 +865,7 @@ class MockDataService extends ChangeNotifier {
         createdAt: DateTime.now(),
       ));
       notifyListeners();
+      _persistDemoState();
     }).catchError((e) {
       debugPrint('[MockDataService] createClaim error: $e');
       // Silently revert pending claim on failure
@@ -834,6 +873,28 @@ class MockDataService extends ChangeNotifier {
       activeDisruption = null;
       notifyListeners();
     });
+  }
+
+  void activatePolicy(String tier) {
+    hasActivePolicy = true;
+    _updateActivePolicyModel(tier);
+    notifyListeners();
+    _persistDemoState();
+  }
+
+  void _updateActivePolicyModel(String tier) {
+    final premium = tier == 'full' ? 79 : (tier == 'basic' ? 35 : 49);
+    activePolicy = PolicyModel(
+      plan: _planLabel(tier),
+      premium: premium,
+      status: "ACTIVE",
+      coverageStart: _formatDate(DateTime.now().toIso8601String()),
+      coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 365)).toIso8601String()),
+      riders: tier == 'full' ? ["App Downtime", "Cyclone", "Election Day"] : ["App Downtime"],
+      coverageDescription: tier == 'full' 
+          ? "All 9 triggers + compound disruptions covered" 
+          : "Rain, heat, and platform downtime covered",
+    );
   }
 
   // ── Wallet ─────────────────────────────────────────────────────────────────
@@ -905,6 +966,106 @@ class MockDataService extends ChangeNotifier {
     notifyListeners();
     final userId = StorageService.userId;
     if (userId.isNotEmpty) _hydrateFromApi(userId);
+
+    // Dynamic Tracking Bridge
+    LocationService.instance.addListener(_onLocationChanged);
+  }
+
+  void _onLocationChanged() {
+    final liveZone = LocationService.instance.currentZone;
+    if (liveZone != "Unknown Zone" && liveZone != "Outside Service Area" && liveZone != worker.zone) {
+      int newIss = worker.issScore;
+      
+      // Update Risk Profile based on Zone
+      if (liveZone.contains('Adyar') || liveZone.contains('Velachery')) {
+        // High Rain Risk Area
+        liveStatuses[0] = LiveStatusModel(icon: "rain", name: "Rain", level: 0.9, statusText: "72mm/hr · CRITICAL · IMD");
+        liveStatuses[1] = LiveStatusModel(icon: "heat", name: "Heat", level: 0.2, statusText: "32°C · Moderate");
+        newIss = (newIss + 15).clamp(0, 100);
+      } else if (liveZone.contains('HSR') || liveZone.contains('Koramangala')) {
+        // Platform Downtime Risk Area
+        liveStatuses[2] = LiveStatusModel(icon: "app", name: "Outage", level: 0.8, statusText: "Zomato/Swiggy API Lag High");
+        newIss = (newIss + 10).clamp(0, 100);
+      } else if (liveZone.contains('Kattankulathur')) {
+        // Kattankulathur Specific: High Temperature / Sunstroke Risk
+        liveStatuses[0] = LiveStatusModel(icon: "rain", name: "Rain", level: 0.05, statusText: "Clear Skies");
+        liveStatuses[1] = LiveStatusModel(icon: "heat", name: "Heat", level: 0.85, statusText: "41°C · Extreme Heat · IMD Alert");
+        liveStatuses[2] = LiveStatusModel(icon: "app", name: "Outage", level: 0.1, statusText: "Networks Stable");
+        newIss = (newIss + 5).clamp(0, 100);
+      } else {
+        // Clear Zone
+        liveStatuses[0] = LiveStatusModel(icon: "rain", name: "Rain", level: 0.1, statusText: "Clear Skies");
+        liveStatuses[1] = LiveStatusModel(icon: "heat", name: "Heat", level: 0.3, statusText: "34°C · Normal");
+        liveStatuses[2] = LiveStatusModel(icon: "app", name: "Outage", level: 0.05, statusText: "Platforms Stable");
+      }
+      notifyListeners();
+      _persistDemoState();
+    }
+  }
+
+  // ── Persona Switching ──────────────────────────────────────────────────────
+
+  void switchPersona(String personaId) {
+    // 1. Reset current state
+    walletBalance = 0;
+    monthlySavings = 0;
+    claims = [];
+    transactions = [];
+    activeDisruption = null;
+    
+    // Reset ML defaults
+    simulateHighIss = true;
+    forceFraudFlag = false;
+
+    // 2. Apply persona-specific state
+    switch (personaId) {
+      case 'karthik':
+        worker = WorkerModel(id: 'DEMO_KARTHIK', name: 'Karthik Shetty', platform: 'Zepto', city: 'Chennai', zone: 'Adyar', weeklyIncomeEstimate: 4200, issScore: 78);
+        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'Rain, heat, outage, AQI covered');
+        LocationService.instance.forceMockLocation('Adyar Dark Store Zone', 13.0067, 80.2206, depthScore: 0.92);
+        spoofedZone = 'Adyar Dark Store Zone';
+        break;
+      case 'ravi':
+        worker = WorkerModel(id: 'DEMO_RAVI', name: 'Ravi Kumar', platform: 'Zepto', city: 'Chennai', zone: 'Velachery', weeklyIncomeEstimate: 5500, issScore: 84);
+        activePolicy = PolicyModel(plan: 'Full Shield', premium: 79, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'All perturbations + compound triggers');
+        LocationService.instance.forceMockLocation('Velachery Dark Store Zone', 12.9815, 80.2180, depthScore: 0.88);
+        spoofedZone = 'Velachery Dark Store Zone';
+        break;
+      case 'priya':
+        worker = WorkerModel(id: 'DEMO_PRIYA', name: 'Priya Mani', platform: 'Zepto', city: 'Chennai', zone: 'T.Nagar', weeklyIncomeEstimate: 3800, issScore: 65);
+        activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'Rain and Heat only');
+        LocationService.instance.forceMockLocation('T Nagar Dark Store Zone', 13.0418, 80.2341, depthScore: 0.65);
+        spoofedZone = 'T Nagar Dark Store Zone';
+        break;
+      default:
+        break;
+    }
+
+    _persistDemoState();
+    notifyListeners();
+    
+    // Fire events to notify other parts of the app that data has changed
+    AppEvents.instance.policyUpdated();
+    AppEvents.instance.walletUpdated();
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.profileUpdated();
+  }
+
+  void updateMlToggles({bool? iss, bool? fraud}) {
+    if (iss != null) simulateHighIss = iss;
+    if (fraud != null) forceFraudFlag = fraud;
+    notifyListeners();
+    AppEvents.instance.profileUpdated();
+  }
+
+  void updateSpoofedLocation(String zone) {
+    spoofedZone = zone;
+    final centroid = LocationService.ZONE_CENTROIDS[zone];
+    if (centroid != null) {
+      LocationService.instance.forceMockLocation(zone, centroid['lat']!, centroid['lon']!, depthScore: 0.95);
+    }
+    notifyListeners();
+    AppEvents.instance.profileUpdated();
   }
 
   // ── Utilities ──────────────────────────────────────────────────────────────

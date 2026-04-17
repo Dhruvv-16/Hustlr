@@ -111,13 +111,6 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         });
       } else {
         setState(() => _state = _VerificationState.success);
-        await Future.delayed(const Duration(milliseconds: 800));
-        if (mounted) {
-          await _completeAndExit(
-            method: 'biometric',
-            similarityScore: null,
-          );
-        }
       }
     } else {
       setState(() {
@@ -191,15 +184,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         if (!verified) _errorMessage = result['reason'] ?? 'Face did not match registered profile.';
       });
 
-      if (verified) {
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          await _completeAndExit(
-            method: widget.requireTwoTier ? 'biometric+rekognition' : 'rekognition',
-            similarityScore: score,
-          );
-        }
-      }
+      // Note: Auto-pop removed. The user must manually click 'CONTINUE'.
     } catch (e) {
       setState(() {
         _state = _VerificationState.failed;
@@ -555,38 +540,90 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       }
     }
 
-    return Column(
-      children: [
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _state == _VerificationState.success
-                ? const Color(0xFF4CAF50)
-                : _state == _VerificationState.failed
-                    ? Colors.redAccent
-                    : Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Manrope',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _state == _VerificationState.success
+                  ? const Color(0xFF4CAF50)
+                  : _state == _VerificationState.failed
+                      ? Colors.redAccent
+                      : Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Manrope',
+              letterSpacing: -0.5,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 13,
-            height: 1.6,
+          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 14,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-      ],
+          if (_state == _VerificationState.success && _similarityScore != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
+              ),
+              child: Text(
+                'SIMILARITY: ${(_similarityScore! * 100).toStringAsFixed(1)}%',
+                style: const TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _buildActionButtons(Color primaryColor, Color accentGreen) {
-    if (_state == _VerificationState.success) return const SizedBox.shrink();
+    if (_state == _VerificationState.success) {
+      return SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () => _completeAndExit(
+            method: _tier == _AuthTier.biometric 
+                ? 'biometric' 
+                : (widget.requireTwoTier ? 'biometric+rekognition' : 'rekognition'),
+            similarityScore: _similarityScore,
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4CAF50),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 4,
+            shadowColor: const Color(0xFF4CAF50).withOpacity(0.4),
+          ),
+          child: const Text(
+            'CONTINUE',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2),
+          ),
+        ),
+      );
+    }
 
     final isLoading = _state == _VerificationState.verifying ||
         _state == _VerificationState.capturing;

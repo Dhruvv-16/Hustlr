@@ -226,7 +226,7 @@ export default function ProfitSimulator() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0A0B0A', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8 }}
                     itemStyle={{ color: '#3FFF8B', fontWeight: 'bold' }}
-                    formatter={(value: number) => [`₹${fmt(value)}`, 'Revenue']}
+                    formatter={(value) => [`₹${fmt(typeof value === 'number' ? value : Number(value ?? 0))}`, 'Revenue']}
                     labelStyle={{ color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}
                   />
                   <Line type="monotone" dataKey="revenue" stroke="#3FFF8B" strokeWidth={3} dot={{ fill: '#0A0B0A', stroke: '#3FFF8B', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />

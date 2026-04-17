@@ -63,7 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<String> _queryGemini(String prompt) async {
     if (_geminiApiKey.isEmpty) return _getAutoReply(prompt);
     final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_geminiApiKey',
     );
     
     final contents = [

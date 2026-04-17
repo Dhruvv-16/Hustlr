@@ -8,7 +8,9 @@ import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/app_events.dart';
+import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
+import 'package:provider/provider.dart';
 
 // Dark mode palette
 const _darkGreen       = Color(0xFF3FFF8B);
@@ -99,10 +101,26 @@ class _PolicyScreenState extends State<PolicyScreen>
       try {
         final data = await ApiService.instance.getPolicyInstance(uid);
         if (mounted) {
+          final mock = context.read<MockDataService>();
           final rawPolicy = data['policy'];
           final rawHistory = data['history'];
+
           setState(() {
-            activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            // ── Demo Sync ───────────────────────────────────────────────────
+            if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
+              activePolicy = {
+                'id': 'PROTO-POL-${mock.worker.id.hashCode}',
+                'plan_name': mock.activePolicy.plan,
+                'plan_tier': mock.activePolicy.plan.split(' ')[0].toLowerCase(),
+                'status': mock.activePolicy.status,
+                'coverage_start': mock.activePolicy.coverageStart,
+                'commitment_end': mock.activePolicy.coverageEnd,
+                'weekly_premium': mock.activePolicy.premium,
+              };
+            } else {
+              activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            }
+
             policyHistory = rawHistory is List
                 ? rawHistory
                     .whereType<Map>()
@@ -1013,7 +1031,7 @@ class _StickyBottomBar extends StatelessWidget {
           child: SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: isDisabled ? null : onProceed,
+              onPressed: (isDisabled || activePolicy != null) ? null : onProceed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: btnTextColor,
@@ -1025,13 +1043,14 @@ class _StickyBottomBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(btnText,
+                  Text(activePolicy != null ? 'PLAN ACTIVE' : btnText,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.bold,
-                          color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
+                          color: (isDisabled || activePolicy != null) ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
                   const SizedBox(width: 8),
-                  Icon(btnIcon, size: 18, color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor),
+                  Icon(activePolicy != null ? Icons.check_circle_rounded : btnIcon, 
+                      size: 18, color: (isDisabled || activePolicy != null) ? btnTextColor.withOpacity(0.5) : btnTextColor),
                 ],
               ),
             ),

@@ -8,10 +8,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/location_service.dart';
+import '../../services/mock_data_service.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/router/app_router.dart';
+import 'package:provider/provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
@@ -33,7 +35,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
   Map<String, dynamic>? disruptionData;
@@ -62,9 +64,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _lastWalletReload = 0;
   int _lastClaimReload = 0;
 
-  // Realtime Gen ML Status
   int? liveIssScore;
   double? liveDynamicPrice;
+
+  // Liveness HUD
+  final List<StatusEvent> _events = [];
+  StreamSubscription<StatusEvent>? _eventSub;
+  late AnimationController _radarController;
 
   // Debug variables
   bool _debugMode = false;
@@ -129,6 +135,26 @@ class _DashboardScreenState extends State<DashboardScreen>
         _loadDashboardData();
       }
     });
+
+    AppEvents.instance.onProfileUpdated.listen((_) {
+      if (mounted) _loadDashboardData();
+    });
+
+    // Liveness HUD subscription
+    _eventSub = LocationService.instance.eventLog.listen((event) {
+      if (mounted) {
+        setState(() {
+          _events.insert(0, event);
+          if (_events.length > 50) _events.removeLast();
+        });
+      }
+    });
+
+    // Initialize Radar Animation
+    _radarController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -340,6 +366,24 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _lastLocUpdate = 0;
   void _onLocationUpdate() {
     if (!mounted) return;
+    
+    final newZone = LocationService.instance.currentZone;
+    if (newZone != "Unknown Zone" && newZone != "Outside Service Area" && newZone != userZone) {
+      final zoneShort = newZone.split(' ').first;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📍 Location Verified: Entering $zoneShort Hub'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+      setState(() {
+        userZone = newZone;
+      });
+    }
+
     final now = DateTime.now().millisecondsSinceEpoch;
     if (now - _lastLocUpdate > 5000) {
       // Every 5 seconds max
@@ -361,6 +405,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _radarController.dispose();
+    _eventSub?.cancel();
     LocationService.instance.removeListener(_onLocationUpdate);
     ShiftTrackingService.instance.removeListener(_onShiftUpdate);
     WidgetsBinding.instance.removeObserver(this);
@@ -379,6 +425,62 @@ class _DashboardScreenState extends State<DashboardScreen>
     userId = await StorageService.instance.getUserId();
     userZone = await StorageService.instance.getUserZone();
     userName = await StorageService.instance.getUserName();
+
+    // ── Demo Consistency Guard ───────────────────────────────────────────
+    final mockSvc = Provider.of<MockDataService>(context, listen: false);
+    if (mockSvc.worker.id.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          userId = mockSvc.worker.id;
+          userName = mockSvc.worker.name;
+          userZone = mockSvc.worker.zone;
+          
+          policyData = mockSvc.hasActivePolicy ? {
+            'id': 'PROTO-POL-${mockSvc.worker.id.hashCode}',
+            'plan_tier': mockSvc.activePolicy.plan.split(' ')[0].toLowerCase(),
+            'plan_name': mockSvc.activePolicy.plan,
+            'status': mockSvc.activePolicy.status,
+            'weekly_premium': mockSvc.activePolicy.premium,
+            'coverage_start': mockSvc.activePolicy.coverageStart,
+            'commitment_end': mockSvc.activePolicy.coverageEnd,
+          } : null;
+          
+          walletData = {
+            'balance': mockSvc.walletBalance,
+            'total_payouts': mockSvc.monthlySavings,
+            'total_premiums': mockSvc.totalPremiums,
+            'transactions': mockSvc.transactions,
+          };
+
+          if (mockSvc.activeDisruption != null) {
+            final active = mockSvc.activeDisruption!;
+            activeDisruption = {
+              'display_name': active.triggerName,
+              'trigger_type': active.triggerIcon,
+            };
+            disruptionData = {
+              'active': true,
+              'trigger_type': active.triggerName,
+              'zone': userZone,
+            };
+          } else {
+            activeDisruption = null;
+            disruptionData = const {'active': false};
+          }
+
+          weatherData = {
+            'source': 'Mock Engine',
+            'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
+            'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
+          };
+
+          liveIssScore = mockSvc.worker.issScore;
+          isLoading = false;
+        });
+      }
+      _isDashboardLoading = false;
+      return;
+    }
 
     if (userId == null) {
       _isDashboardLoading = false;
@@ -1286,6 +1388,124 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildLivenessHUD(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
+    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: mintColor.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          // Shift Stats Panel
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Row(
+              children: [
+                _buildRadarIndicator(mintColor),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('SATELLITE PROTECTION ACTIVE', 
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: mintColor, letterSpacing: 0.5)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _statItem('Distance', '${LocationService.instance.traveledDistance.toStringAsFixed(2)} km', theme),
+                          Container(width: 1, height: 20, color: theme.dividerColor, margin: const EdgeInsets.symmetric(horizontal: 16)),
+                          _statItem('Accuracy', '${ShiftTrackingService.instance.lastAccuracy.round()}m', theme),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Live Feed Ticker
+          Container(
+            height: 100,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.black.withOpacity(0.2) : Colors.grey.withOpacity(0.05),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+            ),
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _events.length > 5 ? 5 : _events.length,
+              physics: const NeverScrollableScrollPhysics(),
+              itemBuilder: (context, index) {
+                final event = _events[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Text('[${event.timestamp.hour}:${event.timestamp.minute.toString().padLeft(2, '0')}] ', 
+                        style: TextStyle(fontSize: 10, color: hintColor, fontFamily: 'monospace')),
+                      Expanded(
+                        child: Text(event.message,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.8), fontWeight: FontWeight.w500)),
+                      ),
+                      if (index == 0) Icon(Icons.circle, size: 6, color: mintColor),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(String label, String val, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface.withOpacity(0.4))),
+        Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+      ],
+    );
+  }
+
+  Widget _buildRadarIndicator(Color mintColor) {
+    return AnimatedBuilder(
+      animation: _radarController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            ...[1, 2].map((i) => Container(
+              width: 44 * (1 + _radarController.value * 0.5 * i),
+              height: 44 * (1 + _radarController.value * 0.5 * i),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: mintColor.withOpacity(1 - _radarController.value)),
+              ),
+            )),
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: mintColor, shape: BoxShape.circle),
+              child: const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 24),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
     return Column(
       children: [
@@ -1382,6 +1602,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           }),
           const SizedBox(height: 16),
         ],
+        
+        // ── Liveness HUD (Only shown when Online) ──
+        if (ShiftTrackingService.instance.status != ShiftStatus.offline) ...[
+          _buildLivenessHUD(context),
+          const SizedBox(height: 16),
+        ],
+
         Row(
           children: [
             Expanded(

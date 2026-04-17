@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart'; // enable after adding google-services.json
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'core/router/app_router.dart';
 import 'core/services/storage_service.dart';
@@ -90,20 +91,16 @@ Future<void> main() async {
     // Initialize notification service (handles foreground messages and taps)
     await NotificationService.initialize();
     
-    // Request notification permission (required for Android 13+, iOS 10+)
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
+    // Request permissions (Notification for Android 13+, Activity for Shadow Policy)
+    if (!kIsWeb && 
+        (defaultTargetPlatform == TargetPlatform.android || 
+         defaultTargetPlatform == TargetPlatform.iOS)) {
+      
+      await [
+        Permission.notification,
+        Permission.activityRecognition,
+      ].request();
 
-    if (!kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)) {
       String? token = await FirebaseMessaging.instance.getToken();
       print("FCM TOKEN: $token");
     }
@@ -165,10 +162,14 @@ class HustlrApp extends StatefulWidget {
   State<HustlrApp> createState() => _HustlrAppState();
 }
 
-class _HustlrAppState extends State<HustlrApp> {
+class _HustlrAppState extends State<HustlrApp> with WidgetsBindingObserver {
+  DateTime? _pausedTime;
+  bool _isLocked = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Set up notification tap handler
     NotificationService.setNotificationTapCallback((payload) async {
       final route = payload['route'] ?? payload['type'];
@@ -178,6 +179,40 @@ class _HustlrAppState extends State<HustlrApp> {
       if (mounted && route != null) {
         _handleNotificationNavigation(route, payload);
       }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_pausedTime != null) {
+        final diff = DateTime.now().difference(_pausedTime!);
+        // Require auth if paused for more than 300 seconds (5 mins)
+        // (This buffer prevents locking when user opens camera or system dialogs)
+        if (diff.inSeconds >= 300 && !_isLocked) {
+          _lockApp();
+        }
+      }
+    }
+  }
+
+  void _lockApp() {
+    // Only lock if we actually have a session and onboarding is complete
+    final box = Hive.box('appData');
+    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
+    if (!isLoggedIn) return;
+
+    _isLocked = true;
+    appRouter.push('/step-up-auth?reason=Welcome+Back!+Please+verify+to+continue.').then((_) {
+      _isLocked = false;
     });
   }
 

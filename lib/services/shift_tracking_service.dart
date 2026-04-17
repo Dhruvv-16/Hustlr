@@ -77,6 +77,12 @@ class ShiftTrackingService extends ChangeNotifier {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
+    
+    // For background location, we need 'Always'
+    if (permission == LocationPermission.whileInUse) {
+      permission = await Geolocator.requestPermission();
+    }
+
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       _status = ShiftStatus.paused;
       notifyListeners();
@@ -112,9 +118,14 @@ class ShiftTrackingService extends ChangeNotifier {
       }
 
       _positionSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
+        locationSettings: AndroidSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 10,
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
+            notificationTitle: "Shift Protection Active",
+            notificationText: "Hustlr is protecting your earnings in the background.",
+            enableWakeLock: true,
+          ),
         ),
       ).listen(
         (position) => _handlePosition(position, isHeartbeat: false),

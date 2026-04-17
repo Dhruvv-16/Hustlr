@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
+import 'package:provider/provider.dart';
+import '../../services/mock_data_service.dart';
 
 
 class ShadowPolicyScreen extends StatefulWidget {
@@ -24,6 +26,29 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
 
   Future<void> _load() async {
     final uid = await StorageService.instance.getUserId();
+
+    // ── Demo Shadow Sync ────────────────────────────────────────────────────
+    final mock = Provider.of<MockDataService>(context, listen: false);
+    if (mock.worker.id.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _live = {
+            'missed_payout_inr': mock.missedAmount,
+            'standard_premium_fortnight_inr': 98, // ₹49 * 2
+            'net_benefit_inr': mock.missedAmount - 98,
+            'events': mock.shadowEvents.map((e) => {
+              'trigger_type': e.triggerIcon,
+              'display_name': e.triggerName,
+              'disruption_date': e.date,
+              'potential_payout_inr': e.claimableAmount,
+            }).toList(),
+          };
+          _loading = false;
+        });
+      }
+      return;
+    }
+
     if (uid == null) {
       if (mounted) setState(() => _loading = false);
       return;

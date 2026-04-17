@@ -6,6 +6,7 @@ import '../services/storage_service.dart';
 import '../services/notification_service.dart';
 import 'package:provider/provider.dart';
 import '../services/mock_data_service.dart';
+import '../services/location_service.dart';
 import 'restart_widget.dart';
 
 class DemoControlsSheet extends StatefulWidget {
@@ -163,7 +164,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF141614) : Colors.white;
     final surface = isDark ? const Color(0xFF1C1F1C)
                            : const Color(0xFFF4F6F4);
@@ -445,8 +447,66 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
               },
             ),
           ),
+          
+          // --- SIMULATE ROAMING / HUB PROXIMITY ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.map_rounded, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text('ROAMING SIMULATOR', style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w900, 
+                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _hubSimButton('Kattankulathur', 12.8185, 80.0419),
+                      const SizedBox(width: 10),
+                      _hubSimButton('Adyar (Flood)', 13.0067, 80.2206),
+                      const SizedBox(width: 10),
+                      _hubSimButton('HSR (Outage)', 12.9081, 77.6476),
+                      const SizedBox(width: 10),
+                      _hubSimButton('Indiranagar', 12.9784, 77.6408),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text('Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
+                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.5))),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _hubSimButton(String label, double lat, double lon) {
+    final theme = Theme.of(context);
+    return OutlinedButton(
+      onPressed: () {
+        LocationService.instance.forceMockLocation(label, lat, lon, depthScore: 0.95);
+        _showStep('Teleported to $label Hub');
+      },
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.3)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
     );
   }
 
@@ -637,8 +697,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     }
   }
 
-
-  void _showStep(String message) {
+void _showStep(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

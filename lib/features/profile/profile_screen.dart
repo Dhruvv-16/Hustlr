@@ -15,6 +15,9 @@ import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
 import '../../widgets/demo_controls_sheet.dart';
+import '../../widgets/restart_widget.dart';
+import '../../services/mock_data_service.dart';
+import '../../services/location_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -57,6 +60,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadData() async {
     final userId = await StorageService.instance.getUserId();
+    
+    // Prioritize mock data for demo consistency
+    final mockSvc = Provider.of<MockDataService>(context, listen: false);
+    if (mockSvc.worker.id.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _worker = {
+            'id': mockSvc.worker.id,
+            'name': mockSvc.worker.name,
+            'platform': mockSvc.worker.platform,
+            'city': mockSvc.worker.city,
+            'zone': mockSvc.worker.zone,
+          };
+          _policy = {
+            'plan_tier': mockSvc.activePolicy.plan.split(' ')[0].toLowerCase(),
+            'status': mockSvc.activePolicy.status,
+          };
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     if (userId == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
@@ -91,9 +117,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final bioEnabled = prefs.getBool('biometric_enabled') ?? true;
 
       if (mounted) {
+        final mock = context.read<MockDataService>();
+        Map<String, dynamic>? finalPolicy;
+
+        if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
+          finalPolicy = {
+            'plan_name': mock.activePolicy.plan,
+            'status': mock.activePolicy.status,
+            'coverage_start': mock.activePolicy.coverageStart,
+            'commitment_end': mock.activePolicy.coverageEnd,
+          };
+        } else {
+          finalPolicy = policy;
+        }
+
         setState(() {
           _worker = worker;
-          _policy = policy;
+          _policy = finalPolicy;
           _trustProfile = trustProfile ?? _trustProfile; // fallback if fails completely
           _biometricEnabled = bioEnabled;
           _isLoading = false;
@@ -296,32 +336,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                      GestureDetector(
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (ctx) => const DemoControlsSheet(),
-                          );
-                        },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1B5E20).withOpacity(0.2) : const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.build_circle_rounded, color: Color(0xFF3FFF8B), size: 24),
-                            const SizedBox(width: 16),
-                            const Expanded(child: Text("Developer: Demo Controls", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
-                            const Icon(Icons.chevron_right_rounded, color: Color(0xFF3FFF8B)),
-                          ],
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 24),
+                    _buildDemoControls(context, theme, isDark),
                     const SizedBox(height: 24),
 
                     // ── Logout ────────────────────────────────────────────
@@ -369,49 +385,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUserIdentity(dynamic worker, ThemeData theme, bool isDark, AppLocalizations l10n) {
+  Widget _buildUserIdentity(Map<String, dynamic>? worker, ThemeData theme, bool isDark, AppLocalizations l10n) {
     return Container(
-        padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: isDark ? [] : [
+          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+        ],
+      ),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            child: Text(
+              worker?['name']?.substring(0, 1) ?? 'U',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            worker?['name'] ?? 'User',
+            style: theme.textTheme.displaySmall,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3FFF8B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified_rounded, color: Color(0xFF3FFF8B), size: 16),
+                SizedBox(width: 4),
+                Text(
+                  'Tier 2 Verified',
+                  style: TextStyle(color: Color(0xFF3FFF8B), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDemoControls(BuildContext context, ThemeData theme, bool isDark) {
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const DemoControlsSheet(),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(24), // dual mode convention
-          border: isDark ? null : Border.all(color: theme.colorScheme.primary.withOpacity(0.0)),
-          boxShadow: isDark ? [
-            // Ethereal ambient shadow
-            BoxShadow(color: theme.colorScheme.primary.withOpacity(0.02), blurRadius: 40, offset: const Offset(0, 20)),
-          ] : [
-            // Organic shadow
-            BoxShadow(color: theme.colorScheme.primary.withOpacity(0.08), blurRadius: 40, offset: const Offset(0, 20)),
-          ],
+          color: isDark ? const Color(0xFF1c1f1c) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
         ),
         child: Row(
           children: [
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.colorScheme.primary.withOpacity(0.1),
-              ),
-              child: Icon(Icons.person_rounded, size: 40, color: theme.colorScheme.primary),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_worker?['name'] as String? ?? 'John Doe', style: theme.textTheme.displaySmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${(_worker?['platform'] as String? ?? 'Swiggy').toUpperCase()} ${l10n.profile_partner.toUpperCase()}',
-                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-                  ),
-                ],
-              ),
-            ),
+            const Icon(Icons.bug_report_rounded, color: Color(0xFF3FFF8B), size: 24),
+            const SizedBox(width: 16),
+            const Expanded(child: Text("HUSTLR INTERNAL CONTROLS", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
+            const Icon(Icons.keyboard_arrow_up_rounded, color: Color(0xFF3FFF8B)),
           ],
         ),
-      );
+      ),
+    );
   }
+
+
 }
 
 // ── Theme Toggle Switch ──────────────────────────────────────────────────────

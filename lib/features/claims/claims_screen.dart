@@ -8,6 +8,8 @@ import '../../services/storage_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../shared/widgets/notification_bell.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../services/mock_data_service.dart';
 
 class ClaimsScreen extends StatefulWidget {
   const ClaimsScreen({super.key});
@@ -44,6 +46,24 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
   Future<void> _loadClaims() async {
     setState(() { _loading = true; _error = null; });
     try {
+      // Prioritize MockDataService for hackathon demo triggers
+      final mock = Provider.of<MockDataService>(context, listen: false);
+      if (mock.claims.isNotEmpty) {
+        final mockList = mock.claims.map((c) => {
+          'id': c.id,
+          'trigger_type': c.icon == 'rain' ? 'rain_heavy' : (c.icon == 'heat' ? 'heat_severe' : 'platform_outage'),
+          'display_name': c.type,
+          'status': c.status,
+          'created_at': c.date == 'Just now' ? DateTime.now().toIso8601String() : c.date,
+          'gross_payout': c.amount,
+          'zone': c.zone,
+        }).toList();
+        
+        if (!mounted) return;
+        setState(() { _claims = mockList; _loading = false; });
+        return;
+      }
+
       final userId = await StorageService.instance.getUserId();
       if (userId == null) {
         if (!mounted) return;

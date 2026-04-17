@@ -4,6 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'notification_service.dart';
 
+class StatusEvent {
+  final String message;
+  final DateTime timestamp;
+  final bool isError;
+
+  StatusEvent(this.message, {DateTime? timestamp, this.isError = false}) 
+    : timestamp = timestamp ?? DateTime.now();
+}
+
 class LocationService extends ChangeNotifier {
   static final LocationService instance = LocationService._internal();
   LocationService._internal();
@@ -14,13 +23,28 @@ class LocationService extends ChangeNotifier {
   double _currentLon = 0.0;
   bool _isTracking = false;
   String _currentZone = 'Unknown';
+  double _traveledDistance = 0.0;
   StreamSubscription<Position>? _positionStreamSubscription;
 
-  double get depthScore => _currentDepthScore;
-  double get currentLat => _currentLat;
-  double get currentLon => _currentLon;
+  final StreamController<StatusEvent> _eventController = StreamController<StatusEvent>.broadcast();
+  Stream<StatusEvent> get eventLog => _eventController.stream;
+
+  // Mock overrides
+  double? _mockDepthScore;
+  double? _mockLat;
+  double? _mockLon;
+  String? _mockZone;
+
+  double get depthScore => _mockDepthScore ?? _currentDepthScore;
+  double get currentLat => _mockLat ?? _currentLat;
+  double get currentLon => _mockLon ?? _currentLon;
   bool get isTracking => _isTracking;
-  String get currentZone => _currentZone;
+  String get currentZone => _mockZone ?? _currentZone;
+  double get traveledDistance => _traveledDistance;
+
+  void addEvent(String message, {bool isError = false}) {
+    _eventController.add(StatusEvent(message, isError: isError));
+  }
 
   /// Push a one-shot GPS fix into the service without starting full tracking.
   /// Used by the dashboard to show location immediately on mount.
@@ -72,7 +96,14 @@ class LocationService extends ChangeNotifier {
     if (permission == LocationPermission.deniedForever) {
       return false;
     }
-    return true;
+
+    // For background location on Android, we need 'Always' permission
+    if (permission == LocationPermission.whileInUse) {
+      // Prompt for 'Always' once if possible
+      permission = await Geolocator.requestPermission();
+    }
+
+    return permission == LocationPermission.always || permission == LocationPermission.whileInUse;
   }
 
   Future<void> startTracking(String zone) async {
@@ -82,7 +113,9 @@ class LocationService extends ChangeNotifier {
     _currentZone = zone;
     _shiftPings.clear();
     _currentDepthScore = 0.0;
+    _traveledDistance = 0.0;
     _isTracking = true;
+    addEvent('Location protection online');
     notifyListeners();
 
     // Fetch initial location immediately so UI doesn't show 0.0000
@@ -97,12 +130,54 @@ class LocationService extends ChangeNotifier {
       notifyListeners();
     } catch (_) {}
 
+    _listenToPositions();
+  }
+
+  Future<void> stopTracking() async {
+    await _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+    _isTracking = false;
+    _mockDepthScore = null;
+    _mockLat = null;
+    _mockLon = null;
+    _mockZone = null;
+    addEvent('Location protection offline');
+    notifyListeners();
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    final dist = Geolocator.distanceBetween(
+      lat1, lon1, lat2, lon2
+    );
+    return dist / 1000.0; // km
+  }
+
+  String _findNearestZone(double lat, double lon) {
+    String nearest = 'Unknown Zone';
+    double minDict = 99999.0;
+    
+    ZONE_CENTROIDS.forEach((name, coords) {
+      final d = _calculateDistance(lat, lon, coords['lat']!, coords['lon']!);
+      if (d < minDict) {
+        minDict = d;
+        nearest = name;
+      }
+    });
+
+    // If we are way outside any dark store (e.g. > 50km), keep as Unknown
+    if (minDict > 50.0) return 'Outside Service Area';
+    return nearest;
+  }
+
+  void _listenToPositions() {
     _positionStreamSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5, // lowered to 5 meters for testing
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 10,
       ),
-    ).listen((Position position) {
+    ).listen((position) {
+      if (!_isTracking) return;
+
       if (_shiftPings.isNotEmpty) {
         final lastPing = _shiftPings.last;
         final distanceDelta = Geolocator.distanceBetween(
@@ -132,14 +207,26 @@ class LocationService extends ChangeNotifier {
       _shiftPings.removeWhere((p) => p.timestamp.isBefore(cutoff));
 
       _recalculateDepthScore();
+      final centroid = ZONE_CENTROIDS[_currentZone];
+      if (centroid != null) {
+        final hubDist = _haversineKm(
+          position.latitude, position.longitude,
+          centroid['lat']!, centroid['lon']!,
+        );
+        addEvent('Distance to Hub: ${hubDist.toStringAsFixed(2)} km | Depth: ${(_currentDepthScore * 100).round()}%');
+      }
+      
       notifyListeners();
     });
   }
 
-  Future<void> stopTracking() async {
-    await _positionStreamSubscription?.cancel();
-    _positionStreamSubscription = null;
-    _isTracking = false;
+
+
+  void forceMockLocation(String zone, double lat, double lon, {double? depthScore}) {
+    _mockZone = zone;
+    _mockLat = lat;
+    _mockLon = lon;
+    _mockDepthScore = depthScore;
     notifyListeners();
   }
 

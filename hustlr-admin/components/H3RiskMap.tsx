@@ -67,7 +67,6 @@ export default function H3RiskMap() {
       renderSubLayers: (props: any) => {
         const { boundingBox } = props.tile;
         return new BitmapLayer(props, {
-          data: null,
           image: props.data,
           // TileLayer sets bounds correctly
           bounds: [boundingBox[0][0], boundingBox[0][1], boundingBox[1][0], boundingBox[1][1]],

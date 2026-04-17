@@ -1,0 +1,19 @@
+{
+  "hi": [
+    "claims_report_disruption",
+    "claims_recent_history",
+    "claims_claimed",
+    "wallet_recent_transactions",
+    "support_faq_4_q",
+    "support_faq_4_a"
+  ],
+
+  "ta": [
+    "claims_report_disruption",
+    "claims_recent_history",
+    "claims_claimed",
+    "wallet_recent_transactions",
+    "support_faq_4_q",
+    "support_faq_4_a"
+  ]
+}

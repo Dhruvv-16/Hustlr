@@ -63,6 +63,21 @@ class _WalletScreenState extends State<WalletScreen> {
     setState(() { _loading = true; _error = null; });
     
     try {
+      // Prioritize MockDataService for hackathon demo consistency
+      final mock = Provider.of<MockDataService>(context, listen: false);
+      if (mock.transactions.isNotEmpty || mock.walletBalance > 0) {
+        if (!mounted) return;
+        setState(() {
+          _balance        = mock.walletBalance;
+          _totalPayouts   = mock.monthlySavings;
+          _totalPremiums  = mock.totalPremiums;
+          _transactions   = List<Map<String, dynamic>>.from(mock.transactions);
+          _isMock         = true;
+          _loading        = false;
+        });
+        return;
+      }
+
       final res = await ApiService.instance.getWallet(userId);
       Map<String, dynamic>? cashbackData;
       try {
@@ -1007,16 +1022,29 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
     final userId = await StorageService.instance.getUserId();
     if (userId == null) throw Exception('User not logged in');
 
-    // Call real API with 15s timeout
-    final result = await ApiService.instance.withdrawToBank(
-      userId: userId,
-      amount: amount,
-      upiId: bankDirect ? null : upiId,
-      bankDirect: bankDirect,
-    ).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException('UPI network timed out. Try again.'),
-    );
+    // ── Demo Withdrawal Guard ───────────────────────────────────────────────
+    final mock = Provider.of<MockDataService>(context, listen: false);
+    Map<String, dynamic> result;
+
+    if (mock.worker.id.isNotEmpty) {
+      // Fake network latency
+      await Future.delayed(const Duration(seconds: 2));
+      result = {
+        'status': 'success',
+        'transaction_id': 'HS-DEMO-${DateTime.now().millisecondsSinceEpoch % 100000}',
+      };
+    } else {
+      // Call real API with 15s timeout
+      result = await ApiService.instance.withdrawToBank(
+        userId: userId,
+        amount: amount,
+        upiId: bankDirect ? null : upiId,
+        bankDirect: bankDirect,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('UPI network timed out. Try again.'),
+      );
+    }
 
     if (_cancelled) return;
     if (!context.mounted) return;
