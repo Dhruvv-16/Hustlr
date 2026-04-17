@@ -58,6 +58,18 @@ export default function H3RiskMap() {
 
       mapInstanceRef.current = map;
 
+      // Force Leaflet to recalculate its size after the container is revealed
+      // (it may be hidden/zero-sized on first paint inside a lazy-loaded card)
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+      }, 400);
+
+      // Also watch for container resize (e.g. sidebar or panel toggling)
+      if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
+        const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+        ro.observe(mapRef.current);
+      }
+
       // Dark CartoDB basemap — same as DeckGL version
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
