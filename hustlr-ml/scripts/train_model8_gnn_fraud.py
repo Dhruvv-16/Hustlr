@@ -13,7 +13,16 @@ Output:
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ML_ROOT = os.path.dirname(SCRIPT_DIR)
+SERVICES_DIR = os.path.join(ML_ROOT, 'services')
+
+# Support both direct script runs and train_all_local runs.
+if ML_ROOT not in sys.path:
+    sys.path.append(ML_ROOT)
+if SERVICES_DIR not in sys.path:
+    sys.path.append(SERVICES_DIR)
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +34,20 @@ from datetime import datetime
 import random
 
 from gnn_fraud_detection import GraphSAGEFraudDetector, FraudGraphBuilder, save_model
+
+
+CHENNAI_ZONE_IDS = [
+    'adyar',
+    'velachery',
+    'anna_nagar',
+    't_nagar',
+    'guduvanchery',
+    'kathankulathur',
+    'kelambakkam',
+    'potheri',
+    'siruseri',
+    'urapakkam',
+]
 
 
 # Configuration
@@ -102,7 +125,7 @@ def generate_synthetic_worker_data(num_workers: int, num_fraud: int) -> list:
             'historical_clean_ratio': random.uniform(0.6, 1.0),
             'device_fingerprint': f'device_{random.randint(0, num_workers - num_fraud)}',
             'upi_id': f'upi_{random.randint(0, num_workers - num_fraud)}',
-            'zone_id': random.choice(['adyar', 'velachery', 'anna_nagar', 't_nagar']),
+            'zone_id': random.choice(CHENNAI_ZONE_IDS),
             'claim_latency': random.randint(45, 300),
             'registered_at': datetime.now()
         })
@@ -111,7 +134,7 @@ def generate_synthetic_worker_data(num_workers: int, num_fraud: int) -> list:
     fraud_worker_id = num_workers - num_fraud
     device_ring_id = f'device_ring_{random.randint(0, 1000)}'
     upi_ring_id = f'upi_ring_{random.randint(0, 1000)}'
-    zone_cluster_id = 'adyar'
+    zone_cluster_id = random.choice(CHENNAI_ZONE_IDS)
     
     # Device ring fraud
     for i in range(FRAUD_PATTERNS['device_ring']['count']):
@@ -125,7 +148,7 @@ def generate_synthetic_worker_data(num_workers: int, num_fraud: int) -> list:
             'historical_clean_ratio': FRAUD_PATTERNS['device_ring']['features']['historical_clean_ratio'](),
             'device_fingerprint': device_ring_id,  # Same device
             'upi_id': f'upi_{fraud_worker_id + i}',
-            'zone_id': random.choice(['adyar', 'velachery']),
+            'zone_id': random.choice(['adyar', 'velachery', 'siruseri', 'kelambakkam']),
             'claim_latency': random.randint(5, 30),  # Very fast claims
             'registered_at': datetime.now()
         })
@@ -142,7 +165,7 @@ def generate_synthetic_worker_data(num_workers: int, num_fraud: int) -> list:
             'historical_clean_ratio': FRAUD_PATTERNS['upi_ring']['features']['historical_clean_ratio'](),
             'device_fingerprint': f'device_{fraud_worker_id + i}',
             'upi_id': upi_ring_id,  # Same UPI
-            'zone_id': random.choice(['anna_nagar', 't_nagar']),
+            'zone_id': random.choice(['anna_nagar', 't_nagar', 'guduvanchery', 'urapakkam', 'kathankulathur', 'potheri']),
             'claim_latency': random.randint(10, 45),
             'registered_at': datetime.now()
         })

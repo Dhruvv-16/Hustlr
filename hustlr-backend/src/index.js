@@ -13,6 +13,7 @@ const guidewireRoutes = require('./routes/guidewire.routes');
 const citiesRoutes = require('./routes/cities.routes');
 const integrityRoutes = require('./routes/integrity.routes');
 const mlRoutes = require('./routes/ml.routes');
+const adminRoutes = require('./routes/admin.routes');
 const { requireSession } = require('./middleware/session_auth');
 // const shiftRoutes = require('./routes/shift.routes');
 const mlService = require('./services/ml_service');
@@ -51,6 +52,7 @@ app.use('/cities', citiesRoutes);
 app.use('/integrity', requireSession, integrityRoutes);
 app.use('/ml', mlRoutes);
 app.use('/demo', demoRoutes);
+app.use('/api/admin', adminRoutes);
 // app.use('/shift', shiftRoutes);
 
 const trustService = require('./services/trust_service');

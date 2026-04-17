@@ -100,7 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="min-h-screen" style={{ background: '#0A0B0A', color: '#E1E3DE' }}>
+      <body className="min-h-screen bg-[#0A0B0A] text-[#E1E3DE]" suppressHydrationWarning>
         {children}
       </body>
     </html>

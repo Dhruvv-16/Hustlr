@@ -34,10 +34,13 @@ export default function H3RiskMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<typeof ZONES[0] | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const initializingRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !mapRef.current) return;
-    if (mapInstanceRef.current) return; // already initialised
+    if (mapInstanceRef.current || initializingRef.current) return; // already initialised or initializing
+    
+    initializingRef.current = true;
 
     // Dynamically import Leaflet so it doesn't SSR
     import('leaflet').then((L) => {
@@ -48,6 +51,12 @@ export default function H3RiskMap() {
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
+
+      const container = mapRef.current as any;
+      if (container && container._leaflet_id) {
+        // Prevent duplicate initialization error entirely
+        container._leaflet_id = null;
+      }
 
       const map = L.map(mapRef.current!, {
         center: [13.028, 80.21],

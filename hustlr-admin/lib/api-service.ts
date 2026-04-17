@@ -34,7 +34,7 @@ class AdminApiService {
       throw new Error(`Failed to load analytics: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getAnalytics();
+      throw e;
     }
   }
 
@@ -65,7 +65,7 @@ class AdminApiService {
       throw new Error(`Failed to load fraud queue: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getFraudQueue(limit);
+      throw e;
     }
   }
 
@@ -101,7 +101,7 @@ class AdminApiService {
       throw new Error(`Failed to load users: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getUsers(limit);
+      throw e;
     }
   }
 
@@ -123,7 +123,7 @@ class AdminApiService {
       throw new Error(`Failed to load system health: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getSystemHealth();
+      throw e;
     }
   }
 
@@ -154,7 +154,7 @@ class AdminApiService {
       throw new Error(`Failed to load payout queue: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getPayoutQueue(limit);
+      throw e;
     }
   }
 
@@ -188,7 +188,7 @@ class AdminApiService {
       throw new Error(`Failed to load policies: ${response.status}`);
     } catch (e) {
       console.error('API Error:', e);
-      return MockAdminDataService.getPolicies(limit);
+      throw e;
     }
   }
 

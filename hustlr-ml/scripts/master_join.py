@@ -19,7 +19,20 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 # Chennai specific zones
-ZONES = ["Velachery", "Adyar", "T Nagar", "Tambaram", "Guindy", "Chromepet"]
+ZONES = [
+    "Velachery",
+    "Adyar",
+    "T Nagar",
+    "Tambaram",
+    "Guindy",
+    "Chromepet",
+    "Kathankulathur",
+    "Guduvanchery",
+    "Urapakkam",
+    "Potheri",
+    "Siruseri",
+    "Kelambakkam",
+]
 # Dates spanning normal operations -> Cyclone Michaung (Dec 3-5, 2023)
 START_DATE = datetime(2023, 11, 25)
 END_DATE = datetime(2023, 12, 10)

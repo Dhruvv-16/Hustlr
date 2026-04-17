@@ -117,31 +117,33 @@ export default function AnalyticsPanel({ analytics }: Props) {
           <p className="text-sm text-[#555] text-center py-8">No data yet</p>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={claimsTimeline} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="payoutG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={NEON.cyan}   stopOpacity={0.18} />
-                    <stop offset="95%" stopColor={NEON.cyan}   stopOpacity={0}    />
-                  </linearGradient>
-                  <linearGradient id="claimG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={NEON.violet} stopOpacity={0.18} />
-                    <stop offset="95%" stopColor={NEON.violet} stopOpacity={0}    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="p" orientation="right" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}`} />
-                <YAxis yAxisId="c" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} cursor={TOOLTIP_CURSOR}
-                  formatter={(v, n) => n === 'payout' ? [fmt(Number(v)), 'Payout'] : [v, 'Claims']}
-                  labelFormatter={l => fmtDate(String(l))}
-                />
-                <Area yAxisId="p" type="monotone" dataKey="payout"  stroke={NEON.cyan}   fill="url(#payoutG)" strokeWidth={1.5} dot={false} />
-                <Area yAxisId="c" type="monotone" dataKey="claims"  stroke={NEON.violet} fill="url(#claimG)"  strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="min-w-0 w-full" style={{ height: 200 }}>
+              <ResponsiveContainer width="99%" height="100%">
+                <AreaChart data={claimsTimeline} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="payoutG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={NEON.cyan}   stopOpacity={0.18} />
+                      <stop offset="95%" stopColor={NEON.cyan}   stopOpacity={0}    />
+                    </linearGradient>
+                    <linearGradient id="claimG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={NEON.violet} stopOpacity={0.18} />
+                      <stop offset="95%" stopColor={NEON.violet} stopOpacity={0}    />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="p" orientation="right" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}`} />
+                  <YAxis yAxisId="c" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} cursor={TOOLTIP_CURSOR}
+                    formatter={(v, n) => n === 'payout' ? [fmt(Number(v)), 'Payout'] : [v, 'Claims']}
+                    labelFormatter={l => fmtDate(String(l))}
+                  />
+                  <Area yAxisId="p" type="monotone" dataKey="payout"  stroke={NEON.cyan}   fill="url(#payoutG)" strokeWidth={1.5} dot={false} />
+                  <Area yAxisId="c" type="monotone" dataKey="claims"  stroke={NEON.violet} fill="url(#claimG)"  strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
             <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[#2d2d2d]">
               <div className="flex items-center gap-1.5"><span className="h-px w-6 bg-[#7dd3fc] inline-block" /><span className="text-[10px] text-[#666]">Payouts</span></div>
               <div className="flex items-center gap-1.5"><span className="h-px w-6 bg-[#a78bfa] inline-block" /><span className="text-[10px] text-[#666]">Claims</span></div>
@@ -163,21 +165,23 @@ export default function AnalyticsPanel({ analytics }: Props) {
           {triggerData.length === 0 ? (
             <p className="text-sm text-[#555] text-center py-8">No events yet</p>
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={triggerData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} cursor={TOOLTIP_CURSOR} formatter={v => [v, 'Events']} />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={36} opacity={0.85}>
-                  {triggerData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Bar>
-                {/* 80% threshold reference */}
-                <Line type="monotone" dataKey={() => 80} stroke={NEON.red} strokeDasharray="4 4" strokeWidth={1} dot={false} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="min-w-0 w-full" style={{ height: 180 }}>
+              <ResponsiveContainer width="99%" height="100%">
+                <BarChart data={triggerData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} cursor={TOOLTIP_CURSOR} formatter={v => [v, 'Events']} />
+                  <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={36} opacity={0.85}>
+                    {triggerData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Bar>
+                  {/* 80% threshold reference */}
+                  <Line type="monotone" dataKey={() => 80} stroke={NEON.red} strokeDasharray="4 4" strokeWidth={1} dot={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
 
@@ -191,16 +195,18 @@ export default function AnalyticsPanel({ analytics }: Props) {
             <p className="text-sm text-[#555] text-center py-8">No data</p>
           ) : (
             <div className="flex items-center justify-around">
-              <ResponsiveContainer width="55%" height={180}>
-                <PieChart>
-                  <Pie data={severityData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} dataKey="value" strokeWidth={0}>
-                    {severityData.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? NEON.cyan : i === 1 ? NEON.amber : NEON.violet} opacity={0.85} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} formatter={(v, n) => [v, n]} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="min-w-0 w-[55%]" style={{ height: 180 }}>
+                <ResponsiveContainer width="99%" height="100%">
+                  <PieChart>
+                    <Pie data={severityData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} dataKey="value" strokeWidth={0}>
+                      {severityData.map((_, i) => (
+                        <Cell key={i} fill={i === 0 ? NEON.cyan : i === 1 ? NEON.amber : NEON.violet} opacity={0.85} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_ITEM} formatter={(v, n) => [v, n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
               <div className="space-y-2">
                 {severityData.map((d, i) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs text-[#9ca3af]">
