@@ -199,6 +199,9 @@ class LocationService extends ChangeNotifier {
         }
       }
 
+        _traveledDistance += (distanceDelta / 1000.0); // convert to km
+      }
+
       _currentLat = position.latitude;
       _currentLon = position.longitude;
       _shiftPings.add(position);

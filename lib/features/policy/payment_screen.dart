@@ -207,8 +207,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         await StorageService.instance.savePolicyId(policyId);
       }
 
-      AppEvents.instance.policyUpdated();
       AppEvents.instance.walletUpdated();
+      
+      // Small delay to ensure DB consistency before UI reloads
+      await Future.delayed(const Duration(milliseconds: 1200));
+      
+      AppEvents.instance.policyUpdated();
       if (mounted) {
         context.read<PolicyBloc>().add(LoadPolicy(userId));
         context.read<ClaimsBloc>().add(LoadClaims(userId));

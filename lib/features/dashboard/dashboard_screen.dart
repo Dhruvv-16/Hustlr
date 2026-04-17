@@ -701,7 +701,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeader(context, displayUserName),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 16),
+                        _buildSystemStatusFeed(),
+                        const SizedBox(height: 16),
+                        _buildLiveStatsRow(),
+                        const SizedBox(height: 24),
                         _buildTitleSection(l10n, displayUserName),
                         const SizedBox(height: 20),
                         if (isLocationDenied || isGpsOff) ...[
@@ -795,7 +799,29 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
         const SizedBox(width: 8),
-        const ShiftStatusDot(),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            if (ShiftTrackingService.instance.status == ShiftStatus.active)
+              AnimatedBuilder(
+                animation: _radarController,
+                builder: (context, child) {
+                  return Container(
+                    width: 32 * _radarController.value,
+                    height: 32 * _radarController.value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: mintColor.withOpacity(1.0 - _radarController.value),
+                        width: 2,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            const ShiftStatusDot(),
+          ],
+        ),
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded,
             () => context.push(AppRoutes.support), mintColor, isDark),
@@ -2155,6 +2181,127 @@ class _DashboardScreenState extends State<DashboardScreen>
           _DebugRow(
               'BACKGROUND TRACKING', _backgroundTrackingActive.toString()),
         ],
+      ),
+    );
+  Widget _buildSystemStatusFeed() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFF0F4F0);
+    final textColor = isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
+
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        reverse: true,
+        itemCount: _events.length,
+        itemBuilder: (context, index) {
+          final event = _events[index];
+          final time = "${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}";
+          return Padding(
+            padding: const EdgeInsets.only(right: 24),
+            child: Row(
+              children: [
+                Text(
+                  "[$time] ",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: event.isError ? Colors.red : textColor,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                Text(
+                  event.message,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: event.isError ? Colors.red : textColor,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLiveStatsRow() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statsColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final accuracy = ShiftTrackingService.instance.lastAccuracy;
+    final distance = LocationService.instance.traveledDistance;
+
+    return Row(
+      children: [
+        _buildStatItem(
+          icon: Icons.gps_fixed_rounded,
+          label: 'Accuracy',
+          value: '${accuracy.toStringAsFixed(1)}m',
+          color: statsColor,
+        ),
+        const SizedBox(width: 12),
+        _buildStatItem(
+          icon: Icons.speed_rounded,
+          label: 'Protected',
+          value: '${distance.toStringAsFixed(2)} km',
+          color: statsColor,
+        ),
+        const SizedBox(width: 12),
+        _buildStatItem(
+          icon: Icons.location_on_rounded,
+          label: 'Depth',
+          value: '${_zoneDepthScore.round()}%',
+          color: statsColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                color: color.withOpacity(0.6),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

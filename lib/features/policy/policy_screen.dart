@@ -1031,7 +1031,7 @@ class _StickyBottomBar extends StatelessWidget {
           child: SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: (isDisabled || activePolicy != null) ? null : onProceed,
+              onPressed: isDisabled ? null : onProceed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: btnTextColor,
@@ -1043,14 +1043,14 @@ class _StickyBottomBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(activePolicy != null ? 'PLAN ACTIVE' : btnText,
+                  Text(btnText,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.bold,
-                          color: (isDisabled || activePolicy != null) ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
+                          color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor, height: 1.3)),
                   const SizedBox(width: 8),
-                  Icon(activePolicy != null ? Icons.check_circle_rounded : btnIcon, 
-                      size: 18, color: (isDisabled || activePolicy != null) ? btnTextColor.withOpacity(0.5) : btnTextColor),
+                  Icon(btnIcon, 
+                      size: 18, color: isDisabled ? btnTextColor.withOpacity(0.5) : btnTextColor),
                 ],
               ),
             ),
