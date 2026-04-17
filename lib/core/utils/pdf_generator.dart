@@ -19,7 +19,7 @@ class PdfGenerator {
   }) async {
     final pdf  = pw.Document();
     final start  = coverageStart ?? DateTime.now();
-    final end    = coverageEnd   ?? DateTime(start.year + 1, start.month, start.day);
+    final end    = coverageEnd   ?? start.add(const Duration(days: 91)); // 91-day quarterly term
     final dateStr   = '${start.day} ${_monthName(start.month)} ${start.year}';
     final expiryStr = '${end.day} ${_monthName(end.month)} ${end.year}';
 

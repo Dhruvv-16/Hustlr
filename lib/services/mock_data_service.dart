@@ -889,7 +889,7 @@ class MockDataService extends ChangeNotifier {
       premium: premium,
       status: "ACTIVE",
       coverageStart: _formatDate(DateTime.now().toIso8601String()),
-      coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 365)).toIso8601String()),
+      coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()),
       riders: tier == 'full' ? ["App Downtime", "Cyclone", "Election Day"] : ["App Downtime"],
       coverageDescription: tier == 'full' 
           ? "All 9 triggers + compound disruptions covered" 
@@ -1021,19 +1021,19 @@ class MockDataService extends ChangeNotifier {
     switch (personaId) {
       case 'karthik':
         worker = WorkerModel(id: 'DEMO_KARTHIK', name: 'Karthik Shetty', platform: 'Zepto', city: 'Chennai', zone: 'Adyar', weeklyIncomeEstimate: 4200, issScore: 78);
-        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'Rain, heat, outage, AQI covered');
+        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain, heat, outage, AQI covered');
         LocationService.instance.forceMockLocation('Adyar Dark Store Zone', 13.0067, 80.2206, depthScore: 0.92);
         spoofedZone = 'Adyar Dark Store Zone';
         break;
       case 'ravi':
         worker = WorkerModel(id: 'DEMO_RAVI', name: 'Ravi Kumar', platform: 'Zepto', city: 'Chennai', zone: 'Velachery', weeklyIncomeEstimate: 5500, issScore: 84);
-        activePolicy = PolicyModel(plan: 'Full Shield', premium: 79, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'All perturbations + compound triggers');
+        activePolicy = PolicyModel(plan: 'Full Shield', premium: 79, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'All perturbations + compound triggers');
         LocationService.instance.forceMockLocation('Velachery Dark Store Zone', 12.9815, 80.2180, depthScore: 0.88);
         spoofedZone = 'Velachery Dark Store Zone';
         break;
       case 'priya':
         worker = WorkerModel(id: 'DEMO_PRIYA', name: 'Priya Mani', platform: 'Zepto', city: 'Chennai', zone: 'T.Nagar', weeklyIncomeEstimate: 3800, issScore: 65);
-        activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: 'Oct 20, 2025', coverageEnd: 'Oct 20, 2026', riders: [], coverageDescription: 'Rain and Heat only');
+        activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain and Heat only');
         LocationService.instance.forceMockLocation('T Nagar Dark Store Zone', 13.0418, 80.2341, depthScore: 0.65);
         spoofedZone = 'T Nagar Dark Store Zone';
         break;

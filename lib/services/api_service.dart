@@ -265,16 +265,22 @@ class ApiService {
       final riders = StorageService.activeRiders;
       final savedPolicyId = StorageService.policyId;
       
+      final resolvedTier = tier ?? 'Standard Shield';
+      final resolvedPremium = resolvedTier == 'Full Shield' ? 79 : (resolvedTier == 'Basic Shield' ? 29 : 49);
+      final now = DateTime.now();
+      final expiry = now.add(const Duration(days: 91));
       return {
         'policy': {
           'id': savedPolicyId.isEmpty ? 'mock-policy' : savedPolicyId,
-          'plan_tier': tier ?? 'Standard Shield',
-          'plan_name': tier ?? 'Standard Shield',
-          'weekly_premium': premium?.toString() ?? '49',
-          'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(), // Cost is already in premium
-          'base_premium': tier == 'Full Shield' ? 79 : (tier == 'Standard Shield' ? 49 : 29),
+          'plan_tier': resolvedTier,
+          'plan_name': resolvedTier,
+          'weekly_premium': premium?.toString() ?? resolvedPremium.toString(),
+          'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(),
+          'base_premium': resolvedPremium,
           'zone_adjustment': 0,
           'status': 'active',
+          'created_at': now.toIso8601String(),
+          'expires_at': expiry.toIso8601String(),
         }
       };
     }
@@ -1304,7 +1310,7 @@ class ApiService {
 
       final mockPolicyId = 'mock-policy-${DateTime.now().millisecondsSinceEpoch}';
       final now = DateTime.now();
-      final expiry = now.add(const Duration(days: 30));
+      final expiry = now.add(const Duration(days: 91)); // Quarterly
 
       await StorageService.instance.savePolicyId(mockPolicyId);
       await StorageService.setActiveRiders(riderNames);
