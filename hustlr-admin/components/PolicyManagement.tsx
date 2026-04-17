@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { FileText, Search, Filter, MoreHorizontal, Calendar, DollarSign, AlertCircle, PauseCircle } from 'lucide-react';
+import { FileText, Search, Filter, MoreHorizontal, Calendar, IndianRupee, AlertCircle, PauseCircle } from 'lucide-react';
 import AdminApiService from '@/lib/api-service';
 import type { AdminPolicy } from '@/lib/mock-data';
 
@@ -137,7 +137,7 @@ export default function PolicyManagement() {
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
-                      <DollarSign className="w-4 h-4 text-green-500" />
+                      <IndianRupee className="w-4 h-4 text-green-500" />
                       <span className="text-sm font-medium text-white">{policy.weeklyPremium}/wk</span>
                     </div>
                   </td>

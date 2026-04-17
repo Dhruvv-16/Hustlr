@@ -539,4 +539,57 @@ router.get('/system-health', authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
+// Fraud Queue Endpoint
+router.get('/fraud-queue', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    let query = supabase.from('claims').select('id, user_id, policy_id, gross_payout, fraud_status, created_at, fraud_reason, users!inner(name)').eq('fraud_status', status || 'FLAGGED').order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    const mapped = data.map(c => ({
+      id: c.id,
+      userName: c.users?.name || 'Unknown User',
+      policyId: c.policy_id,
+      amount: c.gross_payout || 0,
+      riskScore: 85, // placeholder
+      status: c.fraud_status,
+      date: c.created_at,
+      reason: c.fraud_reason || 'Suspicious Activity'
+    }));
+    
+    res.json({ claims: mapped });
+  } catch (e) {
+    console.error('Fraud Queue Error:', e);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Payout Queue Endpoint
+router.get('/payout-queue', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    let query = supabase.from('claims').select('id, user_id, policy_id, gross_payout, status, created_at, users!inner(name)').eq('status', status || 'APPROVED').order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    const mapped = data.map(c => ({
+      id: c.id,
+      userName: c.users?.name || 'Unknown User',
+      policyId: c.policy_id,
+      amount: c.gross_payout || 0,
+      status: c.status,
+      triggerEvent: 'Automated Payout',
+      date: c.created_at
+    }));
+    
+    res.json({ payouts: mapped });
+  } catch (e) {
+    console.error('Payout Queue Error:', e);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
 module.exports = router;

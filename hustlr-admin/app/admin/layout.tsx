@@ -52,7 +52,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
             <Database className="h-4 w-4" />
           </div>
           <div>
-            <h1 className="font-semibold text-white">Oasis</h1>
+            <h1 className="font-semibold text-white">Hustlr</h1>
             <p className="text-[10px] uppercase tracking-wider text-white/40">Admin Console</p>
           </div>
         </div>
@@ -87,7 +87,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between border-b border-white/5 bg-[#111]/95 px-4 py-3 lg:hidden">
           <div className="flex items-center gap-2">
              <Database className="h-5 w-5 text-emerald-300" />
-             <h1 className="font-semibold text-white">Oasis Admin</h1>
+             <h1 className="font-semibold text-white">Hustlr Admin</h1>
           </div>
         </header>
         <header className="flex flex-wrap items-center justify-between border-b border-white/5 bg-[#0a0a0a] px-6 py-4 gap-4">
