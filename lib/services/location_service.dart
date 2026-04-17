@@ -126,6 +126,11 @@ class LocationService extends ChangeNotifier {
       _currentLat = initialPos.latitude;
       _currentLon = initialPos.longitude;
       _shiftPings.add(initialPos);
+      // Auto-detect zone from real GPS (overrides the short onboarding name)
+      final detectedZone = _findNearestZone(initialPos.latitude, initialPos.longitude);
+      if (detectedZone != 'Outside Service Area' && detectedZone != 'Unknown Zone') {
+        _currentZone = detectedZone;
+      }
       _recalculateDepthScore();
       notifyListeners();
     } catch (_) {}
@@ -206,17 +211,24 @@ class LocationService extends ChangeNotifier {
       _currentLon = position.longitude;
       _shiftPings.add(position);
 
+      // Auto-detect zone from live GPS so a short zone name from onboarding
+      // still resolves to the correct dark-store centroid.
+      final detectedZone = _findNearestZone(position.latitude, position.longitude);
+      if (detectedZone != 'Outside Service Area' && detectedZone != 'Unknown Zone') {
+        _currentZone = detectedZone;
+      }
+
       final cutoff = DateTime.now().subtract(const Duration(hours: 8));
       _shiftPings.removeWhere((p) => p.timestamp.isBefore(cutoff));
 
       _recalculateDepthScore();
-      final centroid = ZONE_CENTROIDS[_currentZone];
+      final centroid = _getCentroid(_currentZone);
       if (centroid != null) {
         final hubDist = _haversineKm(
           position.latitude, position.longitude,
           centroid['lat']!, centroid['lon']!,
         );
-        addEvent('Distance to Hub: ${hubDist.toStringAsFixed(2)} km | Depth: ${(_currentDepthScore * 100).round()}%');
+        addEvent('Zone: $_currentZone · ${hubDist.toStringAsFixed(2)} km to hub');
       }
       
       notifyListeners();
@@ -235,7 +247,7 @@ class LocationService extends ChangeNotifier {
 
   void _recalculateDepthScore() {
     if (_shiftPings.isEmpty || _currentZone == 'Unknown') return;
-    final centroid = ZONE_CENTROIDS[_currentZone];
+    final centroid = _getCentroid(_currentZone);
     if (centroid == null) return;
 
     double totalScore = 0.0;
@@ -316,5 +328,21 @@ class LocationService extends ChangeNotifier {
       'zone':              _currentZone,
       'is_tracking':       _isTracking,
     };
+  }
+
+  /// Fuzzy lookup: handles both exact keys ("Kattankulathur Dark Store Zone")
+  /// and short names ("Kattankulathur") stored in onboarding/worker profile.
+  Map<String, double>? _getCentroid(String zone) {
+    if (ZONE_CENTROIDS.containsKey(zone)) return ZONE_CENTROIDS[zone];
+    // Try appending standard suffix
+    final suffixed = '$zone Dark Store Zone';
+    if (ZONE_CENTROIDS.containsKey(suffixed)) return ZONE_CENTROIDS[suffixed];
+    // Partial match (case-insensitive)
+    final lower = zone.toLowerCase();
+    for (final entry in ZONE_CENTROIDS.entries) {
+      final key = entry.key.toLowerCase().replaceAll(' dark store zone', '');
+      if (key.contains(lower) || lower.contains(key)) return entry.value;
+    }
+    return null;
   }
 }

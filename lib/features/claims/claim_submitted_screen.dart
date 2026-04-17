@@ -41,7 +41,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      l10n.submitted_title,
+                      'Verifying Evidence',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
@@ -51,11 +51,12 @@ class ClaimSubmittedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      l10n.submitted_subtitle,
+                      'Securely received. Our automated engines are analyzing your submission.',
                       style: TextStyle(
                         fontSize: 14,
                         color: theme.colorScheme.onSurface.withOpacity(0.6),
                       ),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
 
@@ -95,33 +96,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
 
-                    // Info Card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: primaryColor.withOpacity(0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info_outline_rounded, color: primaryColor, size: 20),
-                              const SizedBox(width: 8),
-                              Text(l10n.submitted_next, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 14)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _buildInfoRow(l10n.submitted_next_1, theme),
-                          const SizedBox(height: 8),
-                          _buildInfoRow(l10n.submitted_next_2, theme),
-                          const SizedBox(height: 8),
-                          _buildInfoRow(l10n.submitted_next_3, theme),
-                        ],
-                      ),
-                    ),
+
                     if (claimData?['_mock'] == true) ...[
                       const SizedBox(height: 16),
                       Text(l10n.submitted_demo, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.4), fontSize: 12)),
