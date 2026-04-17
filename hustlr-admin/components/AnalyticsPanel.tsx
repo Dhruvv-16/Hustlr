@@ -29,8 +29,14 @@ const TOOLTIP_CURSOR = { fill: 'rgba(255,255,255,0.02)' };
 
 function fmt(n: number) { return `₹${n.toLocaleString('en-IN')}`; }
 function fmtDate(d: string) {
-  try { return new Date(d).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }); }
-  catch { return d; }
+  if (!d) return '';
+  // If already in short form like "Apr 5" return as-is
+  if (/^[A-Za-z]{3}\s\d{1,2}/.test(d)) return d;
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  } catch { return d; }
 }
 
 interface Props { analytics: AdminAnalytics | null; }
