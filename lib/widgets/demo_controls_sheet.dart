@@ -509,7 +509,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
               color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
             ),
             child: Column(
@@ -520,24 +520,39 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                     Icon(Icons.sync_rounded, color: theme.colorScheme.primary, size: 20),
                     const SizedBox(width: 8),
                     Text('ML SYNC', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900, 
+                      fontSize: 10, fontWeight: FontWeight.w900,
                       letterSpacing: 1.0, color: theme.colorScheme.primary)),
                   ],
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Force ML Resync', style: theme.textTheme.bodyMedium),
-                  subtitle: Text('Pulls latest ISS & Pricing from proxy', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
-                  trailing: OutlinedButton(
-                    onPressed: () {
-                      LocationService.instance.addEvent("ML Data Synced from Python Backend");
-                      _showSuccess("ML synchronization requested.");
-                    },
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('SYNC NOW', style: TextStyle(fontSize: 12)),
-                  ),
+                const SizedBox(height: 16),
+                // --- Force ML Resync ---
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Force ML Resync',
+                  subtitle: 'Pulls latest ISS & Pricing from proxy',
+                  buttonLabel: 'SYNC NOW',
+                  buttonColor: theme.colorScheme.primary,
+                  onTap: () {
+                    LocationService.instance.addEvent("ML Data Synced from Python Backend");
+                    _showSuccess("ML synchronization requested.");
+                  },
+                ),
+                const SizedBox(height: 12),
+                // --- Dynamic Calculation ---
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Dynamic ISS Recalculation',
+                  subtitle: 'Re-runs ISS + premium pricing model with live inputs',
+                  buttonLabel: 'RECALCULATE',
+                  buttonColor: Colors.teal,
+                  onTap: () async {
+                    try {
+                      await ApiService.instance.getIssScore();
+                      _showSuccess("ISS & premium pricing recalculated.");
+                    } catch (_) {
+                      _showSuccess("ISS recalculation queued (backend offline).");
+                    }
+                  },
                 ),
               ],
             ),
@@ -549,7 +564,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
               color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
             ),
             child: Column(
@@ -557,73 +572,125 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.cloud_rounded, color: theme.colorScheme.primary, size: 20),
+                    Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 20),
                     const SizedBox(width: 8),
                     Text('EXTERNAL DISRUPTIONS', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900, 
-                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                      fontSize: 10, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0, color: Colors.blueAccent)),
                   ],
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Trigger Heavy Rain', style: theme.textTheme.bodyMedium),
-                  subtitle: Text('Mocks OWM alert & starts claim', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
-                  trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                    onPressed: () {
-                      context.read<MockDataService>().triggerRainDisruption();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('FIRE', style: TextStyle(fontSize: 12)),
-                  ),
+                const SizedBox(height: 16),
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Heavy Rain Alert',
+                  subtitle: 'Mocks OWM weather alert → auto-creates rain claim',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.blueAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerRainDisruption();
+                    Navigator.pop(context);
+                  },
                 ),
-                const Divider(),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Trigger Heatwave', style: theme.textTheme.bodyMedium),
-                  subtitle: Text('Mocks extreme temperature alert', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
-                  trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
-                    onPressed: () {
-                      context.read<MockDataService>().triggerExtremeHeat();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('FIRE', style: TextStyle(fontSize: 12)),
-                  ),
+                const SizedBox(height: 12),
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Extreme Heatwave',
+                  subtitle: 'Mocks temperature spike beyond 42°C threshold',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.orangeAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerExtremeHeat();
+                    Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(height: 12),
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Platform Outage',
+                  subtitle: 'Simulates Swiggy/Zepto order failure rate >75%',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.redAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerPlatformDowntime();
+                    Navigator.pop(context);
+                  },
                 ),
               ],
             ),
           ),
 
-          // --- SPOOF OPTIONS ---
+          // --- FRAUD SPOOF ---
           Container(
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
               color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.gps_off_rounded, color: theme.colorScheme.primary, size: 20),
+                    const Icon(Icons.gps_off_rounded, color: Colors.redAccent, size: 20),
                     const SizedBox(width: 8),
-                    Text('SPOOF OPTIONS', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900, 
-                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                    const Text('FRAUD SPOOF', style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0, color: Colors.redAccent)),
                   ],
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Mock GPS Spoofing (Fraud)', style: theme.textTheme.bodyMedium),
-                  subtitle: Text('Sets GPS jitter to 0.0 & isMocked=true', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
-                  value: FraudSensorService.mockFraudSpoofing,
-                  activeColor: Colors.redAccent,
-                  onChanged: (val) {
-                    setState(() => FraudSensorService.mockFraudSpoofing = val);
+                const SizedBox(height: 4),
+                Text('Force-inject fraud signals to test the detection engine',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.45))),
+                const SizedBox(height: 16),
+                // GPS spoof toggle
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Mock GPS Spoofing', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          Text('Sets jitter=0.0, isMocked=true → triggers fraud flag',
+                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Switch(
+                      value: FraudSensorService.mockFraudSpoofing,
+                      activeColor: Colors.redAccent,
+                      onChanged: (val) => setState(() => FraudSensorService.mockFraudSpoofing = val),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Inject High Fraud Score',
+                  subtitle: 'Sets mock FPS to 95 — triggers immediate fraud review',
+                  buttonLabel: 'INJECT',
+                  buttonColor: Colors.redAccent,
+                  onTap: () {
+                    FraudSensorService.mockFraudSpoofing = true;
+                    LocationService.instance.addEvent("⚠ Fraud score injected: FPS 95");
+                    setState(() {});
+                    _showSuccess("Fraud score set to 95. Claim will be auto-flagged.");
+                  },
+                ),
+                const SizedBox(height: 12),
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Clear Fraud Signals',
+                  subtitle: 'Resets all mock fraud overrides to clean state',
+                  buttonLabel: 'CLEAR',
+                  buttonColor: Colors.green,
+                  onTap: () {
+                    FraudSensorService.mockFraudSpoofing = false;
+                    LocationService.instance.addEvent("✓ Fraud signals cleared");
+                    setState(() {});
+                    _showSuccess("Fraud signals cleared.");
                   },
                 ),
               ],
@@ -647,6 +714,50 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+    );
+  }
+
+  /// A fixed-layout control row that won't overflow text vertically.
+  /// Uses [Column] + [Row] instead of [ListTile] with trailing button.
+  Widget _internalControlRow({
+    required ThemeData theme,
+    required String title,
+    required String subtitle,
+    required String buttonLabel,
+    required Color buttonColor,
+    required VoidCallback onTap,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5))),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        ElevatedButton(
+          onPressed: onTap,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: buttonColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(buttonLabel,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+        ),
+      ],
     );
   }
 

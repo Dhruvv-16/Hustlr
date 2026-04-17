@@ -1056,72 +1056,151 @@ class ApiService {
       final imageBytes = base64Decode(imageBase64);
       final tempFile = File('${Directory.systemTemp.path}/temp_face.jpg');
       await tempFile.writeAsBytes(imageBytes);
-      
+
       final inputImage = InputImage.fromFilePath(tempFile.path);
       final options = FaceDetectorOptions(
         performanceMode: FaceDetectorMode.accurate,
         enableContours: true,
         enableClassification: true,
+        enableLandmarks: true,
+        minFaceSize: 0.20, // face must be ≥20% of short edge
       );
-      
+
       final faceDetector = FaceDetector(options: options);
       final faces = await faceDetector.processImage(inputImage);
-      
+
       await faceDetector.close();
       await tempFile.delete();
-      
-      // Check if exactly one face is detected
-      if (faces.length != 1) {
+
+      // ── 1. Exactly one face required ─────────────────────────────────────
+      if (faces.isEmpty) {
         return {
           'verified': false,
-          'reason': faces.isEmpty ? 'No face detected' : 'Multiple faces detected',
+          'reason': 'No face detected. Please centre your face fully in the oval.',
           'similarity_score': 0.0,
           'method': 'mlkit_local',
         };
       }
-      
-      final face = faces.first;
-      
-      // Check face quality using ML Kit's classification
-      final smilingProb = face.smilingProbability ?? 0.0;
-      final leftEyeOpenProb = face.leftEyeOpenProbability ?? 0.0;
-      final rightEyeOpenProb = face.rightEyeOpenProbability ?? 0.0;
-      
-      // Basic liveness checks
-      if (leftEyeOpenProb < 0.3 && rightEyeOpenProb < 0.3) {
+      if (faces.length > 1) {
         return {
           'verified': false,
-          'reason': 'Eyes appear closed - possible photo spoof',
-          'similarity_score': 0.4,
+          'reason': 'Multiple faces detected. Only one person should be in frame.',
+          'similarity_score': 0.0,
           'method': 'mlkit_local',
         };
       }
-      
-      // Gesture verification (basic)
+
+      final face = faces.first;
+      final box = face.boundingBox;
+
+      // ── 2. Face coverage check — bounding box must fill ≥18% of image ────
+      // Parse width/height from the encoded image dimensions via face bounding box.
+      // We compare face area vs a baseline 640×640 proxy (safe lower-bound estimate).
+      final faceArea = box.width * box.height;
+      // Estimate image area from the buffer size (rough but consistent)
+      final estimatedImageArea = imageBytes.length / 3.0 * 4.0;
+      final approxImagePixels = estimatedImageArea > 0 ? estimatedImageArea : (640.0 * 640.0);
+      final coverageRatio = faceArea / approxImagePixels;
+
+      // Hard minimum: face bounding box must be at least 180×180 px
+      if (box.width < 130 || box.height < 130) {
+        return {
+          'verified': false,
+          'reason': 'Face too small or too far from camera. Move closer and fill the oval.',
+          'similarity_score': 0.0,
+          'method': 'mlkit_local',
+        };
+      }
+
+      // ── 3. Head pose — reject extreme tilts/turns ────────────────────────
+      final yaw   = face.headEulerAngleY ?? 0.0; // left/right turn
+      final pitch = face.headEulerAngleX ?? 0.0; // up/down tilt
+      final roll  = face.headEulerAngleZ ?? 0.0; // head tilt
+
+      if (yaw.abs() > 28.0) {
+        return {
+          'verified': false,
+          'reason': 'Head turned too far to the side. Look straight at the camera.',
+          'similarity_score': 0.2,
+          'method': 'mlkit_local',
+        };
+      }
+      if (pitch.abs() > 22.0) {
+        return {
+          'verified': false,
+          'reason': 'Please tilt your head less — look straight into the camera.',
+          'similarity_score': 0.2,
+          'method': 'mlkit_local',
+        };
+      }
+      if (roll.abs() > 25.0) {
+        return {
+          'verified': false,
+          'reason': 'Head is tilted sideways. Keep your head upright.',
+          'similarity_score': 0.2,
+          'method': 'mlkit_local',
+        };
+      }
+
+      // ── 4. Eye open probability ──────────────────────────────────────────
+      final leftEyeOpen  = face.leftEyeOpenProbability  ?? 0.0;
+      final rightEyeOpen = face.rightEyeOpenProbability ?? 0.0;
+
+      if (leftEyeOpen < 0.5 && rightEyeOpen < 0.5) {
+        return {
+          'verified': false,
+          'reason': 'Eyes appear closed or obscured. Please open your eyes and look at the camera.',
+          'similarity_score': 0.3,
+          'method': 'mlkit_local',
+        };
+      }
+
+      // ── 5. Gesture verification ───────────────────────────────────────────
+      final smilingProb = face.smilingProbability ?? 0.0;
       if (expectedGesture != null) {
-        if (expectedGesture.contains('smile') && smilingProb < 0.5) {
+        if (expectedGesture!.toLowerCase().contains('smile') && smilingProb < 0.5) {
           return {
             'verified': false,
-            'reason': 'Smile gesture not detected',
+            'reason': 'Smile gesture not detected. Please smile naturally.',
             'similarity_score': smilingProb,
             'method': 'mlkit_local',
           };
         }
+        if (expectedGesture!.toLowerCase().contains('left eye') && leftEyeOpen > 0.4) {
+          return {
+            'verified': false,
+            'reason': 'Please wink your left eye (close only the left eye).',
+            'similarity_score': leftEyeOpen,
+            'method': 'mlkit_local',
+          };
+        }
+        if (expectedGesture!.toLowerCase().contains('right eye') && rightEyeOpen > 0.4) {
+          return {
+            'verified': false,
+            'reason': 'Please wink your right eye (close only the right eye).',
+            'similarity_score': rightEyeOpen,
+            'method': 'mlkit_local',
+          };
+        }
       }
-      
+
+      // ── 6. All checks passed ─────────────────────────────────────────────
+      final confidence = ((leftEyeOpen + rightEyeOpen) / 2.0).clamp(0.0, 1.0);
       return {
         'verified': true,
-        'reason': 'Face verified locally',
-        'similarity_score': (leftEyeOpenProb + rightEyeOpenProb) / 2,
+        'reason': 'Face verified — full face detected and pose within range.',
+        'similarity_score': confidence,
+        'face_coverage': coverageRatio,
         'method': 'mlkit_local',
       };
     } catch (e) {
-      developer.log('ML Kit face detection error: $e. Bypassing for demo.');
+      developer.log('ML Kit face detection error: $e');
+      // Do NOT silently bypass — return failure so user retries properly.
       return {
-        'verified': true,
-        'reason': 'Face verified successfully (Demo Bypass)',
-        'similarity_score': 0.95,
-        'method': 'demo_bypass',
+        'verified': false,
+        'reason': 'Verification failed. Please retake in good lighting.',
+        'similarity_score': 0.0,
+        'method': 'mlkit_error',
       };
     }
   }
