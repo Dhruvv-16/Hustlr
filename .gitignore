@@ -209,4 +209,3 @@ ml_models/
 # Secrets
 lib/core/secrets.dart
 lib/core/secrets.dart
-*.pkl
