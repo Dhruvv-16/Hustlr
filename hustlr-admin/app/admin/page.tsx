@@ -37,6 +37,7 @@ const PoolHealth = dynamic(() => import('@/components/tabs/PoolHealth'));
 const ProfitSimulator = dynamic(() => import('@/components/tabs/ProfitSimulator'));
 const StressSimulator = dynamic(() => import('@/components/tabs/StressSimulator'));
 const Financials = dynamic(() => import('@/components/tabs/Financials'));
+const AnalyticsPanel = dynamic(() => import('@/components/AnalyticsPanel'));
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -423,50 +424,7 @@ function CompactCard({ title, accent, children }: { title: string; accent: 'red'
   );
 }
 
-function AnalyticsPanel({ analytics }: { analytics: AdminAnalytics | null }) {
-  if (!analytics) return null;
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-        <h4 className="mb-3 text-sm font-semibold text-white">Claims Trend</h4>
-        <div className="space-y-2">
-          {analytics.claimsTimeline.slice(-8).map((point) => (
-            <div key={point.date} className="grid grid-cols-[88px_1fr_auto] items-center gap-3">
-              <span className="text-xs text-white/40">{point.date}</span>
-              <div className="h-2 overflow-hidden rounded bg-white/10">
-                <div className="h-full bg-cyan-400" style={{ width: `${Math.min(100, point.claims * 2)}%` }} />
-              </div>
-              <span className="text-xs text-white/70">{point.claims}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-white">Triggers</h4>
-          <div className="space-y-2">
-            {analytics.triggerBreakdown.map((item) => (
-              <div key={item.type} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-                <span className="text-sm text-white/70 capitalize">{item.type}</span>
-                <span className="text-sm font-semibold text-white">{item.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-white">Severity Buckets</h4>
-          <div className="grid grid-cols-3 gap-2">
-            <Bucket value={analytics.severityBuckets.low} label="Low" tone="emerald" />
-            <Bucket value={analytics.severityBuckets.medium} label="Medium" tone="orange" />
-            <Bucket value={analytics.severityBuckets.high} label="High" tone="red" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// AnalyticsPanel is now the dynamic import from @/components/AnalyticsPanel
 
 function Bucket({ value, label, tone }: { value: number; label: string; tone: 'emerald' | 'orange' | 'red' }) {
   const tones: Record<typeof tone, string> = {
