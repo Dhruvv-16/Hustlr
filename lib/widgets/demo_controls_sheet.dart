@@ -530,7 +530,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   subtitle: Text('Pulls latest ISS & Pricing from proxy', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
                   trailing: OutlinedButton(
                     onPressed: () {
-                      NotificationService.instance.addEvent("ML Data Synced from Python Backend");
+                      LocationService.instance.addEvent("ML Data Synced from Python Backend");
                       _showSuccess("ML synchronization requested.");
                     },
                     style: OutlinedButton.styleFrom(
