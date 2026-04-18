@@ -11,7 +11,9 @@
     "support_faq_6_q",
     "support_faq_6_a",
     "support_faq_7_q",
-    "support_faq_7_a"
+    "support_faq_7_a",
+    "offline_banner_text",
+    "review_save_offline"
   ],
 
   "ta": [
@@ -26,6 +28,8 @@
     "support_faq_6_q",
     "support_faq_6_a",
     "support_faq_7_q",
-    "support_faq_7_a"
+    "support_faq_7_a",
+    "offline_banner_text",
+    "review_save_offline"
   ]
 }

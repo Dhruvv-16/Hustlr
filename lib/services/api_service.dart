@@ -60,7 +60,7 @@ class ApiService {
   static String get mlBackendUrl {
     const prod = String.fromEnvironment(
       'HUSTLR_ML_PROD',
-      defaultValue: 'https://hustlr-ml-complete.onrender.com',
+      defaultValue: 'https://hustlr-2ppj.onrender.com',
     );
     const devOverride = String.fromEnvironment('HUSTLR_ML_BASE');
     if (devOverride.isNotEmpty) return devOverride;
@@ -260,11 +260,17 @@ class ApiService {
       if (res.statusCode == 200) return data;
       throw Exception(data['error'] ?? 'Failed to fetch policy');
     } catch (_) {
+      final savedPolicyId = StorageService.policyId;
+
+      // No stored policy ID → user has never bought a plan.
+      // Return null so the dashboard shows the "No Policy" card.
+      if (savedPolicyId.isEmpty) return {'policy': null};
+
+      // API is unreachable but user HAS a real stored policy — reconstruct
+      // from locally-cached values so they can still see their plan offline.
       final tier = await StorageService.instance.getPlanTier();
       final premium = await StorageService.instance.getWeeklyPremium();
       final riders = StorageService.activeRiders;
-      final savedPolicyId = StorageService.policyId;
-      
       final resolvedTier = tier ?? 'Standard Shield';
       final resolvedPremium = resolvedTier == 'Full Shield' ? 79 : (resolvedTier == 'Basic Shield' ? 35 : 49);
       final resolvedWeeklyCap = resolvedTier == 'Full Shield'
@@ -277,7 +283,7 @@ class ApiService {
       final expiry = now.add(const Duration(days: 91));
       return {
         'policy': {
-          'id': savedPolicyId.isEmpty ? 'mock-policy' : savedPolicyId,
+          'id': savedPolicyId,
           'plan_tier': resolvedTier,
           'plan_name': resolvedTier,
           'weekly_premium': premium?.toString() ?? resolvedPremium.toString(),
@@ -856,6 +862,7 @@ class ApiService {
     int? deviceSignalStrength,
     String? integrityToken,
     Map<String, dynamic>? sensorFeatures,
+    String? idempotencyKey,
   }) async {
     try {
       final res = await http.post(
@@ -870,10 +877,12 @@ class ApiService {
           'sensor_features': sensorFeatures,
           if (integrityToken != null && integrityToken.isNotEmpty)
             'integrity_token': integrityToken,
+          if (idempotencyKey != null)
+            'idempotency_key': idempotencyKey,
         }),
       ).timeout(const Duration(seconds: 15));
       final data = jsonDecode(res.body);
-      if (res.statusCode == 201) return data;
+      if (res.statusCode == 201 || res.statusCode == 200) return data;
 
       throw Exception('Manual claim creation failed: ${res.statusCode}');
     } catch (e) { throw Exception("API request failed: $e"); }

@@ -206,6 +206,18 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "connectivity_plus",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus-7.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "connectivity_plus_platform_interface",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.18"
+    },
+    {
       "name": "convert",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/convert-3.1.2",
       "packageUri": "lib/",
@@ -222,12 +234,6 @@
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/crypto-3.0.7",
       "packageUri": "lib/",
       "languageVersion": "3.4"
-    },
-    {
-      "name": "csslib",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/csslib-1.0.2",
-      "packageUri": "lib/",
-      "languageVersion": "3.1"
     },
     {
       "name": "cupertino_icons",
@@ -524,42 +530,6 @@
       "languageVersion": "3.9"
     },
     {
-      "name": "google_maps",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps-8.2.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.4"
-    },
-    {
-      "name": "google_maps_flutter",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps_flutter-2.16.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.10"
-    },
-    {
-      "name": "google_maps_flutter_android",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps_flutter_android-2.19.5",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "google_maps_flutter_ios",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps_flutter_ios-2.18.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.10"
-    },
-    {
-      "name": "google_maps_flutter_platform_interface",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps_flutter_platform_interface-2.15.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "google_maps_flutter_web",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_maps_flutter_web-0.6.2",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
       "name": "google_mlkit_commons",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/google_mlkit_commons-0.8.1",
       "packageUri": "lib/",
@@ -612,12 +582,6 @@
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/hooks-1.0.2",
       "packageUri": "lib/",
       "languageVersion": "3.10"
-    },
-    {
-      "name": "html",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/html-0.15.6",
-      "packageUri": "lib/",
-      "languageVersion": "3.2"
     },
     {
       "name": "http",
@@ -808,6 +772,12 @@
     {
       "name": "nested",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/nested-1.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "nm",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/nm-0.5.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -1034,12 +1004,6 @@
       "languageVersion": "2.12"
     },
     {
-      "name": "sanitize_html",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/sanitize_html-2.1.0",
-      "packageUri": "lib/",
-      "languageVersion": "2.12"
-    },
-    {
       "name": "shared_preferences",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences-2.5.5",
       "packageUri": "lib/",
@@ -1260,30 +1224,6 @@
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket_channel-3.0.3",
       "packageUri": "lib/",
       "languageVersion": "3.3"
-    },
-    {
-      "name": "webview_flutter",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/webview_flutter-4.13.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.8"
-    },
-    {
-      "name": "webview_flutter_android",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/webview_flutter_android-4.11.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "webview_flutter_platform_interface",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/webview_flutter_platform_interface-2.15.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "webview_flutter_wkwebview",
-      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.3",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
     },
     {
       "name": "win32",

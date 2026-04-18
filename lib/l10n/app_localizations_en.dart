@@ -805,4 +805,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chat_attach_receipt => 'Medical Receipt';
+
+  @override
+  String get offline_banner_text => 'You are offline. Claims will be saved.';
+
+  @override
+  String get review_save_offline => 'Save Offline';
 }

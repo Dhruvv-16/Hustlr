@@ -3,17 +3,17 @@ const {
   get7DayForecast,
   assessDisruptions,
   buildPredictiveNudge,
-} = require('./weather_service');
+} = require("./weather_service");
 
-const { getCurrentAQI, assessAQIDisruption } = require('./aqi_service');
-const { checkBandhNLP } = require('./news_service');
+const { getCurrentAQI, assessAQIDisruption } = require("./aqi_service");
+const { checkBandhNLP } = require("./news_service");
 const {
   getPlatformStatus,
   detectPlatformTrigger,
   getInternetStatus,
   detectInternetTrigger,
-} = require('./platform_service');
-const { isTrustSufficient } = require('./data_trust');
+} = require("./platform_service");
+const { isTrustSufficient } = require("./data_trust");
 
 const cache = {};
 const CACHE_MS = 10 * 60 * 1000;
@@ -29,12 +29,12 @@ async function getCached(key, fn) {
 }
 
 function getAQILevel(aqi) {
-  if (aqi <= 50) return 'Good';
-  if (aqi <= 100) return 'Moderate';
-  if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
-  if (aqi <= 200) return 'Unhealthy';
-  if (aqi <= 300) return 'Very Unhealthy';
-  return 'Hazardous';
+  if (aqi <= 50) return "Good";
+  if (aqi <= 100) return "Moderate";
+  if (aqi <= 150) return "Unhealthy for Sensitive Groups";
+  if (aqi <= 200) return "Unhealthy";
+  if (aqi <= 300) return "Very Unhealthy";
+  return "Hazardous";
 }
 
 /**
@@ -53,10 +53,10 @@ async function fetchDisruptionBundle(zone, options = {}) {
 
   const [weather, forecast, aqi, news, platformStatus, internetStatus] =
     await Promise.all([
-      wrap('weather', () => getCurrentWeather(zone)),
-      wrap('forecast', () => get7DayForecast(zone)),
-      wrap('aqi', () => getCurrentAQI(zone)),
-      wrap('news', () => checkBandhNLP(zone)),
+      wrap("weather", () => getCurrentWeather(zone)),
+      wrap("forecast", () => get7DayForecast(zone)),
+      wrap("aqi", () => getCurrentAQI(zone)),
+      wrap("news", () => checkBandhNLP(zone)),
       getPlatformStatus(zone),
       getInternetStatus(zone),
     ]);
@@ -74,16 +74,16 @@ async function fetchDisruptionBundle(zone, options = {}) {
 
   if (news.bandh_detected && news.confidence >= 0.6) {
     disruptions.push({
-      trigger_type: 'bandh',
-      display_name: 'Bandh / Shutdown',
+      trigger_type: "bandh",
+      display_name: "Bandh / Shutdown",
       hourly_rate: 50,
       severity: news.confidence,
       current_value:
-        'News confidence: ' + Math.round(news.confidence * 100) + '%',
-      threshold: '60% news confidence',
+        "News confidence: " + Math.round(news.confidence * 100) + "%",
+      threshold: "60% news confidence",
       payout_pct: 70,
       active: true,
-      source: news.source ?? 'NewsAPI',
+      source: news.source ?? "NewsAPI",
     });
   }
 
@@ -92,17 +92,28 @@ async function fetchDisruptionBundle(zone, options = {}) {
   disruptions.forEach((d) => {
     const sources = [];
 
-    if (weather._source === 'live') {
-      sources.push('WEATHERAPI_LIVE');
-      if (d.trigger_type && d.trigger_type.includes('rain')) {
-        sources.push('IMD_OFFICIAL');
-      }
+    if (weather._source === "live_tomorrowio") {
+      sources.push("TOMORROWIO_LIVE");
+    } else if (weather._source === "live_openweathermap") {
+      sources.push("OPENWEATHER_LIVE");
+    } else if ((weather._source || "").startsWith("live_")) {
+      sources.push("WEATHERAPI_LIVE");
     }
-    if (news._source === 'live' && news.bandh_detected) {
-      sources.push('NEWSAPI_CORROBORATED');
+
+    if (d.trigger_type && d.trigger_type.includes("rain")) {
+      sources.push("IMD_OFFICIAL");
     }
+
+    if ((aqi._source || "").includes("aqicn")) {
+      sources.push("AQICN_LIVE");
+    }
+
+    if ((news.source || "").startsWith("live_") && news.bandh_detected) {
+      sources.push("NEWS_CORROBORATED");
+    }
+
     if (platformStatus.order_failure_rate > 0.6) {
-      sources.push('PLATFORM_ORDER_LOG');
+      sources.push("PLATFORM_ORDER_LOG");
     }
 
     const trust = isTrustSufficient(sources);
@@ -117,11 +128,11 @@ async function fetchDisruptionBundle(zone, options = {}) {
   });
 
   const data_sources = {
-    weather: weather._source ?? 'live',
-    aqi: aqi._source ?? 'live',
-    news: news.source ?? 'live',
-    platform: platformStatus._source ?? 'inferred',
-    internet: internetStatus._source ?? 'inferred',
+    weather: weather._source ?? "live",
+    aqi: aqi._source ?? "live",
+    news: news.source ?? "live",
+    platform: platformStatus._source ?? "inferred",
+    internet: internetStatus._source ?? "inferred",
   };
 
   return {
@@ -152,7 +163,7 @@ async function fetchDisruptionBundle(zone, options = {}) {
       ? {
           detected: true,
           confidence: news.confidence,
-          headline: news.matched_keywords.join(', ') || null,
+          headline: news.matched_keywords.join(", ") || null,
         }
       : null,
     predictive_nudge: nudge,

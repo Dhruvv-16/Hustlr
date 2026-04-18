@@ -13,8 +13,11 @@ import '../../services/fraud_sensor_service.dart';
 import '../../core/secrets.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import '../../core/router/app_router.dart';
+import '../../services/connectivity_service.dart';
+import '../../models/pending_claim_queue_item.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
   final String disruptionType;
@@ -37,10 +40,52 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
   bool _isSubmitting = false;
   String _mlStatusText = '';
 
+  Future<PendingClaimQueueItem> _queueManualClaim({
+    required String localId,
+    required String userId,
+    required String disruptionType,
+    required List<String> evidenceUrls,
+    required int? signalStrength,
+    required Map<String, dynamic> sensorFeatures,
+    String? integrityToken,
+  }) async {
+    final description = disruptionType == 'internet_outage' 
+        ? 'Internet Blackout Alert' 
+        : '$disruptionType Claim';
+
+    final item = PendingClaimQueueItem(
+      localId: localId,
+      userId: userId,
+      type: disruptionType,
+      description: description,
+      evidenceUrls: evidenceUrls,
+      deviceSignalStrength: signalStrength,
+      sensorFeatures: sensorFeatures,
+      integrityToken: integrityToken,
+      lastAttemptAt: DateTime.now(),
+      nextRetryAt: DateTime.now().add(const Duration(seconds: 5)),
+      createdAt: DateTime.now(),
+    );
+
+    await StorageService.enqueueManualClaim(item);
+    return item;
+  }
+
   @override
   void initState() {
     super.initState();
     _images = List.from(widget.capturedImages);
+    ConnectivityService.instance.addListener(_onConnectivityChanged);
+  }
+
+  void _onConnectivityChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    ConnectivityService.instance.removeListener(_onConnectivityChanged);
+    super.dispose();
   }
 
   Future<void> _submitClaim() async {
@@ -68,6 +113,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
        final reason = Uri.encodeComponent(
          'Suspicious activity detected while submitting this claim. Re-verify identity to continue.',
        );
+       if (!mounted) return;
        final verifyResult = await context.push<Map<String, dynamic>>(
          '${AppRoutes.stepUpAuth}?reason=$reason',
        );
@@ -163,14 +209,48 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     );
     integrityToken = simPlaceholder;
 
-    final response = await ApiService.instance.submitManualClaim(
-      userId: userId,
-      disruptionType: widget.disruptionType,
-      evidenceUrls: mockUrls,
-      deviceSignalStrength: widget.signalStrength,
-      integrityToken: integrityToken,
-      sensorFeatures: sensorFeatures,
-    );
+    Map<String, dynamic>? response;
+    PendingClaimQueueItem? queuedClaim;
+    final idempotencyKey = const Uuid().v4();
+
+    // Fast fail if not reachable instead of waiting for timeout
+    final isOnline = await ConnectivityService.instance.checkNow();
+    
+    if (isOnline) {
+      try {
+        response = await ApiService.instance.submitManualClaim(
+          userId: userId,
+          disruptionType: widget.disruptionType,
+          evidenceUrls: mockUrls,
+          deviceSignalStrength: widget.signalStrength,
+          integrityToken: integrityToken,
+          sensorFeatures: sensorFeatures,
+          idempotencyKey: idempotencyKey,
+        );
+      } catch (_) {
+        // Fallback to queue if API fails despite connectivity
+        queuedClaim = await _queueManualClaim(
+          localId: idempotencyKey,
+          userId: userId,
+          disruptionType: widget.disruptionType,
+          evidenceUrls: mockUrls,
+          signalStrength: widget.signalStrength,
+          sensorFeatures: sensorFeatures,
+          integrityToken: integrityToken,
+        );
+      }
+    } else {
+      // Offline: immediately queue
+      queuedClaim = await _queueManualClaim(
+        localId: idempotencyKey,
+        userId: userId,
+        disruptionType: widget.disruptionType,
+        evidenceUrls: mockUrls,
+        signalStrength: widget.signalStrength,
+        sensorFeatures: sensorFeatures,
+        integrityToken: integrityToken,
+      );
+    }
 
     AppEvents.instance.claimUpdated();
     AppEvents.instance.walletUpdated();
@@ -183,12 +263,26 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
 
     if (mounted) {
       setState(() => _isSubmitting = false);
+      if (queuedClaim != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No network. Claim saved locally and will auto-sync when online.'),
+          ),
+        );
+      }
       // Navigate to Success
       // Passing claim data down to the submitted screen via extra.
       context.pushReplacement(
         '/claims/submitted',
         extra: {
-          'claim': response['claim'],
+          'claim': response?['claim'] ?? (queuedClaim != null ? {
+            'id': queuedClaim.localId,
+            'trigger_type': queuedClaim.type,
+            'status': 'PENDING_SYNC',
+            'gross_payout': 0,
+            'display_label': queuedClaim.description,
+            'created_at': queuedClaim.createdAt.toIso8601String(),
+          } : null),
           'imagePaths': _images.map((f) => f.path).toList(),
         },
       );
@@ -199,6 +293,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     context.pushReplacement('/claims/evidence/camera?disruptionType=${widget.disruptionType}');
   }
 
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
@@ -224,7 +319,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 l10n.review_subtitle,
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
+                style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 14),
               ),
             ),
             const SizedBox(height: 24),
@@ -254,7 +349,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2)),
+                        side: BorderSide(color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                       ),
@@ -275,7 +370,25 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                       onPressed: _isSubmitting ? null : _submitClaim,
                       child: _isSubmitting 
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2)) 
-                          : Text(l10n.review_submit, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                          : Builder(
+                              builder: (context) {
+                                final canSubmitOnline = ConnectivityService.instance.isReachable;
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (!canSubmitOnline)
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8.0),
+                                        child: Icon(Icons.cloud_off, size: 18),
+                                      ),
+                                    Text(
+                                      canSubmitOnline ? l10n.review_submit : l10n.review_save_offline,
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                     ),
                   ),
                 ],
@@ -307,19 +420,19 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
             onTap: _addMore,
             child: Container(
               decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withOpacity(0.04),
-                border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.2), width: 1, style: BorderStyle.none), // Simulated dash
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.04),
+                border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.2), width: 1, style: BorderStyle.none), // Simulated dash
                 borderRadius: BorderRadius.circular(12),
               ),
               child: CustomPaint(
-                painter: _DashedBorderPainter(color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                painter: _DashedBorderPainter(color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt_rounded, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                      Icon(Icons.camera_alt_rounded, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                       const SizedBox(height: 8),
-                      Text(l10n.review_add_more, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(l10n.review_add_more, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontWeight: FontWeight.bold, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -336,7 +449,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
               image: FileImage(_images[idx]),
               fit: BoxFit.contain,
             ),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Stack(
             children: [
@@ -345,7 +458,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                 bottom: 8, left: 8,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(8)),
                   child: Text('${l10n.review_label} ${idx + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -373,7 +486,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+          border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -385,7 +498,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
             Text(
               l10n.review_network_desc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, height: 1.4),
+              style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13, height: 1.4),
             ),
           ],
         ),

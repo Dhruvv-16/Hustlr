@@ -1629,6 +1629,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Medical Receipt'**
   String get chat_attach_receipt;
+
+  /// No description provided for @offline_banner_text.
+  ///
+  /// In en, this message translates to:
+  /// **'You are offline. Claims will be saved.'**
+  String get offline_banner_text;
+
+  /// No description provided for @review_save_offline.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Offline'**
+  String get review_save_offline;
 }
 
 class _AppLocalizationsDelegate

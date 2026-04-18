@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -23,6 +24,8 @@ import '../../models/policy.dart';
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
 import '../../services/fraud_sensor_service.dart';
+import '../../shared/widgets/offline_banner.dart';
+import '../../shared/widgets/animated_skeleton.dart';
 
 import '../../services/dynamic_translator.dart';
 import '../../services/app_events.dart';
@@ -35,7 +38,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver {
+  static const _dashboardSnapshotKey = 'dashboardSnapshotV1';
+
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
   Map<String, dynamic>? disruptionData;
@@ -67,10 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   int? liveIssScore;
   double? liveDynamicPrice;
 
-  // Liveness HUD
-  final List<StatusEvent> _events = [];
-  StreamSubscription<StatusEvent>? _eventSub;
-  late AnimationController _radarController;
+
 
   // Debug variables
   bool _debugMode = false;
@@ -203,21 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (mounted) _loadDashboardData();
     });
 
-    // Liveness HUD subscription
-    _eventSub = LocationService.instance.eventLog.listen((event) {
-      if (mounted) {
-        setState(() {
-          _events.insert(0, event);
-          if (_events.length > 50) _events.removeLast();
-        });
-      }
-    });
 
-    // Initialize Radar Animation
-    _radarController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -468,8 +456,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
-    _radarController.dispose();
-    _eventSub?.cancel();
     LocationService.instance.removeListener(_onLocationUpdate);
     ShiftTrackingService.instance.removeListener(_onShiftUpdate);
     WidgetsBinding.instance.removeObserver(this);
@@ -481,13 +467,111 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  Future<bool> _restoreDashboardFromCache() async {
+    try {
+      final raw = await StorageService.instance.getString(_dashboardSnapshotKey);
+      if (raw == null || raw.isEmpty) return false;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return false;
+      final snapshot = Map<String, dynamic>.from(decoded);
+
+      final cachedPolicy = _asMap(snapshot['policyData']);
+      final cachedWallet = _asMap(snapshot['walletData']);
+      final cachedDisruption = _asMap(snapshot['disruptionData']);
+      final cachedWeather = _asMap(snapshot['weatherData']);
+      final cachedNudge = _asMap(snapshot['nudgeData']);
+      final cachedAdvisor = _asMap(snapshot['workAdvisorData']);
+      final cachedActive = _asMap(snapshot['activeDisruption']);
+
+      if (!mounted) return false;
+      setState(() {
+        policyData = cachedPolicy;
+        walletData = cachedWallet;
+        disruptionData = cachedDisruption;
+        weatherData = cachedWeather;
+        nudgeData = cachedNudge;
+        workAdvisorData = cachedAdvisor;
+        activeDisruption = cachedActive;
+
+        final cachedZone = snapshot['userZone']?.toString();
+        final cachedName = snapshot['userName']?.toString();
+        if (cachedZone != null && cachedZone.isNotEmpty) userZone = cachedZone;
+        if (cachedName != null && cachedName.isNotEmpty) userName = cachedName;
+
+        final cachedIss = snapshot['liveIssScore'];
+        if (cachedIss is num) liveIssScore = cachedIss.toInt();
+
+        isLoading = false;
+      });
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _persistDashboardSnapshot() async {
+    try {
+      final snapshot = <String, dynamic>{
+        'policyData': policyData,
+        'walletData': walletData,
+        'disruptionData': disruptionData,
+        'weatherData': weatherData,
+        'nudgeData': nudgeData,
+        'workAdvisorData': workAdvisorData,
+        'activeDisruption': activeDisruption,
+        'userZone': userZone,
+        'userName': userName,
+        'liveIssScore': liveIssScore,
+        'cachedAt': DateTime.now().toIso8601String(),
+      };
+      await StorageService.instance.setString(
+        _dashboardSnapshotKey,
+        jsonEncode(snapshot),
+      );
+    } catch (_) {
+      // Best-effort cache; skip on serialization/storage failure.
+    }
+  }
+
+  Future<void> _refreshWorkerIss(String uid) async {
+    try {
+      final worker = await ApiService.instance.getWorkerById(uid);
+      final rawIss = worker['iss_score'];
+      if (rawIss is num && mounted) {
+        setState(() => liveIssScore = rawIss.round().clamp(0, 100));
+      }
+    } catch (_) {
+      // ISS is non-critical for first paint; ignore transient failures.
+    }
+  }
+
   Future<void> _loadDashboardData() async {
     // Prevent concurrent API call stacks from piling up
     if (_isDashboardLoading) return;
     _isDashboardLoading = true;
-    userId = await StorageService.instance.getUserId();
-    userZone = await StorageService.instance.getUserZone();
-    userName = await StorageService.instance.getUserName();
+
+    // Render cached snapshot first (if available) to reduce perceived load time.
+    if (isLoading) {
+      await _restoreDashboardFromCache();
+    }
+
+    final userMeta = await Future.wait<dynamic>([
+      StorageService.instance.getUserId(),
+      StorageService.instance.getUserZone(),
+      StorageService.instance.getUserName(),
+    ]);
+    userId = userMeta[0] as String?;
+    userZone = userMeta[1] as String?;
+    userName = userMeta[2] as String?;
 
     // ── Demo Consistency Guard ───────────────────────────────────────────
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
@@ -558,6 +642,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           isLoading = false;
         });
       }
+      unawaited(_persistDashboardSnapshot());
       _isDashboardLoading = false;
       return;
     }
@@ -569,19 +654,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     try {
-      final policyRes = await ApiService.instance.getPolicy(userId!);
-      final walletRes = await ApiService.instance.getWallet(userId!);
-      Map<String, dynamic> disruptionRes = {};
-      try {
-        final w = await ApiService.instance.getWorkerById(userId!);
-        final rawIss = w['iss_score'];
-        if (rawIss is num && mounted) {
-          setState(() => liveIssScore = rawIss.round().clamp(0, 100));
-        }
-        disruptionRes = await ApiService.instance.getDisruptions(
-          userZone ?? '',
-        );
-      } catch (_) {}
+      final dashboardCore = await Future.wait<dynamic>([
+        ApiService.instance.getPolicy(userId!),
+        ApiService.instance.getWallet(userId!),
+        ApiService.instance.getDisruptions(userZone ?? ''),
+      ]);
+
+      final policyRes = dashboardCore[0] as Map<String, dynamic>;
+      final walletRes = dashboardCore[1] as Map<String, dynamic>;
+      final disruptionRes = dashboardCore[2] as Map<String, dynamic>;
+
+      // Fetch ISS after first paint to avoid delaying dashboard load.
+      unawaited(_refreshWorkerIss(userId!));
 
       final rawPolicy = policyRes['policy'] as Map<String, dynamic>?;
       final tier = rawPolicy?['plan_tier'] as String?;
@@ -659,6 +743,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           isLoading = false;
         });
       }
+      unawaited(_persistDashboardSnapshot());
 
       // ── Organic ML Data Fetch (Detached Background Task) ──
       // This prevents the app from freezing if Render is experiencing a cold start.
@@ -779,13 +864,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final l10n = AppLocalizations.of(context)!;
 
     if (isLoading) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-            child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
-        )),
-      );
+      return _buildDashboardSkeleton();
     }
 
     final isLocationDenied =
@@ -885,12 +964,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: SafeArea(
                   bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeader(context, displayUserName),
+                  child: Column(
+                    children: [
+                      const OfflineBanner(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(context, displayUserName),
                         const SizedBox(height: 16),
                         _buildSystemStatusFeed(),
                         const SizedBox(height: 16),
@@ -913,6 +995,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildWorkAdvisorCard(),
                         ],
                         const SizedBox(height: 20),
+                        if (policyData != null)
+                          _buildActivePolicyCard(
+                            planName,
+                            premium,
+                            l10n,
+                            ridersData,
+                            policyData?['plan_tier']?.toString() ?? 'standard',
+                          )
+                        else
+                          _buildNoPolicyCard(l10n),
+                        const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
@@ -949,26 +1042,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        if (policyData != null)
-                          _buildActivePolicyCard(
-                            planName,
-                            premium,
-                            l10n,
-                            ridersData,
-                            policyData?['plan_tier']?.toString() ?? 'standard',
-                          )
-                        else
-                          _buildNoPolicyCard(l10n),
                         if (_debugMode) _buildDebugPanel(),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
+      ),
+    ],
       ),
     );
   }
@@ -1005,29 +1089,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
         const SizedBox(width: 8),
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            if (ShiftTrackingService.instance.status == ShiftStatus.active)
-              AnimatedBuilder(
-                animation: _radarController,
-                builder: (context, child) {
-                  return Container(
-                    width: 32 * _radarController.value,
-                    height: 32 * _radarController.value,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: mintColor.withOpacity(1.0 - _radarController.value),
-                        width: 2,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            const ShiftStatusDot(),
-          ],
-        ),
+        const ShiftStatusDot(),
         const Spacer(),
         _buildMintIconBtn(Icons.headset_mic_rounded,
             () => context.push(AppRoutes.support), mintColor, isDark),
@@ -1043,6 +1105,90 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildMintIconBtn(Icons.notifications_rounded,
             () => context.push(AppRoutes.notifications), mintColor, isDark),
       ],
+    );
+  }
+
+  Widget _buildDashboardSkeleton() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final card = isDark ? const Color(0xFF1C1F1C) : Colors.white;
+    final soft = isDark
+        ? Colors.white.withOpacity(0.08)
+        : const Color(0xFF1B5E20).withOpacity(0.08);
+    final pulse = isDark
+        ? Colors.white.withOpacity(0.12)
+        : const Color(0xFF1B5E20).withOpacity(0.12);
+
+    Widget block({double? width, required double height, double radius = 12}) {
+      return AnimatedSkeleton(
+        width: width,
+        height: height,
+        borderRadius: radius,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: card,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: soft),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  block(width: 140, height: 18, radius: 8),
+                  const Spacer(),
+                  block(width: 40, height: 40, radius: 20),
+                  const SizedBox(width: 10),
+                  block(width: 40, height: 40, radius: 20),
+                ],
+              ),
+              const SizedBox(height: 18),
+              block(width: 120, height: 12, radius: 8),
+              const SizedBox(height: 12),
+              block(width: double.infinity, height: 52, radius: 16),
+              const SizedBox(height: 16),
+              block(width: 180, height: 34, radius: 10),
+              const SizedBox(height: 10),
+              block(width: 220, height: 14, radius: 8),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF121512) : const Color(0xFFF7FAF7),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: soft),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: block(height: 120, radius: 16)),
+                        const SizedBox(width: 12),
+                        Expanded(child: block(height: 120, radius: 16)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              block(width: double.infinity, height: 200, radius: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1884,124 +2030,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildLivenessHUD(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: mintColor.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          // Shift Stats Panel
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Row(
-              children: [
-                _buildRadarIndicator(mintColor),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('SATELLITE PROTECTION ACTIVE', 
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: mintColor, letterSpacing: 0.5)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          _statItem('Distance', '${LocationService.instance.traveledDistance.toStringAsFixed(2)} km', theme),
-                          Container(width: 1, height: 20, color: theme.dividerColor, margin: const EdgeInsets.symmetric(horizontal: 16)),
-                          _statItem('Accuracy', '${ShiftTrackingService.instance.lastAccuracy.round()}m', theme),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Live Feed Ticker
-          Container(
-            height: 100,
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.black.withOpacity(0.2) : Colors.grey.withOpacity(0.05),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-            ),
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: _events.length > 5 ? 5 : _events.length,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final event = _events[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      Text('[${event.timestamp.hour}:${event.timestamp.minute.toString().padLeft(2, '0')}] ', 
-                        style: TextStyle(fontSize: 10, color: hintColor, fontFamily: 'monospace')),
-                      Expanded(
-                        child: Text(event.message,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.8), fontWeight: FontWeight.w500)),
-                      ),
-                      if (index == 0) Icon(Icons.circle, size: 6, color: mintColor),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statItem(String label, String val, ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface.withOpacity(0.4))),
-        Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-      ],
-    );
-  }
-
-  Widget _buildRadarIndicator(Color mintColor) {
-    return AnimatedBuilder(
-      animation: _radarController,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            ...[1, 2].map((i) => Container(
-              width: 44 * (1 + _radarController.value * 0.5 * i),
-              height: 44 * (1 + _radarController.value * 0.5 * i),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: mintColor.withOpacity(1 - _radarController.value)),
-              ),
-            )),
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: mintColor, shape: BoxShape.circle),
-              child: const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 24),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
     return Column(
       children: [
@@ -2013,33 +2041,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               return;
             }
 
-            // Request permissions BEFORE state change to prevent UI overlay deadlocks
-            if (!kIsWeb) {
-              await [
-                Permission.notification,
-                Permission.activityRecognition,
-              ].request();
-              
-              final locStatus = await Permission.locationAlways.request();
-              final batStatus = await Permission.ignoreBatteryOptimizations.request();
-              
-              if (locStatus.isPermanentlyDenied || batStatus.isPermanentlyDenied) {
-                await openAppSettings();
-                return;
-              }
-              if (!locStatus.isGranted && !await Permission.locationWhenInUse.status.isGranted) {
-                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Location permission required')));
-                 return;
-              }
-            }
-
             setState(() => _isGoingOnline = true);
-            // permission_handler is not implemented on web (UnimplementedError).
+
+            // Web: no permission_handler support
             if (kIsWeb) {
               try {
-                final zone =
-                    userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
                 await ShiftTrackingService.instance.startShift(zone);
                 AppEvents.instance.profileUpdated();
               } catch (e) {
@@ -2053,15 +2060,14 @@ class _DashboardScreenState extends State<DashboardScreen>
               }
               return;
             }
-            
+
             try {
               final gpsEnabled = await Geolocator.isLocationServiceEnabled();
               if (!gpsEnabled) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content: Text(
-                            'Please turn on device location to go online')),
+                        content: Text('Please turn on device location to go online')),
                   );
                 }
                 setState(() => _isGoingOnline = false);
@@ -2077,9 +2083,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               } catch (gpsError) {
                 print('[GoOnline] GPS timeout: $gpsError — using last known');
               }
-              // Use real zone from storage, no hardcoded fallback
-              final zone =
-                  userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+
+              final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
               await ShiftTrackingService.instance.startShift(zone);
               AppEvents.instance.profileUpdated();
               if (mounted) {
@@ -2101,15 +2106,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               if (mounted) setState(() => _isGoingOnline = false);
             }
           }),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
         
-        // ── Liveness HUD (Only shown when Online) ──
-        if (ShiftTrackingService.instance.status != ShiftStatus.offline) ...[
-          _buildLivenessHUD(context),
-          const SizedBox(height: 16),
-        ],
-
         Row(
           children: [
             Expanded(
@@ -2754,29 +2753,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildLiveStatsRow() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statsColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-    final accuracy = ShiftTrackingService.instance.lastAccuracy;
     final distance = LocationService.instance.traveledDistance;
 
     return Row(
       children: [
         _buildStatItem(
-          icon: Icons.gps_fixed_rounded,
-          label: 'Accuracy',
-          value: '${accuracy.toStringAsFixed(1)}m',
-          color: statsColor,
-        ),
-        const SizedBox(width: 12),
-        _buildStatItem(
           icon: Icons.speed_rounded,
           label: 'Protected',
           value: '${distance.toStringAsFixed(2)} km',
-          color: statsColor,
-        ),
-        const SizedBox(width: 12),
-        _buildStatItem(
-          icon: Icons.location_on_rounded,
-          label: 'Depth',
-          value: '${_zoneDepthScore.round()}%',
           color: statsColor,
         ),
       ],

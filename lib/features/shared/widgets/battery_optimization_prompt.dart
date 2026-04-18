@@ -203,42 +203,91 @@ class _BatteryOptimizationPromptState
         height: 56,
         child: Center(
           child: SizedBox(
-            width: 24, height: 24, 
-            child: CircularProgressIndicator(color: primaryGreen, strokeWidth: 2)
-          )
+            width: 24, height: 24,
+            child: CircularProgressIndicator(color: primaryGreen, strokeWidth: 2),
+          ),
         ),
       );
     }
 
     final allGranted = _locationAlways && _batteryUnrestricted;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          if (allGranted) {
-            widget.onAllGranted();
-          } else {
-            _showPermissionsSheet(context, theme);
-          }
-        },
-        icon: Icon(allGranted ? Icons.power_settings_new_rounded : Icons.shield_outlined),
-        label: Text(
-          allGranted ? 'GO ONLINE' : 'Enable Protection to Go Online',
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 15,
-            letterSpacing: 0.3,
+    // ── All permissions granted → single clean GO ONLINE button ──────────
+    if (allGranted) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton.icon(
+          onPressed: widget.onAllGranted,
+          icon: const Icon(Icons.power_settings_new_rounded, size: 20),
+          label: const Text(
+            'GO ONLINE',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              letterSpacing: 1.0,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryGreen,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
           ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: allGranted ? primaryGreen : const Color(0xFFE88A00),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: allGranted ? 0 : 2,
-          shadowColor: allGranted ? Colors.transparent : const Color(0xFFE88A00).withOpacity(0.35),
+      );
+    }
+
+    // ── Permissions missing → subtle bordered card (not a loud CTA) ──────
+    return GestureDetector(
+      onTap: () => _showPermissionsSheet(context, theme),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: primaryGreen.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: primaryGreen.withOpacity(0.25), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: primaryGreen.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.shield_outlined, color: primaryGreen, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Start Your Shift',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Allow location access to go online',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurface.withOpacity(0.45),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: primaryGreen.withOpacity(0.6), size: 20),
+          ],
         ),
       ),
     );

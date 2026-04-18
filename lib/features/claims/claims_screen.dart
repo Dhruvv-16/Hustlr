@@ -10,6 +10,9 @@ import '../../shared/widgets/notification_bell.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/mock_data_service.dart';
+import '../../services/connectivity_service.dart';
+import '../../shared/widgets/offline_banner.dart';
+import '../../shared/widgets/animated_skeleton.dart';
 
 class ClaimsScreen extends StatefulWidget {
   const ClaimsScreen({super.key});
@@ -25,6 +28,62 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
   StreamSubscription<void>? _claimSub;
   StreamSubscription<void>? _walletSub;
   StreamSubscription<void>? _policySub;
+  StreamSubscription<void>? _connSub;
+  bool _isSyncing = false;
+
+  Future<void> _syncQueuedManualClaims(String userId) async {
+    if (_isSyncing) return;
+    
+    final isOnline = await ConnectivityService.instance.checkNow();
+    if (!isOnline) return;
+
+    final queue = await StorageService.getPendingManualClaimsQueue();
+    if (queue.isEmpty) return;
+
+    _isSyncing = true;
+    final now = DateTime.now();
+
+    for (final item in queue) {
+      if (item.nextRetryAt.isAfter(now)) {
+        continue; // Backoff still active
+      }
+      
+      // Calculate next backoff: 5s -> 15s -> 60s -> 5m max
+      int nextDelaySecs = 5;
+      if (item.retryCount == 1) {
+        nextDelaySecs = 15;
+      } else if (item.retryCount == 2) {
+        nextDelaySecs = 60;
+      } else if (item.retryCount >= 3) {
+        nextDelaySecs = 300; // Cap at 5 mins
+      }
+
+      try {
+        await ApiService.instance.submitManualClaim(
+          userId: userId,
+          disruptionType: item.type,
+          description: item.description,
+          evidenceUrls: item.evidenceUrls,
+          deviceSignalStrength: item.deviceSignalStrength,
+          sensorFeatures: item.sensorFeatures,
+          integrityToken: item.integrityToken,
+          idempotencyKey: item.localId,
+        );
+        // Sync successful, remove from queue
+        await StorageService.removeQueuedClaim(item.localId);
+      } catch (e) {
+        // Sync failed, update retry metadata
+        final updated = item.copyWith(
+          retryCount: item.retryCount + 1,
+          lastAttemptAt: now,
+          nextRetryAt: now.add(Duration(seconds: nextDelaySecs)),
+          lastError: e.toString(),
+        );
+        await StorageService.updateQueuedClaim(updated);
+      }
+    }
+    _isSyncing = false;
+  }
 
   @override
   void initState() {
@@ -33,6 +92,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadClaims());
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadClaims());
     _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadClaims());
+    _connSub = AppEvents.instance.onConnectivityRestored.listen((_) => _loadClaims());
   }
 
   @override
@@ -40,6 +100,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     _claimSub?.cancel();
     _walletSub?.cancel();
     _policySub?.cancel();
+    _connSub?.cancel();
     super.dispose();
   }
 
@@ -70,13 +131,31 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
         setState(() { _error = 'Not logged in'; _loading = false; });
         return;
       }
+
+      await _syncQueuedManualClaims(userId);
+
       final data = await ApiService.instance.getClaims(userId);
       final raw = data['claims'];
       final list = raw is List
           ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : <Map<String, dynamic>>[];
+
+      final pendingQueue = await StorageService.getPendingManualClaimsQueue();
+      final pendingLocal = pendingQueue.map((q) {
+        return <String, dynamic>{
+          'id': q.localId,
+          'trigger_type': q.type,
+          'display_name': q.description,
+          'status': 'PENDING_SYNC',
+          'created_at': q.createdAt.toIso8601String(),
+          'gross_payout': 0,
+          'zone': '',
+        };
+      }).toList();
+
+      final merged = [...pendingLocal, ...list];
       if (!mounted) return;
-      setState(() { _claims = list; _loading = false; });
+      setState(() { _claims = merged; _loading = false; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _error = e.toString(); _loading = false; });
@@ -95,7 +174,10 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
         .where((c) => (c['status'] as String? ?? '').toUpperCase() == 'APPROVED')
         .fold(0, (s, c) => s + ((c['gross_payout'] as num?)?.toInt() ?? 0));
     int pendingCount = _claims
-        .where((c) => (c['status'] as String? ?? '').toUpperCase() == 'PENDING')
+        .where((c) {
+          final s = (c['status'] as String? ?? '').toUpperCase();
+          return s == 'PENDING' || s == 'PENDING_SYNC' || s == 'PROCESSING';
+        })
         .length;
 
     final blueLight  = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
@@ -117,10 +199,11 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                 bottom: false,
                 child: Column(
                   children: [
+                    const OfflineBanner(),
                     const _TopBar(),
                     Expanded(
                       child: _loading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? _buildClaimsSkeleton()
                           : _error != null
                               ? _ErrorState(error: _error!, onRetry: _loadClaims)
                               : RefreshIndicator(
@@ -199,7 +282,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                               if (status == 'APPROVED') {
                                                 statusBg    = greenBg;
                                                 statusColor = greenText;
-                                              } else if (status == 'PENDING' || status == 'PROCESSING') {
+                                              } else if (status == 'PENDING' || status == 'PROCESSING' || status == 'PENDING_SYNC') {
                                                 statusBg    = amberLight;
                                                 statusColor = amber;
                                               } else if (status == 'FLAGGED') {
@@ -223,7 +306,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                                         decoration: BoxDecoration(
                                                           color: const Color(0xFFFFF8E1),
                                                           borderRadius: BorderRadius.circular(10),
-                                                          border: Border.all(color: const Color(0xFFFFA000).withOpacity(0.4)),
+                                                          border: Border.all(color: const Color(0xFFFFA000).withValues(alpha: 0.4)),
                                                         ),
                                                         child: Row(
                                                           children: [
@@ -247,7 +330,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                                         iconColor: iconColor,
                                                         title: displayName,
                                                         date: dateStr,
-                                                        status: status,
+                                                        status: status == 'PENDING_SYNC' ? 'PENDING SYNC' : status,
                                                         statusBg: statusBg,
                                                         statusColor: statusColor,
                                                         amount: '₹$amount',
@@ -291,10 +374,37 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     );
   }
 
+  Widget _buildClaimsSkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Summary Row Skeleton
+          const AnimatedSkeleton(height: 80, width: double.infinity, borderRadius: 12),
+          const SizedBox(height: 16),
+          // Education Banner Skeleton
+          const AnimatedSkeleton(height: 64, width: double.infinity, borderRadius: 12),
+          const SizedBox(height: 20),
+          // Recent History Title Skeleton
+          const AnimatedSkeleton(height: 20, width: 140, borderRadius: 6),
+          const SizedBox(height: 12),
+          // Claim Cards Skeleton
+          const AnimatedSkeleton(height: 84, width: double.infinity, borderRadius: 16),
+          const SizedBox(height: 12),
+          const AnimatedSkeleton(height: 84, width: double.infinity, borderRadius: 16),
+          const SizedBox(height: 12),
+          const AnimatedSkeleton(height: 84, width: double.infinity, borderRadius: 16),
+        ],
+      ),
+    );
+  }
+
   String _triggerLabel(String triggerType) {
     if (triggerType.contains('rain'))     return 'Rain Disruption';
     if (triggerType.contains('heat'))     return 'Extreme Heat';
     if (triggerType.contains('aqi'))      return 'Air Quality Alert';
+    if (triggerType.contains('internet') || triggerType.contains('blackout')) return 'Internet Blackout';
     if (triggerType.contains('downtime')) return 'Platform Downtime';
     if (triggerType.contains('app'))      return 'App Downtime';
     if (triggerType.contains('manual'))   return 'Manual Report';
@@ -427,7 +537,7 @@ class _SummaryRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.20 : 0.08),
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.08),
             blurRadius: 8, offset: const Offset(0, 2),
           ),
         ],
@@ -584,7 +694,7 @@ class _ClaimCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.20 : 0.08),
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.08),
             blurRadius: 10, offset: const Offset(0, 2),
           ),
         ],

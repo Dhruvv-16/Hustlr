@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../../core/router/app_router.dart';
-import '../../shared/widgets/mobile_container.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/router/app_router.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/app_events.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
-import 'package:provider/provider.dart';
+import '../../shared/widgets/mobile_container.dart';
+import '../../shared/widgets/offline_banner.dart';
+import '../../shared/widgets/animated_skeleton.dart';
 
 // Dark mode palette
 const _darkGreen       = Color(0xFF3FFF8B);
@@ -315,20 +317,7 @@ class _PolicyScreenState extends State<PolicyScreen>
             final wasInactive = activePolicy == null;
 
             setState(() {
-              // ── Demo Sync ───────────────────────────────────────────────────
-              if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
-                activePolicy = {
-                  'id': 'PROTO-POL-${mock.worker.id.hashCode}',
-                  'plan_name': mock.activePolicy.plan,
-                  'plan_tier': mock.activePolicy.plan.split(' ')[0].toLowerCase(),
-                  'status': mock.activePolicy.status,
-                  'coverage_start': mock.activePolicy.coverageStart,
-                  'commitment_end': mock.activePolicy.coverageEnd,
-                  'weekly_premium': mock.activePolicy.premium,
-                };
-              } else {
-                activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
-              }
+              activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
 
               policyHistory = rawHistory is List
                   ? rawHistory
@@ -418,18 +407,25 @@ class _PolicyScreenState extends State<PolicyScreen>
       body: Stack(
         children: [
           Positioned.fill(
-            child: MobileContainer(
-              child: isLoading ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) : TabBarView(
-                controller: _tabController,
-                children: [
-                  _CurrentPlanTab(activePolicy: activePolicy),
-                  _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
-                  _LiveHistoryTab(
-                    activePolicy: activePolicy,
-                    policyHistory: policyHistory,
+            child: Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(
+                  child: MobileContainer(
+                    child: isLoading ? _buildPolicySkeleton() : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _CurrentPlanTab(activePolicy: activePolicy),
+                        _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
+                        _LiveHistoryTab(
+                          activePolicy: activePolicy,
+                          policyHistory: policyHistory,
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -451,6 +447,32 @@ class _PolicyScreenState extends State<PolicyScreen>
         context.go('/wallet');
         break;
     }
+  }
+
+  Widget _buildPolicySkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Banner Skeleton
+          const AnimatedSkeleton(height: 140, width: double.infinity, borderRadius: 16),
+          const SizedBox(height: 24),
+          // Section Title Skeleton
+          const AnimatedSkeleton(height: 24, width: 120, borderRadius: 6),
+          const SizedBox(height: 16),
+          // Coverage Items Skeleton
+          const AnimatedSkeleton(height: 80, width: double.infinity, borderRadius: 12),
+          const SizedBox(height: 12),
+          const AnimatedSkeleton(height: 80, width: double.infinity, borderRadius: 12),
+          const SizedBox(height: 12),
+          const AnimatedSkeleton(height: 80, width: double.infinity, borderRadius: 12),
+          const SizedBox(height: 24),
+          // Footer Skeleton
+          const AnimatedSkeleton(height: 60, width: double.infinity, borderRadius: 16),
+        ],
+      ),
+    );
   }
 }
 

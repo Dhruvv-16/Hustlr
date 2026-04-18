@@ -17,8 +17,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      Future.delayed(const Duration(seconds: 2), _navigate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigate();
     });
   }
 

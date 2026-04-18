@@ -283,5 +283,8 @@
   "chat_bot_greeting": "Hi, I am a Hustlr claims agent. How can I help you regarding your manual claim?",
   "chat_attach_id": "ID Card",
   "chat_attach_weather": "Weather Proof",
-  "chat_attach_receipt": "Medical Receipt"
+  "chat_attach_receipt": "Medical Receipt",
+
+  "offline_banner_text": "You are offline. Claims will be saved.",
+  "review_save_offline": "Save Offline"
 }

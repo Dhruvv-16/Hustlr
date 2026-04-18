@@ -580,7 +580,30 @@ router.post('/manual', async (req, res) => {
     device_signal_strength,  // for internet outage type
     integrity_token,   // optional Play Integrity token (Android); simulated or Google verify
     simulate_integrity_fail, // demo only: force mock failing verdict (+30 fraud)
+    idempotency_key, // For offline retry deduplication
   } = req.body;
+
+  // Idempotency check: prevent duplicate manual claims on retry
+  if (idempotency_key && user_id) {
+    const { data: existing } = await supabase
+      .from('claims')
+      .select('*')
+      .eq('user_id', user_id)
+      .eq('fps_signals->>idempotency_key', idempotency_key)
+      .maybeSingle();
+
+    if (existing) {
+      return res.status(200).json({
+        claim: {
+          ...existing,
+          display_name: 'Manual Report',
+          tranche1_amount: existing.tranche1,
+          tranche2_amount: existing.tranche2,
+          provisional_note: 'Provisional credit issued. Full review within 4 hours. (Duplicate Request)',
+        }
+      });
+    }
+  }
 
   const packageName = process.env.PLAY_INTEGRITY_PACKAGE_NAME || 'com.shieldgig.shieldgig';
   let playIntegrityResult = {
@@ -717,6 +740,7 @@ router.post('/manual', async (req, res) => {
           disruption_type,
           description: description ?? '',
           play_integrity: playIntegrityResult,
+          ...(idempotency_key && { idempotency_key }),
         },
       }])
       .select()

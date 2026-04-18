@@ -811,4 +811,10 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get chat_attach_receipt => 'மருத்துவ ரசீது';
+
+  @override
+  String get offline_banner_text => 'You are offline. Claims will be saved.';
+
+  @override
+  String get review_save_offline => 'Save Offline';
 }

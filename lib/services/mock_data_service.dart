@@ -297,7 +297,7 @@ class MockDataService extends ChangeNotifier {
     weeklyIncomeEstimate: 0,
   );
 
-  bool hasActivePolicy = true;
+  bool hasActivePolicy = false;
   PolicyModel activePolicy = PolicyModel(
     plan: "Standard Shield",
     premium: 49,
