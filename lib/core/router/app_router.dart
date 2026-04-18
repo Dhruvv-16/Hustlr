@@ -236,7 +236,9 @@ final GoRouter appRouter = GoRouter(
           path: '/claims/:id',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
-            return ClaimDetailScreen(claimId: id);
+            final extra = state.extra;
+            final initialClaim = extra is Map<String, dynamic> ? extra : null;
+            return ClaimDetailScreen(claimId: id, initialClaim: initialClaim);
           },
         ),
         GoRoute(

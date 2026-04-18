@@ -171,7 +171,7 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
                 child: Text(
                   widget.mode == CameraMode.kycFace
-                      ? 'Centre your face fully within the oval.\nMake sure eyes, nose and chin are visible.'
+                      ? '${widget.instructions}\n\nCentre your face within the oval. Keep eyes, nose, and chin visible.'
                       : widget.instructions,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -214,6 +214,37 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
             ),
 
             if (widget.mode == CameraMode.kycFace) ...[
+              // Top instruction card for face movement challenge.
+              Positioned(
+                top: 20,
+                left: 16,
+                right: 16,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.45),
+                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        widget.instructions,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
               // Dark cutout overlay — draws dark everywhere except the oval
               CustomPaint(
                 painter: _OvalCutoutPainter(
@@ -331,7 +362,7 @@ class _OvalCutoutPainter extends CustomPainter {
 
     canvas.drawPath(
       cutout,
-      Paint()..color = Colors.black.withOpacity(0.62),
+      Paint()..color = Colors.black.withOpacity(0.45),
     );
   }
 

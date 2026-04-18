@@ -176,7 +176,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     return BlocBuilder<PolicyBloc, PolicyState>(
       builder: (context, policyState) {
         String getPlanDisplayName(PlanTier? tier) {
-          if (tier == null) return 'Standard Shield';
+          if (tier == null) return 'No Active Plan';
           switch (tier) {
             case PlanTier.basic:
               return 'Basic Shield';
@@ -188,6 +188,26 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         }
 
         final activePlanName = getPlanDisplayName(policyState.activePolicy?.tier);
+        final hasActivePolicy = policyState.activePolicy != null && policyState.activePolicy!.status.isCoverageActive;
+
+        // Only show the policy info card if there's an active policy
+        if (!hasActivePolicy) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Text(
+                'No active protection plan. Tap "Upgrade" to buy a shield.',
+                style: TextStyle(color: primary, fontSize: 13, fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
 
         return Container(
           width: double.infinity,

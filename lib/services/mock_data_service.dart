@@ -4,6 +4,7 @@ import '../core/services/api_service.dart';
 import '../models/claim.dart' as domain;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'location_service.dart';
+import 'fraud_sensor_service.dart';
 import 'app_events.dart';
 
 class WorkerModel {
@@ -1066,6 +1067,90 @@ class MockDataService extends ChangeNotifier {
     }
     notifyListeners();
     AppEvents.instance.profileUpdated();
+  }
+
+  /// Clear ALL mock data and restore app to pristine state
+  void clearAllMockData() {
+    // Reset worker state
+    worker = WorkerModel(
+      id: '',
+      name: '',
+      platform: '',
+      city: '',
+      zone: '',
+      weeklyIncomeEstimate: 0,
+      issScore: 62,
+    );
+
+    // Reset policy
+    activePolicy = PolicyModel(
+      plan: "Standard Shield",
+      premium: 49,
+      status: "INACTIVE",
+      coverageStart: "",
+      coverageEnd: "",
+      riders: [],
+      coverageDescription: "",
+    );
+
+    // Clear all financial data
+    walletBalance = 0;
+    monthlySavings = 0;
+    totalPremiums = 0;
+    potentialLoss = 0;
+    
+    // Clear claims and transactions
+    claims = [];
+    transactions = [];
+    
+    // Clear disruptions
+    activeDisruption = null;
+    
+    // Reset all overrides
+    simulateHighIss = true;
+    forceFraudFlag = false;
+    spoofedZone = null;
+    FraudSensorService.mockFraudSpoofing = false;
+    
+    // Reset UI state
+    showPredictiveNudge = false;
+    showShadowNudge = false;
+    missedAmount = 0;
+    missedEventsCount = 0;
+    currentNudgeIndex = 0;
+    
+    // Clear location override
+    LocationService.instance.clearMockLocation();
+    
+    // Clear persisted demo state from storage
+    final box = Hive.box('appData');
+    box.delete('demo_walletBalance');
+    box.delete('demo_monthlySavings');
+    box.delete('demo_transactions');
+    box.delete('demo_claims');
+    box.delete('demo_activeDisruption');
+    
+    // Reset ISS history
+    issHistory = [55, 60, 52, 68, 58, 62];
+    
+    // Reset live statuses to neutral
+    liveStatuses = [
+      LiveStatusModel(icon: "rain", name: "Rain", level: 0.0, statusText: "No rain · Normal"),
+      LiveStatusModel(icon: "heat", name: "Heat Wave", level: 0.3, statusText: "Normal · 32°C"),
+      LiveStatusModel(icon: "downtime", name: "Platform", level: 0.05, statusText: "Operational · 99% uptime"),
+      LiveStatusModel(icon: "internet", name: "Internet", level: 0.0, statusText: "Stable · 40+ Mbps"),
+      LiveStatusModel(icon: "strike", name: "Bandh/Strike", level: 0.0, statusText: "No alerts"),
+    ];
+    
+    // Notify all listeners
+    notifyListeners();
+    LocationService.instance.notifyListeners();
+    
+    // Fire update events
+    AppEvents.instance.profileUpdated();
+    AppEvents.instance.walletUpdated();
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.policyUpdated();
   }
 
   // ── Utilities ──────────────────────────────────────────────────────────────

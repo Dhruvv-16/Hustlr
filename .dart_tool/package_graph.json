@@ -32,6 +32,8 @@
         "image_picker",
         "intl",
         "local_auth",
+        "open_filex",
+        "path_provider",
         "pdf",
         "permission_handler",
         "printing",
@@ -282,6 +284,26 @@
         "bloc",
         "flutter",
         "provider"
+      ]
+    },
+    {
+      "name": "open_filex",
+      "version": "4.7.0",
+      "dependencies": [
+        "ffi",
+        "flutter"
+      ]
+    },
+    {
+      "name": "path_provider",
+      "version": "2.1.5",
+      "dependencies": [
+        "flutter",
+        "path_provider_android",
+        "path_provider_foundation",
+        "path_provider_linux",
+        "path_provider_platform_interface",
+        "path_provider_windows"
       ]
     },
     {
@@ -1186,18 +1208,6 @@
       "dependencies": []
     },
     {
-      "name": "path_provider",
-      "version": "2.1.5",
-      "dependencies": [
-        "flutter",
-        "path_provider_android",
-        "path_provider_foundation",
-        "path_provider_linux",
-        "path_provider_platform_interface",
-        "path_provider_windows"
-      ]
-    },
-    {
       "name": "supabase",
       "version": "2.10.4",
       "dependencies": [
@@ -1230,6 +1240,59 @@
       ]
     },
     {
+      "name": "ffi",
+      "version": "2.2.0",
+      "dependencies": []
+    },
+    {
+      "name": "path_provider_windows",
+      "version": "2.3.0",
+      "dependencies": [
+        "ffi",
+        "flutter",
+        "path",
+        "path_provider_platform_interface"
+      ]
+    },
+    {
+      "name": "path_provider_platform_interface",
+      "version": "2.1.2",
+      "dependencies": [
+        "flutter",
+        "platform",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "path_provider_linux",
+      "version": "2.2.1",
+      "dependencies": [
+        "ffi",
+        "flutter",
+        "path",
+        "path_provider_platform_interface",
+        "xdg_directories"
+      ]
+    },
+    {
+      "name": "path_provider_foundation",
+      "version": "2.6.0",
+      "dependencies": [
+        "ffi",
+        "flutter",
+        "objective_c",
+        "path_provider_platform_interface"
+      ]
+    },
+    {
+      "name": "path_provider_android",
+      "version": "2.2.23",
+      "dependencies": [
+        "flutter",
+        "path_provider_platform_interface"
+      ]
+    },
+    {
       "name": "pdf_widget_wrapper",
       "version": "1.0.4",
       "dependencies": [
@@ -1243,11 +1306,6 @@
       "dependencies": [
         "flutter"
       ]
-    },
-    {
-      "name": "ffi",
-      "version": "2.2.0",
-      "dependencies": []
     },
     {
       "name": "xml",
@@ -1744,54 +1802,6 @@
       ]
     },
     {
-      "name": "path_provider_windows",
-      "version": "2.3.0",
-      "dependencies": [
-        "ffi",
-        "flutter",
-        "path",
-        "path_provider_platform_interface"
-      ]
-    },
-    {
-      "name": "path_provider_platform_interface",
-      "version": "2.1.2",
-      "dependencies": [
-        "flutter",
-        "platform",
-        "plugin_platform_interface"
-      ]
-    },
-    {
-      "name": "path_provider_linux",
-      "version": "2.2.1",
-      "dependencies": [
-        "ffi",
-        "flutter",
-        "path",
-        "path_provider_platform_interface",
-        "xdg_directories"
-      ]
-    },
-    {
-      "name": "path_provider_foundation",
-      "version": "2.6.0",
-      "dependencies": [
-        "ffi",
-        "flutter",
-        "objective_c",
-        "path_provider_platform_interface"
-      ]
-    },
-    {
-      "name": "path_provider_android",
-      "version": "2.2.23",
-      "dependencies": [
-        "flutter",
-        "path_provider_platform_interface"
-      ]
-    },
-    {
       "name": "yet_another_json_isolate",
       "version": "2.1.0",
       "dependencies": [
@@ -1889,6 +1899,19 @@
       ]
     },
     {
+      "name": "objective_c",
+      "version": "9.3.0",
+      "dependencies": [
+        "code_assets",
+        "collection",
+        "ffi",
+        "hooks",
+        "logging",
+        "native_toolchain_c",
+        "pub_semver"
+      ]
+    },
+    {
       "name": "petitparser",
       "version": "7.0.2",
       "dependencies": [
@@ -1974,19 +1997,6 @@
       "dependencies": []
     },
     {
-      "name": "objective_c",
-      "version": "9.3.0",
-      "dependencies": [
-        "code_assets",
-        "collection",
-        "ffi",
-        "hooks",
-        "logging",
-        "native_toolchain_c",
-        "pub_semver"
-      ]
-    },
-    {
       "name": "retry",
       "version": "3.1.2",
       "dependencies": []
@@ -2012,30 +2022,6 @@
         "ffi",
         "flutter",
         "meta"
-      ]
-    },
-    {
-      "name": "win32",
-      "version": "5.15.0",
-      "dependencies": [
-        "ffi"
-      ]
-    },
-    {
-      "name": "package_info_plus_platform_interface",
-      "version": "3.2.1",
-      "dependencies": [
-        "flutter",
-        "meta",
-        "plugin_platform_interface"
-      ]
-    },
-    {
-      "name": "html",
-      "version": "0.15.6",
-      "dependencies": [
-        "csslib",
-        "source_span"
       ]
     },
     {
@@ -2068,6 +2054,30 @@
       "dependencies": [
         "collection",
         "hooks"
+      ]
+    },
+    {
+      "name": "win32",
+      "version": "5.15.0",
+      "dependencies": [
+        "ffi"
+      ]
+    },
+    {
+      "name": "package_info_plus_platform_interface",
+      "version": "3.2.1",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "html",
+      "version": "0.15.6",
+      "dependencies": [
+        "csslib",
+        "source_span"
       ]
     },
     {

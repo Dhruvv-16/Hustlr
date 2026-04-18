@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
-import '../services/app_events.dart';
 import '../services/storage_service.dart';
 import '../services/notification_service.dart';
 import 'package:provider/provider.dart';
@@ -168,8 +167,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF141614) : Colors.white;
-    final surface = isDark ? const Color(0xFF1C1F1C)
-                           : const Color(0xFFF4F6F4);
+    final surface = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -239,10 +237,10 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 // Reset button
                 TextButton(
                   onPressed: _hardReset,
-                  child: const Text('Hard Reset',
+                  child: const Text('Reset',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFFC62828), // Red for "surgical strike"
+                      color: Color(0xFF2E7D32), // Green for "return to live"
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -251,223 +249,207 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             ),
           ),
 
-          // Persona cards
           Expanded(
-            child: ListView.builder(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              itemCount: PERSONAS.length,
-              itemBuilder: (context, i) {
-                final p = PERSONAS[i];
-                final isActive = _activePersona == i;
-                final color = p['color'] as Color;
-                final bg = p['bg'] as Color;
-
-                return GestureDetector(
-                  onTap: _isRunning ? null : () => _runPersona(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? (isDark ? color.withOpacity(0.15) : bg)
-                          : (isDark
-                              ? const Color(0xFF1C1F1C)
-                              : Colors.white),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isActive ? color : Colors.transparent,
-                        width: 2,
-                      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PERSONA SCENARIOS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.9,
+                      color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Persona header
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16,14,16,10),
-                          child: Row(
-                            children: [
-                              Text(p['icon'] as String,
-                                style: const TextStyle(fontSize: 24)),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(p['name'] as String,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark
-                                            ? const Color(0xFFE1E3DE)
-                                            : const Color(0xFF0D1B0F),
-                                      ),
-                                    ),
-                                    Text(p['role'] as String,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: isDark
-                                            ? const Color(0xFF91938D)
-                                            : const Color(0xFF4A6741),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Status indicator
-                              if (isActive && _isRunning)
-                                SizedBox(
-                                  width: 18, height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: color,
-                                  ),
-                                )
-                              else if (isActive && !_isRunning)
-                                Icon(Icons.check_circle,
-                                  color: color, size: 20)
-                              else
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? color.withOpacity(0.15)
-                                        : bg,
-                                    borderRadius:
-                                        BorderRadius.circular(20),
-                                  ),
-                                  child: Text('Run',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: color,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...List.generate(PERSONAS.length, (i) {
+                    final p = PERSONAS[i];
+                    final isActive = _activePersona == i;
+                    final color = p['color'] as Color;
+                    final cardBg = p['bg'] as Color;
+
+                    return GestureDetector(
+                      onTap: _isRunning ? null : () => _runPersona(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? (isDark ? color.withOpacity(0.15) : cardBg)
+                              : (isDark ? const Color(0xFF1C1F1C) : Colors.white),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isActive ? color : theme.dividerColor.withOpacity(0.08),
+                            width: isActive ? 2 : 1,
                           ),
                         ),
-
-                        // Tagline
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16,0,16,10),
-                          child: Text(p['tagline'] as String,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: color,
-                            ),
-                          ),
-                        ),
-
-                        // Features list — shown when active
-                        if (isActive) ...[
-                          const Divider(height: 1),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16,10,16,4),
-                            child: Text('FEATURES DEMONSTRATED',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? const Color(0xFF91938D)
-                                    : const Color(0xFF4A6741),
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          ...(p['features'] as List<String>)
-                              .map((f) => Padding(
-                                padding: const EdgeInsets.fromLTRB(16,2,16,2),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.check,
-                                      size: 13, color: color),
-                                    const SizedBox(width: 6),
-                                    Text(f,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: isDark
-                                            ? const Color(0xFFE1E3DE)
-                                            : const Color(0xFF0D1B0F),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )),
-
-                          // Steps — shown when running
-                          if (_isRunning) ...[
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16,10,16,4),
-                              child: Text('DEMO SEQUENCE',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? const Color(0xFF91938D)
-                                      : const Color(0xFF4A6741),
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ),
-                            ...(p['steps'] as List<String>)
-                                .asMap()
-                                .entries
-                                .map((e) => Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(16,2,16,2),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 18, height: 18,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          color: color.withOpacity(0.15),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Text(
-                                          '${e.key + 1}',
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                              child: Row(
+                                children: [
+                                  Text(p['icon'] as String, style: const TextStyle(fontSize: 24)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p['name'] as String,
                                           style: TextStyle(
-                                            fontSize: 9,
+                                            fontSize: 15,
                                             fontWeight: FontWeight.w700,
-                                            color: color,
+                                            color: isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(e.value,
+                                        Text(
+                                          p['role'] as String,
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: isDark
-                                                ? const Color(0xFF91938D)
-                                                : const Color(0xFF4A6741),
+                                            color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isActive && _isRunning)
+                                    SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                                    )
+                                  else if (isActive && !_isRunning)
+                                    Icon(Icons.check_circle, color: color, size: 20)
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? color.withOpacity(0.15) : cardBg,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'Run',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: color,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                              child: Text(
+                                p['tagline'] as String,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color),
+                              ),
+                            ),
+                            if (isActive) ...[
+                              const Divider(height: 1),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                                child: Text(
+                                  'FEATURES DEMONSTRATED',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+                              ...(p['features'] as List<String>).map(
+                                (f) => Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.check, size: 13, color: color),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          f,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F),
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                )),
+                                ),
+                              ),
+                              if (_isRunning) ...[
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                                  child: Text(
+                                    'DEMO SEQUENCE',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                                ...(p['steps'] as List<String>).asMap().entries.map(
+                                  (e) => Padding(
+                                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 18,
+                                          height: 18,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.15),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Text(
+                                            '${e.key + 1}',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: color,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            e.value,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                            ],
                           ],
-                          const SizedBox(height: 12),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          
-          // --- SIMULATE ROAMING / HUB PROXIMITY ---
-          Container(
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 4),
+
+                  // --- SIMULATE ROAMING / HUB PROXIMITY ---
+                  Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: BorderRadius.circular(24),
               border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
             ),
             child: Column(
@@ -483,19 +465,15 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _hubSimButton('Kattankulathur', 12.8185, 80.0419),
-                      const SizedBox(width: 10),
-                      _hubSimButton('Adyar (Flood)', 13.0067, 80.2206),
-                      const SizedBox(width: 10),
-                      _hubSimButton('HSR (Outage)', 12.9081, 77.6476),
-                      const SizedBox(width: 10),
-                      _hubSimButton('Indiranagar', 12.9784, 77.6408),
-                    ],
-                  ),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _hubSimButton('Kattankulathur', 12.8185, 80.0419),
+                    _hubSimButton('Adyar (Flood)', 13.0067, 80.2206),
+                    _hubSimButton('HSR (Outage)', 12.9081, 77.6476),
+                    _hubSimButton('Indiranagar', 12.9784, 77.6408),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text('Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
@@ -503,8 +481,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
               ],
             ),
           ),
-          // --- ML SYNC ---
-          Container(
+
+                  // --- ML SYNC ---
+                  Container(
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
@@ -558,8 +537,43 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             ),
           ),
 
-          // --- EXTERNAL DISRUPTIONS ---
-          Container(
+                  // --- EXTERNAL DISRUPTIONS POPUP BUTTON ---
+                  GestureDetector(
+            onTap: _showExternalDisruptionsPopup,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(top: 16),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('EXTERNAL DISRUPTIONS', style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700,
+                          color: Colors.blueAccent)),
+                        const SizedBox(height: 4),
+                        Text('Trigger weather, platform events',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.blueAccent.withOpacity(0.7))),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: Colors.blueAccent),
+                ],
+              ),
+            ),
+          ),
+
+                  // --- FRAUD SIGNALS ---
+                  Container(
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
@@ -570,79 +584,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 20),
-                    const SizedBox(width: 8),
-                    Text('EXTERNAL DISRUPTIONS', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0, color: Colors.blueAccent)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Heavy Rain Alert',
-                  subtitle: 'Mocks OWM weather alert → auto-creates rain claim',
-                  buttonLabel: 'FIRE',
-                  buttonColor: Colors.blueAccent,
-                  onTap: () {
-                    context.read<MockDataService>().triggerRainDisruption();
-                    Navigator.pop(context);
-                  },
-                ),
-                const SizedBox(height: 12),
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Extreme Heatwave',
-                  subtitle: 'Mocks temperature spike beyond 42°C threshold',
-                  buttonLabel: 'FIRE',
-                  buttonColor: Colors.orangeAccent,
-                  onTap: () {
-                    context.read<MockDataService>().triggerExtremeHeat();
-                    Navigator.pop(context);
-                  },
-                ),
-                const SizedBox(height: 12),
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Platform Outage',
-                  subtitle: 'Simulates Swiggy/Zepto order failure rate >75%',
-                  buttonLabel: 'FIRE',
-                  buttonColor: Colors.redAccent,
-                  onTap: () {
-                    context.read<MockDataService>().triggerPlatformDowntime();
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // --- FRAUD SPOOF ---
-          Container(
-            padding: const EdgeInsets.all(20),
-            margin: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.gps_off_rounded, color: Colors.redAccent, size: 20),
-                    const SizedBox(width: 8),
-                    const Text('FRAUD SPOOF', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0, color: Colors.redAccent)),
-                  ],
-                ),
-                const SizedBox(height: 4),
                 Text('Force-inject fraud signals to test the detection engine',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.45))),
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.45))),
                 const SizedBox(height: 16),
                 // GPS spoof toggle
                 Row(
@@ -652,7 +595,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Mock GPS Spoofing', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                          Text('Sets jitter=0.0, isMocked=true → triggers fraud flag',
+                          Text('Sets jitter=0.0, isMocked=true -> triggers fraud flag',
                             style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
                         ],
                       ),
@@ -669,12 +612,12 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 _internalControlRow(
                   theme: theme,
                   title: 'Inject High Fraud Score',
-                  subtitle: 'Sets mock FPS to 95 — triggers immediate fraud review',
+                  subtitle: 'Sets mock FPS to 95 - triggers immediate fraud review',
                   buttonLabel: 'INJECT',
                   buttonColor: Colors.redAccent,
                   onTap: () {
                     FraudSensorService.mockFraudSpoofing = true;
-                    LocationService.instance.addEvent("⚠ Fraud score injected: FPS 95");
+                    LocationService.instance.addEvent("Fraud score injected: FPS 95");
                     setState(() {});
                     _showSuccess("Fraud score set to 95. Claim will be auto-flagged.");
                   },
@@ -688,12 +631,16 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   buttonColor: Colors.green,
                   onTap: () {
                     FraudSensorService.mockFraudSpoofing = false;
-                    LocationService.instance.addEvent("✓ Fraud signals cleared");
+                    LocationService.instance.addEvent("Fraud signals cleared");
                     setState(() {});
                     _showSuccess("Fraud signals cleared.");
                   },
                 ),
               ],
+            ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -942,9 +889,16 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
   }
 
   Future<void> _hardReset() async {
-    // Demo Armor: Surgical strike to re-initialize entire app
+    // Complete wipe of all mock data — restore app to pristine state
+    final mockSvc = context.read<MockDataService>();
+    mockSvc.clearAllMockData();
+    
+    LocationService.instance.addEvent("🔄 Hard reset: All mock data cleared");
+    
     if (mounted) {
-      RestartWidget.restartApp(context);
+      setState(() {});
+      _showSuccess("All mock data cleared. App restored to pristine state.");
+      Navigator.pop(context);
     }
   }
 
@@ -958,6 +912,103 @@ void _showStep(String message) {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showExternalDisruptionsPopup() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final surface = isDark ? const Color(0xFF1C1F1C) : Colors.white;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('External Disruptions', style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface)),
+                          Text('Trigger weather and platform events',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Heavy Rain
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Heavy Rain Alert',
+                  subtitle: 'Mocks OWM weather alert → auto-creates rain claim',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.blueAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerRainDisruption();
+                    Navigator.pop(context);
+                    _showSuccess("Rain disruption triggered!");
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Extreme Heatwave
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Extreme Heatwave',
+                  subtitle: 'Mocks temperature spike beyond 42°C threshold',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.orangeAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerExtremeHeat();
+                    Navigator.pop(context);
+                    _showSuccess("Heatwave disruption triggered!");
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Platform Outage
+                _internalControlRow(
+                  theme: theme,
+                  title: 'Platform Outage',
+                  subtitle: 'Simulates Swiggy/Zepto order failure rate >75%',
+                  buttonLabel: 'FIRE',
+                  buttonColor: Colors.redAccent,
+                  onTap: () {
+                    context.read<MockDataService>().triggerPlatformDowntime();
+                    Navigator.pop(context);
+                    _showSuccess("Platform outage disruption triggered!");
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -225,13 +225,20 @@ class _BatteryOptimizationPromptState
           }
         },
         icon: Icon(allGranted ? Icons.power_settings_new_rounded : Icons.shield_outlined),
-        label: Text(allGranted ? 'GO ONLINE' : 'Setup Protection to Go Online',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 0.5)),
+        label: Text(
+          allGranted ? 'GO ONLINE' : 'Enable Protection to Go Online',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            letterSpacing: 0.3,
+          ),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: allGranted ? primaryGreen : Colors.orange.shade600,
+          backgroundColor: allGranted ? primaryGreen : const Color(0xFFE88A00),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 0,
+          elevation: allGranted ? 0 : 2,
+          shadowColor: allGranted ? Colors.transparent : const Color(0xFFE88A00).withOpacity(0.35),
         ),
       ),
     );

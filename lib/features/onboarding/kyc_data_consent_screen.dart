@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../core/router/app_router.dart';
 import '../../services/storage_service.dart';
@@ -24,6 +27,22 @@ class _KycDataConsentScreenState extends State<KycDataConsentScreen> {
   Future<void> _onContinue() async {
     if (!_allChecked) return;
     await StorageService.setKycDataConsentAccepted(true);
+
+    // Ask runtime permissions only after explicit consent.
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      await [
+        Permission.notification,
+        Permission.activityRecognition,
+      ].request();
+
+      try {
+        final token = await FirebaseMessaging.instance.getToken();
+        print('FCM TOKEN: $token');
+      } catch (_) {}
+    }
+
     if (!mounted) return;
     context.go(AppRoutes.onboarding);
   }

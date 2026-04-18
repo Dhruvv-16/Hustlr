@@ -87,6 +87,76 @@ class _DashboardScreenState extends State<DashboardScreen>
   Map<String, String> _apiHealthStatus = {};
   bool _reverifyPromptOpen = false;
 
+  static int _riderCostFromName(String name) {
+    final n = name.toLowerCase();
+    if (n.contains('cyclone')) return 20;
+    if (n.contains('curfew') || n.contains('strike')) return 12;
+    if (n.contains('election')) return 8;
+    if (n.contains('app downtime') || n.contains('downtime')) return 10;
+    return 0;
+  }
+
+  static bool _isRiderIncludedInTier(String tier, String riderName) {
+    final t = tier.toLowerCase();
+    final n = riderName.toLowerCase();
+    if (t == 'full') return true;
+    if (t == 'standard' && (n.contains('app downtime') || n.contains('downtime'))) {
+      return true;
+    }
+    return false;
+  }
+
+  static int _billableAddonTotalForPolicy(Map<String, dynamic> policy) {
+    final tier = policy['plan_tier']?.toString().toLowerCase() ?? 'standard';
+    final riders = policy['riders'] as List<dynamic>?;
+    if (riders == null || riders.isEmpty) return 0;
+
+    var total = 0;
+    for (final r in riders) {
+      if (r is! Map) continue;
+      final name = r['name']?.toString() ?? '';
+      if (name.isEmpty || _isRiderIncludedInTier(tier, name)) continue;
+
+      final explicitCost = (r['cost'] as num?)?.toInt();
+      final resolved = (explicitCost != null && explicitCost > 0)
+          ? explicitCost
+          : _riderCostFromName(name);
+      total += resolved;
+    }
+    return total;
+  }
+
+  static String _policyPlanWithRiders(Map<String, dynamic> policy) {
+    final tier = policy['plan_tier']?.toString().toLowerCase();
+    final base = (policy['plan_name']?.toString().trim().isNotEmpty ?? false)
+        ? policy['plan_name'].toString().trim()
+        : _planDisplayName(tier);
+    final riders = policy['riders'] as List<dynamic>?;
+    if (riders == null || riders.isEmpty) return base;
+
+    final riderNames = riders
+        .whereType<Map>()
+        .map((r) => r['name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty && !_isRiderIncludedInTier(tier ?? 'standard', name))
+        .toList();
+
+    if (riderNames.isEmpty) return base;
+    return '$base + ${riderNames.join(' + ')}';
+  }
+
+  static int _resolvedPolicyWeeklyPremium(Map<String, dynamic> policy) {
+    final tier = policy['plan_tier']?.toString().toLowerCase() ?? 'standard';
+    final computed = PlanTierPrice.fromString(tier).weeklyPremium +
+        _billableAddonTotalForPolicy(policy);
+
+    final raw = policy['weekly_premium'];
+    final rawNum = (raw is num) ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
+    if (rawNum != null && rawNum >= computed && rawNum <= 200) {
+      return rawNum.round();
+    }
+    return computed;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -112,13 +182,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     _policySub = AppEvents.instance.onPolicyUpdated.listen((_) async {
       await _loadDashboardData();
-      if (policyData != null) {
-        final premiumRaw = policyData!['weekly_premium'];
-        final premium = (premiumRaw is num)
-            ? premiumRaw.toDouble()
-            : double.tryParse(premiumRaw.toString()) ?? 49.0;
-        NotificationService.instance.addPremiumDeducted(premium.round());
-      }
     });
     // Debounced: only reload wallet/claim data at most once every 5 seconds
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) {
@@ -429,6 +492,27 @@ class _DashboardScreenState extends State<DashboardScreen>
     // ── Demo Consistency Guard ───────────────────────────────────────────
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
     if (mockSvc.worker.id.isNotEmpty) {
+      Map<String, dynamic> weatherFallback = {
+        'source': 'Mock Engine (API Error)',
+        'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
+        'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
+      };
+
+      // Fetch live API weather as default, override only when disruption is active.
+      // This must run outside setState.
+      try {
+        final liveDisruptions = await ApiService.instance.getDisruptions(userZone ?? '');
+        final liveWeather = liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
+        final apiRain = (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
+        final apiTemp = (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+
+        weatherFallback = {
+          'source': 'Live API',
+          'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : apiRain,
+          'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : apiTemp,
+        };
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           userId = mockSvc.worker.id;
@@ -468,11 +552,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             disruptionData = const {'active': false};
           }
 
-          weatherData = {
-            'source': 'Mock Engine',
-            'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
-            'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
-          };
+          weatherData = weatherFallback;
 
           liveIssScore = mockSvc.worker.issScore;
           isLoading = false;
@@ -525,6 +605,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       final events = disruptionRes['disruptions'] as List<dynamic>? ?? [];
       final active = disruptionRes['active'] == true;
       final rawWeather = disruptionRes['weather'] as Map<String, dynamic>?;
+        final rawDataSources = disruptionRes['data_sources'] as Map<String, dynamic>?;
       final rawNudge =
           disruptionRes['predictive_nudge'] as Map<String, dynamic>?;
       final rawAdvisor = disruptionRes['work_advisor'] as Map<String, dynamic>?;
@@ -543,11 +624,35 @@ class _DashboardScreenState extends State<DashboardScreen>
         };
       }
 
+      // Normalize weather payload so source is never null in UI/debug views.
+      final normalizedWeather = <String, dynamic>{
+        ...?rawWeather,
+      };
+      final bundleWeatherSource = rawDataSources?['weather']?.toString().trim();
+      final rawSource = normalizedWeather['source']?.toString().trim();
+      final rawStation = normalizedWeather['station']?.toString().trim();
+      final rawProvider = normalizedWeather['provider']?.toString().trim();
+      final hasSource = rawSource != null && rawSource.isNotEmpty && rawSource.toLowerCase() != 'null';
+      if (!hasSource) {
+        normalizedWeather['source'] =
+            (bundleWeatherSource != null &&
+                    bundleWeatherSource.isNotEmpty &&
+                    bundleWeatherSource.toLowerCase() != 'null')
+                ? bundleWeatherSource
+                : (rawStation != null && rawStation.isNotEmpty && rawStation.toLowerCase() != 'null')
+                ? rawStation
+                : (rawProvider != null && rawProvider.isNotEmpty && rawProvider.toLowerCase() != 'null')
+                    ? rawProvider
+                    : active
+                        ? 'Disruption Engine'
+                        : 'Live API';
+      }
+
       // The dashboard data has landed! Render it instantly.
       if (mounted) {
         setState(() {
           walletData = walletRes;
-          weatherData = rawWeather;
+          weatherData = normalizedWeather;
           activeDisruption = latestDisruption;
           nudgeData = rawNudge;
           workAdvisorData = rawAdvisor;
@@ -603,6 +708,45 @@ class _DashboardScreenState extends State<DashboardScreen>
         (t.isNotEmpty
             ? '${t[0].toUpperCase()}${t.substring(1).replaceAll('_', ' ')}'
             : 'Rain');
+  }
+
+  static String _planNameWithRiders(Map<String, dynamic> policy) {
+    final base = (policy['plan_name']?.toString().trim().isNotEmpty ?? false)
+        ? policy['plan_name'].toString().trim()
+        : _planDisplayName(policy['plan_tier']?.toString().toLowerCase());
+
+    final riders = policy['riders'] as List<dynamic>?;
+    if (riders == null || riders.isEmpty) return base;
+
+    final riderNames = riders
+        .whereType<Map>()
+        .map((r) => r['name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    if (riderNames.isEmpty) return base;
+    return '$base + ${riderNames.join(' + ')}';
+  }
+
+  static int _resolveWeeklyPremium(Map<String, dynamic> policy) {
+    final raw = policy['weekly_premium'];
+    if (raw is num && raw > 0) return raw.round();
+    final parsed = int.tryParse(raw?.toString() ?? '');
+    if (parsed != null && parsed > 0) return parsed;
+    return PlanTierPrice.fromString(
+      policy['plan_tier']?.toString().toLowerCase() ?? 'standard',
+    ).weeklyPremium;
+  }
+
+  static String _formatPolicyNumber(Map<String, dynamic> policy) {
+    final explicit = policy['policy_number']?.toString().trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+
+    final id = policy['id']?.toString().trim();
+    if (id == null || id.isEmpty) return 'HS-PENDING';
+    final compact = id.replaceAll('-', '').toUpperCase();
+    final suffix = compact.length >= 8 ? compact.substring(0, 8) : compact;
+    return 'HS-$suffix';
   }
 
   String _getGreetingText(BuildContext context) {
@@ -666,13 +810,59 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     final displayUserName = titleCase(userName ?? 'Karthik');
 
-    // Total premium: use the canonical tier price (from Policy model), NOT raw DB value
-    // This ensures ₹60 stale DB entries show as ₹49 for standard, etc.
-    final String premium = liveDynamicPrice != null
-        ? liveDynamicPrice!.toStringAsFixed(0)
-        : PlanTierPrice.fromString(
-            policyData?['plan_tier']?.toString() ?? 'standard',
-          ).weeklyPremium.toString();
+    final planTier = policyData?['plan_tier']?.toString().toLowerCase() ?? 'standard';
+    final tierBasePremium = PlanTierPrice.fromString(planTier).weeklyPremium;
+
+    int riderCostFromName(String name) {
+      final n = name.toLowerCase();
+      if (n.contains('cyclone')) return 20;
+      if (n.contains('curfew') || n.contains('strike')) return 12;
+      if (n.contains('election')) return 8;
+      if (n.contains('app downtime') || n.contains('downtime')) return 10;
+      return 0;
+    }
+
+    bool isIncludedInPlan(String riderName) {
+      final n = riderName.toLowerCase();
+      if (planTier == 'full') return true;
+      if (planTier == 'standard' &&
+          (n.contains('app downtime') || n.contains('downtime'))) {
+        return true;
+      }
+      return false;
+    }
+
+    int billableAddonTotal = 0;
+    if (ridersData != null) {
+      for (final r in ridersData) {
+        if (r is! Map) continue;
+        final name = r['name']?.toString() ?? '';
+        if (name.isEmpty || isIncludedInPlan(name)) continue;
+
+        final explicitCost = (r['cost'] as num?)?.toInt();
+        final resolvedCost = (explicitCost != null && explicitCost > 0)
+            ? explicitCost
+            : riderCostFromName(name);
+        billableAddonTotal += resolvedCost;
+      }
+    }
+
+    final computedTotalPremium = tierBasePremium + billableAddonTotal;
+
+    // Prefer valid backend-stored weekly premium, but ensure we never under-show
+    // when billable add-ons exist (base + add-ons must be reflected).
+    final rawWeeklyPremium = (policyData?['weekly_premium'] is num)
+      ? (policyData?['weekly_premium'] as num).toDouble()
+      : double.tryParse(policyData?['weekly_premium']?.toString() ?? '');
+    final normalizedPremium = (rawWeeklyPremium != null &&
+        rawWeeklyPremium >= computedTotalPremium &&
+        rawWeeklyPremium <= 200)
+      ? rawWeeklyPremium.round().toString()
+      : computedTotalPremium.toString();
+
+    final String premium = (liveDynamicPrice != null && billableAddonTotal == 0)
+      ? liveDynamicPrice!.toStringAsFixed(0)
+      : normalizedPremium;
 
     // Derive missed-payout amount from shadow_policies nudge data (real DB field),
     // then fall back to a disruption-based estimate — never reads a non-existent field.
@@ -723,17 +913,29 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildWorkAdvisorCard(),
                         ],
                         const SizedBox(height: 20),
-                        _buildActivePolicyCard(
-                            planName, premium, l10n, ridersData),
-                        const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF111311)
-                                : const Color(0xFFF0F4F0),
-                            borderRadius: BorderRadius.circular(32),
+                                ? const Color(0xFF121512)
+                                : const Color(0xFFF7FAF7),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : const Color(0xFF1B5E20).withOpacity(0.08),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDark
+                                    ? Colors.black.withOpacity(0.18)
+                                    : const Color(0xFF1B5E20).withOpacity(0.05),
+                                blurRadius: 24,
+                                spreadRadius: 1,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
                           child: Column(
                             children: [
@@ -747,6 +949,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        if (policyData != null)
+                          _buildActivePolicyCard(
+                            planName,
+                            premium,
+                            l10n,
+                            ridersData,
+                            policyData?['plan_tier']?.toString() ?? 'standard',
+                          )
+                        else
+                          _buildNoPolicyCard(l10n),
                         if (_debugMode) _buildDebugPanel(),
                       ],
                     ),
@@ -762,13 +975,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildHeader(BuildContext context, String displayUserName) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9);
-    final borderColor = isDark
-        ? const Color(0xFF3fff8b).withOpacity(0.1)
-        : const Color(0xFF1B5E20).withOpacity(0.2);
-    final iconColor = isDark
-        ? const Color(0xFFe1e3de).withOpacity(0.8)
-        : const Color(0xFF1B5E20);
     final mintColor =
         isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
 
@@ -922,7 +1128,32 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildActivePolicyCard(String planName, String premium,
-      AppLocalizations l10n, List<dynamic>? riders) {
+      AppLocalizations l10n, List<dynamic>? riders, String planTier) {
+    // Get coverage items based on plan tier
+    List<Map<String, dynamic>> _getCoverageItems() {
+      final items = <Map<String, dynamic>>[];
+      final tier = planTier.toLowerCase();
+      
+      // All tiers include Rain & Heat
+      items.add({
+        'label': l10n.claims_heavy_rain.toUpperCase(),
+        'icon': Icons.water_drop_rounded,
+      });
+      items.add({
+        'label': l10n.claims_extreme_heat.toUpperCase(),
+        'icon': Icons.wb_sunny_rounded,
+      });
+      
+      // Standard & Full include Platform Downtime
+      if (tier == 'standard' || tier == 'full') {
+        items.add({
+          'label': l10n.claims_platform_downtime.toUpperCase(),
+          'icon': Icons.security_rounded,
+        });
+      }
+      
+      return items;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor =
@@ -1030,12 +1261,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             spacing: 12,
             runSpacing: 12,
             children: [
-              _buildCoverageChip(l10n.claims_heavy_rain.toUpperCase(),
-                  Icons.water_drop_rounded, mintColor, isDark),
-              _buildCoverageChip(l10n.claims_extreme_heat.toUpperCase(),
-                  Icons.wb_sunny_rounded, mintColor, isDark),
-              _buildCoverageChip(l10n.claims_platform_downtime.toUpperCase(),
-                  Icons.security_rounded, mintColor, isDark),
+              ..._getCoverageItems().map((item) => _buildCoverageChip(
+                    item['label'] as String,
+                    item['icon'] as IconData,
+                    mintColor,
+                    isDark,
+                  )),
               if (riders != null)
                 ...riders.map((r) {
                   final name = r['name']?.toString() ?? '';
@@ -1057,7 +1288,151 @@ class _DashboardScreenState extends State<DashboardScreen>
                 }),
             ],
           ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: mintColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: mintColor.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outlined, color: mintColor, size: 14),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Policy locked for 91 days • Renewal only after completion',
+                    style: TextStyle(
+                      color: mintColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Manrope',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNoPolicyCard(AppLocalizations l10n) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final mintColor = isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subColor = textColor.withOpacity(0.68);
+
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.policy),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: mintColor.withOpacity(0.08),
+              blurRadius: 30,
+              spreadRadius: 6,
+              offset: const Offset(0, 8),
+            ),
+          ],
+          border: Border.all(color: mintColor.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: mintColor.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.shield_outlined, color: mintColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'NO ACTIVE COVER',
+                  style: TextStyle(
+                    color: mintColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.9,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Protect today\'s shift income',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 31,
+                height: 1.1,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Manrope',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No plan is active right now. Pick a shield to get automatic payouts for heavy rain, heat, and platform downtime.',
+              style: TextStyle(
+                color: subColor,
+                fontSize: 13,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Manrope',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildCoverageChip('STARTS FROM ₹49/WEEK', Icons.currency_rupee_rounded, mintColor, isDark),
+                _buildCoverageChip('TAP TO VIEW PLANS', Icons.touch_app_rounded, mintColor, isDark),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: mintColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.shopping_bag_outlined, size: 18, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    'View Plans & Buy',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Manrope',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1245,15 +1620,53 @@ class _DashboardScreenState extends State<DashboardScreen>
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor =
         isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
     final textColor = Theme.of(context).colorScheme.onSurface;
 
+    // ── Hide alert if user has active policy ──
+    if (policyData != null) {
+      return const SizedBox.shrink();
+    }
+
+    // ── Hide alert if no active disruptions ──
+    final hasActiveDisruption = disruptionData?['active'] == true;
+    if (!hasActiveDisruption) {
+      // Show nice weather message instead
+      return _buildNiceWeatherCard(l10n, isDark, mintColor, textColor);
+    }
+
+    // ── Get disruption trigger type for dynamic content ──
+    final triggerType = (activeDisruption?['trigger_type'] as String? ?? 'rain').toLowerCase();
+    
+    // ── Format locality ──
     String locality = userZone ?? 'your area';
     locality = locality.replaceAll(
         RegExp(r' dark store zone', caseSensitive: false), '');
     locality = locality.replaceAll(RegExp(r' zone', caseSensitive: false), '');
     locality = locality.trim();
     if (locality.isEmpty) locality = 'your area';
+
+    // ── Get icon and colors based on disruption type ──
+    IconData alertIcon = Icons.thunderstorm_rounded;
+    Color iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    Color alertColor = mintColor;
+    String alertTitle = l10n.dashboard_rain_alert.toUpperCase();
+    
+    if (triggerType.contains('heat') || triggerType.contains('temperature')) {
+      alertIcon = Icons.wb_sunny_rounded;
+      iconBg = isDark ? const Color(0xFF4A2D00) : const Color(0xFFFFF3E0);
+      alertColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
+      alertTitle = 'EXTREME HEAT ALERT';
+    } else if (triggerType.contains('downtime') || triggerType.contains('platform')) {
+      alertIcon = Icons.cloud_off_rounded;
+      iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE0F2F1);
+      alertColor = isDark ? const Color(0xFF4DB8AC) : const Color(0xFF00695C);
+      alertTitle = 'PLATFORM DOWNTIME ALERT';
+    } else if (triggerType.contains('aqi') || triggerType.contains('pollution')) {
+      alertIcon = Icons.air_rounded;
+      iconBg = isDark ? const Color(0xFF4A2D00) : const Color(0xFFFFF3E0);
+      alertColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
+      alertTitle = 'AIR QUALITY WARNING';
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1271,7 +1684,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.thunderstorm_rounded, color: mintColor, size: 24),
+            child: Icon(alertIcon, color: alertColor, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1279,9 +1692,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.dashboard_rain_alert.toUpperCase(),
+                  alertTitle,
                   style: TextStyle(
-                    color: mintColor,
+                    color: alertColor,
                     fontSize: 10,
                     letterSpacing: 1.0,
                     fontWeight: FontWeight.w800,
@@ -1308,7 +1721,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: mintColor,
+                color: alertColor,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Row(
@@ -1328,6 +1741,63 @@ class _DashboardScreenState extends State<DashboardScreen>
                       size: 14),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNiceWeatherCard(AppLocalizations l10n, bool isDark, 
+      Color mintColor, Color textColor) {
+    final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
+    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+    
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: lightGreen,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.wb_sunny_rounded, color: mintColor, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'WEATHER CLEAR',
+                  style: TextStyle(
+                    color: mintColor,
+                    fontSize: 10,
+                    letterSpacing: 1.0,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Good conditions for work today!\nStay protected with a plan.',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Manrope',
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1666,23 +2136,67 @@ class _DashboardScreenState extends State<DashboardScreen>
                       backgroundColor: Theme.of(context).colorScheme.primary,
                     ),
                   );
-                  // Parse real dates from the new schema field names
-                  final rawStart = policyData?['coverage_start'] as String?
-                      ?? policyData?['start_date'] as String?;
-                  final rawEnd   = policyData?['commitment_end'] as String?
-                      ?? policyData?['paid_until'] as String?
-                      ?? policyData?['end_date'] as String?;
-                  final policyId = policyData?['id'] as String? ?? 'HS-PENDING';
-                  final tier     = policyData?['plan_tier'] as String? ?? 'standard';
-                  final premium  = PlanTierPrice.fromString(tier).weeklyPremium;
+
+                  Map<String, dynamic>? certPolicy = policyData;
+                  final uid = userId ?? await StorageService.instance.getUserId();
+
+                  // Always try to fetch the freshest active policy before generating.
+                  if (uid != null) {
+                    try {
+                      final fresh = await ApiService.instance.getPolicy(uid);
+                      final freshPolicy = fresh['policy'] as Map<String, dynamic>?;
+                      final status = freshPolicy?['status']?.toString().toLowerCase() ?? '';
+                      if (freshPolicy != null && (status == 'active' || status == 'renewed')) {
+                        certPolicy = freshPolicy;
+                        if (mounted) {
+                          setState(() => policyData = {
+                                ...freshPolicy,
+                                if (!freshPolicy.containsKey('start_date'))
+                                  'start_date': freshPolicy['coverage_start'],
+                                if (!freshPolicy.containsKey('end_date'))
+                                  'end_date': freshPolicy['commitment_end'] ?? freshPolicy['paid_until'],
+                                'plan_name': _planDisplayName(freshPolicy['plan_tier'] as String?),
+                              });
+                        }
+                      }
+                    } catch (_) {
+                      // Use in-memory policy data if refresh fails.
+                    }
+                  }
+
+                  if (certPolicy == null) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No active policy found to generate certificate.')),
+                    );
+                    return;
+                  }
+
+                  final latestName = (userName?.trim().isNotEmpty ?? false)
+                      ? userName!.trim()
+                      : (await StorageService.instance.getUserName())?.trim();
+                  final latestZone = (userZone?.trim().isNotEmpty ?? false)
+                      ? userZone!.trim()
+                      : (await StorageService.instance.getUserZone())?.trim();
+
+                  final rawStart = certPolicy['coverage_start'] as String?
+                      ?? certPolicy['start_date'] as String?;
+                  final rawEnd = certPolicy['commitment_end'] as String?
+                      ?? certPolicy['paid_until'] as String?
+                      ?? certPolicy['end_date'] as String?;
+
                   await PdfGenerator.generateAndPreviewCertificate(
-                    name:          userName ?? 'Hustlr Worker',
-                    zone:          userZone ?? 'Your Zone',
-                    planName:      policyData?['plan_name'] as String? ?? 'Standard Shield',
-                    policyNumber:  'HS-${policyId.substring(0, 8).toUpperCase()}',
+                    name: latestName != null && latestName.isNotEmpty
+                        ? latestName
+                        : 'Unknown Worker',
+                    zone: latestZone != null && latestZone.isNotEmpty
+                        ? latestZone
+                        : 'Unknown Zone',
+                    planName: _planNameWithRiders(certPolicy),
+                    policyNumber: _formatPolicyNumber(certPolicy),
                     coverageStart: rawStart != null ? DateTime.tryParse(rawStart) : null,
-                    coverageEnd:   rawEnd   != null ? DateTime.tryParse(rawEnd)   : null,
-                    weeklyPremium: premium,
+                    coverageEnd: rawEnd != null ? DateTime.tryParse(rawEnd) : null,
+                    weeklyPremium: _resolveWeeklyPremium(certPolicy),
                   );
                 },
               ),

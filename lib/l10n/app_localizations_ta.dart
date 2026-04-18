@@ -525,11 +525,32 @@ class AppLocalizationsTa extends AppLocalizations {
       'ஆம். பாலிசி டேப்-க்கு சென்று திட்டத்தை மேம்படுத்து என்பதை தட்டவும்.';
 
   @override
-  String get support_faq_4_q => 'How are the weekly premiums priced?';
+  String get support_faq_4_q => 'Can I upgrade or downgrade my coverage?';
 
   @override
   String get support_faq_4_a =>
-      'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.';
+      'Yes, anytime. Go to Policy → Upgrade Plan to switch between Standard Shield (₹49/week) and Full Shield (₹79/week). Changes take effect on the next Monday.';
+
+  @override
+  String get support_faq_5_q => 'How are weekly premiums calculated?';
+
+  @override
+  String get support_faq_5_a =>
+      'Your premium is based on: (1) historical disruption probability in your zone, (2) your platform\'s uptime rate, and (3) your personal claim history. Cleaner records → lower premiums. That\'s why Hustlr rewards trust.';
+
+  @override
+  String get support_faq_6_q => 'What if no disruptions happen in my zone?';
+
+  @override
+  String get support_faq_6_a =>
+      'Great! You\'re protected either way. If your zone stays clear for 4 consecutive weeks, you unlock a 10% cashback on your premiums (Full Shield only). The app tracks this automatically.';
+
+  @override
+  String get support_faq_7_q => 'How do I withdraw my payout balance?';
+
+  @override
+  String get support_faq_7_a =>
+      'Open Wallet → tap Withdraw. Enter your UPI ID (same as your registered Razorpay). Transfers are instant and free—no hidden charges. Money lands in your bank within 2 hours.';
 
   @override
   String get support_raise_ticket => 'டிக்கெட் உயர்த்து';

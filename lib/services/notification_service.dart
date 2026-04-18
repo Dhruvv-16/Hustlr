@@ -208,12 +208,15 @@ class NotificationService {
     _showLocalNotification(title: item.title, body: item.body);
   }
 
-  void addPremiumDeducted(int amount) {
+  void addPremiumDeducted(int amount, {String? planName}) {
+    final normalizedPlan = planName?.trim();
     final item = HustlrNotification(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: 'premium_deducted',
       title: 'Weekly premium deducted — ₹$amount',
-      body: 'You are covered for this week. Stay safe.',
+      body: (normalizedPlan != null && normalizedPlan.isNotEmpty)
+          ? 'Plan: $normalizedPlan. You are covered for this week. Stay safe.'
+          : 'You are covered for this week. Stay safe.',
       color: 'green',
       createdAt: DateTime.now(),
     );

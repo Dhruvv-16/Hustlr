@@ -245,6 +245,14 @@ class LocationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearMockLocation() {
+    _mockZone = null;
+    _mockLat = null;
+    _mockLon = null;
+    _mockDepthScore = null;
+    notifyListeners();
+  }
+
   void _recalculateDepthScore() {
     if (_shiftPings.isEmpty || _currentZone == 'Unknown') return;
     final centroid = _getCentroid(_currentZone);

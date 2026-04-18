@@ -19,7 +19,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
       'icon': Icons.shield_rounded,
       'title': 'Honest workers always get paid.',
       'subtitle': '7-layer fraud check runs in 2 seconds.',
-      'chip': '14/100 Clean Score',
+      'chip': 'Fair & Verified',
     },
     {
       'icon': Icons.thunderstorm_rounded,

@@ -25,7 +25,6 @@ class ScaffoldWithNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idx = _selectedIndex(location);
-    final isSupport = location.startsWith('/support');
     
     // Extracted path without query parameters
     final path = location.split('?').first;

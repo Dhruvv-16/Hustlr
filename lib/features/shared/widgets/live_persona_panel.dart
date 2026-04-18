@@ -126,7 +126,6 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),

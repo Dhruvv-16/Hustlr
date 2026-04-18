@@ -24,14 +24,13 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen> {
   bool _loading = true;
   String? _error;
+  bool _isMock = false;
 
   int _balance = 0;
   int _totalPayouts = 0;
   int _totalPremiums = 0;
   List<Map<String, dynamic>> _transactions = [];
   Map<String, dynamic>? _cashbackStatus;
-
-  bool _isMock = false;
   
   StreamSubscription? _walletSub;
   StreamSubscription? _claimSub;
@@ -214,8 +213,6 @@ class _WalletScreenState extends State<WalletScreen> {
                                   totalPremiums: _totalPremiums,
                                   onRefresh: _loadWallet,
                                 ),
-                                const SizedBox(height: 16),
-                                const _LinkedUpiCard(),
                                 const SizedBox(height: 16),
                                 _SavingsInsightCard(totalPayouts: _totalPayouts, totalPremiums: _totalPremiums),
                                 const SizedBox(height: 16),
@@ -457,6 +454,129 @@ class _AnalyticsButton extends StatelessWidget {
   }
 }
 
+String _extractClaimReason(Map<String, dynamic> tx) {
+  final metadata = tx['metadata'];
+  final meta = metadata is Map ? metadata : const {};
+
+  String pick(dynamic v) => (v?.toString() ?? '').trim();
+
+  final candidates = [
+    pick(tx['trigger_type']),
+    pick(tx['display_name']),
+    pick(tx['claim_reason']),
+    pick(tx['reason']),
+    pick(tx['trigger']),
+    pick(meta['trigger_type']),
+    pick(meta['display_name']),
+    pick(meta['claim_reason']),
+    pick(meta['reason']),
+    pick(meta['trigger']),
+  ];
+
+  for (final c in candidates) {
+    if (c.isNotEmpty) return c;
+  }
+
+  final category = pick(tx['category']).toLowerCase();
+  if (category.contains('rain')) return 'rain_heavy';
+  if (category.contains('heat')) return 'extreme_heat';
+  if (category.contains('aqi') || category.contains('pollution')) return 'aqi_severe';
+  if (category.contains('downtime')) return 'platform_downtime';
+  if (category.contains('bandh') || category.contains('curfew')) return 'bandh';
+  if (category.contains('cyclone')) return 'cyclone';
+  if (category.contains('blackout') || category.contains('internet')) return 'internet_blackout';
+  if (category.contains('accident')) return 'accident_blockspot';
+  if (category.contains('traffic')) return 'traffic_congestion';
+
+  return '';
+}
+
+String _formatClaimReason(String reason) {
+  if (reason.trim().isEmpty) return '';
+
+  final normalized = reason
+      .replaceAll('-', ' ')
+      .replaceAll('_', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim()
+      .toLowerCase();
+
+  const remap = {
+    'rain heavy': 'Heavy Rain',
+    'extreme heat': 'Extreme Heat',
+    'heat severe': 'Extreme Heat',
+    'aqi severe': 'Air Quality Alert',
+    'aqi hazardous': 'Air Quality Alert',
+    'platform downtime': 'Platform Downtime',
+    'platform outage': 'Platform Downtime',
+    'bandh': 'Bandh / Curfew',
+    'curfew': 'Bandh / Curfew',
+    'internet blackout': 'Internet Blackout',
+    'dark store closure': 'Dark Store Closure',
+    'accident blockspot': 'Accident Blockspot',
+    'traffic congestion': 'Traffic Congestion',
+  };
+
+  if (remap.containsKey(normalized)) return remap[normalized]!;
+
+  return normalized
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .join(' ');
+}
+
+String _buildTxTitle(Map<String, dynamic> tx, bool isCredit) {
+  final description = (tx['description']?.toString() ?? '').trim();
+  final category = (tx['category']?.toString() ?? '').toLowerCase();
+  final reason = _formatClaimReason(_extractClaimReason(tx));
+
+  final genericDesc = description.isEmpty ||
+      description.toLowerCase() == 'transaction' ||
+      description.toLowerCase() == 'wallet transfer';
+
+  final looksLikePayout = category.contains('payout') ||
+      category.contains('claim') ||
+      category.contains('tranche') ||
+      (isCredit && reason.isNotEmpty);
+
+  if (looksLikePayout) {
+    return reason.isNotEmpty ? '$reason Payout' : 'Claim Payout';
+  }
+
+  if (category.contains('premium') || category.contains('policy')) {
+    return 'Premium Payment';
+  }
+
+  if (!genericDesc) return description;
+  return 'Wallet Transfer';
+}
+
+String _buildTxSubtitle(Map<String, dynamic> tx) {
+  final rawDate = tx['created_at'] as String? ?? tx['date'] as String? ?? '';
+
+  String dateStr;
+  String timeStr = '';
+  if (rawDate.isNotEmpty) {
+    final dt = DateTime.tryParse(rawDate);
+    if (dt != null) {
+      dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else {
+      dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+    }
+  } else {
+    dateStr = 'Today';
+  }
+
+  final formattedReason = _formatClaimReason(_extractClaimReason(tx));
+
+  var subtitle = dateStr;
+  if (timeStr.isNotEmpty) subtitle += ' · $timeStr';
+  if (formattedReason.isNotEmpty) subtitle += ' • $formattedReason';
+  return subtitle;
+}
+
 // ─── Weekly Summary ───────────────────────────────────────────────────────────
 class _WeeklySummarySection extends StatelessWidget {
   final List<Map<String, dynamic>> transactions;
@@ -499,27 +619,10 @@ class _WeeklySummarySection extends StatelessWidget {
           ...recentTx.map((tx) {
             final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
             final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
+
+            final title = _buildTxTitle(tx, isCredit);
+            final subtitle = _buildTxSubtitle(tx);
             
-            String title = tx['description'] as String? ?? '';
-            if (title.isEmpty || title.toLowerCase() == 'transaction') {
-              final cat = tx['category'] as String? ?? '';
-              if (cat.contains('payout') || cat.contains('tranche')) title = 'Claim Payout';
-              else if (cat.contains('premium')) title = 'Premium Payment';
-              else title = 'Wallet Transfer';
-            }
-            
-            final rawDate = tx['created_at'] as String? ?? tx['date'] as String? ?? '';
-            String dateStr = '';
-            if (rawDate.isNotEmpty) {
-              final dt = DateTime.tryParse(rawDate);
-              if (dt != null) {
-                dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-              } else {
-                dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-              }
-            } else {
-              dateStr = 'Today';
-            }
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _buildCard(
@@ -527,7 +630,7 @@ class _WeeklySummarySection extends StatelessWidget {
                 iconBg: isCredit ? lightGreen : lightRed,
                 iconColor: isCredit ? green : red,
                 title: title,
-                date: dateStr,
+                date: subtitle,
                 amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                 amountColor: isCredit ? green : red,
                 cardBg: cardWhite,
@@ -671,33 +774,16 @@ class _InsuranceTransactionsSection extends StatelessWidget {
                 final tx = transactions[index];
                 final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
                 final isCredit = tx['type'] == 'credit' || (tx['type'] == null && rawAmount > 0);
+
+                final title = _buildTxTitle(tx, isCredit);
+                final subtitle = _buildTxSubtitle(tx);
                 
-                String title = tx['description'] as String? ?? '';
-                if (title.isEmpty || title.toLowerCase() == 'transaction') {
-                  final cat = tx['category'] as String? ?? '';
-                  if (cat.contains('payout') || cat.contains('tranche')) title = 'Claim Payout';
-                  else if (cat.contains('premium')) title = 'Premium Payment';
-                  else title = 'Wallet Transfer';
-                }
-                
-                final rawDate = tx['created_at'] as String? ?? tx['date'] as String? ?? '';
-                String dateStr = '';
-                if (rawDate.isNotEmpty) {
-                  final dt = DateTime.tryParse(rawDate);
-                  if (dt != null) {
-                    dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-                  } else {
-                    dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-                  }
-                } else {
-                  dateStr = 'Today';
-                }
                 return _buildTransactionRow(
                   icon: isCredit ? Icons.card_giftcard_rounded : Icons.shield_rounded,
                   iconColor: isCredit ? blue : red,
                   iconBg: isCredit ? lightBlue : const Color(0xFFFFEBEE),
                   title: title,
-                  subtitle: dateStr,
+                  subtitle: subtitle,
                   amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
                   amountColor: isCredit ? green : red,
                   primary: primary,
@@ -806,9 +892,8 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
   }
 
   final savedUpi = StorageService.upiId;
-  final upiController = TextEditingController(
-    text: savedUpi == 'add-upi-id' ? '' : savedUpi,
-  );
+  final hasLinkedUpi = savedUpi.trim().isNotEmpty && savedUpi != 'add-upi-id@ybl';
+  final displayUpi = savedUpi == 'add-upi-id@ybl' ? 'Not set (update in Profile)' : savedUpi;
   final isDark     = Theme.of(context).brightness == Brightness.dark;
   final sheetBg    = isDark ? const Color(0xFF1C1F1C) : Colors.white;
   final inputBg    = isDark ? const Color(0xFF0A0B0A) : const Color(0xFFF4F6F4);
@@ -910,25 +995,43 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
 
               const SizedBox(height: 20),
 
-              // Only show UPI field if NOT bank direct
+              // Show linked destination only; editable from Profile screen
               if (!_bankDirect) ...[
                 Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: inputBg, borderRadius: BorderRadius.circular(12),
+                    color: inputBg,
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: divider),
                   ),
-                  child: TextField(
-                    controller: upiController,
-                    style: TextStyle(color: primary),
-                    decoration: InputDecoration(
-                      labelText: 'UPI ID',
-                      labelStyle: TextStyle(color: grey),
-                      hintText: 'yourname@upi',
-                      hintStyle: TextStyle(color: grey),
-                      prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: green),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Linked UPI ID', style: TextStyle(fontSize: 12, color: grey)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.account_balance_wallet_rounded, color: green, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              displayUpi,
+                              style: TextStyle(
+                                color: primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'To change UPI, go to Profile > Payout settings.',
+                        style: TextStyle(fontSize: 12, color: grey),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -968,9 +1071,13 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                 width: double.infinity, height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    final upi = _bankDirect ? '' : upiController.text.trim();
-                    if (!_bankDirect && upi.isEmpty) return;
-                    if (!_bankDirect) StorageService.setUpiId(upi);
+                    if (!_bankDirect && !hasLinkedUpi) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        const SnackBar(content: Text('Please set your UPI ID in Profile first.')),
+                      );
+                      return;
+                    }
+                    final upi = _bankDirect ? '' : displayUpi;
                     Navigator.pop(sheetCtx);
                     _processWithdrawal(parentContext, balance, upi, bankDirect: _bankDirect);
                   },
@@ -1101,56 +1208,72 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
       context: context,
       barrierDismissible: false,
       builder: (successCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: successBg, borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 56, height: 56,
-                  decoration: const BoxDecoration(color: Color(0xFF2D6A2D), shape: BoxShape.circle),
-                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 32),
+        backgroundColor: successBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D6A2D),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2D6A2D).withValues(alpha: 0.3),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                Text('Withdrawal successful', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primary)),
-                const SizedBox(height: 8),
-                Text(bankDirect
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 34),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Withdrawal successful',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: primary, height: 1.1),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                bankDirect
                     ? 'Your transfer of ₹$formattedBalance to your linked bank account is complete.'
                     : 'Your transfer of ₹$formattedBalance to $upiId is complete.',
-                    style: TextStyle(color: grey), textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: refBg, borderRadius: BorderRadius.circular(12)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Reference Number', style: TextStyle(fontSize: 12, color: grey)),
-                    const SizedBox(height: 4),
-                    Text(txnRef, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: refText)),
-                  ]),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity, height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(successCtx, rootNavigator: true).pop();
-                      AppEvents.instance.walletUpdated();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: green, foregroundColor: btnTxt,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text('Done', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
+                style: TextStyle(color: grey, fontSize: 16, height: 1.35),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: refBg, borderRadius: BorderRadius.circular(14)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Reference Number', style: TextStyle(fontSize: 12, color: grey)),
+                  const SizedBox(height: 4),
+                  Text(txnRef, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: refText)),
+                ]),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(successCtx, rootNavigator: true).pop();
+                    AppEvents.instance.walletUpdated();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: green,
+                    foregroundColor: btnTxt,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
+                  child: Text('Done', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: btnTxt)),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1266,143 +1389,6 @@ class _CashbackStatusCard extends StatelessWidget {
           Text(
             'Keep up the 0 claims streak for $remaining more weeks to earn ₹${cashback.toStringAsFixed(0)} cashback!',
             style: TextStyle(fontSize: 13, height: 1.4, color: grey),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Linked UPI Card ────────────────────────────────────────────────────────
-class _LinkedUpiCard extends StatefulWidget {
-  const _LinkedUpiCard();
-
-  @override
-  State<_LinkedUpiCard> createState() => _LinkedUpiCardState();
-}
-
-class _LinkedUpiCardState extends State<_LinkedUpiCard> {
-  late String _upiId;
-  StreamSubscription? _walletSub;
-
-  @override
-  void initState() {
-    super.initState();
-    _upiId = StorageService.upiId;
-    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) {
-      if (!mounted) return;
-      setState(() {
-        _upiId = StorageService.upiId;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _walletSub?.cancel();
-    super.dispose();
-  }
-
-  void _editUpi() {
-    final controller = TextEditingController(text: _upiId);
-    showDialog(
-      context: context,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-        
-        return AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          title: const Text('Edit UPI ID', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: 'Enter your UPI ID',
-              border: const OutlineInputBorder(),
-              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: green)),
-            ),
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(foregroundColor: Colors.grey),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newUpi = controller.text.trim();
-                if (newUpi.isNotEmpty) {
-                  await StorageService.setUpiId(newUpi);
-                  if (!mounted) return;
-                  setState(() {
-                    _upiId = newUpi;
-                  });
-                }
-                if (mounted) Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: isDark ? Colors.black : Colors.white,
-              ),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
-    final grey = isDark ? const Color(0xFF91938D) : const Color(0xFF607D8B);
-    final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: green.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.account_balance_wallet_rounded, color: green, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Linked UPI ID', style: TextStyle(fontSize: 12, color: grey)),
-                const SizedBox(height: 4),
-                Text(_upiId, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primary)),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: _editUpi,
-            style: TextButton.styleFrom(
-              foregroundColor: green,
-              visualDensity: VisualDensity.compact,
-            ),
-            child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ],
       ),

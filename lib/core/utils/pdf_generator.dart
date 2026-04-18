@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 class PdfGenerator {
   /// Generate and preview the insurance certificate PDF.
@@ -70,9 +74,9 @@ class PdfGenerator {
                 pw.SizedBox(height: 32),
                 pw.Text('Policy Number: $policyNumber',
                     style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                pw.Text('Coverage: $dateStr → $expiryStr',
+                pw.Text('Coverage: $dateStr - $expiryStr',
                     style: const pw.TextStyle(fontSize: 14)),
-                pw.Text('Weekly Premium: ₹$weeklyPremium',
+                pw.Text('Weekly Premium: Rs $weeklyPremium',
                     style: const pw.TextStyle(fontSize: 12)),
                 pw.SizedBox(height: 24),
                 pw.Container(
@@ -125,10 +129,29 @@ class PdfGenerator {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'Hustlr_Certificate_$policyNumber',
-    );
+    final bytes = await pdf.save();
+    final safePolicyNo = policyNumber.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final fileName = 'Hustlr_Certificate_$safePolicyNo.pdf';
+
+    if (kIsWeb) {
+      throw UnsupportedError('Direct file open is not supported on web builds.');
+    }
+
+    final externalDir = Platform.isAndroid
+        ? await getExternalStorageDirectory()
+        : null;
+    final baseDir = externalDir ?? await getApplicationDocumentsDirectory();
+    if (!await baseDir.exists()) {
+      await baseDir.create(recursive: true);
+    }
+
+    final file = File('${baseDir.path}/$fileName');
+    await file.writeAsBytes(bytes, flush: true);
+
+    final result = await OpenFilex.open(file.path);
+    if (result.type != ResultType.done) {
+      throw Exception('Could not open generated certificate (${result.message}). File saved at ${file.path}');
+    }
   }
 
   static String _monthName(int m) =>

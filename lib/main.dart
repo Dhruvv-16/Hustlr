@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart'; // import for kIsWeb and defaultTarget
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart'; // enable after adding google-services.json
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:go_router/go_router.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'core/router/app_router.dart';
 import 'core/services/storage_service.dart';
@@ -20,6 +18,7 @@ import 'services/mock_data_service.dart';
 import 'services/api_health_service.dart';
 import 'services/background_heartbeat_service.dart';
 import 'services/notification_service.dart';
+import 'services/shift_tracking_service.dart';
 import 'widgets/restart_widget.dart';
 import 'blocs/user/user_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
@@ -90,20 +89,6 @@ Future<void> main() async {
     
     // Initialize notification service (handles foreground messages and taps)
     await NotificationService.initialize();
-    
-    // Request permissions (Notification for Android 13+, Activity for Shadow Policy)
-    if (!kIsWeb && 
-        (defaultTargetPlatform == TargetPlatform.android || 
-         defaultTargetPlatform == TargetPlatform.iOS)) {
-      
-      await [
-        Permission.notification,
-        Permission.activityRecognition,
-      ].request();
-
-      String? token = await FirebaseMessaging.instance.getToken();
-      print("FCM TOKEN: $token");
-    }
   } catch (e) {
     print("Firebase initialization error: $e");
   }
@@ -120,9 +105,16 @@ Future<void> main() async {
     claimsBloc.add(ClaimStatusUpdated(claim));
   };
 
-  // Start API health monitoring (auto-refreshes every 60s)
-  ApiHealthService.instance.startAutoRefresh();
-  await BackgroundHeartbeatService.initialize();
+  final isOffDuty = await StorageService.instance.isOffDuty();
+  if (!isOffDuty) {
+    // Start API health monitoring (auto-refreshes every 60s)
+    ApiHealthService.instance.startAutoRefresh();
+    await BackgroundHeartbeatService.initialize();
+    await ShiftTrackingService.instance.restoreActiveShiftOnLaunch();
+  } else {
+    ApiHealthService.instance.stopAutoRefresh();
+    await BackgroundHeartbeatService.stop();
+  }
 
   runApp(
     RestartWidget(

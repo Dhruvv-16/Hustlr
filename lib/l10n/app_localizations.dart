@@ -1075,7 +1075,7 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_1_a.
   ///
   /// In en, this message translates to:
-  /// **'In parametric insurance, there is no filing, no investigation, and no approval. Claims trigger automatically when official thresholds are crossed (e.g., AQI > 300 via CPCB, or rain > 50mm). The worker does nothing.'**
+  /// **'Our app monitors official data feeds 24/7. When a disruption (heavy rain, extreme heat, air pollution, or platform downtime) is confirmed in your zone, a claim is created automatically. You don\'t need to do anything—no documents, no waiting.'**
   String get support_faq_1_a;
 
   /// No description provided for @support_faq_2_q.
@@ -1087,32 +1087,68 @@ abstract class AppLocalizations {
   /// No description provided for @support_faq_2_a.
   ///
   /// In en, this message translates to:
-  /// **'If your GPS cross-checks with your platform login data (proving you were active), funds are transferred directly to your UPI within 2 hours.'**
+  /// **'Fast & automatic: 70% is credited to your UPI within minutes after the claim is approved. The remaining 30% follows within 48 hours. Our system cross-checks your GPS location with platform login data to ensure you were actively working.'**
   String get support_faq_2_a;
 
   /// No description provided for @support_faq_3_q.
   ///
   /// In en, this message translates to:
-  /// **'Can I update my coverage?'**
+  /// **'What if I miss a disruption alert?'**
   String get support_faq_3_q;
 
   /// No description provided for @support_faq_3_a.
   ///
   /// In en, this message translates to:
-  /// **'Yes. Go to the Policy tab and tap Upgrade Plan to change your coverage tier.'**
+  /// **'You can file a manual claim directly from the app. Go to Claims → Report Disruption, describe the issue, and submit live evidence from your phone\'s camera. Our AI verifies it within 24 hours.'**
   String get support_faq_3_a;
 
   /// No description provided for @support_faq_4_q.
   ///
   /// In en, this message translates to:
-  /// **'How are the weekly premiums priced?'**
+  /// **'Can I upgrade or downgrade my coverage?'**
   String get support_faq_4_q;
 
   /// No description provided for @support_faq_4_a.
   ///
   /// In en, this message translates to:
-  /// **'Our Actuarial Pricing Model ensures affordability. Premium = (Trigger Probability * Avg Daily Income * Exposed Days) / Target BCR (0.55-0.70). Pricing adjusts for city and peril type.'**
+  /// **'Yes, anytime. Go to Policy → Upgrade Plan to switch between Standard Shield (₹49/week) and Full Shield (₹79/week). Changes take effect on the next Monday.'**
   String get support_faq_4_a;
+
+  /// No description provided for @support_faq_5_q.
+  ///
+  /// In en, this message translates to:
+  /// **'How are weekly premiums calculated?'**
+  String get support_faq_5_q;
+
+  /// No description provided for @support_faq_5_a.
+  ///
+  /// In en, this message translates to:
+  /// **'Your premium is based on: (1) historical disruption probability in your zone, (2) your platform\'s uptime rate, and (3) your personal claim history. Cleaner records → lower premiums. That\'s why Hustlr rewards trust.'**
+  String get support_faq_5_a;
+
+  /// No description provided for @support_faq_6_q.
+  ///
+  /// In en, this message translates to:
+  /// **'What if no disruptions happen in my zone?'**
+  String get support_faq_6_q;
+
+  /// No description provided for @support_faq_6_a.
+  ///
+  /// In en, this message translates to:
+  /// **'Great! You\'re protected either way. If your zone stays clear for 4 consecutive weeks, you unlock a 10% cashback on your premiums (Full Shield only). The app tracks this automatically.'**
+  String get support_faq_6_a;
+
+  /// No description provided for @support_faq_7_q.
+  ///
+  /// In en, this message translates to:
+  /// **'How do I withdraw my payout balance?'**
+  String get support_faq_7_q;
+
+  /// No description provided for @support_faq_7_a.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Wallet → tap Withdraw. Enter your UPI ID (same as your registered Razorpay). Transfers are instant and free—no hidden charges. Money lands in your bank within 2 hours.'**
+  String get support_faq_7_a;
 
   /// No description provided for @support_raise_ticket.
   ///

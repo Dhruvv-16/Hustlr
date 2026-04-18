@@ -19,42 +19,42 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isTyping = false;
 
   static const _responses = {
-    'claim': 'Most claims are processed automatically once a disruption trigger is confirmed. If a trigger is missed, you can file a manual claim from the app. Payout timing depends on risk checks and review status.',
-    'payout': 'Hustlr uses parametric insurance — payouts are triggered automatically when official thresholds are crossed (e.g., IMD rain > 64.5mm/day, AQI > 300). 70% is paid immediately, and 30% within 48 hours.',
-    'rain': 'Heavy rain payouts activate when rainfall exceeds 64.5mm/hr as confirmed by IMD sensors in your zone. Your coverage includes rain, extreme heat, AQI alerts, and platform downtime.',
-    'premium': 'Your weekly premium is calculated based on your zone\'s historical risk, the platform you work on, and your claim history. Standard Shield is ₹49/week.',
-    'refund': 'Hustlr doesn\'t offer refunds, but if no disruption events occur in your zone during a coverage week, that reduces your future premium via actuarial adjustment.',
-    'kyc': 'Your identity was verified during onboarding via your Delivery Partner ID. For any KYC updates, please contact our support team.',
-    'withdraw': 'You can withdraw your payout balance to any UPI ID from the Wallet tab. Transfers reflect within 2 hours via Razorpay.',
-    'policy': 'Your active plan is Standard Shield. It covers heavy rain, extreme heat, AQI alerts, platform downtime, and bandh events. You can upgrade to Full Shield for broader coverage.',
-    'zone': 'Your zone is detected from your onboarding location. Disruption events are validated zone-specifically using live sensor data from IMD, CPCB, and platform APIs.',
-    'heat': 'Extreme heat payouts are triggered when your zone temperature exceeds 43°C (IMD), sustained for 2+ hours during active delivery shifts.',
-    'aqi': 'Air quality payouts trigger when AQI exceeds 300 (Hazardous) as measured by CPCB sensors within 10km of your delivery zone.',
-    'fraud': 'Hustlr prevents fraud using Google Cloud Vision for facial liveness checks during suspicious claims, combined with local device sensor telemetry (accelerometer anomalies) to verify true delivery conditions.',
-    'tracking': 'Your location is tracked in the background during active shifts. On some devices with aggressive battery policies, background tracking can pause unless app permissions and battery settings are optimized.',
-    'camera': 'If an automatic trigger misses a localized event, you can file a manual claim. Our camera auto-launches and requires live capture with timestamp and EXIF integrity to prevent screenshot fraud.',
-    'ml': 'Our backend uses an Isolation Forest ML model to detect anomalous patterns in your phone\'s telemetry, mixed with historical claim frequencies on a gradient-boosted tree, to calculate your customized fraud risk score.',
-    'default': 'I\'m here to help! You can ask me about your policy, payouts, claims, premiums, zone coverage, fraud prevention, ML tracking, or how to withdraw your balance.',
+    'claim': 'Claims are triggered automatically when disruptions hit official thresholds. Rain (>64.5mm), extreme heat (>43°C), air pollution (AQI >300), or platform outages all trigger payouts within minutes. You don\'t need to file anything—we monitor 24/7. If a local event was missed, you can file a manual claim from the app.',
+    'payout': '💰 Here\'s how payouts work: 70% lands in your UPI instantly after the claim is verified. The remaining 30% follows within 48 hours. Total payout = (Trigger Probability × Average Daily Income × Exposed Days). No hidden charges, ever.',
+    'rain': '🌧️ Heavy rain triggers automatic payouts when rainfall exceeds 64.5mm/hour in your zone (verified by IMD sensors). Standard Shield covers this. Full Shield adds additional rain-related coverage. If the alert was missed locally, you can report it manually.',
+    'premium': '₹ Standard Shield costs ₹49/week. Full Shield is ₹79/week and includes additional perils. Your exact price depends on zone risk, platform uptime, and your claim history. Claim-free weeks earn you cheaper premiums. It\'s fair pricing.',
+    'refund': 'We don\'t offer refunds, but here\'s the flip side: if your zone stays clear of disruptions for 4 consecutive weeks, you get 10% cashback (Full Shield). Plus, lower claim history = lower future premiums. You\'re rewarded for being safe.',
+    'kyc': 'Your KYC was verified during onboarding using your delivery partner ID and a live selfie. This protects both you and the insurance pool from fraud. If you need to update your details, reach out to support.',
+    'withdraw': '🏦 Super simple: Go to Wallet → tap Withdraw → enter your UPI ID. Transfers are instant and completely free. Money arrives in your bank within 2 hours via Razorpay. No minimum withdrawal amount.',
+    'policy': 'Standard Shield (₹49/week) covers: Heavy rain, extreme heat, air pollution alerts, platform downtime, and bandh events. Full Shield (₹79/week) adds: Internet blackouts, dark store closures, and AQI >200 alerts. Upgrade anytime from Policy tab.',
+    'zone': 'Your zone is auto-detected from your onboarding location. Disruptions are verified zone-specifically using live data from IMD (rain/heat), CPCB (air quality), and platform APIs (outages). Each zone has independent thresholds.',
+    'heat': '🌡️ Extreme heat payouts trigger when your zone temperature exceeds 43°C (IMD verified) and stays that high for 2+ hours during your active delivery shifts. You must be logged in to the platform when the alert triggers.',
+    'aqi': '😷 Air quality payouts trigger when AQI exceeds 300 (Hazardous level) as measured by CPCB sensors within 10km of your delivery zone. This protects you from pollution-related income loss.',
+    'fraud': 'We take fraud seriously. We use Google Cloud Vision for facial liveness checks + phone sensor data (accelerometer patterns) to verify real delivery conditions. Suspicious claims get flagged for manual review. Fair system, built on trust.',
+    'tracking': '📍 Your location is tracked in the background during active shifts. This proves you were in the disruption zone when it happened. Some phones with aggressive battery policies may pause tracking unless you optimize app permissions in settings.',
+    'camera': '📸 If an automatic trigger is missed (rare but happens), you can file a manual claim. The app auto-opens your selfie camera. Live photos with timestamp + EXIF data prevent fraud. No gallery uploads allowed.',
+    'ml': '🤖 Our backend uses Isolation Forest to detect anomalies in your phone\'s motion data, combined with your claim history patterns, to calculate fraud risk. The AI learns but never profiles unfairly—it\'s just pattern recognition.',
+    'default': '👋 Hi! I\'m here to help with your Hustlr insurance. You can ask me about:\n• Claims & payouts\n• Premiums & coverage\n• Rain, heat, AQI, outages\n• Manual claims & withdrawals\n• Fraud prevention\n• Zone coverage\n\nWhat can I help you with?',
   };
 
   String _getAutoReply(String message) {
     final m = message.toLowerCase();
-    if (m.contains('claim') || m.contains('status')) return _responses['claim']!;
-    if (m.contains('withdraw') || m.contains('upi') || m.contains('transfer')) return _responses['withdraw']!;
-    if (m.contains('payout') || m.contains('money') || m.contains('pay')) return _responses['payout']!;
-    if (m.contains('rain') || m.contains('flood')) return _responses['rain']!;
-    if (m.contains('premium') || m.contains('cost') || m.contains('price') || m.contains('49')) return _responses['premium']!;
-    if (m.contains('refund') || m.contains('cancel')) return _responses['refund']!;
-    if (m.contains('kyc') || m.contains('identity') || m.contains('verify')) return _responses['kyc']!;
-    if (m.contains('full shield') || m.contains('upgrade') || m.contains('full')) return 'Full Shield (₹79/week) covers everything in Standard Shield, plus Bandh/Curfew events, Internet Blackouts, Dark Store Closures, and AQI > 200 alerts. You can upgrade anytime from the Policy tab!';
-    if (m.contains('policy') || m.contains('plan') || m.contains('coverage') || m.contains('shield')) return _responses['policy']!;
-    if (m.contains('zone') || m.contains('location') || m.contains('area')) return _responses['zone']!;
-    if (m.contains('heat') || m.contains('temperature') || m.contains('hot')) return _responses['heat']!;
-    if (m.contains('aqi') || m.contains('air') || m.contains('pollution')) return _responses['aqi']!;
-    if (m.contains('fraud') || m.contains('fake') || m.contains('liveness') || m.contains('vision')) return _responses['fraud']!;
-    if (m.contains('track') || m.contains('gps') || m.contains('background') || m.contains('foreground')) return _responses['tracking']!;
-    if (m.contains('camera') || m.contains('photo') || m.contains('picture')) return _responses['camera']!;
-    if (m.contains('ml') || m.contains('machine learning') || m.contains('ai') || m.contains('model')) return _responses['ml']!;
+    if (m.contains('claim') || m.contains('status') || m.contains('filed') || m.contains('trigger')) return _responses['claim']!;
+    if (m.contains('withdraw') || m.contains('upi') || m.contains('transfer') || m.contains('money out')) return _responses['withdraw']!;
+    if (m.contains('payout') || m.contains('money') || m.contains('pay') || m.contains('payment')) return _responses['payout']!;
+    if (m.contains('rain') || m.contains('flood') || m.contains('water') || m.contains('wet')) return _responses['rain']!;
+    if (m.contains('premium') || m.contains('cost') || m.contains('price') || m.contains('49') || m.contains('fee')) return _responses['premium']!;
+    if (m.contains('refund') || m.contains('cancel') || m.contains('return')) return _responses['refund']!;
+    if (m.contains('kyc') || m.contains('identity') || m.contains('verify') || m.contains('document')) return _responses['kyc']!;
+    if (m.contains('full shield') || m.contains('upgrade') || m.contains('79') || m.contains('better coverage')) return '🛡️ Full Shield (₹79/week) has everything Standard Shield offers, PLUS:\n• Internet blackouts\n• Dark store closures\n• Low AQI alerts (>200)\n• Bandh & curfew events\n\n10% cashback after 4 claim-free weeks! Upgrade from Policy tab.';
+    if (m.contains('policy') || m.contains('plan') || m.contains('coverage') || m.contains('shield') || m.contains('what do')) return _responses['policy']!;
+    if (m.contains('zone') || m.contains('location') || m.contains('area') || m.contains('place')) return _responses['zone']!;
+    if (m.contains('heat') || m.contains('temperature') || m.contains('hot') || m.contains('degree')) return _responses['heat']!;
+    if (m.contains('aqi') || m.contains('air') || m.contains('pollution') || m.contains('quality')) return _responses['aqi']!;
+    if (m.contains('fraud') || m.contains('fake') || m.contains('liveness') || m.contains('vision') || m.contains('cheat')) return _responses['fraud']!;
+    if (m.contains('track') || m.contains('gps') || m.contains('background') || m.contains('foreground') || m.contains('location')) return _responses['tracking']!;
+    if (m.contains('camera') || m.contains('photo') || m.contains('picture') || m.contains('evidence')) return _responses['camera']!;
+    if (m.contains('ml') || m.contains('machine learning') || m.contains('ai') || m.contains('model') || m.contains('algorithm')) return _responses['ml']!;
     return _responses['default']!;
   }
 

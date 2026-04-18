@@ -7,8 +7,10 @@ import 'storage_service.dart';
 class BackgroundHeartbeatService {
   BackgroundHeartbeatService._();
 
+  static bool _isStarted = false;
+
   static Future<void> initialize() async {
-    if (kIsWeb) return;
+    if (kIsWeb || _isStarted) return;
     try {
       await BackgroundFetch.configure(
         BackgroundFetchConfig(
@@ -22,8 +24,20 @@ class BackgroundHeartbeatService {
         _onBackgroundFetchTimeout,
       );
       await BackgroundFetch.start();
+      _isStarted = true;
     } catch (e) {
       debugPrint('[BackgroundHeartbeatService] init failed: $e');
+    }
+  }
+
+  static Future<void> stop() async {
+    if (kIsWeb || !_isStarted) return;
+    try {
+      await BackgroundFetch.stop();
+    } catch (e) {
+      debugPrint('[BackgroundHeartbeatService] stop failed: $e');
+    } finally {
+      _isStarted = false;
     }
   }
 

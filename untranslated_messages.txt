@@ -5,7 +5,13 @@
     "claims_claimed",
     "wallet_recent_transactions",
     "support_faq_4_q",
-    "support_faq_4_a"
+    "support_faq_4_a",
+    "support_faq_5_q",
+    "support_faq_5_a",
+    "support_faq_6_q",
+    "support_faq_6_a",
+    "support_faq_7_q",
+    "support_faq_7_a"
   ],
 
   "ta": [
@@ -14,6 +20,12 @@
     "claims_claimed",
     "wallet_recent_transactions",
     "support_faq_4_q",
-    "support_faq_4_a"
+    "support_faq_4_a",
+    "support_faq_5_q",
+    "support_faq_5_a",
+    "support_faq_6_q",
+    "support_faq_6_a",
+    "support_faq_7_q",
+    "support_faq_7_a"
   ]
 }

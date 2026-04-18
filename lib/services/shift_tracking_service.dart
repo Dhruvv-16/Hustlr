@@ -179,6 +179,18 @@ class ShiftTrackingService extends ChangeNotifier {
     }
   }
 
+  Future<void> restoreActiveShiftOnLaunch() async {
+    final isOffDuty = await StorageService.instance.isOffDuty();
+    if (isOffDuty) return;
+
+    final wasActive = await StorageService.instance.isShiftTrackingActive();
+    if (!wasActive || _status == ShiftStatus.active) return;
+
+    final savedZone = await StorageService.instance.getShiftZone();
+    final zone = (savedZone == null || savedZone.isEmpty) ? 'Local Zone' : savedZone;
+    await startShift(zone);
+  }
+
   Future<void> _handlePosition(Position position, {required bool isHeartbeat}) async {
     final lat = position.latitude;
     final lng = position.longitude;

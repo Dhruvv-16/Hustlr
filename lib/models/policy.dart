@@ -68,6 +68,8 @@ class Policy extends Equatable {
   final DateTime? endDate;
   final int basePremium;
   final int weeklyPremium;
+  final int? maxWeeklyPayout;
+  final int? maxDailyPayout;
 
   const Policy({
     required this.id,
@@ -78,6 +80,8 @@ class Policy extends Equatable {
     this.endDate,
     required this.basePremium,
     required this.weeklyPremium,
+    this.maxWeeklyPayout,
+    this.maxDailyPayout,
   });
 
   factory Policy.fromJson(Map<String, dynamic> json) {
@@ -97,6 +101,19 @@ class Policy extends Equatable {
         ? rawPremium
         : canonicalPremium;
 
+    int? parsePositiveInt(dynamic raw) {
+      final value = raw is num ? raw.toInt() : int.tryParse('${raw ?? ''}');
+      if (value == null || value <= 0) return null;
+      return value;
+    }
+
+    final maxWeekly = parsePositiveInt(
+      json['max_weekly_payout'] ?? json['max_weekly_payout_paise'],
+    );
+    final maxDaily = parsePositiveInt(
+      json['max_daily_payout'] ?? json['max_daily_payout_paise'],
+    );
+
     return Policy(
       id: json['id'] as String? ?? '',
       userId: json['user_id'] as String? ?? '',
@@ -106,6 +123,8 @@ class Policy extends Equatable {
       endDate: endStr != null ? DateTime.tryParse(endStr) : null,
       basePremium: (json['base_premium'] as num?)?.toInt() ?? canonicalPremium,
       weeklyPremium: weeklyPremium,
+      maxWeeklyPayout: maxWeekly,
+      maxDailyPayout: maxDaily,
     );
   }
 
@@ -118,6 +137,8 @@ class Policy extends Equatable {
     DateTime? endDate,
     int? basePremium,
     int? weeklyPremium,
+    int? maxWeeklyPayout,
+    int? maxDailyPayout,
   }) {
     return Policy(
       id: id ?? this.id,
@@ -128,6 +149,8 @@ class Policy extends Equatable {
       endDate: endDate ?? this.endDate,
       basePremium: basePremium ?? this.basePremium,
       weeklyPremium: weeklyPremium ?? this.weeklyPremium,
+      maxWeeklyPayout: maxWeeklyPayout ?? this.maxWeeklyPayout,
+      maxDailyPayout: maxDailyPayout ?? this.maxDailyPayout,
     );
   }
 
@@ -144,5 +167,7 @@ class Policy extends Equatable {
         endDate,
         basePremium,
         weeklyPremium,
+        maxWeeklyPayout,
+        maxDailyPayout,
       ];
 }

@@ -10,7 +10,6 @@ class AppTheme {
   static const Color _lightSurface = Color(0xFFFFFFFF);
   static const Color _lightCard    = Color(0xFFFFFFFF);
   static const Color _lightPrimary = Color(0xFF1B5E20);
-  static const Color _lightAccent  = Color(0xFFE8F5E9);
   static const Color _lightText    = Color(0xFF0D1B0F);
   static const Color _lightSubtext = Color(0xFF4A6741);
   static const Color _lightHint    = Color(0xFF8FAE8B);

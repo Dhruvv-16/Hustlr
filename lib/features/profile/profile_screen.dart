@@ -15,9 +15,10 @@ import '../../services/api_health_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
 import '../../widgets/demo_controls_sheet.dart';
-import '../../widgets/restart_widget.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/location_service.dart';
+import '../../services/background_heartbeat_service.dart';
+import '../../services/shift_tracking_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -37,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   };
   bool _isLoading = true;
   bool _biometricEnabled = false;
+  bool _isOffDuty = false;
   StreamSubscription<void>? _policySub;
   StreamSubscription<void>? _claimSub;
   StreamSubscription<void>? _walletSub;
@@ -115,6 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       final prefs = await SharedPreferences.getInstance();
       final bioEnabled = prefs.getBool('biometric_enabled') ?? true;
+      final offDuty = await StorageService.instance.isOffDuty();
 
       if (mounted) {
         final mock = context.read<MockDataService>();
@@ -136,6 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _policy = finalPolicy;
           _trustProfile = trustProfile ?? _trustProfile; // fallback if fails completely
           _biometricEnabled = bioEnabled;
+          _isOffDuty = offDuty;
           _isLoading = false;
         });
       }
@@ -217,9 +221,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (Icons.person_rounded, l10n.profile_name, _worker?['name'] as String? ?? 'John Doe'),
                         (Icons.location_on_rounded, l10n.profile_zone, _worker?['zone'] as String? ?? 'N/A'),
                         (Icons.phone_rounded, l10n.profile_mobile, _worker?['phone'] as String? ?? '+91 98765 43210'),
-                        (Icons.account_balance_wallet_rounded, l10n.profile_upi_id, '${_worker?['phone'] as String? ?? 'user'}@ybl'),
                       ],
                     ),
+                    const SizedBox(height: 32),
+
+                    // ── Payout Settings ──────────────────────────────────
+                    Text('PAYOUT SETTINGS', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: 16),
+                    _PayoutSettingsCard(theme: theme, isDark: isDark),
                     const SizedBox(height: 32),
 
                     // ── Account Info ──────────────────────────────────────
@@ -269,6 +278,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             },
                           );
                         },
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // ── Duty Mode ────────────────────────────────────────
+                    Text('DUTY MODE', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: isDark
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.04),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                      ),
+                      child: SwitchListTile(
+                        title: const Text('Off Duty', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          _isOffDuty
+                              ? 'Background tracking is paused. Turn this off to resume location protection.'
+                              : 'Location and heartbeat are active while on duty.',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        value: _isOffDuty,
+                        activeThumbColor: const Color(0xFF2E7D32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        onChanged: (val) => _toggleOffDuty(val),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -411,25 +453,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             worker?['name'] ?? 'User',
             style: theme.textTheme.displaySmall,
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF3FFF8B).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.verified_rounded, color: Color(0xFF3FFF8B), size: 16),
-                SizedBox(width: 4),
-                Text(
-                  'Tier 2 Verified',
-                  style: TextStyle(color: Color(0xFF3FFF8B), fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -459,6 +482,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Expanded(child: Text("HUSTLR INTERNAL CONTROLS", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3FFF8B)))),
             const Icon(Icons.keyboard_arrow_up_rounded, color: Color(0xFF3FFF8B)),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleOffDuty(bool offDuty) async {
+    setState(() => _isOffDuty = offDuty);
+    await StorageService.instance.setOffDuty(offDuty);
+
+    if (offDuty) {
+      await ShiftTrackingService.instance.stopShift();
+      await LocationService.instance.stopTracking();
+      ApiHealthService.instance.stopAutoRefresh();
+      await BackgroundHeartbeatService.stop();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Off Duty enabled. Background tracking paused.')),
+      );
+      return;
+    }
+
+    ApiHealthService.instance.startAutoRefresh();
+    await BackgroundHeartbeatService.initialize();
+
+    final zone = await StorageService.instance.getShiftZone() ??
+        (_worker?['zone'] as String?) ??
+        'Local Zone';
+    await ShiftTrackingService.instance.startShift(zone);
+
+    if (!mounted) return;
+    final resumed = ShiftTrackingService.instance.status == ShiftStatus.active;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          resumed
+              ? 'On Duty enabled. Tracking resumed.'
+              : 'On Duty enabled, but location permission/service is required to resume tracking.',
         ),
       ),
     );
@@ -525,6 +585,118 @@ class _ThemeToggle extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+}
+
+class _PayoutSettingsCard extends StatefulWidget {
+  final ThemeData theme;
+  final bool isDark;
+
+  const _PayoutSettingsCard({required this.theme, required this.isDark});
+
+  @override
+  State<_PayoutSettingsCard> createState() => _PayoutSettingsCardState();
+}
+
+class _PayoutSettingsCardState extends State<_PayoutSettingsCard> {
+  late String _upiId;
+
+  @override
+  void initState() {
+    super.initState();
+    _upiId = StorageService.upiId;
+  }
+
+  Future<void> _editUpi() async {
+    final controller = TextEditingController(
+      text: _upiId == 'add-upi-id@ybl' ? '' : _upiId,
+    );
+    final green = widget.isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(ctx).cardColor,
+        title: const Text('Edit UPI ID', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: 'example@upi',
+            border: const OutlineInputBorder(),
+            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: green)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final value = controller.text.trim();
+              if (value.isEmpty || !value.contains('@')) return;
+              await StorageService.setUpiId(value);
+              if (!mounted) return;
+              setState(() => _upiId = value);
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: widget.isDark ? Colors.black : Colors.white),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final green = widget.isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final primary = widget.isDark ? Colors.white : const Color(0xFF0D1B0F);
+    final grey = widget.isDark ? const Color(0xFF91938D) : const Color(0xFF607D8B);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: widget.theme.cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: widget.isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: widget.theme.colorScheme.primary.withValues(alpha: 0.04),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: green.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.account_balance_wallet_rounded, color: green, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Linked UPI ID', style: TextStyle(fontSize: 12, color: grey)),
+                const SizedBox(height: 4),
+                Text(_upiId, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primary)),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _editUpi,
+            style: TextButton.styleFrom(foregroundColor: green),
+            child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

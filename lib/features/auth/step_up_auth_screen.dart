@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -48,16 +47,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
   // Gesture-based liveness (Oasis-style)
   final List<String> _gestures = [
-    'Close your left eye (wink with left eye closed)',
-    'Close your right eye (wink with right eye closed)',
-    'Smile with teeth visible',
-    'Raise your eyebrows',
-    'Turn your head slightly to the left',
-    'Turn your head slightly to the right',
-    'Look up toward the camera',
+    'Turn your face to the left, then to the right',
   ];
   String? _currentGesture;
-  final bool _showGesturePrompt = false;
 
   @override
   void initState() {
@@ -70,8 +62,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _checkBiometricAvailability();
-    // Initialize random gesture for liveness check
-    _currentGesture = _gestures[math.Random().nextInt(_gestures.length)];
+    _currentGesture = _gestures.first;
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -223,6 +214,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
     final accentGreen = theme.colorScheme.primary;
+    final secondaryTextColor = theme.colorScheme.onSurface.withValues(alpha: 0.7);
 
     return Scaffold(
       backgroundColor: theme.canvasColor,
@@ -230,7 +222,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white70),
+          icon: Icon(Icons.close, color: secondaryTextColor),
           onPressed: () => Navigator.pop(context, {'verified': false}),
         ),
       ),
@@ -256,21 +248,21 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.12)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.accessibility_new, color: Colors.white, size: 20),
+                          Icon(Icons.sync_alt_rounded, color: primaryColor, size: 20),
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
                               _currentGesture!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -373,7 +365,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     } else {
       icon = Icon(
         _primaryBiometricIcon(),
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.onSurface,
         size: 56,
       );
     }
@@ -445,9 +437,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         child: const Icon(Icons.close, color: Colors.white, size: 36),
       );
     } else {
-      icon = const Icon(
+      icon = Icon(
         Icons.face_outlined,
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.onSurface,
         size: 56,
       );
     }
@@ -484,6 +476,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
 
   Widget _buildStatusText() {
     final l10n = AppLocalizations.of(context)!;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     String title, subtitle;
     if (_tier == _AuthTier.biometric) {
       switch (_state) {
@@ -555,7 +548,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                   ? const Color(0xFF4CAF50)
                   : _state == _VerificationState.failed
                       ? Colors.redAccent
-                      : Colors.white,
+                    : onSurface,
               fontSize: 24,
               fontWeight: FontWeight.w800,
               fontFamily: 'Manrope',
@@ -567,7 +560,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: onSurface.withValues(alpha: 0.65),
               fontSize: 14,
               height: 1.5,
               fontWeight: FontWeight.w500,
@@ -656,11 +649,14 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                 _tier = _AuthTier.camera;
                 _state = _VerificationState.idle;
                 _errorMessage = null;
-                _currentGesture = _gestures[math.Random().nextInt(_gestures.length)];
+                _currentGesture = _gestures.first;
               }),
               child: Text(
                 kIsWeb ? 'Upload Photo Instead' : 'Use Camera Instead',
-                style: const TextStyle(color: Colors.white38, fontSize: 13),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -699,9 +695,12 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
               _state = _VerificationState.idle;
               _errorMessage = null;
             }),
-            child: const Text(
+            child: Text(
               'Use Biometric Instead',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                fontSize: 13,
+              ),
             ),
           ),
         ],

@@ -10,8 +10,15 @@
     <img src="https://img.shields.io/badge/Phase_2_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 2 Video"/>
   </a>
   &nbsp;
-  <a href="https://docs.google.com/presentation/d/1tPQTQrfE7LCT5jGd10SSXtRlgLIArX7W/edit?usp=sharing&ouid=116329753810407010950&rtpof=true&sd=true">
-    <img src="https://img.shields.io/badge/Phase_3_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 3 Video"/>
+  <a href="https://youtu.be/GfnJ3xlfZVg">
+    <img src="https://img.shields.io/badge/Phase_3_Part_1_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 3 Part 1 Video"/>
+  </a>
+  <a href="https://youtu.be/9XGYfkqUMms">
+    <img src="https://img.shields.io/badge/Phase_3_Part_2_Demo_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Phase 3 Part 2 Video"/>
+  </a>
+  &nbsp;
+  <a href="https://1drv.ms/p/c/9ba6d7abf41d7da5/IQCtx_DQbutVQ4HHFKF4XSOJAcUCa4MkZ7YqDumyMsBPuBA?e=0zhCQV">
+    <img src="https://img.shields.io/badge/Pitch_Deck-0078D4?style=for-the-badge&logo=microsoftpowerpoint&logoColor=white" alt="Pitch Deck"/>
   </a>
   &nbsp;
   <a href="https://github.com/Dhruvv-16/Hustlr">
@@ -23,6 +30,37 @@
 </div>
 
 ---
+
+## Pitch Deck
+
+- Public deck link: https://1drv.ms/p/c/9ba6d7abf41d7da5/IQCtx_DQbutVQ4HHFKF4XSOJAcUCa4MkZ7YqDumyMsBPuBA?e=0zhCQV
+
+## Recorded Video
+
+- Phase 1 Demo: https://youtu.be/nD2snI4Tnu8?si=eS5sztT0aibvxodI
+- Phase 2 Demo: https://youtu.be/uEdGR915H-w
+- Phase 3 Part 1 Demo: https://youtu.be/GfnJ3xlfZVg
+- Phase 3 Part 2 Demo: https://youtu.be/9XGYfkqUMms
+
+## Source Code
+
+- GitHub repository: https://github.com/Dhruvv-16/Hustlr
+
+### Run Locally
+
+```bash
+git clone https://github.com/Dhruvv-16/Hustlr
+cd Hustlr
+flutter pub get
+flutter run
+```
+
+### Dependencies
+
+- Flutter SDK (stable)
+- Dart SDK (included with Flutter)
+- Android Studio / Android SDK (for Android builds)
+- A connected Android device or emulator
 
 ## 🎬 Judge's Quick-Start Demo Guide
 
@@ -1952,7 +1990,7 @@ def check_pool_health(city_zone):
 - [ ] Pool reserve monitor + reinsurance trigger
 - [ ] Worker Trust Score accumulation logic
 - [ ] Guidewire Marketplace packaging
-- [ ] Final 5-min demo video + pitch deck
+- [ ] Final 5-min demo video + Pitch Deck
 
 ---
 
@@ -2115,8 +2153,16 @@ All source code submitted in the GitHub repository covers:
     <img src="https://img.shields.io/badge/Phase_2_Demo_Video-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="Phase 2 Video"/>
   </a>
   &nbsp;&nbsp;
-  <a href="https://docs.google.com/presentation/d/1tPQTQrfE7LCT5jGd10SSXtRlgLIArX7W/edit?usp=sharing&ouid=116329753810407010950&rtpof=true&sd=true">
-    <img src="https://img.shields.io/badge/Phase_3_Demo_Video-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="Phase 3 Video"/>
+  <a href="https://youtu.be/GfnJ3xlfZVg">
+    <img src="https://img.shields.io/badge/Phase_3_Part_1_Demo_Video-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="Phase 3 Part 1 Video"/>
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://youtu.be/9XGYfkqUMms">
+    <img src="https://img.shields.io/badge/Phase_3_Part_2_Demo_Video-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="Phase 3 Part 2 Video"/>
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://1drv.ms/p/c/9ba6d7abf41d7da5/IQCtx_DQbutVQ4HHFKF4XSOJAcUCa4MkZ7YqDumyMsBPuBA?e=0zhCQV">
+    <img src="https://img.shields.io/badge/Pitch_Deck-0078D4?style=flat-square&logo=microsoftpowerpoint&logoColor=white" alt="Pitch Deck"/>
   </a>
   &nbsp;&nbsp;
   <a href="https://github.com/Dhruvv-16/Hustlr">

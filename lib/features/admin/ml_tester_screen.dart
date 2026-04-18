@@ -14,10 +14,6 @@ class MlTesterScreen extends StatefulWidget {
 class _MlTesterScreenState extends State<MlTesterScreen> {
   // Uses the Node backend to proxy the request to the ML service
   String _baseUrl = '${ApiService.baseUrl}/ml';
-  final TextEditingController _nlpController = TextEditingController(text: 'Extreme flooding in Adyar right now');
-  
-  final double _trafficSpeed = 15.0;
-  final double _trafficBaseline = 35.0;
   
   String _responseLog = '';
   bool _isLoading = false;

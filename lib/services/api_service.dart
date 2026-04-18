@@ -266,7 +266,13 @@ class ApiService {
       final savedPolicyId = StorageService.policyId;
       
       final resolvedTier = tier ?? 'Standard Shield';
-      final resolvedPremium = resolvedTier == 'Full Shield' ? 79 : (resolvedTier == 'Basic Shield' ? 29 : 49);
+      final resolvedPremium = resolvedTier == 'Full Shield' ? 79 : (resolvedTier == 'Basic Shield' ? 35 : 49);
+      final resolvedWeeklyCap = resolvedTier == 'Full Shield'
+          ? 500
+          : (resolvedTier == 'Basic Shield' ? 210 : 340);
+      final resolvedDailyCap = resolvedTier == 'Full Shield'
+          ? 250
+          : (resolvedTier == 'Basic Shield' ? 100 : 150);
       final now = DateTime.now();
       final expiry = now.add(const Duration(days: 91));
       return {
@@ -278,6 +284,8 @@ class ApiService {
           'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(),
           'base_premium': resolvedPremium,
           'zone_adjustment': 0,
+          'max_weekly_payout': resolvedWeeklyCap,
+          'max_daily_payout': resolvedDailyCap,
           'status': 'active',
           'created_at': now.toIso8601String(),
           'expires_at': expiry.toIso8601String(),
@@ -867,21 +875,6 @@ class ApiService {
       final data = jsonDecode(res.body);
       if (res.statusCode == 201) return data;
 
-      // Fallback to mock on API error
-      String mockNote = 'Claim logged — review within 4 hours';
-      String mockStatus = 'PENDING';
-
-      if (sensorFeatures != null) {
-        final jitter = sensorFeatures['gps_jitter'];
-        if (jitter != null && jitter == 0.0) {
-          mockNote = 'FRAUD ALERT: GPS Spoofing Detected (0.0 Jitter).';
-          mockStatus = 'FLAGGED';
-        } else if (jitter != null && jitter > 0.0) {
-          mockNote = 'Sensors Validated: Natural GPS Variance Detected.';
-          mockStatus = 'APPROVED';
-        }
-      }
-
       throw Exception('Manual claim creation failed: ${res.statusCode}');
     } catch (e) { throw Exception("API request failed: $e"); }
   }
@@ -1158,7 +1151,7 @@ class ApiService {
       // ── 5. Gesture verification ───────────────────────────────────────────
       final smilingProb = face.smilingProbability ?? 0.0;
       if (expectedGesture != null) {
-        if (expectedGesture!.toLowerCase().contains('smile') && smilingProb < 0.5) {
+        if (expectedGesture.toLowerCase().contains('smile') && smilingProb < 0.5) {
           return {
             'verified': false,
             'reason': 'Smile gesture not detected. Please smile naturally.',
@@ -1166,7 +1159,7 @@ class ApiService {
             'method': 'mlkit_local',
           };
         }
-        if (expectedGesture!.toLowerCase().contains('left eye') && leftEyeOpen > 0.4) {
+        if (expectedGesture.toLowerCase().contains('left eye') && leftEyeOpen > 0.4) {
           return {
             'verified': false,
             'reason': 'Please wink your left eye (close only the left eye).',
@@ -1174,7 +1167,7 @@ class ApiService {
             'method': 'mlkit_local',
           };
         }
-        if (expectedGesture!.toLowerCase().contains('right eye') && rightEyeOpen > 0.4) {
+        if (expectedGesture.toLowerCase().contains('right eye') && rightEyeOpen > 0.4) {
           return {
             'verified': false,
             'reason': 'Please wink your right eye (close only the right eye).',
@@ -1376,7 +1369,7 @@ class ApiService {
       final normalizedTier = planTier.toLowerCase();
       double premium = normalizedTier.contains('full')
           ? 79
-          : (normalizedTier.contains('basic') ? 29 : 49);
+          : (normalizedTier.contains('basic') ? 35 : 49);
       
       List<String> riderNames = [];
       if (riders != null) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -12,6 +13,46 @@ import '../../l10n/app_localizations.dart';
 
 const _cities = ['Chennai', 'Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad'];
 const _platforms = ['Zepto', 'Blinkit', 'Swiggy Instamart', 'Dunzo', 'BB Now'];
+
+class _PlatformIdRule {
+  final RegExp pattern;
+  final String hint;
+  final String error;
+
+  const _PlatformIdRule({
+    required this.pattern,
+    required this.hint,
+    required this.error,
+  });
+}
+
+final Map<String, _PlatformIdRule> _platformIdRules = {
+  'Zepto': _PlatformIdRule(
+    pattern: RegExp(r'^(?:ZEP|ZPT)[A-Z0-9]{5,14}$'),
+    hint: 'e.g. ZEPA62K91',
+    error: 'Zepto ID must start with ZEP/ZPT and be 8-17 characters.',
+  ),
+  'Blinkit': _PlatformIdRule(
+    pattern: RegExp(r'^(?:BLK|BKT)[A-Z0-9]{5,14}$'),
+    hint: 'e.g. BLK94X71Q',
+    error: 'Blinkit ID must start with BLK/BKT and be 8-17 characters.',
+  ),
+  'Swiggy Instamart': _PlatformIdRule(
+    pattern: RegExp(r'^(?:SWG|INS|SIM)[A-Z0-9]{5,14}$'),
+    hint: 'e.g. SWG71M2P8',
+    error: 'Swiggy Instamart ID must start with SWG/INS/SIM and be 8-17 characters.',
+  ),
+  'Dunzo': _PlatformIdRule(
+    pattern: RegExp(r'^(?:DNZ|DUN)[A-Z0-9]{5,14}$'),
+    hint: 'e.g. DNZ6Q2W9R',
+    error: 'Dunzo ID must start with DNZ/DUN and be 8-17 characters.',
+  ),
+  'BB Now': _PlatformIdRule(
+    pattern: RegExp(r'^(?:BBN|BBNOW|BB)[A-Z0-9]{5,14}$'),
+    hint: 'e.g. BBN9P2L7X',
+    error: 'BB Now ID must start with BB/BBN/BBNOW and be 8-17 characters.',
+  ),
+};
 
 const Map<String, List<String>> _cityZones = {
   'Chennai': [
@@ -58,6 +99,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _kycController = TextEditingController();
   bool _saving = false;
 
+  String _normalizedPlatformId() => _kycController.text.trim().toUpperCase();
+
+  _PlatformIdRule? get _selectedRule =>
+      _selectedPlatform == null ? null : _platformIdRules[_selectedPlatform!];
+
+  bool get _isPlatformIdValid {
+    final rule = _selectedRule;
+    if (rule == null) return false;
+    return rule.pattern.hasMatch(_normalizedPlatformId());
+  }
+
+  String _platformIdHelperText(AppLocalizations l10n) {
+    final rule = _selectedRule;
+    if (rule == null) return l10n.onboarding_kyc_helper;
+    return 'Format: ${rule.hint}';
+  }
+
   int get _activeStep {
     if (_nameController.text.trim().isEmpty) return 1;
     if (_selectedCity == null) return 2;
@@ -74,6 +132,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_selectedZone == null) { _showError('Please select your zone.'); return; }
     if (_selectedPlatform == null) { _showError('Please select your platform.'); return; }
     if (_kycController.text.trim().isEmpty) { _showError('Please enter your Platform ID.'); return; }
+    if (!_isPlatformIdValid) {
+      _showError(_selectedRule?.error ?? 'Please enter a valid Platform ID.');
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -110,8 +172,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final policyId = policyData['policy']['id'] as String;
       await StorageService.setPolicyId(policyId);
 
-      // Add premium deducted notification
-      NotificationService.instance.addPremiumDeducted(49);
+      // Add premium deducted notification with live policy values.
+      final createdPolicy = policyData['policy'] as Map<String, dynamic>?;
+      final createdPlan = createdPolicy?['plan_name']?.toString();
+      final createdPremiumRaw = createdPolicy?['weekly_premium'];
+      final createdPremium = (createdPremiumRaw is num)
+          ? createdPremiumRaw.round()
+          : int.tryParse(createdPremiumRaw?.toString() ?? '') ?? 49;
+      NotificationService.instance.addPremiumDeducted(
+        createdPremium,
+        planName: createdPlan,
+      );
 
       await StorageService.setOnboarded(true);
 
@@ -493,7 +564,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text('PLATFORM VERIFICATION', style: theme.textTheme.labelSmall),
             const SizedBox(height: 4),
             Text(
-              l10n.onboarding_kyc_helper,
+              _platformIdHelperText(l10n),
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
             ),
             const SizedBox(height: 12),
@@ -509,9 +580,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _kycController,
                 enabled: _selectedPlatform != null,
                 onChanged: (_) => setState(() {}),
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                  LengthLimitingTextInputFormatter(17),
+                ],
                 style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
-                  hintText: _selectedPlatform != null ? 'Enter $_selectedPlatform ID' : 'Select a platform first',
+                  hintText: _selectedPlatform != null
+                      ? (_selectedRule?.hint ?? 'Enter $_selectedPlatform ID')
+                      : 'Select a platform first',
                   hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3)),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),

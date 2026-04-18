@@ -22,6 +22,7 @@ class StorageService {
   static const _keyOnboardingComplete = 'onboardingComplete';
   static const _keyShiftActive = 'shiftActive';
   static const _keyShiftZone = 'shiftZone';
+    static const _keyOffDutyMode = 'offDutyMode';
   static const _keyUpiId = 'upiId';
   static const _keySessionToken = 'sessionToken';
   static const _keyIdentityEnrollmentComplete = 'identityEnrollmentComplete';
@@ -44,6 +45,7 @@ class StorageService {
   static String get userZone => _prefs.getString(_keyUserZone) ?? '';
   static bool get shiftActive => _prefs.getBool(_keyShiftActive) ?? false;
   static String get shiftZone => _prefs.getString(_keyShiftZone) ?? '';
+    static bool get offDutyMode => _prefs.getBool(_keyOffDutyMode) ?? false;
   static String get sessionToken => _prefs.getString(_keySessionToken) ?? '';
   static String get upiId => _prefs.getString(_keyUpiId) ?? ((phone.isNotEmpty) ? '$phone@ybl' : 'add-upi-id@ybl');
   static bool get identityEnrollmentComplete =>
@@ -82,6 +84,8 @@ class StorageService {
       _prefs.setBool(_keyShiftActive, v);
   static Future<void> setShiftZone(String v) =>
       _prefs.setString(_keyShiftZone, v);
+  static Future<void> setOffDutyMode(bool v) =>
+      _prefs.setBool(_keyOffDutyMode, v);
   static Future<void> setSessionToken(String v) =>
       _prefs.setString(_keySessionToken, v);
   static Future<void> setUpiId(String v) =>
@@ -150,6 +154,8 @@ class StorageService {
   Future<bool> isShiftTrackingActive() async => shiftActive;
   Future<void> saveShiftZone(String zone) async => setShiftZone(zone);
   Future<String?> getShiftZone() async => shiftZone.isEmpty ? null : shiftZone;
+    Future<void> setOffDuty(bool value) async => setOffDutyMode(value);
+    Future<bool> isOffDuty() async => offDutyMode;
 
   Future<void> saveUserCity(String city) async =>
       setString('userCity', city);

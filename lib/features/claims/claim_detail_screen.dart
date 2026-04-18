@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/mock_data_service.dart';
 import 'widgets/audit_receipt_badge.dart';
 
 class ClaimDetailScreen extends StatefulWidget {
   final String claimId;
+  final Map<String, dynamic>? initialClaim;
 
-  const ClaimDetailScreen({super.key, required this.claimId});
+  const ClaimDetailScreen({
+    super.key,
+    required this.claimId,
+    this.initialClaim,
+  });
 
   @override
   State<ClaimDetailScreen> createState() => _ClaimDetailScreenState();
@@ -19,6 +26,46 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
   Map<String, dynamic>? _claim;
   String? _error;
 
+  bool _idMatches(dynamic rawId) {
+    final id = rawId?.toString() ?? '';
+    final target = widget.claimId.trim();
+    if (id.isEmpty || target.isEmpty) return false;
+    return id == target || id.toLowerCase() == target.toLowerCase();
+  }
+
+  Map<String, dynamic>? _claimFromMock(MockDataService mock) {
+    if (mock.claims.isEmpty) return null;
+
+    final mapped = mock.claims.map((c) => <String, dynamic>{
+          'id': c.id,
+          'trigger_type': c.icon == 'rain'
+              ? 'rain_heavy'
+              : (c.icon == 'heat' ? 'heat_severe' : 'platform_outage'),
+          'display_name': c.type,
+          'status': c.status,
+          'created_at': c.date == 'Just now'
+              ? DateTime.now().toIso8601String()
+              : c.date,
+          'gross_payout': c.grossAmount ?? c.amount,
+          'tranche1_amount': c.immediateAmount,
+          'tranche2_amount': c.heldAmount,
+          'zone': c.zone,
+          'fps_score': c.frsScore,
+        }).toList();
+
+    for (final c in mapped) {
+      if (_idMatches(c['id'])) return c;
+    }
+    return mapped.isNotEmpty ? mapped.first : null;
+  }
+
+  Map<String, dynamic>? _claimFromApiList(List<Map<String, dynamic>> list) {
+    for (final c in list) {
+      if (_idMatches(c['id'])) return c;
+    }
+    return list.isNotEmpty ? list.first : null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -28,23 +75,53 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
   Future<void> _loadClaim() async {
     setState(() { _loading = true; _error = null; });
     try {
+      // Use route payload first when available (most accurate source).
+      if (widget.initialClaim != null && widget.initialClaim!.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _claim = Map<String, dynamic>.from(widget.initialClaim!);
+          _loading = false;
+        });
+        return;
+      }
+
+      // Keep source priority aligned with Claims screen: mock/demo first.
+      final mock = Provider.of<MockDataService>(context, listen: false);
+      final mockClaim = _claimFromMock(mock);
+      if (mockClaim != null) {
+        if (!mounted) return;
+        setState(() {
+          _claim = mockClaim;
+          _loading = false;
+        });
+        return;
+      }
+
       final userId = await StorageService.instance.getUserId();
       if (userId == null) {
         setState(() { _error = 'Not logged in'; _loading = false; });
         return;
       }
+      
       final data = await ApiService.instance.getClaims(userId);
       final raw = data['claims'];
       final list = raw is List
           ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : <Map<String, dynamic>>[];
-      final found = list.firstWhere(
-        (c) => c['id']?.toString() == widget.claimId,
-        orElse: () => list.isNotEmpty ? list.first : {},
-      );
-      setState(() { _claim = found.isEmpty ? null : found; _loading = false; });
+
+      final claim = _claimFromApiList(list);
+      
+      if (!mounted) return;
+      setState(() { 
+        _claim = claim; 
+        if (claim == null && list.isEmpty) {
+          _error = 'No claims found. Start by reporting a disruption.';
+        }
+        _loading = false; 
+      });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      if (!mounted) return;
+      setState(() { _error = 'Error loading claim: ${e.toString()}'; _loading = false; });
     }
   }
 
@@ -65,6 +142,10 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
     }
 
     if (_error != null || _claim == null) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
+      final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+      
       return Scaffold(
         backgroundColor: Theme.of(context).canvasColor,
         appBar: AppBar(
@@ -75,15 +156,45 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
           ),
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 16),
-              Text(_error ?? 'Claim not found', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadClaim, child: const Text('Retry')),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, size: 64, color: green),
+                const SizedBox(height: 16),
+                Text(
+                  _error ?? 'Claim not found', 
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primary),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _loadClaim, 
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: green,
+                        foregroundColor: isDark ? Colors.black : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => context.go('/claims'), 
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Back to Claims'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? const Color(0xFF1c1f1c) : const Color(0xFFE8F5E9),
+                        foregroundColor: green,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );

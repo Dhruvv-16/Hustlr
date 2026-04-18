@@ -67,6 +67,194 @@ const _riders = [
   _Rider(icon: Icons.phonelink_off_rounded,name: 'App Downtime',    price: '+₹10/wk', defaultOn: true),
 ];
 
+String _normalizePlanTier(dynamic raw) {
+  final s = raw?.toString().toLowerCase().trim() ?? '';
+  if (s.contains('full')) return 'full';
+  if (s.contains('basic')) return 'basic';
+  return 'standard';
+}
+
+int _planBasePremium(String tier) {
+  if (tier == 'full') return 79;
+  if (tier == 'basic') return 35;
+  return 49;
+}
+
+int _planWeeklyPayoutCap(String tier) {
+  if (tier == 'full') return 500;
+  if (tier == 'basic') return 210;
+  return 340;
+}
+
+int _planDailyPayoutCap(String tier) {
+  if (tier == 'full') return 250;
+  if (tier == 'basic') return 100;
+  return 150;
+}
+
+int? _asPositiveInt(dynamic raw) {
+  if (raw == null) return null;
+  final value = raw is num ? raw.toInt() : int.tryParse(raw.toString());
+  if (value == null || value <= 0) return null;
+  // If backend accidentally sends paise-like values, normalize to rupees.
+  if (value >= 10000) return (value / 100).round();
+  return value;
+}
+
+int _resolveWeeklyCap(Map<String, dynamic>? policy, String tier) {
+  final fromPolicy = _asPositiveInt(
+      policy?['max_weekly_payout'] ?? policy?['max_weekly_payout_paise']);
+  return fromPolicy ?? _planWeeklyPayoutCap(tier);
+}
+
+int _resolveDailyCap(Map<String, dynamic>? policy, String tier) {
+  final fromPolicy = _asPositiveInt(
+      policy?['max_daily_payout'] ?? policy?['max_daily_payout_paise']);
+  return fromPolicy ?? _planDailyPayoutCap(tier);
+}
+
+List<String> _coverageTitlesForPolicy(Map<String, dynamic>? policy) {
+  final tier = _normalizePlanTier(policy?['plan_tier'] ?? policy?['plan_name']);
+  final titles = <String>[];
+
+  void add(String name) {
+    if (!titles.contains(name)) titles.add(name);
+  }
+
+  add('Heavy Rain');
+  add('Extreme Heat');
+
+  if (tier == 'standard' || tier == 'full') {
+    add('Severe AQI');
+    add('Platform Downtime');
+    add('Bandh / Curfew');
+  }
+
+  if (tier == 'full') {
+    add('Internet Blackout');
+    add('Traffic Congestion');
+    add('Cyclone Landfall');
+  }
+
+  final riders = policy?['riders'] as List<dynamic>?;
+  if (riders != null) {
+    for (final rider in riders) {
+      if (rider is! Map) continue;
+      final mapped = _coverageFromRiderName(rider['name']?.toString() ?? '');
+      final title = mapped?['title']?.toString();
+      if (title != null && title.isNotEmpty) add(title);
+    }
+  }
+
+  return titles;
+}
+
+int _riderCostFromName(String riderName) {
+  final n = riderName.toLowerCase();
+  if (n.contains('cyclone')) return 20;
+  if (n.contains('curfew') || n.contains('strike')) return 12;
+  if (n.contains('election')) return 8;
+  if (n.contains('app downtime') || n.contains('downtime')) return 10;
+  return 0;
+}
+
+bool _isRiderIncludedInPlan(String tier, String riderName) {
+  final n = riderName.toLowerCase();
+  if (tier == 'full') return true;
+  if (tier == 'standard' && (n.contains('app downtime') || n.contains('downtime'))) {
+    return true;
+  }
+  return false;
+}
+
+int _billableRiderTotal(String tier, List<dynamic>? riders) {
+  if (riders == null || riders.isEmpty) return 0;
+
+  var total = 0;
+  for (final r in riders) {
+    if (r is! Map) continue;
+    final name = r['name']?.toString() ?? '';
+    if (name.isEmpty || _isRiderIncludedInPlan(tier, name)) continue;
+
+    final explicitCost = (r['cost'] as num?)?.toInt();
+    final resolvedCost = (explicitCost != null && explicitCost > 0)
+        ? explicitCost
+        : _riderCostFromName(name);
+    total += resolvedCost;
+  }
+  return total;
+}
+
+int _billableRiderCount(String tier, List<dynamic>? riders) {
+  if (riders == null || riders.isEmpty) return 0;
+
+  var count = 0;
+  for (final r in riders) {
+    if (r is! Map) continue;
+    final name = r['name']?.toString() ?? '';
+    if (name.isEmpty || _isRiderIncludedInPlan(tier, name)) continue;
+
+    final explicitCost = (r['cost'] as num?)?.toInt();
+    final resolvedCost = (explicitCost != null && explicitCost > 0)
+        ? explicitCost
+        : _riderCostFromName(name);
+    if (resolvedCost > 0) count++;
+  }
+  return count;
+}
+
+int _effectiveWeeklyPremiumFromPolicy(Map<String, dynamic> item) {
+  final tier = _normalizePlanTier(item['plan_tier'] ?? item['plan_name']);
+  final base = _planBasePremium(tier);
+  final riders = item['riders'] as List<dynamic>?;
+  final computed = base + _billableRiderTotal(tier, riders);
+
+  final raw = item['weekly_premium'];
+  final stored = raw is num ? raw.toDouble() : double.tryParse('${raw ?? ''}');
+
+  if (stored != null && stored >= computed && stored <= 200) {
+    return stored.round();
+  }
+  return computed;
+}
+
+Map<String, dynamic>? _coverageFromRiderName(String riderName) {
+  final n = riderName.toLowerCase();
+  if (n.contains('cyclone')) {
+    return {
+      'key': 'cyclone',
+      'icon': Icons.cyclone_rounded,
+      'title': 'Cyclone Coverage',
+      'subtitle': 'Severe cyclone warnings',
+    };
+  }
+  if (n.contains('curfew') || n.contains('strike')) {
+    return {
+      'key': 'curfew',
+      'icon': Icons.groups_rounded,
+      'title': 'Curfew & Strikes',
+      'subtitle': 'Work stoppages covered',
+    };
+  }
+  if (n.contains('election')) {
+    return {
+      'key': 'election',
+      'icon': Icons.how_to_vote_rounded,
+      'title': 'Election Day Coverage',
+      'subtitle': 'Poll-related closures',
+    };
+  }
+  if (n.contains('app downtime') || n.contains('downtime')) {
+    return {
+      'key': 'downtime',
+      'icon': Icons.phonelink_off_rounded,
+      'title': 'App Downtime',
+      'subtitle': 'Outages over 90 minutes',
+    };
+  }
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  POLICY SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,56 +273,87 @@ class _PolicyScreenState extends State<PolicyScreen>
   bool isLoading = true;
   StreamSubscription<void>? _policySub;
   StreamSubscription<void>? _walletSub;
+  bool _isLoadingPolicy = false;  // Prevent concurrent loads
+  DateTime? _lastLoadTime;  // Debounce rapid successive loads
+  static const _loadDebounceMs = 1500;  // Minimum 1.5s between loads
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
     _loadPolicy();
-    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadPolicy());
-    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadPolicy());
+    // Use debounced listeners to prevent rapid successive reloads
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _debouncedLoad());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _debouncedLoad());
+  }
+
+  /// Debounced version of _loadPolicy to prevent excessive API calls from event spam
+  Future<void> _debouncedLoad() async {
+    final now = DateTime.now();
+    if (_lastLoadTime != null && now.difference(_lastLoadTime!).inMilliseconds < _loadDebounceMs) {
+      // Skip if called within debounce window
+      return;
+    }
+    _lastLoadTime = now;
+    await _loadPolicy();
   }
 
   Future<void> _loadPolicy() async {
-    final uid = await StorageService.instance.getUserId();
-    if (uid != null) {
-      try {
-        final data = await ApiService.instance.getPolicyInstance(uid);
-        if (mounted) {
-          final mock = context.read<MockDataService>();
-          final rawPolicy = data['policy'];
-          final rawHistory = data['history'];
+    // Prevent concurrent loads to avoid race conditions and duplicate API calls
+    if (_isLoadingPolicy) return;
+    
+    _isLoadingPolicy = true;
+    try {
+      final uid = await StorageService.instance.getUserId();
+      if (uid != null) {
+        try {
+          final data = await ApiService.instance.getPolicyInstance(uid);
+          if (mounted) {
+            final mock = context.read<MockDataService>();
+            final rawPolicy = data['policy'];
+            final rawHistory = data['history'];
+            final wasInactive = activePolicy == null;
 
-          setState(() {
-            // ── Demo Sync ───────────────────────────────────────────────────
-            if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
-              activePolicy = {
-                'id': 'PROTO-POL-${mock.worker.id.hashCode}',
-                'plan_name': mock.activePolicy.plan,
-                'plan_tier': mock.activePolicy.plan.split(' ')[0].toLowerCase(),
-                'status': mock.activePolicy.status,
-                'coverage_start': mock.activePolicy.coverageStart,
-                'commitment_end': mock.activePolicy.coverageEnd,
-                'weekly_premium': mock.activePolicy.premium,
-              };
-            } else {
-              activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
-            }
+            setState(() {
+              // ── Demo Sync ───────────────────────────────────────────────────
+              if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
+                activePolicy = {
+                  'id': 'PROTO-POL-${mock.worker.id.hashCode}',
+                  'plan_name': mock.activePolicy.plan,
+                  'plan_tier': mock.activePolicy.plan.split(' ')[0].toLowerCase(),
+                  'status': mock.activePolicy.status,
+                  'coverage_start': mock.activePolicy.coverageStart,
+                  'commitment_end': mock.activePolicy.coverageEnd,
+                  'weekly_premium': mock.activePolicy.premium,
+                };
+              } else {
+                activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+              }
 
-            policyHistory = rawHistory is List
-                ? rawHistory
-                    .whereType<Map>()
-                    .map((e) => Map<String, dynamic>.from(e))
-                    .toList()
-                : [];
-            isLoading = false;
-          });
+              policyHistory = rawHistory is List
+                  ? rawHistory
+                      .whereType<Map>()
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList()
+                  : [];
+              isLoading = false;
+              
+              // If policy was just purchased, switch to "Current Plan" tab
+              if (wasInactive && activePolicy != null) {
+                Future.microtask(() {
+                  _tabController.animateTo(0);
+                });
+              }
+            });
+          }
+        } catch (e) {
+          if (mounted) setState(() => isLoading = false);
         }
-      } catch (e) {
+      } else {
         if (mounted) setState(() => isLoading = false);
       }
-    } else {
-      if (mounted) setState(() => isLoading = false);
+    } finally {
+      _isLoadingPolicy = false;
     }
   }
 
@@ -247,13 +466,24 @@ class _LiveHistoryTab extends StatelessWidget {
   List<Map<String, dynamic>> _entries() {
     final items = <Map<String, dynamic>>[];
     final seen = <String>{};
+    
+    // Add active policy first if it exists and status is active/renewed
+    if (activePolicy != null) {
+      final status = activePolicy!['status']?.toString().toLowerCase() ?? '';
+      if (status == 'active' || status == 'renewed') {
+        final id = activePolicy!['id']?.toString() ?? 'active_policy';
+        if (seen.add(id)) {
+          items.add(activePolicy!);
+        }
+      }
+    }
+    
+    // Add historical entries
     for (final item in policyHistory) {
       final id = item['id']?.toString() ?? '${item['plan_tier']}_${item['created_at']}';
       if (seen.add(id)) items.add(item);
     }
-    if (items.isEmpty && activePolicy != null) {
-      items.add(activePolicy!);
-    }
+    
     return items;
   }
 
@@ -263,9 +493,8 @@ class _LiveHistoryTab extends StatelessWidget {
   }
 
   String _premiumLabel(Map<String, dynamic> item) {
-    final raw = item['weekly_premium'];
-    final amount = raw is num ? raw.round() : int.tryParse('${raw ?? ''}');
-    return amount == null ? '—' : '₹$amount/wk';
+    final amount = _effectiveWeeklyPremiumFromPolicy(item);
+    return '₹$amount/wk';
   }
 
   String _dateRange(Map<String, dynamic> item) {
@@ -359,27 +588,232 @@ class _LiveHistoryTab extends StatelessWidget {
 }
 
 // ─── Tab 1: Current Plan ──────────────────────────────────────────────────────
-class _CurrentPlanTab extends StatelessWidget {
+class _CurrentPlanTab extends StatefulWidget {
   final Map<String, dynamic>? activePolicy;
   const _CurrentPlanTab({this.activePolicy});
 
   @override
+  State<_CurrentPlanTab> createState() => _CurrentPlanTabState();
+}
+
+class _CurrentPlanTabState extends State<_CurrentPlanTab> {
+  bool? _coverageExpanded;
+  bool? _lastCompact;
+
+  /// Return coverage items based on plan tier
+  List<Map<String, dynamic>> _getCoverageItems() {
+    final tier = _normalizePlanTier(
+        widget.activePolicy?['plan_tier'] ?? widget.activePolicy?['plan_name']);
+    final riders = widget.activePolicy?['riders'] as List<dynamic>?;
+    final items = <Map<String, dynamic>>[];
+    final addedKeys = <String>{};
+
+    void addCoverage({
+      required String key,
+      required IconData icon,
+      required String title,
+      required String subtitle,
+    }) {
+      if (!addedKeys.add(key)) return;
+      items.add({
+        'icon': icon,
+        'title': title,
+        'subtitle': subtitle,
+      });
+    }
+    
+    // All tiers include Rain & Heat
+    addCoverage(
+      key: 'rain',
+      icon: Icons.water_drop_rounded,
+      title: 'Rain Disruption',
+      subtitle: 'Auto-triggers when rain > 3hrs',
+    );
+    addCoverage(
+      key: 'heat',
+      icon: Icons.wb_sunny_rounded,
+      title: 'Extreme Heat',
+      subtitle: 'Triggers above 42°C advisory',
+    );
+    
+    // Standard & Full include Pollution Alert
+    if (tier == 'standard' || tier == 'full') {
+      addCoverage(
+        key: 'pollution',
+        icon: Icons.air_rounded,
+        title: 'Pollution Alert',
+        subtitle: 'AQI > 200 in your zone',
+      );
+    }
+    
+    // Standard & Full include App Downtime
+    if (tier == 'standard' || tier == 'full') {
+      addCoverage(
+        key: 'downtime',
+        icon: Icons.phonelink_off_rounded,
+        title: 'App Downtime',
+        subtitle: 'Outages over 90 minutes',
+      );
+    }
+
+    // Standard & Full include bandh/curfew disruption coverage
+    if (tier == 'standard' || tier == 'full') {
+      addCoverage(
+        key: 'bandh',
+        icon: Icons.gavel_rounded,
+        title: 'Bandh & Curfew Alerts',
+        subtitle: 'City shutdown and route restrictions',
+      );
+    }
+    
+    // Full Shield includes all advanced triggers (all 9 + compound)
+    if (tier == 'full') {
+      addCoverage(
+        key: 'internet_blackout',
+        icon: Icons.signal_wifi_statusbar_connected_no_internet_4_rounded,
+        title: 'Internet Zone Blackout',
+        subtitle: 'Network blackout in your delivery zone',
+      );
+      addCoverage(
+        key: 'dark_store',
+        icon: Icons.store_mall_directory_rounded,
+        title: 'Dark Store Closure',
+        subtitle: 'Store-side shutdown or dispatch halt',
+      );
+      addCoverage(
+        key: 'accident_blockspot',
+        icon: Icons.car_crash_rounded,
+        title: 'Accident Blockspot',
+        subtitle: 'Critical route blocked by major accident',
+      );
+      addCoverage(
+        key: 'traffic_congestion',
+        icon: Icons.traffic_rounded,
+        title: 'Heavy Traffic Congestion',
+        subtitle: 'Severe congestion sustained in zone',
+      );
+      addCoverage(
+        key: 'compound',
+        icon: Icons.call_split_rounded,
+        title: 'Compound Disruptions',
+        subtitle: 'Multiple triggers in same week',
+      );
+    }
+
+    // Billable rider coverages: add only if selected and not already included by plan.
+    if (riders != null) {
+      for (final r in riders) {
+        if (r is! Map) continue;
+        final name = r['name']?.toString() ?? '';
+        if (name.isEmpty || _isRiderIncludedInPlan(tier, name)) continue;
+        final coverage = _coverageFromRiderName(name);
+        if (coverage == null) continue;
+
+        addCoverage(
+          key: coverage['key'] as String,
+          icon: coverage['icon'] as IconData,
+          title: coverage['title'] as String,
+          subtitle: coverage['subtitle'] as String,
+        );
+      }
+    }
+    
+    // Manual Disruption Filing always included
+    items.add({
+      'icon': Icons.edit_document,
+      'title': 'Manual Disruption Filing',
+      'subtitle': 'Report untracked disruptions manually',
+    });
+    
+    return items;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final coverageItems = _getCoverageItems();
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    if (_coverageExpanded == null || _lastCompact != isCompact) {
+      _coverageExpanded = !isCompact;
+      _lastCompact = isCompact;
+    }
+    final headerTextColor = Theme.of(context).colorScheme.onSurface;
+    final headerBorderColor = headerTextColor.withOpacity(0.18);
+    final headerBg = Theme.of(context).cardColor.withOpacity(0.45);
+    
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, isCompact ? 108 : 120),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel(context, 'ACTIVE COVERAGE'),
-        const SizedBox(height: 12),
-        _ActiveCoverageCard(activePolicy: activePolicy),
-        const SizedBox(height: 24),
-        _sectionLabel(context, 'COVERAGE DETAILS'),
-        const SizedBox(height: 12),
-        _coverageItem(context, Icons.water_drop_rounded,    'Rain Disruption',  'Auto-triggers when rain > 3hrs'),
-        _coverageItem(context, Icons.wb_sunny_rounded,      'Extreme Heat',     'Triggers above 42°C advisory'),
-        _coverageItem(context, Icons.air_rounded,           'Pollution Alert',  'AQI > 200 in your zone'),
-        _coverageItem(context, Icons.phonelink_off_rounded, 'App Downtime',     'Outages over 90 minutes'),
-        _coverageItem(context, Icons.edit_document,         'Manual Disruption Filing', 'Report untracked disruptions manually'),
-        const SizedBox(height: 20),
+        SizedBox(height: isCompact ? 10 : 12),
+        _ActiveCoverageCard(activePolicy: widget.activePolicy),
+        SizedBox(height: isCompact ? 18 : 24),
+        GestureDetector(
+          onTap: () => setState(() => _coverageExpanded = !(_coverageExpanded ?? true)),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 10 : 12,
+              vertical: isCompact ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: headerBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: headerBorderColor),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'COVERAGE DETAILS',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                      color: headerTextColor,
+                    ),
+                  ),
+                ),
+                Text(
+                  (_coverageExpanded ?? true) ? 'Hide' : 'View',
+                  style: TextStyle(
+                    fontSize: isCompact ? 11 : 12,
+                    fontWeight: FontWeight.w700,
+                    color: headerTextColor.withOpacity(0.85),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  (_coverageExpanded ?? true)
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: headerTextColor.withOpacity(0.9),
+                  size: isCompact ? 18 : 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: EdgeInsets.only(top: isCompact ? 8 : 12),
+            child: Column(
+              children: coverageItems
+                  .map((item) => _coverageItem(
+                        context,
+                        item['icon'] as IconData,
+                        item['title'] as String,
+                        item['subtitle'] as String,
+                        isCompact: isCompact,
+                      ))
+                  .toList(),
+            ),
+          ),
+          crossFadeState: (_coverageExpanded ?? true)
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 220),
+        ),
+        SizedBox(height: isCompact ? 16 : 20),
         _policyDisclosureCard(context),
       ]),
     );
@@ -387,7 +821,9 @@ class _CurrentPlanTab extends StatelessWidget {
 }
 
 // Standalone helper so context is always from a build method
-Widget _coverageItem(BuildContext context, IconData icon, String title, String subtitle) {
+Widget _coverageItem(BuildContext context, IconData icon, String title,
+    String subtitle,
+    {bool isCompact = false}) {
   final theme     = Theme.of(context);
   final isDark    = theme.brightness == Brightness.dark;
   final cardBg    = theme.cardColor;
@@ -399,8 +835,8 @@ Widget _coverageItem(BuildContext context, IconData icon, String title, String s
   final subColor  = theme.colorScheme.onSurface.withOpacity(0.5);
 
   return Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(14),
+    margin: EdgeInsets.only(bottom: isCompact ? 8 : 10),
+    padding: EdgeInsets.all(isCompact ? 12 : 14),
     decoration: BoxDecoration(
       color: cardBg,
       borderRadius: BorderRadius.circular(12),
@@ -408,29 +844,40 @@ Widget _coverageItem(BuildContext context, IconData icon, String title, String s
     ),
     child: Row(children: [
       Container(
-        width: 36, height: 36,
+        width: isCompact ? 34 : 36,
+        height: isCompact ? 34 : 36,
         decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: green, size: 18),
+        child: Icon(icon, color: green, size: isCompact ? 16 : 18),
       ),
-      const SizedBox(width: 12),
+      SizedBox(width: isCompact ? 10 : 12),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w600,
+            fontSize: isCompact ? 13 : 14, fontWeight: FontWeight.w600,
             color: theme.colorScheme.onSurface)),
           const SizedBox(height: 2),
-          Text(subtitle, style: TextStyle(fontSize: 12, color: subColor)),
+          Text(subtitle,
+              style: TextStyle(fontSize: isCompact ? 11 : 12, color: subColor)),
         ]),
       ),
-      Icon(Icons.check_circle_rounded, color: green, size: 20),
+      Icon(Icons.check_circle_rounded,
+          color: green, size: isCompact ? 18 : 20),
     ]),
   );
 }
 
 // ─── Active Coverage Card ─────────────────────────────────────────────────────
-class _ActiveCoverageCard extends StatelessWidget {
+class _ActiveCoverageCard extends StatefulWidget {
   final Map<String, dynamic>? activePolicy;
   const _ActiveCoverageCard({this.activePolicy});
+
+  @override
+  State<_ActiveCoverageCard> createState() => _ActiveCoverageCardState();
+}
+
+class _ActiveCoverageCardState extends State<_ActiveCoverageCard> {
+  bool? _detailsExpanded;
+  bool? _lastCompact;
 
   String _formatPolicyDates(Map<String, dynamic>? policy) {
     if (policy == null) return '—';
@@ -445,13 +892,29 @@ class _ActiveCoverageCard extends StatelessWidget {
     final l10n   = AppLocalizations.of(context)!;
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    if (_detailsExpanded == null || _lastCompact != isCompact) {
+      _detailsExpanded = !isCompact;
+      _lastCompact = isCompact;
+    }
+    final activePolicy = widget.activePolicy;
+    final tier = _normalizePlanTier(activePolicy?['plan_tier'] ?? activePolicy?['plan_name']);
+    final riders = activePolicy?['riders'] as List<dynamic>?;
+    final weeklyPremium = activePolicy == null
+        ? _planBasePremium('standard')
+        : _effectiveWeeklyPremiumFromPolicy(activePolicy!);
+    final addonTotal = _billableRiderTotal(tier, riders);
+    final addonCount = _billableRiderCount(tier, riders);
+    final coverageTitles = _coverageTitlesForPolicy(activePolicy);
+    final weeklyCap = _resolveWeeklyCap(activePolicy, tier);
+    final dailyCap = _resolveDailyCap(activePolicy, tier);
     // In dark mode use a tonal surface + mint; in light, solid green
     final cardBg    = isDark ? const Color(0xFF004734) : const Color(0xFF1B5E20);
     final textColor = isDark ? const Color(0xFF3FFF8B) : Colors.white;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(16),
@@ -460,28 +923,139 @@ class _ActiveCoverageCard extends StatelessWidget {
         Row(children: [
           Expanded(
             child: Text(activePolicy?['plan_name'] ?? l10n.policy_standard, style: TextStyle(
-              fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+              fontSize: isCompact ? 18 : 20, fontWeight: FontWeight.bold, color: textColor)),
           ),
           Container(
-            width: 40, height: 40,
+            width: isCompact ? 36 : 40, height: isCompact ? 36 : 40,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.verified_rounded, color: textColor, size: 22),
+            child: Icon(Icons.verified_rounded, color: textColor, size: isCompact ? 20 : 22),
           ),
         ]),
         const SizedBox(height: 4),
         Text('Policy #${activePolicy?['id']?.toString().toUpperCase() ?? "—"}',
-            style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7))),
-        const SizedBox(height: 12),
+            style: TextStyle(fontSize: isCompact ? 11 : 12, color: textColor.withOpacity(0.7))),
+        SizedBox(height: isCompact ? 10 : 12),
         Text('VALIDITY', style: TextStyle(
           fontSize: 10, fontWeight: FontWeight.w700,
           color: textColor.withOpacity(0.6), letterSpacing: 0.8)),
         const SizedBox(height: 4),
         Text(_formatPolicyDates(activePolicy),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
-        const SizedBox(height: 16),
+            style: TextStyle(fontSize: isCompact ? 13 : 14, fontWeight: FontWeight.bold, color: textColor)),
+        SizedBox(height: isCompact ? 10 : 12),
+        Text('WEEKLY PREMIUM', style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: textColor.withOpacity(0.6),
+          letterSpacing: 0.8,
+        )),
+        const SizedBox(height: 4),
+        Text(
+          '₹$weeklyPremium/week',
+          style: TextStyle(
+            fontSize: isCompact ? 16 : 18,
+            fontWeight: FontWeight.w800,
+            color: textColor,
+          ),
+        ),
+        if (addonTotal > 0 && addonCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'Includes $addonCount add-on${addonCount > 1 ? 's' : ''} (+₹$addonTotal/week)',
+              style: TextStyle(
+                fontSize: isCompact ? 10 : 11,
+                fontWeight: FontWeight.w600,
+                color: textColor.withOpacity(0.78),
+              ),
+            ),
+          ),
+        SizedBox(height: isCompact ? 10 : 14),
+        GestureDetector(
+          onTap: () => setState(() => _detailsExpanded = !(_detailsExpanded ?? true)),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 10 : 12,
+              vertical: isCompact ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: textColor.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'POLICY DETAILS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: textColor.withOpacity(0.75),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                Text(
+                  (_detailsExpanded ?? true) ? 'Hide' : 'View',
+                  style: TextStyle(
+                    fontSize: isCompact ? 11 : 12,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  (_detailsExpanded ?? true)
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: textColor,
+                  size: isCompact ? 18 : 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: EdgeInsets.only(top: isCompact ? 8 : 10),
+            child: Column(
+              children: [
+                _detailRow(
+                  'Coverage Included',
+                  coverageTitles.take(6).join(', '),
+                  textColor,
+                  compact: false,
+                  isCompact: isCompact,
+                ),
+                _detailRow(
+                  'Payout Split',
+                  '70% instant + 30% after verification',
+                  textColor,
+                  isCompact: isCompact,
+                ),
+                _detailRow('Max Weekly Payout', '₹$weeklyCap', textColor,
+                    isCompact: isCompact),
+                _detailRow('Max Daily Payout', '₹$dailyCap', textColor,
+                    isCompact: isCompact),
+                _detailRow(
+                  'Claim Processing',
+                  'Auto processed by Sunday 11 PM',
+                  textColor,
+                  isCompact: isCompact,
+                ),
+              ],
+            ),
+          ),
+          crossFadeState: (_detailsExpanded ?? true)
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 220),
+        ),
+        SizedBox(height: isCompact ? 12 : 16),
         Row(children: [
           Expanded(
             child: _GhostButton(
@@ -500,10 +1074,10 @@ class _ActiveCoverageCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Icon(Icons.download_rounded, size: 15, color: textColor),
+                   Icon(Icons.download_rounded, size: isCompact ? 14 : 15, color: textColor),
                    const SizedBox(width: 6),
                    Text('Download Certificate',
-                       style: TextStyle(fontSize: 13, color: textColor, fontWeight: FontWeight.w600)),
+                       style: TextStyle(fontSize: isCompact ? 12 : 13, color: textColor, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -519,6 +1093,44 @@ class _ActiveCoverageCard extends StatelessWidget {
           ),
         ]),
       ]),
+    );
+  }
+
+  Widget _detailRow(String label, String value, Color textColor,
+      {bool compact = true, bool isCompact = false}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: compact ? (isCompact ? 5 : 6) : (isCompact ? 7 : 8)),
+      child: Row(
+        crossAxisAlignment:
+            compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: isCompact ? 10 : 11,
+                fontWeight: FontWeight.w600,
+                color: textColor.withOpacity(0.75),
+              ),
+            ),
+          ),
+          SizedBox(width: isCompact ? 10 : 12),
+          Expanded(
+            flex: 7,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: isCompact ? 11 : 12,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+                height: compact ? 1.2 : 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -604,6 +1216,80 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     return total;
   }
 
+  List<Map<String, String>> _coverageRules() {
+    final plan = _selectedPlan ?? 'standard';
+
+    final rules = <Map<String, String>>[
+      {
+        'title': '45-minute minimum',
+        'desc': 'disruption must last 45 continuous minutes',
+      },
+      {
+        'title': '24-hour cooling period',
+        'desc': 'same trigger cannot fire again within 24 hours',
+      },
+      {
+        'title': 'Shift overlap required',
+        'desc': 'disruption must overlap shift by minimum 2 hours',
+      },
+      {
+        'title': 'Post-activation only',
+        'desc': 'events before activation are never covered',
+      },
+    ];
+
+    if (plan == 'full') {
+      rules.add({
+        'title': 'Multi-event coverage enabled',
+        'desc': 'Full Shield supports multiple trigger payouts, including compound disruptions',
+      });
+    } else {
+      rules.add({
+        'title': 'One event per week per type',
+        'desc': 'Basic and Standard allow one payout per trigger type each week',
+      });
+    }
+
+    if (plan == 'basic') {
+      rules.add({
+        'title': 'Addon-dependent triggers',
+        'desc': 'Downtime, Curfew, Election, and Cyclone triggers apply only when added',
+      });
+    }
+
+    if (plan == 'standard') {
+      rules.add({
+        'title': 'Built-in App Downtime',
+        'desc': 'App Downtime coverage is included by default in Standard Shield',
+      });
+    }
+
+    if (plan != 'full') {
+      final selectedAddons = _riderToggles.entries
+          .where((e) {
+            if (!e.value) return false;
+            if (plan == 'standard' && e.key == 'App Downtime') return false;
+            return true;
+          })
+          .map((e) => e.key)
+          .toList();
+
+      if (selectedAddons.isNotEmpty) {
+        rules.add({
+          'title': 'Selected add-ons active',
+          'desc': selectedAddons.join(', '),
+        });
+      }
+    }
+
+    rules.add({
+      'title': 'Manual Disruption Filing',
+      'desc': 'For disruptions not covered by automated triggers, report within 24 hours via Claims. Subject to evidence review.',
+    });
+
+    return rules;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -658,12 +1344,11 @@ class _UpgradeTabState extends State<_UpgradeTab> {
               childrenPadding: const EdgeInsets.only(bottom: 16),
               expandedCrossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ruleText(context, '45-minute minimum', 'disruption must last 45 continuous minutes'),
-                _ruleText(context, '24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
-                _ruleText(context, 'Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
-                _ruleText(context, 'One event per week per type', 'Basic + Standard Shield only'),
-                _ruleText(context, 'Post-activation only', 'events before activation never covered'),
-                _ruleText(context, 'Manual Disruption Filing', 'For disruptions not covered by automated triggers, you can manually report it within 24 hours via the Claims screen. Subject to evidence review.'),
+                ..._coverageRules().map((r) => _ruleText(
+                      context,
+                      r['title'] ?? '',
+                      r['desc'] ?? '',
+                    )),
               ],
             ),
           ),
@@ -675,6 +1360,17 @@ class _UpgradeTabState extends State<_UpgradeTab> {
         left: 0, right: 0, bottom: 0,
         child: _StickyBottomBar(
           total: _totalCost,
+          addonTotal: _totalCost - _planBasePrice(_selectedPlan),
+          addonCount: (() {
+            final bool allIncluded = _selectedPlan == 'full';
+            if (allIncluded) return 0;
+            int count = 0;
+            for (final r in _riderToggles.entries) {
+              if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
+              if (r.value) count++;
+            }
+            return count;
+          })(),
           activePolicy: widget.activePolicy,
           selectedPlan: _selectedPlan,
           onProceed: () {
@@ -700,6 +1396,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
             context.push('/policy/payment', extra: <String, dynamic>{
               'plan': planName,
+              'planTier': _selectedPlan ?? 'standard',
               'planCost': planCost,
               'total': _totalCost,
               'riders': activeRiders
@@ -939,11 +1636,20 @@ class _RiderRow extends StatelessWidget {
 // ─── Sticky Bottom Bar ────────────────────────────────────────────────────────
 class _StickyBottomBar extends StatelessWidget {
   final int total;
+  final int addonTotal;
+  final int addonCount;
   final VoidCallback onProceed;
   final Map<String, dynamic>? activePolicy;
   final String? selectedPlan;
 
-  const _StickyBottomBar({required this.total, required this.onProceed, this.activePolicy, this.selectedPlan});
+  const _StickyBottomBar({
+    required this.total,
+    required this.addonTotal,
+    required this.addonCount,
+    required this.onProceed,
+    this.activePolicy,
+    this.selectedPlan,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -972,7 +1678,15 @@ class _StickyBottomBar extends StatelessWidget {
     );
     final selectedRank = getRank(selectedPlan);
 
-    final bool hasActivePolicy = activePolicy != null;
+    // Treat any present policy as active unless explicitly ended.
+    // Some responses omit status but still represent a live policy.
+    final status = activePolicy?['status']?.toString().toLowerCase() ?? '';
+    final bool hasActivePolicy = activePolicy != null &&
+      (status.isEmpty ||
+        status == 'active' ||
+        status == 'renewed' ||
+        status == 'pending' ||
+        status == 'suspended');
     final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
     final bool isSame = selectedRank == currentRank && currentRank > 0;
     final bool isDisabled = isDowngrade || isSame || hasActivePolicy;
@@ -1014,7 +1728,7 @@ class _StickyBottomBar extends StatelessWidget {
               Text(activePolicy!['plan_name']?.toString() ?? 'Hustlr Shield',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onSurface), maxLines: 1, overflow: TextOverflow.ellipsis)
-            else
+            else ...[
               RichText(
                 text: TextSpan(children: [
                   TextSpan(
@@ -1028,6 +1742,19 @@ class _StickyBottomBar extends StatelessWidget {
                   ),
                 ]),
               ),
+              if (addonTotal > 0 && addonCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    'Includes $addonCount add-on${addonCount > 1 ? 's' : ''} (+₹$addonTotal)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: hintColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
           ]),
         ),
         const SizedBox(width: 16),

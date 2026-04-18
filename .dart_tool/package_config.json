@@ -818,6 +818,12 @@
       "languageVersion": "3.10"
     },
     {
+      "name": "open_filex",
+      "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/open_filex-4.7.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
       "name": "package_config",
       "rootUri": "file:///C:/Users/inesh/AppData/Local/Pub/Cache/hosted/pub.dev/package_config-2.2.0",
       "packageUri": "lib/",

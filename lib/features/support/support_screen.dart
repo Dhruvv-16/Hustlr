@@ -20,7 +20,6 @@ class SupportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context)!;
     final theme  = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final bgColor   = theme.scaffoldBackgroundColor;
     final titleColor = theme.colorScheme.onSurface;
 
@@ -277,6 +276,21 @@ class _FaqAccordion extends StatelessWidget {
             question: l10n.support_faq_4_q,
             answer: l10n.support_faq_4_a,
           ),
+          const SizedBox(height: 12),
+          _FaqItem(
+            question: l10n.support_faq_5_q,
+            answer: l10n.support_faq_5_a,
+          ),
+          const SizedBox(height: 12),
+          _FaqItem(
+            question: l10n.support_faq_6_q,
+            answer: l10n.support_faq_6_a,
+          ),
+          const SizedBox(height: 12),
+          _FaqItem(
+            question: l10n.support_faq_7_q,
+            answer: l10n.support_faq_7_a,
+          ),
         ],
       ),
     );
@@ -293,7 +307,6 @@ class _FaqItem extends StatefulWidget {
 }
 
 class _FaqItemState extends State<_FaqItem> {
-  final bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {

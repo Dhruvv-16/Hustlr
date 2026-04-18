@@ -239,7 +239,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                                         ),
                                                       ),
                                                     InkWell(
-                                                      onTap: () => context.push('/claims/$claimId'),
+                                                      onTap: () => context.push('/claims/$claimId', extra: claim),
                                                       borderRadius: BorderRadius.circular(16),
                                                       child: _ClaimCard(
                                                         iconBg: iconBg,
