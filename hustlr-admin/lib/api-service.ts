@@ -6,8 +6,9 @@ import MockAdminDataService, {
   PayoutRequest,
   AdminPolicy,
 } from './mock-data';
+import { API_BASE } from './constants';
 
-const BASE_URL = 'http://localhost:3000/api/admin';
+const BASE_URL = `${API_BASE}/api/admin`;
 
 class AdminApiService {
   static useMockData = true;

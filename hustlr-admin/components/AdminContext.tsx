@@ -51,13 +51,25 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (showLoader) setLoading(true);
     setErrorMessage(null);
     try {
-      const [analyticsData, healthData, poolData, fraudData, payoutData] = await Promise.all([
+      const [analyticsRes, healthRes, poolRes, fraudRes, payoutRes] = await Promise.allSettled([
         AdminApiService.getAnalytics(),
         AdminApiService.getSystemHealth(),
-        fetchPoolSummary().catch(() => null),
+        fetchPoolSummary(),
         AdminApiService.getFraudQueue({ limit: 5, status: 'FLAGGED' }),
         AdminApiService.getPayoutQueue({ limit: 5, status: 'APPROVED' }),
       ]);
+
+      // Core cards must load; queue widgets can degrade to empty lists.
+      if (analyticsRes.status !== 'fulfilled' || healthRes.status !== 'fulfilled') {
+        throw new Error('Core admin endpoints unavailable');
+      }
+
+      const analyticsData = analyticsRes.value;
+      const healthData = healthRes.value;
+      const poolData = poolRes.status === 'fulfilled' ? poolRes.value : null;
+      const fraudData = fraudRes.status === 'fulfilled' ? fraudRes.value : [];
+      const payoutData = payoutRes.status === 'fulfilled' ? payoutRes.value : [];
+
       setAnalytics(analyticsData);
       setSystemHealth(healthData);
       setPoolSummary(poolData);
