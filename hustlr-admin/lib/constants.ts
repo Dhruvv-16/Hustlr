@@ -1,7 +1,17 @@
 // Mirrors hustlr-backend/src/config/constants.js exactly
 
-export const API_BASE = 'https://hustlr-ad32.onrender.com';
-export const ML_API_BASE = 'https://hustlr-2ppj.onrender.com';
+const DEFAULT_API_BASE =
+  process.env.NODE_ENV === 'development'
+    ? 'http://127.0.0.1:3000'
+    : 'https://hustlr-ad32.onrender.com';
+
+const DEFAULT_ML_API_BASE =
+  process.env.NODE_ENV === 'development'
+    ? 'http://127.0.0.1:8000'
+    : 'https://hustlr-2ppj.onrender.com';
+
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || DEFAULT_API_BASE;
+export const ML_API_BASE = process.env.NEXT_PUBLIC_ML_API_BASE || DEFAULT_ML_API_BASE;
 
 export const PLAN_CONFIG = {
   basic: {

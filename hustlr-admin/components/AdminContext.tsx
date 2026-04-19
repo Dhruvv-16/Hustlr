@@ -33,13 +33,16 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [fraudHighlights, setFraudHighlights] = useState<FraudCase[]>([]);
   const [payoutHighlights, setPayoutHighlights] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [useMockData, setUseMockData] = useState(true);
+  const [useMockData, setUseMockData] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>('');
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshEverySec, setRefreshEverySec] = useState(30);
 
-  useEffect(() => { loadData(); }, [useMockData]);
+  useEffect(() => {
+    AdminApiService.setUseMockData(useMockData);
+    loadData();
+  }, [useMockData]);
 
   useEffect(() => {
     if (!autoRefreshEnabled || refreshEverySec < 10) return;
@@ -90,8 +93,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const healthMeta = useMemo(() => {
     if (!systemHealth) return { healthyApis: 0, totalApis: 0, livePct: 0, degraded: false };
-    const healthyApis = systemHealth.apis.filter((api) => api.ok).length;
-    const totalApis = systemHealth.apis.length;
+    const apis = Array.isArray(systemHealth.apis) ? systemHealth.apis : [];
+    const healthyApis = apis.filter((api) => api.ok).length;
+    const totalApis = apis.length;
     const livePct = totalApis > 0 ? Math.round((healthyApis / totalApis) * 100) : 0;
     return { healthyApis, totalApis, livePct, degraded: healthyApis !== totalApis };
   }, [systemHealth]);

@@ -54,7 +54,9 @@ export default function PaymentQueue() {
     }
   };
 
-  const filteredPayouts = payouts.filter(
+  const safePayouts = Array.isArray(payouts) ? payouts : [];
+
+  const filteredPayouts = safePayouts.filter(
     (payout) =>
       payout.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       payout.userPhone.includes(searchQuery) ||
