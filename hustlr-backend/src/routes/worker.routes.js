@@ -172,7 +172,7 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { zone, city, onboarding_complete } = req.body || {};
+    const { zone, city, onboarding_complete, kyc_status } = req.body || {};
 
     const updates = {};
     if (typeof zone === "string" && zone.trim().length > 0) {
@@ -183,6 +183,9 @@ router.patch("/:id", async (req, res) => {
     }
     if (typeof onboarding_complete === "boolean") {
       updates.onboarding_complete = onboarding_complete;
+    }
+    if (typeof kyc_status === "string" && ["pending", "verified", "rejected"].includes(kyc_status)) {
+      updates.kyc_status = kyc_status;
     }
 
     if (Object.keys(updates).length === 0) {

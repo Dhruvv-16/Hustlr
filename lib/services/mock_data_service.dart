@@ -61,6 +61,26 @@ class PolicyModel {
     required this.riders,
     required this.coverageDescription,
   });
+
+  PolicyModel copyWith({
+    String? plan,
+    int? premium,
+    String? status,
+    String? coverageStart,
+    String? coverageEnd,
+    List<String>? riders,
+    String? coverageDescription,
+  }) {
+    return PolicyModel(
+      plan: plan ?? this.plan,
+      premium: premium ?? this.premium,
+      status: status ?? this.status,
+      coverageStart: coverageStart ?? this.coverageStart,
+      coverageEnd: coverageEnd ?? this.coverageEnd,
+      riders: riders ?? this.riders,
+      coverageDescription: coverageDescription ?? this.coverageDescription,
+    );
+  }
 }
 
 class TimelineStep {
@@ -278,13 +298,18 @@ String _planLabel(String tier) {
 }
 
 class MockDataService extends ChangeNotifier {
+  static final MockDataService instance = MockDataService._internal();
+  
   /// Demo bridge: set by main.dart so disruption triggers also flow through
   /// ClaimsBloc. Receives an immutable [domain.Claim] when a claim is approved.
   void Function(domain.Claim claim)? onClaimApproved;
 
-  MockDataService() {
+  MockDataService._internal() {
     syncWithStorage();
   }
+
+  // Backwards compatibility for Provider
+  factory MockDataService() => instance;
 
   Box? _appDataBoxOrNull() {
     try {
@@ -779,7 +804,7 @@ class MockDataService extends ChangeNotifier {
       icon: _triggerIcon(triggerType),
     ));
     notifyListeners();
-
+    
     // ALWAYS bypass real API for demo controls to ensure optimistic UI consistency.
     final payout = switch (triggerType) {
       'rain_heavy' => 120,    // README: ₹120
@@ -819,8 +844,13 @@ class MockDataService extends ChangeNotifier {
       zone: worker.zone,
       createdAt: DateTime.now(),
     ));
+
     _persistDemoState(); // ← save so it survives refresh
     notifyListeners();
+    
+    // Fire global events so all screens (Dashboard, Wallet) reload INSTANTLY
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.walletUpdated();
   }
 
   void activatePolicy(String tier) {
@@ -828,6 +858,7 @@ class MockDataService extends ChangeNotifier {
     _updateActivePolicyModel(tier);
     notifyListeners();
     _persistDemoState();
+    AppEvents.instance.policyUpdated();
   }
 
   void _updateActivePolicyModel(String tier) {
@@ -955,7 +986,7 @@ class MockDataService extends ChangeNotifier {
 
   // ── Persona Switching ──────────────────────────────────────────────────────
 
-  void switchPersona(String personaId) {
+  Future<void> switchPersona(String personaId) async {
     // 1. Reset current state
     walletBalance = 0;
     monthlySavings = 0;
@@ -981,24 +1012,67 @@ class MockDataService extends ChangeNotifier {
         LocationService.instance.forceMockLocation('Velachery Dark Store Zone', 12.9815, 80.2180, depthScore: 0.88);
         spoofedZone = 'Velachery Dark Store Zone';
         break;
+      case 'muthu':
+        worker = WorkerModel(id: 'DEMO_MUTHU', name: 'Muthu, 28', platform: 'Zepto', city: 'Chennai', zone: 'Tambaram', weeklyIncomeEstimate: 4500, issScore: 62);
+        activePolicy = PolicyModel(plan: 'None', premium: 0, status: 'INACTIVE', coverageStart: '', coverageEnd: '', riders: [], coverageDescription: '');
+        LocationService.instance.forceMockLocation('Tambaram Dark Store Zone', 12.9249, 80.1000, depthScore: 0.75);
+        spoofedZone = 'Tambaram Dark Store Zone';
+        hasActivePolicy = false;
+        break;
+      case 'fraudster':
+        worker = WorkerModel(id: 'DEMO_FRAUD', name: 'Fraud Attempt', platform: 'Zepto', city: 'Chennai', zone: 'Adyar', weeklyIncomeEstimate: 4200, issScore: 45);
+        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain, heat, outage, AQI covered');
+        LocationService.instance.forceMockLocation('Adyar Dark Store Zone', 13.0067, 80.2206, depthScore: 0.10);
+        spoofedZone = 'Adyar Dark Store Zone';
+        FraudSensorService.mockFraudSpoofing = true;
+        break;
+      case 'santhosh':
+        worker = WorkerModel(id: 'DEMO_SANTHOSH', name: 'Santhosh, 26', platform: 'Zepto', city: 'Chennai', zone: 'OMR', weeklyIncomeEstimate: 4800, issScore: 88);
+        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Clean history specialist');
+        LocationService.instance.forceMockLocation('OMR Dark Store Zone', 12.8948, 80.2210, depthScore: 0.95);
+        spoofedZone = 'OMR Dark Store Zone';
+        break;
       case 'priya':
         worker = WorkerModel(id: 'DEMO_PRIYA', name: 'Priya Mani', platform: 'Zepto', city: 'Chennai', zone: 'T.Nagar', weeklyIncomeEstimate: 3800, issScore: 65);
         activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain and Heat only');
         LocationService.instance.forceMockLocation('T Nagar Dark Store Zone', 13.0418, 80.2341, depthScore: 0.65);
         spoofedZone = 'T Nagar Dark Store Zone';
         break;
-      default:
-        break;
+    }
+    
+    // 3. Synchronize global StorageService so all other screens (Dashboard, Wallet) 
+    // recognize the new persona ID as the primary user.
+    if (worker.id.isNotEmpty) {
+      await StorageService.setUserId(worker.id);
+      await StorageService.setLoggedIn(true);
+      await StorageService.setUserZone(worker.zone);
+      
+      final box = _appDataBoxOrNull();
+      await box?.put('isDemoSession', true);
     }
 
-    _persistDemoState();
+    await _persistDemoState();
     notifyListeners();
     
     // Fire events to notify other parts of the app that data has changed
+    AppEvents.instance.profileUpdated();
     AppEvents.instance.policyUpdated();
     AppEvents.instance.walletUpdated();
     AppEvents.instance.claimUpdated();
+  }
+
+  void updateIssAndPricing(int newIss, double newPremium) {
+    worker = worker.copyWith(issScore: newIss);
+    activePolicy = activePolicy.copyWith(premium: newPremium.round());
+    
+    // Add to history for chart
+    issHistory.add(newIss.toDouble());
+    if (issHistory.length > 10) issHistory.removeAt(0);
+
+    notifyListeners();
+    _persistDemoState();
     AppEvents.instance.profileUpdated();
+    AppEvents.instance.policyUpdated();
   }
 
   void updateMlToggles({bool? iss, bool? fraud}) {

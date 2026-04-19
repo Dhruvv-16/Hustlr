@@ -111,6 +111,7 @@ export default function UserManagement() {
                 <th className="pb-3 font-medium">Clean Weeks</th>
                 <th className="pb-3 font-medium">Cashback</th>
                 <th className="pb-3 font-medium">KYC</th>
+                <th className="pb-3 font-medium">Policy</th>
                 <th className="pb-3 font-medium">Actions</th>
               </tr>
             </thead>
@@ -145,6 +146,18 @@ export default function UserManagement() {
                     >
                       {user.kycStatus}
                     </span>
+                  </td>
+                  <td className="py-3">
+                    {user.activePolicy ? (
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-2 py-0.5 text-[10px] font-black rounded bg-green-500/10 text-green-500 border border-green-500/30 text-center uppercase`}>
+                          {user.policyTier}
+                        </span>
+                        <span className="text-[10px] text-gray-500 text-center">₹{user.weeklyPremium}/wk</span>
+                      </div>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium text-gray-600 italic">None</span>
+                    )}
                   </td>
                   <td className="py-3">
                     <button

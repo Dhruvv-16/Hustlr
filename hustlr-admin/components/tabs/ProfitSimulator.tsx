@@ -113,7 +113,7 @@ export default function ProfitSimulator() {
     const activePolicies = Number(poolSummary?.activePolicies ?? 0);
     if (totalPremium <= 0) return;
 
-    setWorkers(activePolicies > 0 ? activePolicies : 10000);
+    setWorkers(activePolicies);
     setLossRatio(Math.max(0.25, Math.min(0.95, totalPayout / totalPremium)));
 
     const flagged = Number(analytics?.summary?.flaggedClaims ?? 0);

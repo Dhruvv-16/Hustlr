@@ -35,23 +35,23 @@ export const BCR_CEILING = 85; // percent
 export const REINSURANCE_MULTIPLE = 4; // × weekly pool
 
 export const ZONES = [
-  { name: 'Adyar',      workers: 1820, risk: 'HIGH'   as const, disruption: false, bcr: 72, claims_today: 34 },
-  { name: 'Velachery',  workers: 1640, risk: 'MEDIUM' as const, disruption: true,  bcr: 61, claims_today: 58 },
-  { name: 'Tambaram',   workers: 1200, risk: 'LOW'    as const, disruption: false, bcr: 41, claims_today: 12 },
-  { name: 'Anna Nagar', workers: 1550, risk: 'MEDIUM' as const, disruption: false, bcr: 55, claims_today: 19 },
-  { name: 'T Nagar',    workers: 1730, risk: 'HIGH'   as const, disruption: true,  bcr: 78, claims_today: 62 },
-  { name: 'Perungudi',  workers: 2060, risk: 'LOW'    as const, disruption: false, bcr: 38, claims_today: 8  },
+  { name: 'Adyar',      workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
+  { name: 'Velachery',  workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
+  { name: 'Tambaram',   workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
+  { name: 'Anna Nagar', workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
+  { name: 'T Nagar',    workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
+  { name: 'Perungudi',  workers: 0, risk: 'LOW' as const, disruption: false, bcr: 0, claims_today: 0 },
 ];
 
 export const WEEKLY_HISTORY = [
-  { week: 'Wk 1', premiums: 480000, claims: 210000 },
-  { week: 'Wk 2', premiums: 492000, claims: 280000 },
-  { week: 'Wk 3', premiums: 475000, claims: 195000 },
-  { week: 'Wk 4', premiums: 510000, claims: 320000 },
-  { week: 'Wk 5', premiums: 498000, claims: 258000 },
-  { week: 'Wk 6', premiums: 505000, claims: 302000 },
-  { week: 'Wk 7', premiums: 490000, claims: 241000 },
-  { week: 'Wk 8', premiums: 515000, claims: 287000 },
+  { week: 'Wk 1', premiums: 0, claims: 0 },
+  { week: 'Wk 2', premiums: 0, claims: 0 },
+  { week: 'Wk 3', premiums: 0, claims: 0 },
+  { week: 'Wk 4', premiums: 0, claims: 0 },
+  { week: 'Wk 5', premiums: 0, claims: 0 },
+  { week: 'Wk 6', premiums: 0, claims: 0 },
+  { week: 'Wk 7', premiums: 0, claims: 0 },
+  { week: 'Wk 8', premiums: 0, claims: 0 },
 ];
 
 export const FRAUD_QUEUE = [

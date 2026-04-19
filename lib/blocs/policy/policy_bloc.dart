@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../services/api_service.dart';
+import '../../services/mock_data_service.dart';
 import '../../models/policy.dart';
 import '../../models/claim.dart';
 import 'policy_event.dart';
@@ -18,36 +19,67 @@ class PolicyBloc extends Bloc<PolicyEvent, PolicyState> {
   Future<void> _onLoadPolicy(
       LoadPolicy event, Emitter<PolicyState> emit) async {
     emit(state.copyWith(status: LoadStatus.loading));
+    
+    // ── DEMO OVERRIDE: Prioritize MockDataService ONLY for demo users ──
+    if (event.userId.startsWith('DEMO_')) {
+      final mockPolicy = MockDataService.instance.activePolicy;
+      if (mockPolicy.status == 'ACTIVE') {
+        final policy = Policy(
+          id: 'mock-${mockPolicy.plan.toLowerCase()}',
+          userId: event.userId,
+          tier: mockPolicy.plan.toLowerCase().contains('full') ? PlanTier.full : (mockPolicy.plan.toLowerCase().contains('basic') ? PlanTier.basic : PlanTier.standard),
+          status: PolicyStatus.active,
+          basePremium: mockPolicy.premium,
+          weeklyPremium: mockPolicy.premium,
+          startDate: DateTime.tryParse(mockPolicy.coverageStart) ?? DateTime.now(),
+          endDate: DateTime.tryParse(mockPolicy.coverageEnd) ?? DateTime.now().add(const Duration(days: 91)),
+        );
+        emit(state.copyWith(activePolicy: policy, selectedTier: policy.tier, coverageActive: true, status: LoadStatus.success));
+        return;
+      }
+    }
+
     try {
       final data = await apiService.getPolicy(event.userId);
       final policyData = data['policy'] as Map<String, dynamic>?;
 
-      if (policyData == null) {
-        // Worker has no policy yet — not an error.
+      // If API confirms a policy exists, USE IT (it will fallback to StorageService internally if offline)
+      if (policyData != null) {
+        final policy = Policy.fromJson(policyData);
+        final now = DateTime.now();
+        final coverageActive = policy.isActive &&
+            policy.startDate != null &&
+            now.isAfter(policy.startDate!) &&
+            (policy.endDate == null || now.isBefore(policy.endDate!));
+
         emit(state.copyWith(
-          activePolicy: null,
-          coverageActive: false,
+          activePolicy: policy,
+          selectedTier: policy.tier,
+          coverageActive: coverageActive,
           status: LoadStatus.success,
-          errorMessage: null,
         ));
         return;
       }
 
-      final policy = Policy.fromJson(policyData);
-      final now = DateTime.now();
-      final coverageActive = policy.isActive &&
-          policy.startDate != null &&
-          now.isAfter(policy.startDate!) &&
-          (policy.endDate == null || now.isBefore(policy.endDate!));
+      // ── SECONDARY SOURCE: Use MockDataService if API says no policy but we are in a demo session ──
+      if (MockDataService.instance.hasActivePolicy) {
+        final mockPolicy = MockDataService.instance.activePolicy;
+        final policy = Policy(
+          id: 'mock-${mockPolicy.plan.toLowerCase()}',
+          userId: event.userId,
+          tier: mockPolicy.plan.toLowerCase().contains('full') ? PlanTier.full : (mockPolicy.plan.toLowerCase().contains('basic') ? PlanTier.basic : PlanTier.standard),
+          status: PolicyStatus.active,
+          basePremium: mockPolicy.premium,
+          weeklyPremium: mockPolicy.premium,
+          startDate: DateTime.tryParse(mockPolicy.coverageStart) ?? DateTime.now(),
+          endDate: DateTime.tryParse(mockPolicy.coverageEnd) ?? DateTime.now().add(const Duration(days: 91)),
+        );
+        emit(state.copyWith(activePolicy: policy, selectedTier: policy.tier, coverageActive: true, status: LoadStatus.success));
+        return;
+      }
 
-      emit(state.copyWith(
-        activePolicy: policy,
-        selectedTier: policy.tier,
-        coverageActive: coverageActive,
-        coverageStartTime: policy.startDate,
-        status: LoadStatus.success,
-        errorMessage: null,
-      ));
+      // No policy anywhere
+      emit(state.copyWith(activePolicy: null, coverageActive: false, status: LoadStatus.success));
     } on Exception catch (e) {
       emit(state.copyWith(
         status: LoadStatus.failure,

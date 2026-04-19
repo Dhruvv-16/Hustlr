@@ -73,15 +73,15 @@ export default function ZoneHeatmap() {
         const liveZones: ZoneView[] = ZONES.map((z) => {
           const pool = byName.get(z.name) || byName.get('Chennai');
           const disruption = disruptionByName.get(z.name);
-          const bcr = Number(pool?.loss_ratio ?? pool?.bcr ?? z.bcr);
+          const bcr = Number(pool?.loss_ratio ?? pool?.bcr ?? 0);
           return {
             ...z,
             bcr,
             risk: toRiskBand(bcr),
-            disruption: disruption?.active ?? z.disruption,
-            trigger: disruption?.trigger ?? (z.disruption ? 'Disruption' : 'None'),
-            claims_today: Number(pool?.claims_count ?? z.claims_today),
-            workers: Number(pool?.active_policies ?? z.workers),
+            disruption: disruption?.active ?? false,
+            trigger: disruption?.trigger ?? 'None',
+            claims_today: Number(pool?.claims_count ?? 0),
+            workers: Number(pool?.active_policies ?? 0),
           };
         });
 

@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, // Left aligned asymmetric
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
 
               Text(
                 'Hustlr',
@@ -95,13 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 l10n.login_subtitle,
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodySmall?.color),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
 
               // ── Static Graphic ───────────────────────────────
               Center(
                 child: Container(
                   width: double.infinity,
-                  height: 140,
+                  height: 100,
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(24),
@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
 
               // ── Input Section ──────────────────────────────────
               Text(
@@ -157,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
 
               // ── CTA Bottom Right (Flex) ────────────────────────
               Row(

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../services/mock_data_service.dart';
 import '../services/location_service.dart';
 import '../services/fraud_sensor_service.dart';
+import '../services/app_events.dart';
 import '../core/router/app_router.dart';
 
 class DemoControlsSheet extends StatefulWidget {
@@ -161,6 +162,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
   ];
+
 
   @override
   Widget build(BuildContext context) {
@@ -526,7 +528,17 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   buttonColor: Colors.teal,
                   onTap: () async {
                     try {
-                      await ApiService.instance.getIssScore();
+                      final mock = context.read<MockDataService>();
+                      final issRes = await ApiService.instance.getIssScore();
+                      final score = (issRes['iss_score'] as num?)?.toInt() ?? 65;
+                      
+                      final premiumRes = await ApiService.instance.getDynamicPremium(
+                        mock.activePolicy.plan, 
+                        score
+                      );
+                      final premium = (premiumRes['premium'] as num?)?.toDouble() ?? 49.0;
+
+                      mock.updateIssAndPricing(score, premium);
                       _showSuccess("ISS & premium pricing recalculated.");
                     } catch (_) {
                       _showSuccess("ISS recalculation queued (backend offline).");
@@ -717,6 +729,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     });
 
     final persona = PERSONAS[index];
+    
+    // Switch the active persona globally first
+    await MockDataService.instance.switchPersona(persona['id'] as String);
 
     switch (persona['id'] as String) {
       case 'karthik':  await _runKarthik();  break;
@@ -732,8 +747,11 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   // Karthik — standard rain claim, full parametric loop
   Future<void> _runKarthik() async {
-    final userId = await StorageService.instance.getUserId();
-    if (userId == null) return;
+    final userId = StorageService.userId;
+    if (userId.isEmpty) {
+      _showError('Please log in first to run this persona.');
+      return;
+    }
 
     try {
       // 1. Show rain alert on dashboard
@@ -766,8 +784,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   // Ravi — compound trigger
   Future<void> _runRavi() async {
-    final userId = await StorageService.instance.getUserId();
-    if (userId == null) return;
+    final userId = StorageService.userId;
+    if (userId.isEmpty) return;
 
     try {
       _showStep('Platform outage detected (78% failure rate)...');
@@ -810,8 +828,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   // Fraudster — fraud engine demo
   Future<void> _runFraudster() async {
-    final userId = await StorageService.instance.getUserId();
-    if (userId == null) return;
+    final userId = StorageService.userId;
+    if (userId.isEmpty) return;
 
     _showStep('Submitting claim with gps_jitter = 0.0 (spoofed GPS)...');
     await Future.delayed(const Duration(seconds: 1));
@@ -858,8 +876,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   // Priya — internet blackout
   Future<void> _runPriya() async {
-    final userId = await StorageService.instance.getUserId();
-    if (userId == null) return;
+    final userId = StorageService.userId;
+    if (userId.isEmpty) return;
 
     _showStep('Ookla: T.Nagar avg speed 0.3 Mbps...');
     await Future.delayed(const Duration(milliseconds: 800));

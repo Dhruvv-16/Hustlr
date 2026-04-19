@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/mock_data_service.dart';
-import '../../core/services/api_service.dart';
-import '../../core/services/storage_service.dart';
+import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 import '../../services/notification_service.dart';
 import '../../core/router/app_router.dart';
 import '../../shared/widgets/primary_button.dart';
@@ -197,7 +197,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       if (!mounted) return;
 
-      Provider.of<MockDataService>(context, listen: false).syncWithStorage();
+      final mockSvc = context.read<MockDataService>();
+      mockSvc.clearAllMockData();
+      mockSvc.syncWithStorage();
       
       // First-time identity enrollment: require biometric + face verification.
       final reason = Uri.encodeComponent(

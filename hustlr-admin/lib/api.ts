@@ -72,21 +72,25 @@ export async function fetchPoolSummary(): Promise<{
   reserve: number;
   circuitBreakerTripped: boolean;
 }> {
-  // This endpoint gives us real-time API status signals
-  // We compute pool metrics from the known business data
-  // (full admin DB aggregation would require an admin token)
-  const health = await fetchApiHealth();
-  const apisOk = Object.values(health.api_health ?? {}).filter((v) => v.ok).length;
-  const totalApis = Object.keys(health.api_health ?? {}).length;
-
-  // Known static business values — replace with admin endpoint when available
-  const weeklyPool = 490000;
-  const activePolicies = 8420;
-  const reserve = weeklyPool * 2;
-  const bcr = 58.3; // from risk_pools query (would need admin auth)
-  const circuitBreakerTripped = false;
-
-  return { weeklyPool, bcr, activePolicies, reserve, circuitBreakerTripped };
+  try {
+    const data = await apiFetch<any>('/api/admin/pool-summary');
+    return {
+      weeklyPool: Number(data.weeklyPool ?? 0),
+      bcr: Number(data.bcr ?? 0),
+      activePolicies: Number(data.activePolicies ?? 0),
+      reserve: Number(data.reserve ?? 0),
+      circuitBreakerTripped: Boolean(data.circuitBreakerTripped ?? false),
+    };
+  } catch (err) {
+    console.error('Failed to fetch pool summary:', err);
+    return {
+      weeklyPool: 0,
+      bcr: 0,
+      activePolicies: 0,
+      reserve: 0,
+      circuitBreakerTripped: false,
+    };
+  }
 }
 
 /** GET /disruptions/:zone — live disruption status per zone */

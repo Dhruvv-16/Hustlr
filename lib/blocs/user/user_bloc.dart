@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/mock_data_service.dart';
 import '../../models/worker_profile.dart';
 import 'user_event.dart';
 import 'user_state.dart';
@@ -21,6 +22,29 @@ class UserBloc extends Bloc<UserEvent, UserState> {
     emit(state.copyWith(status: LoadStatus.loading));
 
     try {
+      // ── SINGLE POINT OF TRUTH: Check MockDataService for demo users ──
+      if (event.userId.startsWith('DEMO_')) {
+        final mock = MockDataService.instance;
+        final profile = WorkerProfile(
+          id: mock.worker.id,
+          name: mock.worker.name,
+          phone: StorageService.phone,
+          platform: mock.worker.platform,
+          city: mock.worker.city,
+          zone: mock.worker.zone,
+          weeklyIncomeEstimate: mock.worker.weeklyIncomeEstimate.toDouble(),
+        );
+
+        emit(state.copyWith(
+          user: profile,
+          issScore: mock.worker.issScore.toDouble(),
+          onboardingComplete: true,
+          status: LoadStatus.success,
+          errorMessage: null,
+        ));
+        return;
+      }
+
       final data = await apiService.getWorkerById(event.userId);
       final profile = WorkerProfile.fromJson(data);
 

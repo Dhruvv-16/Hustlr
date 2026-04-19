@@ -11,6 +11,8 @@ import '../../services/storage_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../shared/widgets/offline_banner.dart';
 import '../../shared/widgets/animated_skeleton.dart';
+import 'package:provider/provider.dart';
+import '../../services/mock_data_service.dart';
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 class _Plan {
@@ -309,9 +311,26 @@ class _PolicyScreenState extends State<PolicyScreen>
             final rawHistory = data['history'];
             final wasInactive = activePolicy == null;
 
-            setState(() {
-              activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            // OPTIMISTIC FALLBACK: If API has no policy but MockDataService has an active demo policy, use it!
+            final mock = context.read<MockDataService>();
+            var policyToUse = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
+            
+            if (policyToUse == null && mock.hasActivePolicy) {
+              final tier = mock.activePolicy.plan.split(' ')[0].toLowerCase();
+              policyToUse = {
+                'id': 'MOCK-${uid.hashCode}',
+                'plan_tier': tier,
+                'plan_name': mock.activePolicy.plan,
+                'status': 'active',
+                'weekly_premium': mock.activePolicy.premium,
+                'coverage_start': mock.activePolicy.coverageStart,
+                'commitment_end': mock.activePolicy.coverageEnd,
+                'riders': mock.activePolicy.riders.map((r) => {'name': r}).toList(),
+              };
+            }
 
+            setState(() {
+              activePolicy = policyToUse;
               policyHistory = rawHistory is List
                   ? rawHistory
                       .whereType<Map>()

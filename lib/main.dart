@@ -21,6 +21,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/claims/claims_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
 import 'services/api_service.dart';
+import 'services/shift_tracking_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,10 @@ Future<void> _initializeAppServices() async {
   }
 
   await StorageService.init();
+
+  // Ensure we restore active shift status if the app was backgrounded or killed
+  // This prevents the "Go Online" prompt from reappearing incorrectly.
+  await ShiftTrackingService.instance.restoreActiveShiftOnLaunch();
 }
 
 class ShieldGigApp extends StatelessWidget {

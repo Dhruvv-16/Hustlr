@@ -62,7 +62,7 @@ class _WalletScreenState extends State<WalletScreen> {
     
     try {
       // Prioritize MockDataService for hackathon demo consistency
-      final mock = Provider.of<MockDataService>(context, listen: false);
+      final mock = context.read<MockDataService>();
       if (mock.worker.id.startsWith('DEMO_')) {
         if (!mounted) return;
         setState(() {
@@ -85,14 +85,21 @@ class _WalletScreenState extends State<WalletScreen> {
         // Only use real API data - never mix with demo unless explicitly in demo mode
         final box = Hive.box('appData');
         final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
+        final mockSvc = context.read<MockDataService>();
         
-        if (isDemoMode) {
-          // In demo mode: use data from MockDataService which receives socket updates
-          final mockSvc   = context.read<MockDataService>();
+        if (isDemoMode || mockSvc.worker.id.startsWith('DEMO_')) {
+          // In demo mode: prioritize data from MockDataService which handles the disruption simulation
           _balance        = mockSvc.walletBalance;
-          _totalPayouts   = mockSvc.monthlySavings; // Note: using monthlySavings as totalPayouts for mock consistency
+          _totalPayouts   = mockSvc.monthlySavings; 
           _totalPremiums  = mockSvc.totalPremiums;
           _transactions   = List<Map<String, dynamic>>.from(mockSvc.transactions);
+          
+          // If mock is empty but API has data, only then use API as secondary source
+          if (_balance == 0 && (res['balance'] ?? 0) > 0) {
+             _balance      = res['balance'] ?? 0;
+             _totalPayouts  = res['total_payouts'] ?? 0;
+             _transactions  = List<Map<String, dynamic>>.from(res['transactions'] ?? []);
+          }
         } else {
           // Real mode: use API data only
           _balance        = res['balance'] ?? 0;
@@ -466,49 +473,71 @@ class _SavingsInsightCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
+    
     final netSavings = totalPayouts - totalPremiums;
-    final formattedSavings = '${netSavings < 0 ? '-' : ''}${netSavings.abs().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    final formattedSavings = '₹${netSavings.abs().toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},")}';
 
     return Container(
-      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: green, width: 3)),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06), blurRadius: 10, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(color: lightGreen, shape: BoxShape.circle),
-            child: Icon(Icons.savings_rounded, color: green, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.wallet_smart_savings.toUpperCase(),
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: grey, letterSpacing: 1.0),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${l10n.wallet_you_saved} ₹$formattedSavings',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primary),
-                ),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -20, top: -20,
+              child: Icon(Icons.savings_rounded, size: 100, color: green.withValues(alpha: 0.05)),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.auto_graph_rounded, color: green, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.wallet_smart_savings.toUpperCase(),
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: grey, letterSpacing: 1.2),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              '${l10n.wallet_you_saved} ',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: primary.withValues(alpha: 0.7)),
+                            ),
+                            Text(
+                              formattedSavings,
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: green),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -821,25 +850,25 @@ class _InsuranceTransactionsSection extends StatelessWidget {
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
     final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
-    final divider = isDark ? const Color(0xFF2a2d2a) : const Color(0xFFE0E0E0);
-    final blue = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1976D2);
-    final lightBlue = isDark ? const Color(0xFF003D2A) : const Color(0xFFE3F2FD);
+    final divider = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF3F4F6);
+    final lightBlue = isDark ? const Color(0xFF003D2A) : const Color(0xFFF0FDF4);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(Icons.history_rounded, size: 20, color: green),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
+            Row(children: [
+              Icon(Icons.history_rounded, size: 18, color: green),
+              const SizedBox(width: 8),
+              Text(
                 l10n.wallet_recent_transactions,
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primary),
               ),
-            ),
-            GestureDetector(
-              onTap: () => context.push(AppRoutes.analytics),
+            ]),
+            TextButton(
+              onPressed: () => context.push(AppRoutes.analytics),
               child: Text(
                 l10n.wallet_see_all,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: green),
@@ -847,27 +876,39 @@ class _InsuranceTransactionsSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         if (transactions.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: cardWhite, borderRadius: BorderRadius.circular(16)),
-            child: Center(
-              child: Text('No transactions yet', style: TextStyle(color: grey, fontSize: 14)),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: cardWhite,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: divider),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.receipt_long_rounded, color: grey.withValues(alpha: 0.3), size: 48),
+                const SizedBox(height: 12),
+                Text('No transactions yet', style: TextStyle(color: grey, fontSize: 14)),
+              ],
             ),
           )
         else
           Container(
-            decoration: BoxDecoration(color: cardWhite, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              color: cardWhite,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: divider),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 2)),
+              ],
+            ),
             child: ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: transactions.length,
-              separatorBuilder: (_, __) => Padding(
-                padding: const EdgeInsets.only(left: 64),
-                child: Divider(color: divider, height: 1),
-              ),
+              separatorBuilder: (_, __) => Divider(color: divider, height: 1, indent: 70, endIndent: 20),
               itemBuilder: (context, index) {
                 final tx = transactions[index];
                 final rawAmount = (tx['amount'] as num?)?.toInt() ?? 0;
@@ -877,9 +918,9 @@ class _InsuranceTransactionsSection extends StatelessWidget {
                 final subtitle = _buildTxSubtitle(tx);
                 
                 return _buildTransactionRow(
-                  icon: isCredit ? Icons.card_giftcard_rounded : Icons.shield_rounded,
-                  iconColor: isCredit ? blue : red,
-                  iconBg: isCredit ? lightBlue : const Color(0xFFFFEBEE),
+                  icon: isCredit ? Icons.add_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                  iconColor: isCredit ? green : red,
+                  iconBg: isCredit ? lightBlue : red.withValues(alpha: 0.05),
                   title: title,
                   subtitle: subtitle,
                   amount: isCredit ? '+₹${rawAmount.abs()}' : '−₹${rawAmount.abs()}',
@@ -906,13 +947,13 @@ class _InsuranceTransactionsSection extends StatelessWidget {
     required Color grey,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: iconColor, size: 20),
+            width: 44, height: 44,
+            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -920,12 +961,12 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primary)),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(subtitle, style: TextStyle(fontSize: 12, color: grey)),
               ],
             ),
           ),
-          Text(amount, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: amountColor)),
+          Text(amount, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: amountColor)),
         ],
       ),
     );
@@ -1088,7 +1129,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                         ],
                       ),
                     ]),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // ── Amount chips ─────────────────────────────────────
                     Text('SELECT AMOUNT',
@@ -1105,7 +1146,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                       const SizedBox(width: 8),
                       chip('Full  ₹$balance', balance),
                     ]),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
 
                     // ── Method toggle ────────────────────────────────────
                     Text('TRANSFER TO',
@@ -1291,7 +1332,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                         ]),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
 
                     // ── CTA ──────────────────────────────────────────────
                     SizedBox(
@@ -1360,228 +1401,6 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
 }
 
 
-  if (balance <= 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No balance available to withdraw')),
-    );
-    return;
-  }
-
-  final savedUpi = StorageService.upiId;
-  final hasLinkedUpi = savedUpi.trim().isNotEmpty && savedUpi != 'add-upi-id@ybl';
-  final displayUpi = savedUpi == 'add-upi-id@ybl' ? 'Not set (update in Profile)' : savedUpi;
-  final isDark     = Theme.of(context).brightness == Brightness.dark;
-  final sheetBg    = isDark ? const Color(0xFF1C1F1C) : Colors.white;
-  final inputBg    = isDark ? const Color(0xFF0A0B0A) : const Color(0xFFF4F6F4);
-  final green      = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-  final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
-  final primary    = isDark ? Colors.white : const Color(0xFF0D1B0F);
-  final grey       = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
-  final divider    = isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFE5E7EB);
-  final btnTxt     = isDark ? const Color(0xFF0A0B0A) : Colors.white;
-  final formattedBalance = balance.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-
-  final parentContext = context;
-  bool bankDirect = false;
-
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: sheetBg,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    useSafeArea: true,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (sheetCtx) {
-      return StatefulBuilder(builder: (ctx, setSheetState) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
-            left: 24, right: 24, top: 32,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(AppLocalizations.of(sheetCtx)!.wallet_withdraw,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
-              const SizedBox(height: 8),
-              Text('Transfer ₹$formattedBalance to:',
-                  style: TextStyle(fontSize: 14, color: grey)),
-              const SizedBox(height: 16),
-
-              // ── Payout destination toggle ──────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setSheetState(() => bankDirect = false),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: !bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
-                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                          border: Border.all(color: green.withValues(alpha: 0.5)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.account_balance_wallet_rounded,
-                                size: 16, color: !bankDirect ? btnTxt : grey),
-                            const SizedBox(width: 6),
-                            Text('Wallet / UPI',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13,
-                                  color: !bankDirect ? btnTxt : grey,
-                                )),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setSheetState(() => bankDirect = true),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
-                          borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                          border: Border.all(color: green.withValues(alpha: 0.5)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.account_balance_rounded,
-                                size: 16, color: bankDirect ? btnTxt : grey),
-                            const SizedBox(width: 6),
-                            Text('Bank Direct',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13,
-                                  color: bankDirect ? btnTxt : grey,
-                                )),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // Show linked destination only; editable from Profile screen
-              if (!bankDirect) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: inputBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: divider),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Linked UPI ID', style: TextStyle(fontSize: 12, color: grey)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.account_balance_wallet_rounded, color: green, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              displayUpi,
-                              style: TextStyle(
-                                color: primary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'To change UPI, go to Profile > Payout settings.',
-                        style: TextStyle(fontSize: 12, color: grey),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: lightGreen, borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: green.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(children: [
-                    Icon(Icons.account_balance_rounded, color: green, size: 20),
-                    const SizedBox(width: 12),
-                    Text('Transfers directly to your bank account\nlinked with your registered phone number.',
-                        style: TextStyle(fontSize: 12, color: green, height: 1.5)),
-                  ]),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  color: lightGreen, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: green.withValues(alpha: 0.3)),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('₹$formattedBalance',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: green)),
-                  const SizedBox(height: 2),
-                  Text('Full available balance', style: TextStyle(fontSize: 12, color: green)),
-                ]),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity, height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (!bankDirect && !hasLinkedUpi) {
-                      ScaffoldMessenger.of(parentContext).showSnackBar(
-                        const SnackBar(content: Text('Please set your UPI ID in Profile first.')),
-                      );
-                      return;
-                    }
-                    final upi = bankDirect ? '' : displayUpi;
-                    Navigator.pop(sheetCtx);
-                    _processWithdrawal(parentContext, balance, upi, bankDirect: bankDirect);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green, foregroundColor: btnTxt,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                  ),
-                  child: Text(bankDirect ? 'Transfer to Bank →' : 'Initiate Transfer →',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel',
-                      style: TextStyle(color: grey, fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        );
-      });
-    },
-  );
-}
 
 
 void _processWithdrawal(BuildContext context, int amount, String upiId, {bool bankDirect = false}) async {
@@ -1770,101 +1589,93 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
   }
 }
 
-// ─── Cashback Status Card ─────────────────────────────────────────────────────
+// ─── Cashback Status ─────────────────────────────────────────────────────────
 class _CashbackStatusCard extends StatelessWidget {
   final Map<String, dynamic> status;
-
   const _CashbackStatusCard({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
-    final isDone = status['status'] == 'earned';
     final cardWhite = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
-    final grey = isDark ? const Color(0xFF91938D) : const Color(0xFF607D8B);
+    final grey = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
 
-    if (isDone) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: green.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.workspace_premium_rounded, color: green),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Quarterly Cashback deposited ✔',
-                style: TextStyle(color: green, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final weeks = (status['current_clean_weeks'] as num?)?.toInt() ?? 0;
-    final cashback = (status['potential_cashback'] as num?)?.toDouble() ?? 0.0;
-    final remaining = 13 - weeks;
+    final int weeks = (status['current_clean_weeks'] as num?)?.toInt() ?? 0;
+    final int remaining = 13 - weeks;
+    final double cashback = (status['potential_cashback'] as num?)?.toDouble() ?? 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: cardWhite,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: green.withValues(alpha: 0.1)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04), blurRadius: 10, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.electric_bolt_rounded, size: 20, color: green),
-              const SizedBox(width: 8),
-              Text(
-                'Quarterly Claim-Free Bonus',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primary),
+              Row(
+                children: [
+                  Icon(Icons.stars_rounded, size: 20, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Claim-Free Bonus',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primary),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('₹${cashback.toInt()}',
+                    style: TextStyle(color: green, fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             children: List.generate(13, (index) {
               Color blockColor;
               if (index < weeks) {
                 blockColor = green; 
               } else if (index == weeks) {
-                blockColor = Colors.blue;
+                blockColor = green.withValues(alpha: 0.3);
               } else {
-                blockColor = isDark ? const Color(0xFF2E332E) : const Color(0xFFECEFF1);
+                blockColor = isDark ? const Color(0xFF2E332E) : const Color(0xFFF3F4F6);
               }
               return Expanded(
                 child: Container(
-                  height: 6,
+                  height: 8,
                   margin: EdgeInsets.only(right: index < 12 ? 4 : 0),
                   decoration: BoxDecoration(
                     color: blockColor,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               );
             }),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Keep up the 0 claims streak for $remaining more weeks to earn ₹${cashback.toStringAsFixed(0)} cashback!',
-            style: TextStyle(fontSize: 13, height: 1.4, color: grey),
+          RichText(
+            text: TextSpan(
+              style: TextStyle(fontSize: 13, height: 1.4, color: grey, fontFamily: 'Outfit'),
+              children: [
+                const TextSpan(text: 'Maintain your streak for '),
+                TextSpan(text: '$remaining more weeks', style: TextStyle(color: primary, fontWeight: FontWeight.bold)),
+                const TextSpan(text: ' to unlock your bonus!'),
+              ],
+            ),
           ),
         ],
       ),

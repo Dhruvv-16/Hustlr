@@ -23,14 +23,14 @@ const rowBorder = { borderColor: 'rgba(255,255,255,0.07)' };
 export default function Financials() {
   const { analytics, poolSummary } = useAdminData();
 
-  const premiums = Number(analytics?.summary?.totalPremium ?? 24000000);
-  const grossClaims = Number(analytics?.summary?.totalPayout ?? 12000000);
+  const premiums = Number(analytics?.summary?.totalPremium ?? 0) * 52;
+  const grossClaims = Number(analytics?.summary?.totalPayout ?? 0) * 52;
   const fraudSavings = Math.round(grossClaims * 0.12);
   const capSavings = Math.round(grossClaims * 0.04);
   const netClaims = -(grossClaims - fraudSavings - capSavings);
   const operatingCosts = Math.round(premiums * 0.25);
   const reserveFund = Number(
-    poolSummary?.reserve ?? Math.round((poolSummary?.weeklyPool ?? 490000) * 2),
+    poolSummary?.reserve ?? Math.round((poolSummary?.weeklyPool ?? 0) * 2),
   );
   const reinsurancePremium = Math.round(premiums * 0.03);
   const platformFee = Math.round(premiums * 0.03);
@@ -47,13 +47,13 @@ export default function Financials() {
   const netMargin = premiums > 0 ? ((netProfit / premiums) * 100).toFixed(1) : '0.0';
 
   const pnl = [
-    { label: 'Premium Pool',             value: premiums,            color: '#3FFF8B',   bold: false },
+    { label: 'Premium Pool (Annualized)', value: premiums,            color: '#3FFF8B',   bold: false },
     { label: 'Gross Claims Paid',        value: -grossClaims,        color: '#E24B4A',   bold: false },
     { label: '+ Fraud Detection Savings', value: fraudSavings,        color: '#3FFF8B88', bold: false },
     { label: '+ Cap Savings',            value: capSavings,           color: '#3FFF8B66', bold: false },
     { label: `Net Claims (${claimsRatio}%)`, value: netClaims,       color: '#E24B4A88', bold: false },
     { label: 'Operating Costs',          value: -operatingCosts,      color: '#FF980088', bold: false },
-    { label: 'Reserve Fund',             value: -reserveFund,         color: '#2196F388', bold: false },
+    { label: 'Reserve Fund (Static)',    value: -reserveFund,         color: '#2196F388', bold: false },
     { label: 'Reinsurance Premium',      value: -reinsurancePremium,  color: '#9C27B088', bold: false },
     { label: 'Guidewire Platform Fee',   value: -platformFee,         color: '#FF572288', bold: false },
     { label: 'Insurer Margin',           value: insurerMargin,        color: '#3FFF8B',   bold: false },
@@ -66,7 +66,7 @@ export default function Financials() {
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b" style={rowBorder}>
           <p className="text-xs font-bold tracking-widest uppercase" style={{ color: '#91938D' }}>
-            ANNUAL P&L SUMMARY — 10,000 WORKERS
+            ANNUAL P&L SUMMARY — {(poolSummary?.activePolicies ?? 0).toLocaleString('en-IN')} WORKERS
           </p>
         </div>
         <div>

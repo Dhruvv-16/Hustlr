@@ -729,6 +729,48 @@ router.get("/analytics", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+// GET /pool-summary - Total aggregate across all pools
+router.get(
+  "/pool-summary",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const { data: policies } = await supabase
+        .from("policies")
+        .select("id, weekly_premium, status");
+
+      const { data: claims } = await supabase
+        .from("claims")
+        .select("id, gross_payout, status");
+
+      const activePoliciesCount =
+        policies?.filter((p) => p.status === "active" || p.status === "renewed")
+          .length || 0;
+      const totalPremium =
+        policies?.reduce((acc, p) => acc + (p.weekly_premium || 0), 0) || 0;
+      const totalPayout =
+        claims?.reduce((acc, c) => acc + (c.gross_payout || 0), 0) || 0;
+
+      const weeklyPool = totalPremium;
+      const bcr = totalPremium > 0 ? (totalPayout / totalPremium) * 100 : 0;
+      const reserve = weeklyPool * 2.5;
+      const circuitBreakerTripped = bcr >= 85;
+
+      res.json({
+        weeklyPool,
+        bcr,
+        activePolicies: activePoliciesCount,
+        reserve,
+        circuitBreakerTripped,
+      });
+    } catch (error) {
+      console.error("Error fetching pool summary:", error);
+      res.status(500).json({ error: "Failed to fetch pool summary" });
+    }
+  },
+);
+
 // Policies Endpoint
 router.get("/policies", authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -760,14 +802,22 @@ router.get("/policies", authMiddleware, adminMiddleware, async (req, res) => {
     }
 
     const mapped = data.map((p) => ({
-      ...p,
-      userName: usersById[p.user_id]?.name || "Unknown User",
+      id: p.id,
       userId: p.user_id,
+      userName: usersById[p.user_id]?.name || "Unknown User",
       planTier: p.plan_tier,
       basePremium: p.base_premium || 0,
+      zoneAdjustment: p.zone_adjustment || 0,
+      issAdjustment: p.iss_adjustment || 0,
       weeklyPremium: p.weekly_premium || 0,
       maxWeeklyPayout: p.max_weekly_payout || 0,
       maxDailyPayout: p.max_daily_payout || 0,
+      status: p.status,
+      autoRenew: p.auto_renew ?? true,
+      coverageStart: p.coverage_start || p.created_at,
+      paidUntil: p.coverage_end || p.commitment_end || p.paid_until || new Date(new Date(p.created_at).getTime() + 91*24*60*60*1000).toISOString(),
+      commitmentEnd: p.commitment_end || p.coverage_end || new Date(new Date(p.created_at).getTime() + 91*24*60*60*1000).toISOString(),
+      poolId: p.pool_id || "global",
       createdAt: p.created_at,
     }));
 

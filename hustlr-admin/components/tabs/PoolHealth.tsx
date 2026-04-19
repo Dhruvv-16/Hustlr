@@ -35,10 +35,10 @@ export default function PoolHealth({ pool, loading }: Props) {
     };
   }, []);
 
-  const bcr     = pool?.bcr ?? 58.3;
-  const weekly  = pool?.weeklyPool ?? 490000;
-  const active  = pool?.activePolicies ?? 8420;
-  const reserve = pool?.reserve ?? 940000;
+  const bcr     = pool?.bcr ?? 0;
+  const weekly  = pool?.weeklyPool ?? 0;
+  const active  = pool?.activePolicies ?? 0;
+  const reserve = pool?.reserve ?? 0;
   const tripped = pool?.circuitBreakerTripped ?? false;
 
   const weeklyHistory = useMemo(() => {

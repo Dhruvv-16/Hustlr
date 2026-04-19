@@ -232,6 +232,14 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         _hintMessage = null;
       });
 
+      // Update backend KYC status on success
+      if (userId != null) {
+        await ApiService.instance.updateWorkerProfile(
+          userId: userId,
+          updates: {'kyc_status': 'verified'},
+        ).catchError((e) => developer.log('Failed to update kyc_status: $e'));
+      }
+
       // Note: Auto-pop removed. The user must manually click 'CONTINUE'.
     } catch (e) {
       setState(() {

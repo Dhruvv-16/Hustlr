@@ -173,21 +173,37 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
         return;
       }
 
+      final face = faces.first;
+      final rect = face.boundingBox;
+      final imgW = image.width.toDouble();
+      final imgH = image.height.toDouble();
+      
+      // Basic centering check (normalized 0-1)
+      final centerX = rect.center.dx / imgW;
+      final centerY = rect.center.dy / imgH;
+      
+      if (centerX < 0.2 || centerX > 0.8 || centerY < 0.2 || centerY > 0.8) {
+        setState(() {
+          _liveHint = 'Center your face in the oval';
+        });
+        return;
+      }
+
       final yaw = faces.first.headEulerAngleY ?? 0.0;
 
       // Build a neutral baseline before looking for a turn.
-      if (_baselineYaw == null || _baselineSamples < 10) {
+      if (_baselineYaw == null || _baselineSamples < 5) {
         _baselineYaw = ((_baselineYaw ?? 0.0) * _baselineSamples + yaw) /
             (_baselineSamples + 1);
         _baselineSamples += 1;
         setState(() {
-          _liveHint = 'Hold steady... calibrating';
+          _liveHint = 'Hold still... calibrating identity';
         });
         return;
       }
 
       final delta = yaw - (_baselineYaw ?? 0.0);
-      final turned = delta.abs() >= 12.0;
+      final turned = delta.abs() >= 18.0;
 
       if (!turned) {
         setState(() {

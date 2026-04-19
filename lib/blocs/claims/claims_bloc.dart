@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
+import '../../services/mock_data_service.dart';
 import '../../models/claim.dart';
 import '../../models/wallet_balance.dart';
 import 'claims_event.dart';
@@ -22,6 +23,8 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   /// a ClaimStatusUpdated event through the BLoC layer.
   void Function(ClaimStatusUpdated event)? onDemoClaimReady;
 
+  StreamSubscription? _profileSubscription;
+
   ClaimsBloc({required this.apiService, required this.supabase})
       : super(const ClaimsState()) {
     on<LoadClaims>(_onLoadClaims);
@@ -30,6 +33,21 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
     on<RefreshWallet>(_onRefreshWallet);
     on<WithdrawFunds>(_onWithdrawFunds);
     on<SubmitClaimAppeal>(_onSubmitAppeal);
+
+    // Auto-refresh when persona switches
+    _profileSubscription = AppEvents.instance.onProfileUpdated.listen((_) {
+      final newUserId = StorageService.userId;
+      if (newUserId.isNotEmpty) {
+        add(LoadClaims(newUserId));
+      }
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _claimsSubscription?.cancel();
+    _profileSubscription?.cancel();
+    return super.close();
   }
 
   /// Load a one-shot snapshot of claims + wallet. Does not start polling.
@@ -42,24 +60,67 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
         apiService.getWallet(event.userId),
       ]);
 
-      final claimsData = results[0];
-      final walletData = results[1];
-
-      final rawClaims = claimsData['claims'] as List<dynamic>? ?? [];
-      final claims = rawClaims
+      var claimsData = results[0];
+      var walletData = results[1];
+      
+      final apiClaims = (claimsData['claims'] as List<dynamic>? ?? [])
           .map((c) => Claim.fromJson(c as Map<String, dynamic>))
           .toList();
+      
+      final walletFromApi = WalletBalance.fromJson(walletData);
 
-      final wallet = WalletBalance.fromJson(walletData);
-      final computed = _computeAmounts(claims, wallet);
+      // ── DEMO OVERRIDE: Prioritize MockDataService ONLY for demo users ──
+      if (event.userId.startsWith('DEMO_')) {
+        final mock = MockDataService.instance;
+        final mockClaims = mock.claims.map((c) => Claim(
+          id: c.id,
+          userId: event.userId,
+          triggerType: c.type,
+          displayLabel: c.type.contains('rain') ? 'Rain Disruption' : c.type,
+          status: _mapMockStatus(c.status),
+          grossPayout: c.amount,
+          tranche1: (c.amount * 0.7).round(),
+          tranche2: (c.amount * 0.3).round(),
+          zone: c.zone,
+          createdAt: DateTime.now(),
+        )).toList();
 
+        // Merge Mock + API (Mock first for demo feel)
+        final List<Claim> combinedClaims = [...mockClaims, ...apiClaims];
+        
+        // For demo users, ALWAYS prioritize MockDataService wallet as it holds the disruption results
+        final wallet = WalletBalance(
+          balance: mock.walletBalance.toInt(),
+          totalPayouts: mock.monthlySavings.toInt(),
+          totalPremiums: 0,
+          transactions: mock.transactions.map((t) => WalletTransaction(
+            type: t['type'] == 'credit' ? 'credit' : 'debit',
+            title: t['title']?.toString() ?? '',
+            subtitle: t['subtitle']?.toString() ?? '',
+            amount: (t['amount'] as num?)?.toInt() ?? 0,
+            createdAt: DateTime.now(),
+          )).toList(),
+        );
+
+        final computed = _computeAmounts(combinedClaims, wallet);
+        emit(state.copyWith(
+          claims: combinedClaims, 
+          wallet: wallet, 
+          pendingAmount: computed.$1, 
+          availableAmount: computed.$2, 
+          status: LoadStatus.success
+        ));
+        return;
+      }
+
+      // ── REAL USER: API is primary source. ──
+      final computed = _computeAmounts(apiClaims, walletFromApi);
       emit(state.copyWith(
-        claims: claims,
-        wallet: wallet,
+        claims: apiClaims,
+        wallet: walletFromApi,
         pendingAmount: computed.$1,
         availableAmount: computed.$2,
         status: LoadStatus.success,
-        errorMessage: null,
       ));
     } on Exception catch (e) {
       emit(state.copyWith(
@@ -286,6 +347,21 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
       return 'No claims found for your account.';
     }
     return 'Something went wrong. Please try again.';
+  }
+
+  ClaimStatus _mapMockStatus(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'approved':
+      case 'paid':
+        return ClaimStatus.approved;
+      case 'pending':
+        return ClaimStatus.pending;
+      case 'flagged':
+      case 'rejected':
+        return ClaimStatus.rejected;
+      default:
+        return ClaimStatus.processing;
+    }
   }
 
   @override
