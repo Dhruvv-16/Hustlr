@@ -279,8 +279,8 @@ class _PolicyScreenState extends State<PolicyScreen>
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
     _loadPolicy();
     // Use debounced listeners to prevent rapid successive reloads
-    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _debouncedLoad());
-    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _debouncedLoad());
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadPolicy());
+    _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _loadPolicy());
   }
 
   /// Debounced version of _loadPolicy to prevent excessive API calls from event spam

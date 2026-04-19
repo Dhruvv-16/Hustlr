@@ -190,19 +190,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
         planName: selectedPlanName,
       );
 
-      // ── Demo Sync ─────────────────────────────────────────────────────────
+      // ── Sync policy state for all users (not just demo) ─────────────────
       final mock = context.read<MockDataService>();
-      if (mock.worker.id.startsWith('DEMO_')) {
-        mock.activatePolicy(planTier);
-      }
-      
+      mock.activatePolicy(planTier); // always update dashboard mock state
+
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
         await StorageService.instance.savePolicyId(policyId);
       }
 
-      // Small delay to ensure DB consistency before UI reloads.
-      await Future.delayed(const Duration(milliseconds: 1200));
+      // Fire events immediately so any mounted screens pick them up
+      AppEvents.instance.policyUpdated();
+      AppEvents.instance.walletUpdated();
+      if (currentUserId != null) {
+        final uid = currentUserId;
+        context.read<PolicyBloc>().add(LoadPolicy(uid));
+        context.read<ClaimsBloc>().add(LoadClaims(uid));
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -219,18 +223,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     context.go(AppRoutes.dashboard);
-
-    // Trigger cross-screen refresh once destination listeners are mounted.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      AppEvents.instance.walletUpdated();
-      AppEvents.instance.policyUpdated();
-      if (currentUserId != null) {
-        final uid = currentUserId;
-        context.read<PolicyBloc>().add(LoadPolicy(uid));
-        context.read<ClaimsBloc>().add(LoadClaims(uid));
-      }
-    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -278,28 +270,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
         planName: selectedPlanName,
       );
 
-      // ── Demo Sync ─────────────────────────────────────────────────────────
+      // ── Sync policy state for all users (not just demo) ─────────────────
       final mock = context.read<MockDataService>();
-      if (mock.worker.id.startsWith('DEMO_')) {
-        mock.activatePolicy(planTier);
-      }
+      mock.activatePolicy(planTier); // always update dashboard mock state
 
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
         await StorageService.instance.savePolicyId(policyId);
       }
 
+      // Fire events immediately before navigation
+      AppEvents.instance.policyUpdated();
+      AppEvents.instance.walletUpdated();
+      context.read<PolicyBloc>().add(LoadPolicy(userId));
+      context.read<ClaimsBloc>().add(LoadClaims(userId));
+
       if (!mounted) return;
       setState(() => _loading = false);
       context.go(AppRoutes.dashboard);
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        AppEvents.instance.policyUpdated();
-        AppEvents.instance.walletUpdated();
-        context.read<PolicyBloc>().add(LoadPolicy(userId));
-        context.read<ClaimsBloc>().add(LoadClaims(userId));
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
