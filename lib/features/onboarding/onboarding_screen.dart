@@ -182,29 +182,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await StorageService.setString('userCity', _selectedCity!);
       await StorageService.setString('userPlatform', _selectedPlatform!);
 
-      if (hasRealBackendUser) {
-        final policyData = await ApiService.instance.createPolicy(
-          userId: userId,
-          planTier: 'standard',
-        );
-
-        final policyId = policyData['policy']['id'] as String;
-        await StorageService.setPolicyId(policyId);
-
-        // Add premium deducted notification with live policy values.
-        final createdPolicy = policyData['policy'] as Map<String, dynamic>?;
-        final createdPlan = createdPolicy?['plan_name']?.toString();
-        final createdPremiumRaw = createdPolicy?['weekly_premium'];
-        final createdPremium = (createdPremiumRaw is num)
-            ? createdPremiumRaw.round()
-            : int.tryParse(createdPremiumRaw?.toString() ?? '') ?? 49;
-        NotificationService.instance.addPremiumDeducted(
-          createdPremium,
-          planName: createdPlan,
-        );
-      } else {
-        await StorageService.setPolicyId('');
-      }
+      // Do NOT auto-create a policy — user must choose and pay for a plan themselves.
+      await StorageService.setPolicyId('');
 
       await StorageService.setOnboarded(true);
 
