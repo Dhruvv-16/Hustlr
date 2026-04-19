@@ -1402,7 +1402,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
                 }),
               )),
           const SizedBox(height: 20),
-          if (hasActivePolicy && _selectedPlan == 'standard') ...[
+          // Add-on logic: Only show toggles for Standard plan, never for Basic or Full
+          if (_selectedPlan == 'standard') ...[
             Row(children: [
               _sectionLabel(context, 'INCOME ADD-ONS'),
             ]),
@@ -1418,11 +1419,13 @@ class _UpgradeTabState extends State<_UpgradeTab> {
             _sectionLabel(context, 'INCOME ADD-ONS'),
             const SizedBox(height: 8),
             Text(
-              !hasActivePolicy
-                  ? 'Buy a plan first. Add-ons are available only after activation.'
-                  : _selectedPlan == 'basic'
-                      ? 'No add-ons available on Basic Shield.'
-                      : 'Full Shield already includes catastrophic and operational protection.',
+              _selectedPlan == 'basic'
+                  ? 'No add-ons available on Basic Shield.'
+                  : _selectedPlan == 'full'
+                      ? 'Full Shield already includes all add-ons.'
+                      : !hasActivePolicy
+                          ? 'Buy a plan first. Add-ons are available only after activation.'
+                          : '',
               style: TextStyle(
                 fontSize: 12,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),

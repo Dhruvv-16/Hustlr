@@ -1,11 +1,11 @@
-// dart:io is not available on web — import conditionally.
+﻿// dart:io is not available on web â€” import conditionally.
 // ignore: avoid_web_libraries_in_flutter
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html if (dart.library.io) 'dart:io' show File;
+import 'dart:io' as io;
 
 // These imports are only used in the non-web path, but they are safe to import
 // on web because path_provider and open_filex both provide stub implementations.
@@ -37,9 +37,9 @@ class PdfGenerator {
     // Coverage rows depend on plan tier
     final allRows = <(String, String)>[
       ('Rain Disruption',   'Auto-triggers when rainfall > 64.5 mm/hr'),
-      ('Extreme Heat',      'Triggers when temperature exceeds 42 °C'),
+      ('Extreme Heat',      'Triggers when temperature exceeds 42 Â°C'),
       ('Platform Outage',   'Outages lasting > 90 minutes'),
-      ('Air Quality (AQI)', 'AQI > 200 — hazardous conditions'),
+      ('Air Quality (AQI)', 'AQI > 200 â€” hazardous conditions'),
       ('Platform Outage',   'Dark-store closure or platform API failure'),
     ];
     final basicRows = allRows.take(2).toList();
@@ -143,12 +143,12 @@ class PdfGenerator {
     if (kIsWeb) {
       // On web, trigger a browser file download instead of native file open.
       // ignore: avoid_web_libraries_in_flutter
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      // final blob = html.Blob([bytes], 'application/pdf');
+      /*
+      // final anchor = html.AnchorElement(href: url)
         ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      */
+      // html.Url.revokeObjectUrl(url);
       return;
     }
 
@@ -285,7 +285,7 @@ class PdfGenerator {
       const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
 
-  // ── Web-safe IO helpers ─────────────────────────────────────────────────────
+  // â”€â”€ Web-safe IO helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These are only called after the kIsWeb guard above, so they only run on
   // mobile. We use dynamic dispatch to avoid dart:io being referenced at
   // compile time on web.
@@ -312,7 +312,7 @@ class PdfGenerator {
   static bool _ioIsAndroid() {
     // We use a dynamic import workaround: since dart:io is not imported,
     // we check using the plugin's own conditional.
-    // Fallback: treat as non-Android (uses documents dir) — safe for web.
+    // Fallback: treat as non-Android (uses documents dir) â€” safe for web.
     return false; // overridden by platform-specific stub
   }
 

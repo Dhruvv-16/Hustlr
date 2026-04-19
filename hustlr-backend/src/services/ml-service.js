@@ -146,6 +146,125 @@ async function getForecast(zone) {
   }
 }
 
+// ── Work Advisor (ESI + advisory copy) ───────────────────
+
+function _clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function _localWorkAdvisorFallback(data = {}) {
+  const rainChance = Number(data.tomorrow_rain_chance_pct ?? 0);
+  const rainMm = Number(data.tomorrow_rain_mm ?? 0);
+  const aqi = Number(data.aqi ?? 50);
+  const mlRisk = Number(data.ml_tomorrow_risk ?? 0);
+  const activeDisruptions = Number(data.active_disruption_count ?? 0);
+
+  const riskScore = _clamp(
+    rainChance * 0.45 +
+      _clamp(rainMm * 2.2, 0, 35) +
+      _clamp((aqi - 50) * 0.08, 0, 20) +
+      _clamp(mlRisk * 35, 0, 35) +
+      _clamp(activeDisruptions * 8, 0, 24),
+    0,
+    100,
+  );
+
+  const esi = _clamp(Math.round(100 - riskScore), 0, 100);
+  const estimatedLoss = Math.round(_clamp(180 + riskScore * 7, 180, 1200));
+  const suggestedPremium = esi >= 80 ? 35 : esi >= 60 ? 49 : 79;
+  const missedAmount = Math.round(_clamp(estimatedLoss * 1.2, 250, 1800));
+
+  if (esi >= 80) {
+    return {
+      earning_stability_index: esi,
+      stability_band: "GREEN",
+      stability_band_label: "High Stability",
+      headline:
+        "Your earnings are consistent, but sudden weather changes could still disrupt your peak windows.",
+      coverage_nudge:
+        "Protect your strong run — even high earners face unexpected disruptions.",
+      suggest_activate_coverage: false,
+      recommended_shift_windows: [
+        { label: "Morning", time: "7 AM – 11 AM", demand: "High" },
+        { label: "Evening", time: "6 PM – 9 PM", demand: "Peak" },
+      ],
+      model_used: "rule_engine_work_advisor_v1",
+      _source: "local_fallback",
+      risk_score: riskScore,
+      estimated_loss: estimatedLoss,
+    };
+  }
+
+  if (esi >= 60) {
+    return {
+      earning_stability_index: esi,
+      stability_band: "AMBER",
+      stability_band_label: "Moderate Stability",
+      headline:
+        "There is a moderate chance of weather or platform issues coming up that might dip your earnings.",
+      coverage_nudge: `Estimated disruption impact is around ₹${estimatedLoss}. A ₹${suggestedPremium}/week plan may help reduce this risk. Terms apply.`,
+      suggest_activate_coverage: true,
+      recommended_shift_windows: [
+        { label: "Late Morning", time: "10 AM – 1 PM", demand: "Medium" },
+        { label: "Evening", time: "5 PM – 8 PM", demand: "High" },
+      ],
+      model_used: "rule_engine_work_advisor_v1",
+      _source: "local_fallback",
+      risk_score: riskScore,
+      estimated_loss: estimatedLoss,
+    };
+  }
+
+  return {
+    earning_stability_index: esi,
+    stability_band: "RED",
+    stability_band_label: "Low Stability",
+    headline:
+      "There is a higher likelihood of severe weather or outages in your zone, which may affect earnings.",
+    coverage_nudge: `Recent disruption patterns suggest potential impact around ₹${missedAmount}. Coverage options start at ₹35/week. Terms apply.`,
+    suggest_activate_coverage: true,
+    recommended_shift_windows: [
+      { label: "Mid-morning", time: "9 AM – 12 PM", demand: "Medium" },
+      { label: "Evening", time: "6 PM – 9 PM", demand: "High" },
+    ],
+    model_used: "rule_engine_work_advisor_v1",
+    _source: "local_fallback",
+    risk_score: riskScore,
+    estimated_loss: estimatedLoss,
+  };
+}
+
+async function getWorkAdvisor(data) {
+  if (!ML_URL) return _localWorkAdvisorFallback(data);
+
+  try {
+    const res = await axios.post(`${ML_URL}/work-advisor`, data, {
+      timeout: TIMEOUT,
+    });
+    const d = res.data || {};
+    return {
+      earning_stability_index: Number(d.earning_stability_index ?? d.esi ?? 60),
+      stability_band: d.stability_band ?? "AMBER",
+      stability_band_label: d.stability_band_label ?? "Moderate Stability",
+      headline:
+        d.headline ??
+        "There is a moderate chance of weather or platform issues coming up that might dip your earnings.",
+      coverage_nudge:
+        d.coverage_nudge ??
+        "Estimated disruption impact is around ₹600. A ₹49/week plan may help reduce this risk. Terms apply.",
+      suggest_activate_coverage: Boolean(d.suggest_activate_coverage ?? true),
+      recommended_shift_windows: Array.isArray(d.recommended_shift_windows)
+        ? d.recommended_shift_windows
+        : [],
+      model_used: d.model_used || "ml-service-work-advisor",
+      _source: "ml-service",
+    };
+  } catch (e) {
+    console.warn("[ML] /work-advisor failed:", e.message, "— using fallback");
+    return _localWorkAdvisorFallback(data);
+  }
+}
+
 // ── Fallbacks ─────────────────────────────────────────────
 // These are called when ML service is unreachable.
 // They use deterministic logic — NOT random numbers.
@@ -310,6 +429,7 @@ module.exports = {
   getISSScore,
   getPremium,
   getForecast,
+  getWorkAdvisor,
   isMlOnline,
   getGNNFraudRings,
 };

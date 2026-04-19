@@ -27,6 +27,34 @@ export default function ProfitSimulator() {
   const [pctStandard, setPctStandard] = useState(50);
   const [pctFull, setPctFull] = useState(30);
 
+  const rebalancePlanMix = (changed: 'basic' | 'standard' | 'full', rawValue: number) => {
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const next = {
+      basic: pctBasic,
+      standard: pctStandard,
+      full: pctFull,
+    };
+
+    next[changed] = clamp(Math.round(rawValue), 0, 100);
+    const keys: Array<'basic' | 'standard' | 'full'> = ['basic', 'standard', 'full'];
+    const others = keys.filter((k) => k !== changed);
+    const remaining = 100 - next[changed];
+    const currentOtherTotal = next[others[0]] + next[others[1]];
+
+    if (currentOtherTotal <= 0) {
+      next[others[0]] = remaining;
+      next[others[1]] = 0;
+    } else {
+      const scaledFirst = Math.round((next[others[0]] / currentOtherTotal) * remaining);
+      next[others[0]] = clamp(scaledFirst, 0, remaining);
+      next[others[1]] = remaining - next[others[0]];
+    }
+
+    setPctBasic(next.basic);
+    setPctStandard(next.standard);
+    setPctFull(next.full);
+  };
+
   const planSum = pctBasic + pctStandard + pctFull;
 
   // Constants
@@ -183,9 +211,9 @@ export default function ProfitSimulator() {
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-[#91938D] block mb-1">Geographical Mix</label>
               <select value={zones} onChange={e => setZones(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-sm outline-none font-bold text-white/80">
-                <option value="chennai">Chennai (High Flood Risk)</option>
-                <option value="all">Chennai + Bengaluru (Blended)</option>
-                <option value="pan">Pan-India Tier 1 Focus</option>
+                <option value="chennai" className="bg-[#161B22] text-white" style={{ color: '#111827', backgroundColor: '#FFFFFF' }}>Chennai (High Flood Risk)</option>
+                <option value="all" className="bg-[#161B22] text-white" style={{ color: '#111827', backgroundColor: '#FFFFFF' }}>Chennai + Bengaluru (Blended)</option>
+                <option value="pan" className="bg-[#161B22] text-white" style={{ color: '#111827', backgroundColor: '#FFFFFF' }}>Pan-India Tier 1 Focus</option>
               </select>
             </div>
             
@@ -193,9 +221,30 @@ export default function ProfitSimulator() {
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: planSum !== 100 ? '#FF9800' : '#91938D' }}>
                 Plan Distribution {planSum !== 100 && `(Must sum to 100, currently ${planSum})`}
               </p>
-              <SliderRow label={`Basic (₹${premiums.basic})`} value={pctBasic} min={0} max={100} format={v => `${v}%`} onChange={setPctBasic} />
-              <SliderRow label={`Standard (₹${premiums.standard})`} value={pctStandard} min={0} max={100} format={v => `${v}%`} onChange={setPctStandard} />
-              <SliderRow label={`Full Shield (₹${premiums.full})`} value={pctFull} min={0} max={100} format={v => `${v}%`} onChange={setPctFull} />
+              <SliderRow
+                label={`Basic (₹${premiums.basic})`}
+                value={pctBasic}
+                min={0}
+                max={100}
+                format={v => `${v}%`}
+                onChange={(v) => rebalancePlanMix('basic', v)}
+              />
+              <SliderRow
+                label={`Standard (₹${premiums.standard})`}
+                value={pctStandard}
+                min={0}
+                max={100}
+                format={v => `${v}%`}
+                onChange={(v) => rebalancePlanMix('standard', v)}
+              />
+              <SliderRow
+                label={`Full Shield (₹${premiums.full})`}
+                value={pctFull}
+                min={0}
+                max={100}
+                format={v => `${v}%`}
+                onChange={(v) => rebalancePlanMix('full', v)}
+              />
             </div>
           </div>
         </div>

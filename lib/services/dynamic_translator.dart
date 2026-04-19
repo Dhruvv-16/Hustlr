@@ -1,7 +1,7 @@
 /// DynamicTranslator
 ///
 /// Provides AI-powered, real-time translation of any runtime string
-/// using Gemini 1.5 Flash. Falls back to a curated offline lookup
+/// using Gemini 2.5 Flash. Falls back to a curated offline lookup
 /// dictionary if the API is unavailable (no network / offline mode).
 ///
 /// **Gemini API key:** Pass at **compile time** only (not from a `.env` file):
