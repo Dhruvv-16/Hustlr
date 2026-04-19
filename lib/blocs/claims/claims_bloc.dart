@@ -3,8 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
 import '../../services/mock_data_service.dart';
+import '../../core/services/storage_service.dart';
 import '../../models/claim.dart';
 import '../../models/wallet_balance.dart';
+import '../../services/app_events.dart';
 import 'claims_event.dart';
 import 'claims_state.dart';
 
