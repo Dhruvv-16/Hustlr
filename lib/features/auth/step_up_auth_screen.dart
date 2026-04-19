@@ -44,11 +44,16 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   bool _biometricAvailable = false;
   List<BiometricType> _enrolledBiometrics = [];
   bool _biometricPassed = false;
+  bool _webFallbackMode = false;
+  String? _hintMessage;
+  String? _firstTurnDirection;
 
-  // Gesture-based liveness (Oasis-style)
+  // Gesture-based liveness: enforce two sequential captures.
   final List<String> _gestures = [
-    'Turn your face to the left, then to the right',
+    'Turn your face to the left',
+    'Turn your face to the right',
   ];
+  int _gestureStepIndex = 0;
   String? _currentGesture;
 
   @override
@@ -61,7 +66,15 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
     _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    _checkBiometricAvailability();
+    if (kIsWeb) {
+      _webFallbackMode = true;
+      _tier = _AuthTier.camera;
+      _state = _VerificationState.idle;
+      _hintMessage =
+          'Web fallback enabled: biometric and secure camera verification are not required on web.';
+    } else {
+      _checkBiometricAvailability();
+    }
     _currentGesture = _gestures.first;
   }
 
@@ -145,6 +158,8 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
               mode: CameraMode.kycFace,
               title: 'Face Verification',
               instructions: '$_currentGesture\n\nPlease ensure your face is fully visible within the circle.',
+              enforceLiveGesture: true,
+              expectedGesture: _currentGesture,
             ),
           ),
         );
@@ -155,6 +170,24 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         }
         setState(() => _state = _VerificationState.verifying);
         base64Image = result['base64'] as String;
+
+        final turnDirection = result['detectedDirection'] as String?;
+        if (_gestureStepIndex == 0 && turnDirection != null) {
+          _firstTurnDirection = turnDirection;
+        }
+        if (_gestureStepIndex == 1 &&
+            turnDirection != null &&
+            _firstTurnDirection != null &&
+            turnDirection == _firstTurnDirection) {
+          setState(() {
+            _state = _VerificationState.failed;
+            _errorMessage =
+                'Please turn to the opposite side for step 2.';
+            _hintMessage =
+                'Step 2 requires the opposite direction from step 1.';
+          });
+          return;
+        }
       }
       final userId = await StorageService.instance.getUserId();
 
@@ -167,12 +200,36 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       final verified = result['verified'] as bool? ?? false;
       final score = (result['similarity_score'] as num?)?.toDouble() ?? 0.0;
 
+      if (!verified) {
+        setState(() {
+          _similarityScore = score;
+          _state = _VerificationState.failed;
+          _errorMessage =
+              result['reason'] ?? 'Face did not match registered profile.';
+          _hintMessage = null;
+        });
+        return;
+      }
+
+      // Require both gestures in sequence before success.
+      if (_gestureStepIndex < _gestures.length - 1) {
+        setState(() {
+          _similarityScore = score;
+          _gestureStepIndex += 1;
+          _currentGesture = _gestures[_gestureStepIndex];
+          _state = _VerificationState.idle;
+          _errorMessage = null;
+          _hintMessage =
+              'Step ${_gestureStepIndex + 1}/${_gestures.length}: ${_currentGesture!}';
+        });
+        return;
+      }
+
       setState(() {
         _similarityScore = score;
-        _state = verified
-            ? _VerificationState.success
-            : _VerificationState.failed;
-        if (!verified) _errorMessage = result['reason'] ?? 'Face did not match registered profile.';
+        _state = _VerificationState.success;
+        _errorMessage = null;
+        _hintMessage = null;
       });
 
       // Note: Auto-pop removed. The user must manually click 'CONTINUE'.
@@ -180,6 +237,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
       setState(() {
         _state = _VerificationState.failed;
         _errorMessage = 'Verification error. Please try again.';
+        _hintMessage = null;
       });
     }
   }
@@ -259,7 +317,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
-                              _currentGesture!,
+                              'Step ${_gestureStepIndex + 1}/${_gestures.length}: ${_currentGesture!}',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurface,
@@ -280,6 +338,18 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                       style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                     ),
                   ],
+                  if (_hintMessage != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _hintMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -290,31 +360,6 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTierChips(Color accentGreen) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _TierChip(
-          label: 'Tier 1: Biometric',
-          icon: _primaryBiometricIcon(),
-          active: _tier == _AuthTier.biometric,
-          done: _tier == _AuthTier.camera,
-          color: accentGreen,
-        ),
-        const SizedBox(width: 8),
-        const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 12),
-        const SizedBox(width: 8),
-        _TierChip(
-          label: 'Tier 2: Face',
-          icon: Icons.camera_front_outlined,
-          active: _tier == _AuthTier.camera,
-          done: false,
-          color: accentGreen,
-        ),
-      ],
     );
   }
 
@@ -503,6 +548,11 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           subtitle = '';
       }
     } else {
+      if (_webFallbackMode) {
+        title = 'Web Verification';
+        subtitle =
+            'Fingerprint and secure face capture are unavailable on web. Continue using secure fallback.';
+      } else {
       switch (_state) {
         case _VerificationState.idle:
         case _VerificationState.failed:
@@ -530,6 +580,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           title = 'Success';
           subtitle = 'Verification complete';
           break;
+      }
       }
     }
 
@@ -571,9 +622,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50).withOpacity(0.12),
+                color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
+                border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
               ),
               child: Text(
                 'SIMILARITY: ${(_similarityScore! * 100).toStringAsFixed(1)}%',
@@ -592,6 +643,28 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   }
 
   Widget _buildActionButtons(Color primaryColor, Color accentGreen) {
+    if (_webFallbackMode) {
+      return SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () => _completeAndExit(
+            method: 'web_fallback',
+            similarityScore: null,
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          child: const Text(
+            'CONTINUE ON WEB',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+        ),
+      );
+    }
+
     if (_state == _VerificationState.success) {
       return SizedBox(
         width: double.infinity,
@@ -608,7 +681,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 4,
-            shadowColor: const Color(0xFF4CAF50).withOpacity(0.4),
+            shadowColor: const Color(0xFF4CAF50).withValues(alpha: 0.4),
           ),
           child: const Text(
             'CONTINUE',
@@ -649,6 +722,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                 _tier = _AuthTier.camera;
                 _state = _VerificationState.idle;
                 _errorMessage = null;
+                _hintMessage = null;
+                _gestureStepIndex = 0;
+                _firstTurnDirection = null;
                 _currentGesture = _gestures.first;
               }),
               child: Text(
@@ -675,8 +751,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             icon: Icon(kIsWeb ? Icons.upload : Icons.camera_alt_outlined),
             label: Text(
               _state == _VerificationState.failed 
-                  ? 'Try Again' 
-                  : (kIsWeb ? 'Upload Photo' : 'Verify Identity'),
+                  ? 'Retry This Step' 
+                  : (_gestureStepIndex < _gestures.length - 1
+                      ? (kIsWeb ? 'Upload Left/Right Step' : 'Capture Step')
+                      : (kIsWeb ? 'Upload Final Step' : 'Verify Final Step')),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
             ),
             style: ElevatedButton.styleFrom(
@@ -694,6 +772,10 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
               _tier = _AuthTier.biometric;
               _state = _VerificationState.idle;
               _errorMessage = null;
+              _hintMessage = null;
+              _gestureStepIndex = 0;
+              _firstTurnDirection = null;
+              _currentGesture = _gestures.first;
             }),
             child: Text(
               'Use Biometric Instead',
@@ -705,47 +787,6 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           ),
         ],
       ],
-    );
-  }
-}
-
-class _TierChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool active;
-  final bool done;
-  final Color color;
-
-  const _TierChip({
-    required this.label,
-    required this.icon,
-    required this.active,
-    required this.done,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = done
-        ? color.withValues(alpha: 0.6)
-        : active
-            ? color
-            : Colors.white12;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: chipColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(done ? Icons.check_circle : icon, size: 14, color: chipColor),
-          const SizedBox(width: 5),
-          Text(label, style: TextStyle(color: chipColor, fontSize: 11, fontWeight: FontWeight.w600)),
-        ],
-      ),
     );
   }
 }

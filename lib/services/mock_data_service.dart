@@ -286,6 +286,20 @@ class MockDataService extends ChangeNotifier {
     syncWithStorage();
   }
 
+  Box? _appDataBoxOrNull() {
+    try {
+      if (Hive.isBoxOpen('appData')) return Hive.box('appData');
+    } catch (_) {}
+    return null;
+  }
+
+  bool _isUuid(String value) {
+    final v = value.trim();
+    return RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(v);
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
 
   WorkerModel worker = WorkerModel(
@@ -405,11 +419,11 @@ class MockDataService extends ChangeNotifier {
 
   /// Populate from local storage (fast) then hydrate from API (async).
   void syncWithStorage() {
-    final box = Hive.box('appData');
-    final name = box.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? '';
-    final city = box.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? '';
-    final zone = box.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? '';
-    final platform = box.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? '';
+    final box = _appDataBoxOrNull();
+    final name = box?.get('userName') ?? StorageService.getString('userName') ?? StorageService.getString('workerName') ?? '';
+    final city = box?.get('userCity') ?? StorageService.getString('userCity') ?? StorageService.getString('workerCity') ?? '';
+    final zone = box?.get('userZone') ?? StorageService.getString('userZone') ?? StorageService.getString('workerZone') ?? '';
+    final platform = box?.get('userPlatform') ?? StorageService.getString('userPlatform') ?? StorageService.getString('workerPlatform') ?? '';
     final userId = StorageService.userId;
 
     worker = WorkerModel(
@@ -422,15 +436,15 @@ class MockDataService extends ChangeNotifier {
     );
 
     // Restore persisted demo state (survives app restarts)
-    final savedBalance = box.get('demo_walletBalance');
-    final savedSavings = box.get('demo_monthlySavings');
-    final savedTx = box.get('demo_transactions');
-    final savedClaims = box.get('demo_claims');
+    final savedBalance = box?.get('demo_walletBalance');
+    final savedSavings = box?.get('demo_monthlySavings');
+    final savedTx = box?.get('demo_transactions');
+    final savedClaims = box?.get('demo_claims');
 
     if (savedBalance != null) walletBalance = savedBalance as int;
     if (savedSavings != null) monthlySavings = savedSavings as int;
-    if (box.containsKey('demo_hasActivePolicy')) {
-      hasActivePolicy = box.get('demo_hasActivePolicy') as bool;
+    if (box?.containsKey('demo_hasActivePolicy') == true) {
+      hasActivePolicy = box!.get('demo_hasActivePolicy') as bool;
       final savedTier = box.get('demo_activePolicyTier') as String?;
       if (savedTier != null && hasActivePolicy) {
         _updateActivePolicyModel(savedTier);
@@ -464,14 +478,15 @@ class MockDataService extends ChangeNotifier {
     _hydrateZoneData(zone);
 
     // If we have a real userId, also hydrate user-specific data
-    if (userId.isNotEmpty) {
+    if (userId.isNotEmpty && _isUuid(userId)) {
       _hydrateFromApi(userId);
     }
   }
 
   /// Persist demo state to Hive so it survives hot restarts.
   Future<void> _persistDemoState() async {
-    final box = Hive.box('appData');
+    final box = _appDataBoxOrNull();
+    if (box == null) return;
     await box.put('demo_walletBalance', walletBalance);
     await box.put('demo_monthlySavings', monthlySavings);
     await box.put('demo_transactions', transactions);
@@ -594,24 +609,31 @@ class MockDataService extends ChangeNotifier {
     }
   }
 
+  int _asInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toInt();
+    if (v is String) return double.tryParse(v)?.toInt() ?? 0;
+    return 0;
+  }
+
   Future<void> _hydrateFromApi(String userId) async {
     try {
-      final box = Hive.box('appData');
-      final hasDemoData = box.containsKey('demo_walletBalance');
+      final box = _appDataBoxOrNull();
+      final hasDemoData = box?.containsKey('demo_walletBalance') == true;
 
       // Fetch wallet
       final wallet = await ApiService.instance.getWallet(userId);
       // Don't overwrite demo state — demo claims/balance take priority for presentation
       if (!hasDemoData) {
-        walletBalance = (wallet['balance'] as num?)?.toInt() ?? 0;
-        monthlySavings = (wallet['total_payouts'] as num?)?.toInt() ?? 0;
-        totalPremiums = (wallet['total_premiums'] as num?)?.toInt() ?? 0;
+        walletBalance = _asInt(wallet['balance']);
+        monthlySavings = _asInt(wallet['total_payouts']);
+        totalPremiums = _asInt(wallet['total_premiums']);
         final rawTx = wallet['transactions'] as List<dynamic>? ?? [];
         transactions = rawTx.map((t) => {
           'type': t['type'],
           'title': t['description'] ?? (t['type'] == 'credit' ? 'Payout Credited' : 'Premium Deducted'),
           'subtitle': t['reference'] ?? '',
-          'amount': (t['amount'] as num).toInt(),
+          'amount': _asInt(t['amount']),
           'date': _formatDate(t['created_at'] as String?),
         }).toList();
 
@@ -619,9 +641,9 @@ class MockDataService extends ChangeNotifier {
         final rawClaims = await ApiService.getClaimsList(userId);
         if (rawClaims.isNotEmpty) {
           claims = rawClaims.map<ClaimModel>((c) {
-            final tranche1 = (c['tranche1'] as num?)?.toInt() ?? 0;
-            final tranche2 = (c['tranche2'] as num?)?.toInt() ?? 0;
-            final gross = (c['gross_payout'] as num?)?.toInt() ?? 0;
+            final tranche1 = _asInt(c['tranche1']);
+            final tranche2 = _asInt(c['tranche2']);
+            final gross = _asInt(c['gross_payout']);
             return ClaimModel(
               id: c['id'] as String,
               type: _triggerLabel(c['trigger_type'] as String),
@@ -647,7 +669,7 @@ class MockDataService extends ChangeNotifier {
 
         activePolicy = PolicyModel(
           plan: _planLabel(policy['plan_tier'] as String),
-          premium: (policy['weekly_premium'] as num).toInt(),
+          premium: _asInt(policy['weekly_premium']),
           status: (policy['status'] as String).toUpperCase(),
           coverageStart: _formatDate(policy['start_date'] as String?),
           coverageEnd: _formatDate(null, addDays: 365),
@@ -656,15 +678,15 @@ class MockDataService extends ChangeNotifier {
         );
         // Update premium breakdown with real API values
         premiumBreakdown = PremiumBreakdownModel(
-          baseRate: (policy['base_premium'] as num).toInt(),
-          finalRate: (policy['weekly_premium'] as num).toInt(),
+          baseRate: _asInt(policy['base_premium']),
+          finalRate: _asInt(policy['weekly_premium']),
           factors: [
-            PremiumBreakdownFactor(factor: "Base rate (${_planLabel(policy['plan_tier'])})", adjustment: (policy['base_premium'] as num).toInt(), reason: "—"),
-            PremiumBreakdownFactor(factor: "Zone risk adjustment", adjustment: (policy['zone_adjustment'] as num).toInt(), reason: "Based on your zone"),
+            PremiumBreakdownFactor(factor: "Base rate (${_planLabel(policy['plan_tier'])})", adjustment: _asInt(policy['base_premium']), reason: "—"),
+            PremiumBreakdownFactor(factor: "Zone risk adjustment", adjustment: _asInt(policy['zone_adjustment']), reason: "Based on your zone"),
           ],
           comparison: [
             PremiumComparison(zone: "Velachery", rate: 55),
-            PremiumComparison(zone: "Your zone", rate: (policy['weekly_premium'] as num).toInt()),
+            PremiumComparison(zone: "Your zone", rate: _asInt(policy['weekly_premium'])),
             PremiumComparison(zone: "Anna Nagar", rate: 34),
           ],
         );
@@ -758,9 +780,10 @@ class MockDataService extends ChangeNotifier {
     ));
     notifyListeners();
 
-    // Bypass real API for hackathon demo to ensure optimistic UI consistency
-    // Automatic instant payout in mock mode
-    if (userId.isEmpty || true) {
+    // Bypass real API for demo sessions to ensure optimistic UI consistency.
+    final appBox = Hive.box('appData');
+    final isDemoSession = appBox.get('isDemoSession', defaultValue: true) == true;
+    if (userId.isEmpty || isDemoSession) {
       final payout = switch (triggerType) {
         'rain_heavy' => 120,    // README: ₹120
         'platform_outage' => 140, // README: ₹140
@@ -804,7 +827,6 @@ class MockDataService extends ChangeNotifier {
       return;
     }
 
-    // Hit the real API
     ApiService.submitClaim(
       userId: userId,
       triggerType: triggerType,
@@ -961,11 +983,11 @@ class MockDataService extends ChangeNotifier {
     claims = [];
     transactions = [];
     // Clear persisted demo state from Hive so restart also resets cleanly
-    final box = Hive.box('appData');
-    box.delete('demo_walletBalance');
-    box.delete('demo_monthlySavings');
-    box.delete('demo_transactions');
-    box.delete('demo_claims');
+    final box = _appDataBoxOrNull();
+    box?.delete('demo_walletBalance');
+    box?.delete('demo_monthlySavings');
+    box?.delete('demo_transactions');
+    box?.delete('demo_claims');
     notifyListeners();
     final userId = StorageService.userId;
     if (userId.isNotEmpty) _hydrateFromApi(userId);
@@ -1125,12 +1147,12 @@ class MockDataService extends ChangeNotifier {
     LocationService.instance.clearMockLocation();
     
     // Clear persisted demo state from storage
-    final box = Hive.box('appData');
-    box.delete('demo_walletBalance');
-    box.delete('demo_monthlySavings');
-    box.delete('demo_transactions');
-    box.delete('demo_claims');
-    box.delete('demo_activeDisruption');
+    final box = _appDataBoxOrNull();
+    box?.delete('demo_walletBalance');
+    box?.delete('demo_monthlySavings');
+    box?.delete('demo_transactions');
+    box?.delete('demo_claims');
+    box?.delete('demo_activeDisruption');
     
     // Reset ISS history
     issHistory = [55, 60, 52, 68, 58, 62];

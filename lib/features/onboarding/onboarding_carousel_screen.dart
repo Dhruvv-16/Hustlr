@@ -79,9 +79,9 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                     key: ValueKey(_currentPage),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isDark ? theme.colorScheme.surface : theme.colorScheme.primary.withOpacity(0.1),
+                      color: isDark ? theme.colorScheme.surface : theme.colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+                      border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
                     ),
                     child: Text(
                       _slides[_currentPage]['chip'].toString().toUpperCase(),
@@ -111,7 +111,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                       Text(
                         _slides[_currentPage]['subtitle'],
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -143,16 +143,16 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                         color: theme.cardColor,
                         shape: BoxShape.circle,
                         boxShadow: isDark ? [
-                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 40, offset: const Offset(0, 20)),
+                          BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 40, offset: const Offset(0, 20)),
                         ] : [
-                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.1), blurRadius: 40, offset: const Offset(0, 20)),
+                          BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.1), blurRadius: 40, offset: const Offset(0, 20)),
                         ],
-                        border: isDark ? null : Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+                        border: isDark ? null : Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.1)),
                       ),
                       child: Icon(
                         slide['icon'],
                         size: 120,
-                        color: theme.colorScheme.primary.withOpacity(isDark ? 0.8 : 1.0),
+                        color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.8 : 1.0),
                       ),
                     ),
                   );
@@ -180,10 +180,10 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                         height: 8,
                         width: isActive ? 32 : 8,
                         decoration: BoxDecoration(
-                          color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.1),
+                          color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                           boxShadow: isActive && isDark ? [
-                            BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 8),
+                            BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.3), blurRadius: 8),
                           ] : [],
                         ),
                       );

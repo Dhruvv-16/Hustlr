@@ -11,8 +11,8 @@ class FloatingHelpButton extends StatelessWidget {
     final bgColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20);
     final iconColor = isDark ? const Color(0xFF0A0B0A) : Colors.white;
     final shadowColor = isDark
-        ? const Color(0xFF3FFF8B).withOpacity(0.25)
-        : const Color(0xFF1B5E20).withOpacity(0.40);
+        ? const Color(0xFF3FFF8B).withValues(alpha: 0.25)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.40);
 
     return Positioned(
       right: 16,

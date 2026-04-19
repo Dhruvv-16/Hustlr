@@ -122,7 +122,7 @@ class _ApiStatusScreenState extends State<ApiStatusScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.info_outline_rounded,
-                        size: 16, color: onSurface.withOpacity(0.4)),
+                        size: 16, color: onSurface.withValues(alpha: 0.4)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -131,7 +131,7 @@ class _ApiStatusScreenState extends State<ApiStatusScreen>
                         'The app always works — this screen shows real-time health.',
                         style: TextStyle(
                           fontSize: 12,
-                          color: onSurface.withOpacity(0.5),
+                          color: onSurface.withValues(alpha: 0.5),
                           height: 1.6,
                         ),
                       ),
@@ -194,9 +194,9 @@ class _OverallBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? bgColor : color.withOpacity(0.07),
+        color: isDark ? bgColor : color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.25), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
       ),
       child: Row(
         children: [
@@ -206,7 +206,7 @@ class _OverallBanner extends StatelessWidget {
               width: 52, height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withOpacity(
+                color: color.withValues(alpha: 
                   isChecking || status == ApiStatus.online
                       ? 0.08 + 0.18 * pulseController.value
                       : 0.10,
@@ -232,7 +232,7 @@ class _OverallBanner extends StatelessWidget {
                 if (!isChecking && totalServices > 0)
                   Text(
                     '$onlineCount / $totalServices services online',
-                    style: TextStyle(fontSize: 13, color: color.withOpacity(0.8)),
+                    style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.8)),
                   ),
                 if (lastChecked != null) ...[
                   const SizedBox(height: 2),
@@ -240,7 +240,7 @@ class _OverallBanner extends StatelessWidget {
                     'Last checked at ${_fmt(lastChecked!)}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: theme.colorScheme.onSurface.withOpacity(0.45),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
                     ),
                   ),
                 ],
@@ -291,7 +291,7 @@ class _CategoryHeader extends StatelessWidget {
           width: 7, height: 7,
           decoration: BoxDecoration(
             shape: BoxShape.circle, color: dotColor,
-            boxShadow: [BoxShadow(color: dotColor.withOpacity(0.5), blurRadius: 5)],
+            boxShadow: [BoxShadow(color: dotColor.withValues(alpha: 0.5), blurRadius: 5)],
           ),
         ),
         const SizedBox(width: 8),
@@ -301,7 +301,7 @@ class _CategoryHeader extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.1,
-            color: onSurface.withOpacity(0.45),
+            color: onSurface.withValues(alpha: 0.45),
           ),
         ),
       ],
@@ -333,7 +333,7 @@ class _ServiceCard extends StatelessWidget {
     final isError = service.status == ApiStatus.offline ||
         service.status == ApiStatus.degraded;
     final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final sub = theme.colorScheme.onSurface.withOpacity(0.45);
+    final sub = theme.colorScheme.onSurface.withValues(alpha: 0.45);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -343,9 +343,9 @@ class _ServiceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isError
-              ? dotColor.withOpacity(0.2)
+              ? dotColor.withValues(alpha: 0.2)
               : isDark
-                  ? Colors.white.withOpacity(0.06)
+                  ? Colors.white.withValues(alpha: 0.06)
                   : const Color(0xFFE5E7EB),
         ),
       ),
@@ -356,7 +356,7 @@ class _ServiceCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: dotColor,
-              boxShadow: [BoxShadow(color: dotColor.withOpacity(0.45), blurRadius: 6)],
+              boxShadow: [BoxShadow(color: dotColor.withValues(alpha: 0.45), blurRadius: 6)],
             ),
           ),
           const SizedBox(width: 14),
@@ -395,7 +395,7 @@ class _ServiceCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: dotColor.withOpacity(isDark ? 0.12 : 0.08),
+              color: dotColor.withValues(alpha: isDark ? 0.12 : 0.08),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

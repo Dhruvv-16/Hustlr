@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -57,7 +56,7 @@ class _ManualClaimCameraScreenState extends State<ManualClaimCameraScreen> {
       if (photo != null && mounted) {
         context.pushReplacement('/claims/evidence/review', extra: {
           'disruptionType': widget.disruptionType,
-          'images': [File(photo.path)],
+          'images': [photo],
         });
       } else if (mounted) {
         Navigator.pop(context);

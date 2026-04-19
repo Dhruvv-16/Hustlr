@@ -139,7 +139,7 @@ class _BatteryOptimizationPromptState
                 const SizedBox(height: 12),
                 Text(
                   'Hustlr needs background access to accurately track your zone and process automated payouts during disruptions.',
-                  style: TextStyle(fontSize: 14, height: 1.4, color: theme.colorScheme.onSurface.withOpacity(0.6)),
+                  style: TextStyle(fontSize: 14, height: 1.4, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
                 ),
                 const SizedBox(height: 24),
 
@@ -238,7 +238,7 @@ class _BatteryOptimizationPromptState
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: allGranted ? 0 : 2,
-          shadowColor: allGranted ? Colors.transparent : const Color(0xFFE88A00).withOpacity(0.35),
+          shadowColor: allGranted ? Colors.transparent : const Color(0xFFE88A00).withValues(alpha: 0.35),
         ),
       ),
     );

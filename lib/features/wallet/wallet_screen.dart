@@ -24,7 +24,6 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen> {
   bool _loading = true;
   String? _error;
-  bool _isMock = false;
 
   int _balance = 0;
   int _totalPayouts = 0;
@@ -64,14 +63,13 @@ class _WalletScreenState extends State<WalletScreen> {
     try {
       // Prioritize MockDataService for hackathon demo consistency
       final mock = Provider.of<MockDataService>(context, listen: false);
-      if (mock.transactions.isNotEmpty || mock.walletBalance > 0) {
+      if (mock.worker.id.startsWith('DEMO_')) {
         if (!mounted) return;
         setState(() {
           _balance        = mock.walletBalance;
           _totalPayouts   = mock.monthlySavings;
           _totalPremiums  = mock.totalPremiums;
           _transactions   = List<Map<String, dynamic>>.from(mock.transactions);
-          _isMock         = true;
           _loading        = false;
         });
         return;
@@ -95,14 +93,12 @@ class _WalletScreenState extends State<WalletScreen> {
           _totalPayouts   = mockSvc.monthlySavings; // Note: using monthlySavings as totalPayouts for mock consistency
           _totalPremiums  = mockSvc.totalPremiums;
           _transactions   = List<Map<String, dynamic>>.from(mockSvc.transactions);
-          _isMock         = true;
         } else {
           // Real mode: use API data only
           _balance        = res['balance'] ?? 0;
           _totalPayouts   = res['total_payouts'] ?? 0;
           _totalPremiums  = res['total_premiums'] ?? 0;
           _transactions   = List<Map<String, dynamic>>.from(res['transactions'] ?? []);
-          _isMock         = res['_mock'] == true;
         }
         
         _cashbackStatus = cashbackData;
@@ -116,12 +112,12 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _loadMockWallet() {
+    if (!mounted) return;
     setState(() {
       _balance       = 120;  // Match the single payout amount user expects
       _totalPayouts  = 120;
       _totalPremiums = 0;
       _loading       = false;
-      _isMock        = true;
       _transactions  = [
         {
           'id': 'TXN_001',
@@ -133,15 +129,6 @@ class _WalletScreenState extends State<WalletScreen> {
         },
       ];
     });
-  }
-
-  void _handleNavTap(BuildContext context, int index) {
-    switch (index) {
-      case 0: context.go('/dashboard'); break;
-      case 1: context.go('/policy'); break;
-      case 2: context.go('/claims'); break;
-      case 3: break;
-    }
   }
 
   @override
@@ -426,7 +413,7 @@ class _AnalyticsButton extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final cardBg = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final borderColor = isDark ? green.withOpacity(0.3) : const Color(0xFF2D6A2D).withOpacity(0.3);
+    final borderColor = isDark ? green.withValues(alpha: 0.3) : const Color(0xFF2D6A2D).withValues(alpha: 0.3);
     final iconColor = isDark ? green : const Color(0xFF2D6A2D);
 
     return GestureDetector(
@@ -741,7 +728,7 @@ class _InsuranceTransactionsSection extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () => context.push('/wallet/analytics'),
+              onTap: () => context.push(AppRoutes.analytics),
               child: Text(
                 l10n.wallet_see_all,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: green),
@@ -847,7 +834,7 @@ class _SupportCard extends StatelessWidget {
     final primary = isDark ? Colors.white : const Color(0xFF0D1B0F);
 
     return GestureDetector(
-      onTap: () => context.push('/support'),
+      onTap: () => context.push(AppRoutes.support),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -901,18 +888,18 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
   final lightGreen = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
   final primary    = isDark ? Colors.white : const Color(0xFF0D1B0F);
   final grey       = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
-  final divider    = isDark ? Colors.white.withOpacity(0.10) : const Color(0xFFE5E7EB);
+  final divider    = isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFE5E7EB);
   final btnTxt     = isDark ? const Color(0xFF0A0B0A) : Colors.white;
   final formattedBalance = balance.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
   final parentContext = context;
-  bool _bankDirect = false;
+  bool bankDirect = false;
 
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: sheetBg,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     useSafeArea: true,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetCtx) {
@@ -938,25 +925,25 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => setSheetState(() => _bankDirect = false),
+                      onTap: () => setSheetState(() => bankDirect = false),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: !_bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
+                          color: !bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
                           borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                          border: Border.all(color: green.withOpacity(0.5)),
+                          border: Border.all(color: green.withValues(alpha: 0.5)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.account_balance_wallet_rounded,
-                                size: 16, color: !_bankDirect ? btnTxt : grey),
+                                size: 16, color: !bankDirect ? btnTxt : grey),
                             const SizedBox(width: 6),
                             Text('Wallet / UPI',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 13,
-                                  color: !_bankDirect ? btnTxt : grey,
+                                  color: !bankDirect ? btnTxt : grey,
                                 )),
                           ],
                         ),
@@ -965,25 +952,25 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                   ),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => setSheetState(() => _bankDirect = true),
+                      onTap: () => setSheetState(() => bankDirect = true),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: _bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
+                          color: bankDirect ? green : (isDark ? const Color(0xFF1C1F1C) : const Color(0xFFF4F6F4)),
                           borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                          border: Border.all(color: green.withOpacity(0.5)),
+                          border: Border.all(color: green.withValues(alpha: 0.5)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.account_balance_rounded,
-                                size: 16, color: _bankDirect ? btnTxt : grey),
+                                size: 16, color: bankDirect ? btnTxt : grey),
                             const SizedBox(width: 6),
                             Text('Bank Direct',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 13,
-                                  color: _bankDirect ? btnTxt : grey,
+                                  color: bankDirect ? btnTxt : grey,
                                 )),
                           ],
                         ),
@@ -996,7 +983,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
               const SizedBox(height: 20),
 
               // Show linked destination only; editable from Profile screen
-              if (!_bankDirect) ...[
+              if (!bankDirect) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
@@ -1040,7 +1027,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: lightGreen, borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: green.withOpacity(0.3)),
+                    border: Border.all(color: green.withValues(alpha: 0.3)),
                   ),
                   child: Row(children: [
                     Icon(Icons.account_balance_rounded, color: green, size: 20),
@@ -1057,7 +1044,7 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 decoration: BoxDecoration(
                   color: lightGreen, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: green.withOpacity(0.3)),
+                  border: Border.all(color: green.withValues(alpha: 0.3)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('₹$formattedBalance',
@@ -1071,22 +1058,22 @@ void _showWithdrawBottomSheet(BuildContext context, int balance) {
                 width: double.infinity, height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    if (!_bankDirect && !hasLinkedUpi) {
+                    if (!bankDirect && !hasLinkedUpi) {
                       ScaffoldMessenger.of(parentContext).showSnackBar(
                         const SnackBar(content: Text('Please set your UPI ID in Profile first.')),
                       );
                       return;
                     }
-                    final upi = _bankDirect ? '' : displayUpi;
+                    final upi = bankDirect ? '' : displayUpi;
                     Navigator.pop(sheetCtx);
-                    _processWithdrawal(parentContext, balance, upi, bankDirect: _bankDirect);
+                    _processWithdrawal(parentContext, balance, upi, bankDirect: bankDirect);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: green, foregroundColor: btnTxt,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                   ),
-                  child: Text(_bankDirect ? 'Transfer to Bank →' : 'Initiate Transfer →',
+                  child: Text(bankDirect ? 'Transfer to Bank →' : 'Initiate Transfer →',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: btnTxt)),
                 ),
               ),
@@ -1118,7 +1105,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
   final refText   = isDark ? const Color(0xFFE1E3DE) : Colors.black87;
   final btnTxt    = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
-  bool _cancelled = false;
+  bool cancelled = false;
 
   showDialog(
     context: context,
@@ -1126,7 +1113,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
     builder: (dialogCtx) {
       // After 8s show a cancel button
       Future.delayed(const Duration(seconds: 8), () {
-        if (!_cancelled && dialogCtx.mounted) {
+        if (!cancelled && dialogCtx.mounted) {
           (dialogCtx as Element).markNeedsBuild();
         }
       });
@@ -1147,7 +1134,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () {
-                    _cancelled = true;
+                    cancelled = true;
                     Navigator.of(ctx, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Transfer cancelled.')),
@@ -1171,7 +1158,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
     final mock = Provider.of<MockDataService>(context, listen: false);
     Map<String, dynamic> result;
 
-    if (mock.worker.id.isNotEmpty) {
+    if (mock.worker.id.startsWith('DEMO_')) {
       // Fake network latency
       await Future.delayed(const Duration(seconds: 2));
       result = {
@@ -1191,7 +1178,7 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
       );
     }
 
-    if (_cancelled) return;
+    if (cancelled) return;
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
 
@@ -1279,13 +1266,13 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
       ),
     );
   } on TimeoutException catch (e) {
-    if (_cancelled || !context.mounted) return;
+    if (cancelled || !context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(e.message ?? 'Transfer timed out. Please try again.'), backgroundColor: Colors.redAccent),
     );
   } catch (e) {
-    if (_cancelled || !context.mounted) return;
+    if (cancelled || !context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
     final errMsg = e.toString().replaceAll('Exception: ', '');
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1313,9 +1300,9 @@ class _CashbackStatusCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: green.withOpacity(0.1),
+          color: green.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: green.withOpacity(0.3)),
+          border: Border.all(color: green.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -1343,7 +1330,7 @@ class _CashbackStatusCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

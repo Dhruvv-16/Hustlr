@@ -94,7 +94,7 @@ class _NotificationCard extends StatelessWidget {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final text   = theme.colorScheme.onSurface;
-    final sub    = theme.colorScheme.onSurface.withOpacity(0.5);
+    final sub    = theme.colorScheme.onSurface.withValues(alpha: 0.5);
     final readBg = isDark ? const Color(0xFF141614) : const Color(0xFFF4F4EF);
     final unreadBg = theme.cardColor;
 
@@ -194,7 +194,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final sub   = theme.colorScheme.onSurface.withOpacity(0.4);
+    final sub   = theme.colorScheme.onSurface.withValues(alpha: 0.4);
     final text  = theme.colorScheme.onSurface;
 
     return Center(

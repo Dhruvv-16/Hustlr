@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/router/app_router.dart';
 import '../../l10n/app_localizations.dart';
 
 class ClaimSubmittedScreen extends StatelessWidget {
@@ -34,7 +34,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                         color: primaryColor,
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: primaryColor.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 8)),
+                          BoxShadow(color: primaryColor.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8)),
                         ],
                       ),
                       child: const Icon(Icons.check_rounded, color: Colors.black, size: 40),
@@ -54,7 +54,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                       'Securely received. Our automated engines are analyzing your submission.',
                       style: TextStyle(
                         fontSize: 14,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -65,7 +65,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,7 +79,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                                     child: Container(
                                       height: 120,
                                       decoration: BoxDecoration(
-                                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       clipBehavior: Clip.hardEdge,
@@ -99,7 +99,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
 
                     if (claimData?['_mock'] == true) ...[
                       const SizedBox(height: 16),
-                      Text(l10n.submitted_demo, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.4), fontSize: 12)),
+                      Text(l10n.submitted_demo, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 12)),
                     ]
                   ],
                 ),
@@ -116,7 +116,7 @@ class ClaimSubmittedScreen extends StatelessWidget {
                 ),
                 onPressed: () {
                   // Go back to absolute root or claims tab
-                  context.go('/claims');
+                  context.go(AppRoutes.claims);
                 },
                 child: Text(l10n.submitted_back, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
               ),
@@ -134,10 +134,8 @@ class ClaimSubmittedScreen extends StatelessWidget {
       if (path.startsWith('http')) {
         return Image.network(path, fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _brokenImagePlaceholder(theme, isDark));
-      } else {
-        return Image.file(File(path), fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _brokenImagePlaceholder(theme, isDark));
       }
+      return _brokenImagePlaceholder(theme, isDark);
     }
     // Priority 2: network URLs from server response
     final urls = claimData?['evidence_urls'];
@@ -162,19 +160,4 @@ class ClaimSubmittedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(String text, ThemeData theme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Container(width: 4, height: 4, decoration: BoxDecoration(color: theme.colorScheme.onSurface.withOpacity(0.5), shape: BoxShape.circle)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(text, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7), fontSize: 13)),
-        ),
-      ],
-    );
-  }
 }

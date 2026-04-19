@@ -39,12 +39,12 @@ class LanguageSwitcher extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: provider.locale.languageCode == entry.key
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: provider.locale.languageCode == entry.key
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Text(
@@ -54,7 +54,7 @@ class LanguageSwitcher extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: provider.locale.languageCode == entry.key
                         ? Colors.black // Dark text on Ethereal Night primary glow
-                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ),

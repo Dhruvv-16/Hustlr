@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/notification_service.dart';
+import '../core/router/app_router.dart';
 
 class NotificationBell extends StatelessWidget {
   const NotificationBell({super.key});
@@ -17,7 +18,7 @@ class NotificationBell extends StatelessWidget {
         return GestureDetector(
           onTap: () async {
             NotificationService.instance.markAllRead();
-            GoRouter.of(context).push('/notifications');
+            GoRouter.of(context).push(AppRoutes.notifications);
             setState(() {});
           },
           behavior: HitTestBehavior.opaque,
@@ -26,7 +27,7 @@ class NotificationBell extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: hasUnread 
-                  ? (isDark ? primaryColor.withOpacity(0.15) : primaryColor.withOpacity(0.1))
+                  ? (isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.1))
                   : Colors.transparent,
               shape: BoxShape.circle,
             ),

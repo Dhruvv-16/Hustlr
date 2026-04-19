@@ -56,7 +56,7 @@ class _DemoControlPanelState extends State<_DemoControlPanel> {
               width: 40, height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.4),
+                color: Colors.grey.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -70,7 +70,7 @@ class _DemoControlPanelState extends State<_DemoControlPanel> {
           Text(
             'Trigger live claim scenarios for the demo presentation.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.5), fontFamily: 'Manrope'),
+            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.5), fontFamily: 'Manrope'),
           ),
           const SizedBox(height: 20),
 
@@ -87,8 +87,8 @@ class _DemoControlPanelState extends State<_DemoControlPanel> {
           OutlinedButton(
             onPressed: () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.onSurface.withOpacity(0.6),
-              side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.15)),
+              foregroundColor: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              side: BorderSide(color: theme.colorScheme.onSurface.withValues(alpha: 0.15)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -105,9 +105,9 @@ class _DemoControlPanelState extends State<_DemoControlPanel> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [

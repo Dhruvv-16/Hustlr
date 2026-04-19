@@ -81,12 +81,12 @@ class _LiveActivityOverlayState extends State<LiveActivityOverlay> with TickerPr
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFF0D1117).withOpacity(0.92),
+              color: const Color(0xFF0D1117).withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: color, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.4),
+                  color: color.withValues(alpha: 0.4),
                   blurRadius: 8 * _pulseAnimation.value,
                   spreadRadius: 1,
                 ),
@@ -104,7 +104,7 @@ class _LiveActivityOverlayState extends State<LiveActivityOverlay> with TickerPr
                     color: color,
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.6),
+                        color: color.withValues(alpha: 0.6),
                         blurRadius: 4 * _pulseAnimation.value,
                         spreadRadius: 1,
                       ),
@@ -181,7 +181,7 @@ class _LiveActivityOverlayState extends State<LiveActivityOverlay> with TickerPr
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withOpacity(0.15),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFF59E0B)),
                 ),

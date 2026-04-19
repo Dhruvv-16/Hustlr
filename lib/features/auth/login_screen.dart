@@ -43,9 +43,13 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     
-    // Demo bypass for all users to prevent Firebase locking
-    final box = Hive.box('appData');
-    box.put('isDemoSession', true);
+    // Always start in non-demo mode so real backend persistence is used.
+    final box = Hive.isBoxOpen('appData')
+        ? Hive.box('appData')
+        : null;
+    if (box != null) {
+      box.put('isDemoSession', false);
+    }
     
     context.push('${AppRoutes.otp}?phone=${Uri.encodeComponent(phone)}');
   }
@@ -74,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   fontSize: 40,
                   shadows: [
                     Shadow(
-                      color: theme.colorScheme.primary.withOpacity(isDark ? 0.3 : 0.15),
+                      color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.3 : 0.15),
                       blurRadius: isDark ? 24 : 12,
                       offset: const Offset(0, 4),
                     ),
@@ -104,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Elevation defined purely by ambient shadow or zero shadow
                     boxShadow: isDark ? [] : [
                       BoxShadow(
-                        color: const Color(0xFF125117).withOpacity(0.08),
+                        color: const Color(0xFF125117).withValues(alpha: 0.08),
                         blurRadius: 40, offset: const Offset(0, 20),
                       )
                     ],
@@ -113,9 +117,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Icon(
                     Icons.electric_moped_rounded,
                     size: 100,
-                    color: theme.colorScheme.primary.withOpacity(isDark ? 1.0 : 0.7),
+                    color: theme.colorScheme.primary.withValues(alpha: isDark ? 1.0 : 0.7),
                     shadows: isDark ? [
-                      Shadow(color: theme.colorScheme.primary.withOpacity(0.5), blurRadius: 40, offset: const Offset(0, 10))
+                      Shadow(color: theme.colorScheme.primary.withValues(alpha: 0.5), blurRadius: 40, offset: const Offset(0, 10))
                     ] : [],
                   ),
                 ),

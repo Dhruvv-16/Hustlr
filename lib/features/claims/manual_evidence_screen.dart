@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/router/app_router.dart';
 import '../../l10n/app_localizations.dart';
 
 class ManualEvidenceScreen extends StatefulWidget {
@@ -80,7 +81,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
-                  backgroundColor: _selectedType != null ? primaryColor : primaryColor.withOpacity(0.3),
+                  backgroundColor: _selectedType != null ? primaryColor : primaryColor.withValues(alpha: 0.3),
                   foregroundColor: Colors.black, // Dark text on green for Hustlr
                   minimumSize: const Size(double.infinity, 64),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
@@ -88,7 +89,12 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
                 onPressed: _selectedType != null
                     ? () {
                         // Pass disruption type to next screen
-                        context.push(Uri(path: '/claims/evidence/camera', queryParameters: {'disruptionType': _selectedType!}).toString());
+                        context.push(
+                          Uri(
+                            path: AppRoutes.manualClaimCamera,
+                            queryParameters: {'disruptionType': _selectedType!},
+                          ).toString(),
+                        );
                       }
                     : null,
                 child: Text(l10n.manual_claim_continue, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
@@ -118,7 +124,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
           ),
           boxShadow: isDark ? [] : [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -130,7 +136,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: isSelected ? primaryColor : primaryColor.withOpacity(0.1),
+                color: isSelected ? primaryColor : primaryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -157,7 +163,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
                     type['desc'],
                     style: TextStyle(
                       fontSize: 13,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -165,7 +171,7 @@ class _ManualEvidenceScreenState extends State<ManualEvidenceScreen> {
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ],
         ),

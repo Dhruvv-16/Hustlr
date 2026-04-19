@@ -70,7 +70,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Auto-monitoring $_userZone every 15 mins',
-                  style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -95,7 +95,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: theme.cardColor,
-              border: Border(top: BorderSide(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04))),
+              border: Border(top: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04))),
             ),
             child: SafeArea(
               top: false,
@@ -104,14 +104,14 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
                 children: [
                   Container(
                     width: 36, height: 36,
-                    decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.15), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
                     child: Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 18),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       'All triggers monitored automatically. You never need to check this — Hustlr notifies you by Sunday 11 PM.',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6), height: 1.5, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -131,7 +131,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.shield_outlined, size: 48, color: theme.colorScheme.primary),
@@ -147,7 +147,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
             child: Text(
               'There are no active triggers or disruptions tracked in $_userZone right now. Hustle safe!',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5),
+              style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.6), height: 1.5),
             ),
           ),
         ],
@@ -176,11 +176,11 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isElevated ? Colors.orange : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+          color: isElevated ? Colors.orange : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
           width: isElevated ? 2 : 1.5,
         ),
         boxShadow: isDark ? [] : [
-           BoxShadow(color: isElevated ? Colors.orange.withOpacity(0.1) : const Color(0x05000000), blurRadius: 16, offset: const Offset(0, 8)),
+           BoxShadow(color: isElevated ? Colors.orange.withValues(alpha: 0.1) : const Color(0x05000000), blurRadius: 16, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
@@ -193,7 +193,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
                 children: [
                   Container(
                     width: 44, height: 44,
-                    decoration: BoxDecoration(color: (isElevated ? Colors.orange : theme.colorScheme.primary).withOpacity(0.15), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: (isElevated ? Colors.orange : theme.colorScheme.primary).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
                     child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20))),
                   ),
                   const SizedBox(width: 14),
@@ -214,9 +214,9 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.12),
+                color: Colors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +254,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -275,7 +275,7 @@ class _TriggerStatusScreenState extends State<TriggerStatusScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 2, child: Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontSize: 13, fontWeight: FontWeight.w700))),
+          Expanded(flex: 2, child: Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 13, fontWeight: FontWeight.w700))),
           Expanded(flex: 3, child: Text(
             value,
             style: TextStyle(

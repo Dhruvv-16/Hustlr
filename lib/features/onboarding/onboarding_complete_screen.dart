@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/router/app_router.dart';
+import '../../core/services/storage_service.dart';
 import '../../services/mock_data_service.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,8 +13,16 @@ import 'package:permission_handler/permission_handler.dart';
 class OnboardingCompleteScreen extends StatelessWidget {
   const OnboardingCompleteScreen({super.key});
 
-  void _goToDashboard(BuildContext context) {
-    Hive.box('appData').put('onboardingComplete', true);
+  Future<void> _goToDashboard(BuildContext context) async {
+    try {
+      if (Hive.isBoxOpen('appData')) {
+        await Hive.box('appData').put('onboardingComplete', true);
+      }
+    } catch (_) {
+      // Keep flow alive even if Hive is temporarily unavailable.
+    }
+    await StorageService.setLoggedIn(true);
+    await StorageService.setOnboarded(true);
     context.go(AppRoutes.dashboard);
   }
 
@@ -68,9 +77,9 @@ class OnboardingCompleteScreen extends StatelessWidget {
                 color: theme.cardColor,
                 shape: BoxShape.circle,
                 boxShadow: isDark ? [
-                  BoxShadow(color: theme.colorScheme.primary.withOpacity(0.05), blurRadius: 40, offset: const Offset(0, 10))
+                  BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.05), blurRadius: 40, offset: const Offset(0, 10))
                 ] : [
-                  BoxShadow(color: theme.colorScheme.primary.withOpacity(0.15), blurRadius: 50, offset: const Offset(0, 20))
+                  BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.15), blurRadius: 50, offset: const Offset(0, 20))
                 ],
               ),
               child: Icon(Icons.verified_rounded, size: 64, color: theme.colorScheme.primary),
@@ -113,7 +122,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(isDark ? 32 : 24),
                 boxShadow: isDark ? [] : [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 8))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 8))
                 ],
               ),
               child: Column(
@@ -124,7 +133,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                       children: [
                         Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary, size: 20),
                         const SizedBox(width: 12),
-                        Text('${chip.$1}: ', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                        Text('${chip.$1}: ', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
                         Expanded(child: Text(chip.$2, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold))),
                       ],
                     ),
@@ -135,7 +144,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
@@ -154,7 +163,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -173,7 +182,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                               ),
                             );
                           } catch (_) {}
-                          if (context.mounted) _goToDashboard(context);
+                          if (context.mounted) await _goToDashboard(context);
                           return;
                         }
                         final status = await Permission.locationWhenInUse.request();
@@ -188,7 +197,7 @@ class OnboardingCompleteScreen extends StatelessWidget {
                           );
                         } catch (_) {}
 
-                        if (context.mounted) _goToDashboard(context);
+                        if (context.mounted) await _goToDashboard(context);
                       },
                     ),
                   ),

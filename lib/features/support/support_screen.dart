@@ -76,7 +76,7 @@ class _SearchBar extends StatelessWidget {
     final theme    = Theme.of(context);
     final isDark   = theme.brightness == Brightness.dark;
     final cardBg   = theme.cardColor;
-    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+    final hintColor = theme.colorScheme.onSurface.withValues(alpha: 0.4);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -203,7 +203,7 @@ class _GridCard extends StatelessWidget {
     final isDark   = theme.brightness == Brightness.dark;
     final cardBg   = theme.cardColor;
     final titleColor = theme.colorScheme.onSurface;
-    final subColor   = theme.colorScheme.onSurface.withOpacity(0.5);
+    final subColor   = theme.colorScheme.onSurface.withValues(alpha: 0.5);
 
     return GestureDetector(
       onTap: onTap,
@@ -314,8 +314,8 @@ class _FaqItemState extends State<_FaqItem> {
     final isDark   = theme.brightness == Brightness.dark;
     final cardBg   = theme.cardColor;
     final qColor   = theme.colorScheme.onSurface;
-    final aColor   = theme.colorScheme.onSurface.withOpacity(0.6);
-    final chevron  = theme.colorScheme.onSurface.withOpacity(0.4);
+    final aColor   = theme.colorScheme.onSurface.withValues(alpha: 0.6);
+    final chevron  = theme.colorScheme.onSurface.withValues(alpha: 0.4);
 
     return Container(
       decoration: BoxDecoration(
@@ -355,9 +355,9 @@ class _TicketCard extends StatelessWidget {
     final cardBg   = theme.cardColor;
     final inputBg  = theme.scaffoldBackgroundColor;
     final dividerColor = isDark
-        ? Colors.white.withOpacity(0.08)
+        ? Colors.white.withValues(alpha: 0.08)
         : const Color(0xFFE5E7EB);
-    final hintColor = theme.colorScheme.onSurface.withOpacity(0.4);
+    final hintColor = theme.colorScheme.onSurface.withValues(alpha: 0.4);
     final green = theme.colorScheme.primary;
     final titleColor = theme.colorScheme.onSurface;
     final btnTxt = isDark ? const Color(0xFF0A0B0A) : Colors.white;

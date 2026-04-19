@@ -181,8 +181,8 @@ class _AutoExplanationScreenState extends State<AutoExplanationScreen> {
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : Colors.black.withOpacity(0.04),
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.04),
                         width: 1.5,
                       ),
                       boxShadow: isDark
@@ -251,7 +251,7 @@ class _AutoExplanationScreenState extends State<AutoExplanationScreen> {
                           'First-time flags are treated as caution only.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -276,9 +276,9 @@ class _AutoExplanationScreenState extends State<AutoExplanationScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.08),
+        color: accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.2), width: 1.5),
+        border: Border.all(color: accent.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +287,7 @@ class _AutoExplanationScreenState extends State<AutoExplanationScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.15),
+              color: accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: accent, size: 24),
@@ -309,7 +309,7 @@ class _AutoExplanationScreenState extends State<AutoExplanationScreen> {
                 Text(
                   detail,
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     height: 1.4,

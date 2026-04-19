@@ -1,8 +1,9 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../blocs/claims/claims_bloc.dart';
 import '../../blocs/claims/claims_event.dart';
 import '../../l10n/app_localizations.dart';
@@ -18,7 +19,7 @@ import '../../core/router/app_router.dart';
 
 class ManualClaimReviewScreen extends StatefulWidget {
   final String disruptionType;
-  final List<File> capturedImages;
+  final List<XFile> capturedImages;
   final int? signalStrength;
 
   const ManualClaimReviewScreen({
@@ -33,7 +34,8 @@ class ManualClaimReviewScreen extends StatefulWidget {
 }
 
 class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
-  late List<File> _images;
+  late List<XFile> _images;
+  late List<Uint8List?> _imageBytes;
   bool _isSubmitting = false;
   String _mlStatusText = '';
 
@@ -41,6 +43,20 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
   void initState() {
     super.initState();
     _images = List.from(widget.capturedImages);
+    _imageBytes = List<Uint8List?>.filled(_images.length, null);
+    _loadImageBytes();
+  }
+
+  Future<void> _loadImageBytes() async {
+    for (var i = 0; i < _images.length; i++) {
+      try {
+        final bytes = await _images[i].readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _imageBytes[i] = bytes;
+        });
+      } catch (_) {}
+    }
   }
 
   Future<void> _submitClaim() async {
@@ -199,6 +215,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
     context.pushReplacement('/claims/evidence/camera?disruptionType=${widget.disruptionType}');
   }
 
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
@@ -224,7 +241,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 l10n.review_subtitle,
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
+                style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 14),
               ),
             ),
             const SizedBox(height: 24),
@@ -254,7 +271,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2)),
+                        side: BorderSide(color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                       ),
@@ -307,19 +324,19 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
             onTap: _addMore,
             child: Container(
               decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withOpacity(0.04),
-                border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.2), width: 1, style: BorderStyle.none), // Simulated dash
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.04),
+                border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.2), width: 1, style: BorderStyle.none), // Simulated dash
                 borderRadius: BorderRadius.circular(12),
               ),
               child: CustomPaint(
-                painter: _DashedBorderPainter(color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                painter: _DashedBorderPainter(color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt_rounded, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                      Icon(Icons.camera_alt_rounded, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                       const SizedBox(height: 8),
-                      Text(l10n.review_add_more, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(l10n.review_add_more, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontWeight: FontWeight.bold, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -333,10 +350,12 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
             borderRadius: BorderRadius.circular(12),
             color: Colors.black, // Dark background for letterboxing
             image: DecorationImage(
-              image: FileImage(_images[idx]),
+              image: _imageBytes.length > idx && _imageBytes[idx] != null
+                  ? MemoryImage(_imageBytes[idx]!)
+                  : const AssetImage('assets/icon.png') as ImageProvider,
               fit: BoxFit.contain,
             ),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Stack(
             children: [
@@ -345,7 +364,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
                 bottom: 8, left: 8,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(8)),
                   child: Text('${l10n.review_label} ${idx + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -373,7 +392,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+          border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -385,7 +404,7 @@ class _ManualClaimReviewScreenState extends State<ManualClaimReviewScreen> {
             Text(
               l10n.review_network_desc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, height: 1.4),
+              style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13, height: 1.4),
             ),
           ],
         ),

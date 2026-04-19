@@ -144,7 +144,7 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
               width: 40, height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.4),
+                color: Colors.grey.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -255,13 +255,13 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
                 color: _lastResult!.startsWith('✅')
-                    ? const Color(0xFF10B981).withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
+                    ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                    : Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: _lastResult!.startsWith('✅')
-                      ? const Color(0xFF10B981).withOpacity(0.4)
-                      : Colors.redAccent.withOpacity(0.4),
+                      ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                      : Colors.redAccent.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
@@ -295,9 +295,9 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.35)),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
@@ -320,7 +320,7 @@ class _LivePersonaPanelState extends State<LivePersonaPanel> {
             if (_isTriggering)
               SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: color, strokeWidth: 2))
             else
-              Icon(Icons.arrow_forward_ios_rounded, color: color.withOpacity(0.6), size: 13),
+              Icon(Icons.arrow_forward_ios_rounded, color: color.withValues(alpha: 0.6), size: 13),
           ],
         ),
       ),

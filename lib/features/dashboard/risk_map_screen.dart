@@ -79,9 +79,9 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
         child: Container(
           margin: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF050A12).withOpacity(0.75),
+            color: const Color(0xFF050A12).withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.2)),
+            border: Border.all(color: const Color(0xFF3FFF8B).withValues(alpha: 0.2)),
           ),
           child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
         ),
@@ -94,9 +94,9 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             width: 40, height: 40,
             margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF050A12).withOpacity(0.75),
+              color: const Color(0xFF050A12).withValues(alpha: 0.75),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.2)),
+              border: Border.all(color: const Color(0xFF3FFF8B).withValues(alpha: 0.2)),
             ),
             child: const Icon(Icons.refresh_rounded, color: Color(0xFF3FFF8B), size: 18),
           ),
@@ -150,8 +150,8 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF050A12).withOpacity(0.0),
-              const Color(0xFF050A12).withOpacity(0.9),
+              const Color(0xFF050A12).withValues(alpha: 0.0),
+              const Color(0xFF050A12).withValues(alpha: 0.9),
             ],
           ),
         ),
@@ -190,7 +190,7 @@ class _StatChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.w600,
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             letterSpacing: 0.3,
           ),
         ),

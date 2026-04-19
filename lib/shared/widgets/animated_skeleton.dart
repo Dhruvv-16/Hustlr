@@ -5,7 +5,6 @@ class AnimatedSkeleton extends StatefulWidget {
   final double height;
   final double borderRadius;
   final EdgeInsetsGeometry? margin;
-  final bool buildUpOnly;
 
   const AnimatedSkeleton({
     super.key,
@@ -13,7 +12,6 @@ class AnimatedSkeleton extends StatefulWidget {
     required this.height,
     this.borderRadius = 12.0,
     this.margin,
-    this.buildUpOnly = false,
   });
 
   @override
@@ -31,13 +29,7 @@ class _AnimatedSkeletonState extends State<AnimatedSkeleton>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    );
-
-    if (widget.buildUpOnly) {
-      _controller.forward();
-    } else {
-      _controller.repeat(reverse: true);
-    }
+    )..repeat(reverse: true);
   }
 
   @override
@@ -47,14 +39,14 @@ class _AnimatedSkeletonState extends State<AnimatedSkeleton>
 
     // Light, Dark, Darker animation
     final lightColor = isDark
-        ? Colors.white.withOpacity(0.04)
-        : const Color(0xFF1B5E20).withOpacity(0.04);
+        ? Colors.white.withValues(alpha: 0.04)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.04);
     final darkColor = isDark
-        ? Colors.white.withOpacity(0.08)
-        : const Color(0xFF1B5E20).withOpacity(0.08);
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.08);
     final darkerColor = isDark
-        ? Colors.white.withOpacity(0.12)
-        : const Color(0xFF1B5E20).withOpacity(0.12);
+        ? Colors.white.withValues(alpha: 0.12)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.12);
 
     _colorAnimation = TweenSequence<Color?>([
       TweenSequenceItem(

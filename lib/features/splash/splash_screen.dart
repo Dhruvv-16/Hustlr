@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
-import '../../core/services/storage_service.dart';
-import '../../services/biometric_service.dart';
+import '../../core/router/app_router.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,77 +14,13 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _navigate();
+
+    // Safety net: if router redirect doesn't fire for any reason,
+    // leave splash after a short delay instead of hanging indefinitely.
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      context.go(AppRoutes.login);
     });
-  }
-
-  Future<void> _navigate() async {
-    if (!mounted) return;
-    final box = Hive.box('appData');
-    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-
-    if (!mounted) return;
-    if (!isLoggedIn) {
-      context.go('/login');
-      return;
-    }
-
-    final startupChecks = await Future.wait<dynamic>([
-      StorageService.instance.isOnboardingComplete(),
-      StorageService.instance.getUserId(),
-    ]);
-    if (!mounted) return;
-    final isComplete = startupChecks[0] as bool;
-    final userId = startupChecks[1] as String?;
-
-    if (!isComplete || userId == null) {
-      context.go('/carousel');
-      return;
-    }
-
-    // Biometric lock check
-    final bioEnabled = StorageService.getBool('biometric_enabled') ?? true;
-    if (bioEnabled) {
-      final biometric = BiometricService.instance;
-      final available = await biometric.isAvailable();
-
-      if (available) {
-        final result = await biometric.authenticate(
-          reason: 'Unlock Hustlr to access your wallet',
-        );
-
-        if (!result.success && !result.notAvailable) {
-          if (mounted) {
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => AlertDialog(
-                title: const Text('Authentication Required'),
-                content: const Text('Please authenticate to access Hustlr'),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _navigate();
-                    },
-                    child: const Text('Try Again'),
-                  ),
-                ],
-              ),
-            );
-          }
-          return;
-        }
-      }
-    }
-
-    if (mounted) context.go('/dashboard');
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
@@ -96,10 +30,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final bgColor    = theme.scaffoldBackgroundColor;
     final green      = theme.colorScheme.primary;
-    final iconBgOuter = green.withOpacity(0.15);
+    final iconBgOuter = green.withValues(alpha: 0.15);
     final iconBgInner = isDark ? const Color(0xFF004734) : const Color(0xFFDCE8DC);
     final titleColor  = theme.colorScheme.onSurface;
-    final subColor    = theme.colorScheme.onSurface.withOpacity(0.5);
+    final subColor    = theme.colorScheme.onSurface.withValues(alpha: 0.5);
     final trackFill   = green;
     final trackEmpty  = isDark ? const Color(0xFF2A2D2A) : const Color(0xFFD1D5DB);
     final helpIconFg  = isDark ? const Color(0xFF0A0B0A) : Colors.white;
@@ -135,6 +69,11 @@ class _SplashScreenState extends State<SplashScreen> {
                         'assets/icon.png',
                         width: 72,
                         height: 72,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.shield_rounded,
+                          size: 72,
+                          color: green,
+                        ),
                       ),
                     ),
                   ),
@@ -199,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: green.withOpacity(0.35),
+                    color: green.withValues(alpha: 0.35),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),

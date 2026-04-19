@@ -31,7 +31,7 @@ void showWalletFilterSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.65),
+    barrierColor: Colors.black.withValues(alpha: 0.65),
     builder: (ctx) => _WalletFilterSheet(
       initialType: initialType,
       initialPeriod: initialPeriod,
@@ -92,7 +92,7 @@ class _WalletFilterSheetState extends State<_WalletFilterSheet> with TickerProvi
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04), width: 1),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04), width: 1),
             boxShadow: isDark ? [] : [
               const BoxShadow(color: Color(0x33000000), blurRadius: 40, offset: Offset(0, -8)),
             ],
@@ -116,7 +116,7 @@ class _WalletFilterSheetState extends State<_WalletFilterSheet> with TickerProvi
                     onTap: () {
                       setState(() { _selectedType = 'All'; _selectedPeriod = 'This month'; });
                     },
-                    child: Text('Reset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: theme.colorScheme.primary.withOpacity(0.8))),
+                    child: Text('Reset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: theme.colorScheme.primary.withValues(alpha: 0.8))),
                   ),
                 ],
               ),
@@ -198,7 +198,7 @@ class _WalletFilterSheetState extends State<_WalletFilterSheet> with TickerProvi
   }
 
   Widget _sectionLabel(String text, ThemeData theme) => Text(text,
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: theme.colorScheme.primary.withOpacity(0.8), letterSpacing: 2.5));
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: theme.colorScheme.primary.withValues(alpha: 0.8), letterSpacing: 2.5));
 }
 
 class _DragHandle extends StatelessWidget {
@@ -220,9 +220,9 @@ class _DragHandle extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
               gradient: LinearGradient(
                 colors: [
-                  theme.colorScheme.primary.withOpacity(0.2),
-                  theme.colorScheme.primary.withOpacity(0.5 + shimmerAnim.value * 0.3),
-                  theme.colorScheme.primary.withOpacity(0.2),
+                  theme.colorScheme.primary.withValues(alpha: 0.2),
+                  theme.colorScheme.primary.withValues(alpha: 0.5 + shimmerAnim.value * 0.3),
+                  theme.colorScheme.primary.withValues(alpha: 0.2),
                 ],
               ),
             ),
@@ -278,25 +278,25 @@ class _MagneticBubbleRow extends StatelessWidget {
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? theme.colorScheme.primary.withOpacity(0.15) : theme.cardColor,
+                color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.15) : theme.cardColor,
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: isSelected ? theme.colorScheme.primary.withOpacity(0.7) : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+                  color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.7) : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
                   width: isSelected ? 1.5 : 1,
                 ),
                 boxShadow: isDark ? [] : [
-                  BoxShadow(color: (isSelected ? theme.colorScheme.primary : Colors.black).withOpacity(isSelected ? 0.1 : 0.05), blurRadius: 8, offset: const Offset(0, 3)),
+                  BoxShadow(color: (isSelected ? theme.colorScheme.primary : Colors.black).withValues(alpha: isSelected ? 0.1 : 0.05), blurRadius: 8, offset: const Offset(0, 3)),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(choice.icon, size: 13, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.5)),
+                  Icon(choice.icon, size: 13, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                   const SizedBox(width: 6),
                   Text(choice.label,
                       style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w800,
-                        color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.5),
+                        color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                         letterSpacing: 0.2,
                       )),
                 ],
@@ -332,24 +332,24 @@ class _PeriodRow extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
-            color: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : theme.cardColor,
+            color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.1) : theme.cardColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? theme.colorScheme.primary.withOpacity(0.6) : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+              color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.6) : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
               width: isSelected ? 1.5 : 1,
             ),
             boxShadow: isDark ? [] : [
-               BoxShadow(color: (isSelected ? theme.colorScheme.primary : Colors.black).withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
+               BoxShadow(color: (isSelected ? theme.colorScheme.primary : Colors.black).withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2)),
             ],
           ),
           child: Row(
             children: [
-              Icon(choice.icon, size: 16, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.5)),
+              Icon(choice.icon, size: 16, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.5)),
               const SizedBox(width: 14),
               Text(choice.label,
                   style: TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w800,
-                    color: isSelected ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.5),
+                    color: isSelected ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   )),
               const Spacer(),
               AnimatedContainer(
@@ -357,9 +357,9 @@ class _PeriodRow extends StatelessWidget {
                 width: 22, height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isSelected ? theme.colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                  color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.2) : Colors.transparent,
                   border: Border.all(
-                    color: isSelected ? theme.colorScheme.primary.withOpacity(0.8) : theme.colorScheme.onSurface.withOpacity(0.1),
+                    color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.8) : theme.colorScheme.onSurface.withValues(alpha: 0.1),
                     width: 1.5,
                   ),
                 ),

@@ -110,6 +110,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return rule.pattern.hasMatch(_normalizedPlatformId());
   }
 
+  bool _isUuid(String value) {
+    final v = value.trim();
+    return RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(v);
+  }
+
   String _platformIdHelperText(AppLocalizations l10n) {
     final rule = _selectedRule;
     if (rule == null) return l10n.onboarding_kyc_helper;
@@ -150,39 +157,54 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         platform: _selectedPlatform!,
       );
 
-      final userId = workerData['user']['id'] as String;
-      await ApiService.instance.startSession(
-        userId: userId,
-        phone: phone,
-        deviceLabel: 'hustlr_flutter_app',
-      );
+      final userId = workerData['user']['id'] as String? ?? '';
+      final hasRealBackendUser = _isUuid(userId);
 
-      await StorageService.setUserId(userId);
+      if (hasRealBackendUser) {
+        await ApiService.instance.startSession(
+          userId: userId,
+          phone: phone,
+          deviceLabel: 'hustlr_flutter_app',
+        );
+        await StorageService.setLoggedIn(true);
+        await StorageService.setUserId(userId);
+      } else {
+        // Offline/mock onboarding mode: avoid backend UUID/FK errors.
+        await StorageService.setLoggedIn(true);
+        await StorageService.setUserId(userId);
+        await StorageService.setSessionToken('offline-local-session');
+        ApiService.instance.accessToken = 'offline-local-session';
+      }
+
       await StorageService.setString('userName', name);
       await StorageService.setString('workerName', name);
       await StorageService.setUserZone(_selectedZone!);
       await StorageService.setString('userCity', _selectedCity!);
       await StorageService.setString('userPlatform', _selectedPlatform!);
 
-      final policyData = await ApiService.instance.createPolicy(
-        userId: userId,
-        planTier: 'standard',
-      );
+      if (hasRealBackendUser) {
+        final policyData = await ApiService.instance.createPolicy(
+          userId: userId,
+          planTier: 'standard',
+        );
 
-      final policyId = policyData['policy']['id'] as String;
-      await StorageService.setPolicyId(policyId);
+        final policyId = policyData['policy']['id'] as String;
+        await StorageService.setPolicyId(policyId);
 
-      // Add premium deducted notification with live policy values.
-      final createdPolicy = policyData['policy'] as Map<String, dynamic>?;
-      final createdPlan = createdPolicy?['plan_name']?.toString();
-      final createdPremiumRaw = createdPolicy?['weekly_premium'];
-      final createdPremium = (createdPremiumRaw is num)
-          ? createdPremiumRaw.round()
-          : int.tryParse(createdPremiumRaw?.toString() ?? '') ?? 49;
-      NotificationService.instance.addPremiumDeducted(
-        createdPremium,
-        planName: createdPlan,
-      );
+        // Add premium deducted notification with live policy values.
+        final createdPolicy = policyData['policy'] as Map<String, dynamic>?;
+        final createdPlan = createdPolicy?['plan_name']?.toString();
+        final createdPremiumRaw = createdPolicy?['weekly_premium'];
+        final createdPremium = (createdPremiumRaw is num)
+            ? createdPremiumRaw.round()
+            : int.tryParse(createdPremiumRaw?.toString() ?? '') ?? 49;
+        NotificationService.instance.addPremiumDeducted(
+          createdPremium,
+          planName: createdPlan,
+        );
+      } else {
+        await StorageService.setPolicyId('');
+      }
 
       await StorageService.setOnboarded(true);
 
@@ -388,7 +410,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text(
               'Enter your details to get your personalised protection plan.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
             const SizedBox(height: 48),
@@ -401,7 +423,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 color: theme.cardColor,
                 borderRadius: inputRadius,
                 boxShadow: isDark ? [] : [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))
                 ],
               ),
               child: TextField(
@@ -411,7 +433,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   hintText: 'Enter your name',
-                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3)),
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 ),
@@ -444,7 +466,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: isSelected ? theme.colorScheme.primary : theme.cardColor,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: isDark || !isSelected ? [] : [
-                        BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 6))
+                        BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.2), blurRadius: 12, offset: const Offset(0, 6))
                       ],
                     ),
                     child: Text(
@@ -466,7 +488,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(height: 4),
             Text(
               'Select your ${_selectedPlatform ?? 'Zepto'} dark store delivery zone',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
             ),
             const SizedBox(height: 12),
             GestureDetector(
@@ -475,7 +497,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 52,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border.all(color: _selectedCity != null ? const Color(0xFFE5E7EB) : const Color(0xFFE5E7EB).withOpacity(0.5)),
+                  border: Border.all(color: _selectedCity != null ? const Color(0xFFE5E7EB) : const Color(0xFFE5E7EB).withValues(alpha: 0.5)),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.06), blurRadius: 8, offset: Offset(0, 2))
@@ -533,7 +555,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         width: isDark ? 1 : 2,
                       ),
                       boxShadow: isDark || isSelected ? [] : [
-                        BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 4))
                       ],
                     ),
                     child: Column(
@@ -541,7 +563,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.storefront_rounded,
-                            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.4)),
+                            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                         const SizedBox(height: 12),
                         Text(
                           platform,
@@ -565,7 +587,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(height: 4),
             Text(
               _platformIdHelperText(l10n),
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
             ),
             const SizedBox(height: 12),
             Container(
@@ -573,7 +595,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 color: theme.cardColor,
                 borderRadius: inputRadius,
                 boxShadow: isDark || _selectedPlatform == null ? [] : [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))
                 ],
               ),
               child: TextField(
@@ -590,7 +612,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   hintText: _selectedPlatform != null
                       ? (_selectedRule?.hint ?? 'Enter $_selectedPlatform ID')
                       : 'Select a platform first',
-                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3)),
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 ),

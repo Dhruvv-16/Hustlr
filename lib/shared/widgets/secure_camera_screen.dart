@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show WriteBuffer;
 import 'package:camera/camera.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 enum CameraMode {
   kycFace,    // strictly front camera, requires clear face matching
@@ -13,12 +17,16 @@ class SecureCameraScreen extends StatefulWidget {
   final CameraMode mode;
   final String title;
   final String instructions;
+  final bool enforceLiveGesture;
+  final String? expectedGesture;
 
   const SecureCameraScreen({
     super.key,
     required this.mode,
     required this.title,
     required this.instructions,
+    this.enforceLiveGesture = false,
+    this.expectedGesture,
   });
 
   @override
@@ -28,11 +36,21 @@ class SecureCameraScreen extends StatefulWidget {
 class _SecureCameraScreenState extends State<SecureCameraScreen>
     with SingleTickerProviderStateMixin {
   CameraController? _controller;
+  CameraDescription? _selectedCamera;
   List<CameraDescription> _cameras = [];
   bool _isInit = false;
   String? _errorMsg;
+  String? _liveHint;
   late AnimationController _borderAnim;
   late Animation<double> _borderOpacity;
+  FaceDetector? _faceDetector;
+  bool _isProcessingFrame = false;
+  bool _isCapturing = false;
+  bool _isStreaming = false;
+  double? _baselineYaw;
+  int _baselineSamples = 0;
+  String? _detectedDirection;
+  Timer? _captureDebounce;
 
   @override
   void initState() {
@@ -74,8 +92,22 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
         ResolutionPreset.high,
         enableAudio: false,
       );
+      _selectedCamera = selectedCamera;
 
       await _controller!.initialize();
+
+      if (widget.mode == CameraMode.kycFace && widget.enforceLiveGesture) {
+        _faceDetector = FaceDetector(
+          options: FaceDetectorOptions(
+            performanceMode: FaceDetectorMode.fast,
+            enableClassification: false,
+            enableContours: false,
+            enableLandmarks: false,
+          ),
+        );
+        await _startLiveGestureStream();
+      }
+
       if (!mounted) return;
       setState(() => _isInit = true);
     } catch (e) {
@@ -86,16 +118,123 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
 
   @override
   void dispose() {
+    _captureDebounce?.cancel();
+    if (_isStreaming) {
+      unawaited(_controller?.stopImageStream());
+    }
+    _faceDetector?.close();
     _controller?.dispose();
     _borderAnim.dispose();
     super.dispose();
   }
 
-  Future<void> _capture() async {
+  Future<void> _startLiveGestureStream() async {
+    if (_controller == null || !_controller!.value.isInitialized || _isStreaming) {
+      return;
+    }
+    _liveHint = 'Center your face in the oval';
+    await _controller!.startImageStream(_onCameraImage);
+    _isStreaming = true;
+  }
+
+  Future<void> _onCameraImage(CameraImage image) async {
+    if (_isProcessingFrame || _isCapturing || _faceDetector == null) return;
+    _isProcessingFrame = true;
+    try {
+      final bytes = _concatenatePlanes(image.planes);
+      final rotation = InputImageRotationValue.fromRawValue(
+            _selectedCamera?.sensorOrientation ?? 0,
+          ) ??
+          InputImageRotation.rotation0deg;
+      final format = InputImageFormatValue.fromRawValue(image.format.raw) ??
+          InputImageFormat.nv21;
+
+      final metadata = InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: rotation,
+        format: format,
+        bytesPerRow: image.planes.first.bytesPerRow,
+      );
+
+      final inputImage = InputImage.fromBytes(
+        bytes: bytes,
+        metadata: metadata,
+      );
+
+      final faces = await _faceDetector!.processImage(inputImage);
+      if (!mounted) return;
+
+      if (faces.length != 1) {
+        setState(() {
+          _liveHint = faces.isEmpty
+              ? 'Face not found. Move closer.'
+              : 'Only one face should be visible.';
+        });
+        return;
+      }
+
+      final yaw = faces.first.headEulerAngleY ?? 0.0;
+
+      // Build a neutral baseline before looking for a turn.
+      if (_baselineYaw == null || _baselineSamples < 10) {
+        _baselineYaw = ((_baselineYaw ?? 0.0) * _baselineSamples + yaw) /
+            (_baselineSamples + 1);
+        _baselineSamples += 1;
+        setState(() {
+          _liveHint = 'Hold steady... calibrating';
+        });
+        return;
+      }
+
+      final delta = yaw - (_baselineYaw ?? 0.0);
+      final turned = delta.abs() >= 12.0;
+
+      if (!turned) {
+        setState(() {
+          _liveHint = widget.expectedGesture ?? 'Turn your face as instructed';
+        });
+        return;
+      }
+
+      final direction = delta > 0 ? 'right' : 'left';
+      _detectedDirection = direction;
+      setState(() {
+        _liveHint = 'Detected ${direction.toUpperCase()} turn. Capturing...';
+      });
+
+      _captureDebounce?.cancel();
+      _captureDebounce = Timer(const Duration(milliseconds: 350), () {
+        if (mounted) {
+          unawaited(_capture(autoTriggered: true));
+        }
+      });
+    } catch (_) {
+      // Keep camera flow resilient.
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
+
+  Uint8List _concatenatePlanes(List<Plane> planes) {
+    final allBytes = WriteBuffer();
+    for (final plane in planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+    return allBytes.done().buffer.asUint8List();
+  }
+
+  Future<void> _capture({bool autoTriggered = false}) async {
     if (_controller == null || !_controller!.value.isInitialized) return;
     if (_controller!.value.isTakingPicture) return;
+    if (_isCapturing) return;
+
+    _isCapturing = true;
 
     try {
+      if (_isStreaming) {
+        await _controller!.stopImageStream();
+        _isStreaming = false;
+      }
       final XFile photo = await _controller!.takePicture();
       final bytes = await photo.readAsBytes();
       final base64String = base64Encode(bytes);
@@ -104,6 +243,8 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
         Navigator.pop(context, {
           'base64': base64String,
           'path': photo.path,
+          if (autoTriggered) 'liveGesture': true,
+          if (_detectedDirection != null) 'detectedDirection': _detectedDirection,
         });
       }
     } catch (e) {
@@ -112,6 +253,8 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
           SnackBar(content: Text('Failed to capture photo: $e')),
         );
       }
+    } finally {
+      _isCapturing = false;
     }
   }
 
@@ -183,7 +326,22 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
               ),
 
             const SizedBox(height: 16),
-            _buildCaptureButton(),
+            if (!(widget.mode == CameraMode.kycFace && widget.enforceLiveGesture))
+              _buildCaptureButton(),
+            if (widget.mode == CameraMode.kycFace && widget.enforceLiveGesture)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  _liveHint ?? widget.instructions,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFA7DDAF),
+                    fontSize: 13,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             const SizedBox(height: 40),
           ],
         ),
@@ -196,9 +354,9 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
       builder: (context, constraints) {
         final previewW = constraints.maxWidth;
         final previewH = constraints.maxHeight;
-        // Oval guide: 70% width, 55% height → taller-than-wide face oval
-        final ovalW = previewW * 0.72;
-        final ovalH = previewH * 0.58;
+        // Larger oval guide so the full face can fit comfortably.
+        final ovalW = previewW * 0.82;
+        final ovalH = previewH * 0.70;
 
         return Stack(
           fit: StackFit.expand,
@@ -226,8 +384,8 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        color: Colors.black.withValues(alpha: 0.45),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text(
@@ -265,7 +423,7 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
                       borderRadius: BorderRadius.circular(ovalW / 2),
                       border: Border.all(
                         color: const Color(0xFF4CAF50)
-                            .withOpacity(_borderOpacity.value),
+                            .withValues(alpha: _borderOpacity.value),
                         width: 3,
                       ),
                     ),
@@ -302,7 +460,7 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
         width: 320,
         height: 200,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
           borderRadius: BorderRadius.circular(16),
         ),
       ),
@@ -362,7 +520,7 @@ class _OvalCutoutPainter extends CustomPainter {
 
     canvas.drawPath(
       cutout,
-      Paint()..color = Colors.black.withOpacity(0.45),
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
     );
   }
 

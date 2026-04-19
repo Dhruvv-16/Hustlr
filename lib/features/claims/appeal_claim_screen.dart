@@ -177,7 +177,7 @@ class _RejectedClaimCard extends StatelessWidget {
         color: isDark ? const Color(0xFF1A1B1A) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFE24B4A).withOpacity(0.4),
+          color: const Color(0xFFE24B4A).withValues(alpha: 0.4),
           width: 0.5,
         ),
       ),
@@ -208,8 +208,8 @@ class _RejectedClaimCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark
-                      ? Colors.white.withOpacity(0.45)
-                      : Colors.black.withOpacity(0.45),
+                      ? Colors.white.withValues(alpha: 0.45)
+                      : Colors.black.withValues(alpha: 0.45),
                   fontFamily: 'Manrope',
                 ),
               ),
@@ -231,8 +231,8 @@ class _RejectedClaimCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               color: isDark
-                  ? Colors.white.withOpacity(0.55)
-                  : Colors.black.withOpacity(0.55),
+                  ? Colors.white.withValues(alpha: 0.55)
+                  : Colors.black.withValues(alpha: 0.55),
               fontFamily: 'Manrope',
             ),
           ),
@@ -258,8 +258,8 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 13,
         fontWeight: FontWeight.w500,
         color: isDark
-            ? Colors.white.withOpacity(0.55)
-            : Colors.black.withOpacity(0.55),
+            ? Colors.white.withValues(alpha: 0.55)
+            : Colors.black.withValues(alpha: 0.55),
         fontFamily: 'Manrope',
         letterSpacing: 0.3,
       ),
@@ -296,18 +296,18 @@ class _ReasonSelector extends StatelessWidget {
             decoration: BoxDecoration(
               color: isSelected
                   ? (isDark
-                      ? const Color(0xFF3FFF8B).withOpacity(0.08)
-                      : const Color(0xFF2E7D32).withOpacity(0.06))
+                      ? const Color(0xFF3FFF8B).withValues(alpha: 0.08)
+                      : const Color(0xFF2E7D32).withValues(alpha: 0.06))
                   : (isDark ? const Color(0xFF1A1B1A) : Colors.white),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
                     ? (isDark
-                        ? const Color(0xFF3FFF8B).withOpacity(0.5)
-                        : const Color(0xFF2E7D32).withOpacity(0.5))
+                        ? const Color(0xFF3FFF8B).withValues(alpha: 0.5)
+                        : const Color(0xFF2E7D32).withValues(alpha: 0.5))
                     : (isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.08)),
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.08)),
                 width: isSelected ? 1.0 : 0.5,
               ),
             ),
@@ -328,8 +328,8 @@ class _ReasonSelector extends StatelessWidget {
                       color: isSelected
                           ? Colors.transparent
                           : (isDark
-                              ? Colors.white.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.3)),
+                              ? Colors.white.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.3)),
                       width: 1.5,
                     ),
                   ),
@@ -397,8 +397,8 @@ class _ExplanationField extends StatelessWidget {
           fontSize: 14,
           fontFamily: 'Manrope',
           color: isDark
-              ? Colors.white.withOpacity(0.3)
-              : Colors.black.withOpacity(0.3),
+              ? Colors.white.withValues(alpha: 0.3)
+              : Colors.black.withValues(alpha: 0.3),
         ),
         filled: true,
         fillColor: isDark ? const Color(0xFF1A1B1A) : Colors.white,
@@ -407,8 +407,8 @@ class _ExplanationField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
             color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.08),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
             width: 0.5,
           ),
         ),
@@ -416,8 +416,8 @@ class _ExplanationField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
             color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.08),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
             width: 0.5,
           ),
         ),
@@ -425,8 +425,8 @@ class _ExplanationField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
             color: isDark
-                ? const Color(0xFF3FFF8B).withOpacity(0.5)
-                : const Color(0xFF2E7D32).withOpacity(0.5),
+                ? const Color(0xFF3FFF8B).withValues(alpha: 0.5)
+                : const Color(0xFF2E7D32).withValues(alpha: 0.5),
             width: 1.0,
           ),
         ),
@@ -465,8 +465,8 @@ class _CharCounter extends StatelessWidget {
                   color: tooShort
                       ? const Color(0xFFE24B4A)
                       : (isDark
-                          ? Colors.white.withOpacity(0.35)
-                          : Colors.black.withOpacity(0.35)),
+                          ? Colors.white.withValues(alpha: 0.35)
+                          : Colors.black.withValues(alpha: 0.35)),
                 ),
               );
             },
@@ -490,14 +490,14 @@ class _AppealInfoBanner extends StatelessWidget {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.white.withOpacity(0.04)
-            : Colors.black.withOpacity(0.04),
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(10),
         border: Border(
           left: BorderSide(
             color: isDark
-                ? const Color(0xFF3FFF8B).withOpacity(0.4)
-                : const Color(0xFF2E7D32).withOpacity(0.4),
+                ? const Color(0xFF3FFF8B).withValues(alpha: 0.4)
+                : const Color(0xFF2E7D32).withValues(alpha: 0.4),
             width: 3,
           ),
         ),
@@ -557,8 +557,8 @@ class _InfoRow extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isDark
-                  ? Colors.white.withOpacity(0.4)
-                  : Colors.black.withOpacity(0.4),
+                  ? Colors.white.withValues(alpha: 0.4)
+                  : Colors.black.withValues(alpha: 0.4),
             ),
           ),
           Expanded(
@@ -567,8 +567,8 @@ class _InfoRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 color: isDark
-                    ? Colors.white.withOpacity(0.6)
-                    : Colors.black.withOpacity(0.6),
+                    ? Colors.white.withValues(alpha: 0.6)
+                    : Colors.black.withValues(alpha: 0.6),
                 fontFamily: 'Manrope',
               ),
             ),
@@ -605,8 +605,8 @@ class _SubmitButton extends StatelessWidget {
           color: enabled
               ? (isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32))
               : (isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.08)),
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.08)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
@@ -628,8 +628,8 @@ class _SubmitButton extends StatelessWidget {
                     color: enabled
                         ? (isDark ? Colors.black : Colors.white)
                         : (isDark
-                            ? Colors.white.withOpacity(0.3)
-                            : Colors.black.withOpacity(0.3)),
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : Colors.black.withValues(alpha: 0.3)),
                   ),
                 ),
         ),
@@ -663,8 +663,8 @@ class _AppealSuccessSheet extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xFF3FFF8B).withOpacity(0.12)
-                  : const Color(0xFF2E7D32).withOpacity(0.10),
+                  ? const Color(0xFF3FFF8B).withValues(alpha: 0.12)
+                  : const Color(0xFF2E7D32).withValues(alpha: 0.10),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -691,8 +691,8 @@ class _AppealSuccessSheet extends StatelessWidget {
               fontSize: 14,
               fontFamily: 'Manrope',
               color: isDark
-                  ? Colors.white.withOpacity(0.55)
-                  : Colors.black.withOpacity(0.55),
+                  ? Colors.white.withValues(alpha: 0.55)
+                  : Colors.black.withValues(alpha: 0.55),
               height: 1.5,
             ),
           ),

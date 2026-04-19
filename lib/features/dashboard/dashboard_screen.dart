@@ -3,21 +3,20 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/location_service.dart';
 import '../../services/mock_data_service.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/notification_service.dart';
-import '../../services/connectivity_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
@@ -31,7 +30,6 @@ import '../../shared/widgets/animated_skeleton.dart';
 
 import '../../services/dynamic_translator.dart';
 import '../../services/app_events.dart';
-import '../../blocs/policy/policy_bloc.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -43,7 +41,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with WidgetsBindingObserver {
   static const _dashboardSnapshotKey = 'dashboardSnapshotV1';
-  static const _skeletonBuildUpMinDuration = Duration(milliseconds: 1200);
+  final List<_SystemFeedEvent> _events = [
+    _SystemFeedEvent('Dashboard initialized', DateTime.now()),
+  ];
 
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
@@ -67,7 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   StreamSubscription? _claimSub;
 
   // Guard: prevents concurrent _loadDashboardData calls
-  bool _isReviewing = false;
   bool _isDashboardLoading = false;
 
   // Debounce timestamps for event-driven reloads
@@ -93,87 +92,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   // API health check results
   Map<String, String> _apiHealthStatus = {};
   bool _reverifyPromptOpen = false;
-  late final DateTime _initialLoadStartedAt;
-
-  List<_SystemFeedEvent> get _events {
-    final events = <_SystemFeedEvent>[];
-    final source = weatherData?['source']?.toString() ?? 'N/A';
-    final zone = (userZone == null || userZone!.isEmpty) ? 'Unknown' : userZone!;
-    events.add(_SystemFeedEvent('Zone: $zone', timestamp: DateTime.now()));
-    events.add(_SystemFeedEvent('Weather source: $source', timestamp: DateTime.now()));
-    if (activeDisruption != null) {
-      final name = activeDisruption?['display_name']?.toString() ??
-          activeDisruption?['trigger_type']?.toString() ??
-          'Active disruption';
-      events.add(_SystemFeedEvent(name, timestamp: DateTime.now()));
-    }
-    if (!ConnectivityService.instance.isReachable) {
-      events.add(_SystemFeedEvent('Backend unreachable - offline mode', timestamp: DateTime.now(), isError: true));
-    }
-    return events;
-  }
-
-  static int _riderCostFromName(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('bandh') || n.contains('curfew') || n.contains('strike')) return 15;
-    if (n.contains('internet')) return 12;
-    return 0;
-  }
-
-  static bool _isRiderIncludedInTier(String tier, String riderName) {
-    final t = tier.toLowerCase();
-    final n = riderName.toLowerCase();
-    if (t == 'full') return true;
-    if (t == 'standard' && (n.contains('bandh') || n.contains('curfew') || n.contains('strike') || n.contains('internet'))) {
-      return true;
-    }
-    return false;
-  }
-
-  static int _billableAddonTotalForPolicy(Map<String, dynamic> policy) {
-    final tier = policy['plan_tier']?.toString().toLowerCase() ?? 'standard';
-    final riders = policy['riders'] as List<dynamic>?;
-    if (riders == null || riders.isEmpty) return 0;
-
-    var total = 0;
-    for (final r in riders) {
-      if (r is! Map) continue;
-      final name = r['name']?.toString() ?? '';
-      if (name.isEmpty || _isRiderIncludedInTier(tier, name)) continue;
-
-      final explicitCost = (r['cost'] as num?)?.toInt();
-      final resolved = (explicitCost != null && explicitCost > 0)
-          ? explicitCost
-          : _riderCostFromName(name);
-      total += resolved;
-    }
-    return total;
-  }
-
-  static Map<String, dynamic>? _policyFromBloc(Policy? policy) {
-    if (policy == null) return null;
-    return {
-      'id': policy.id,
-      'plan_tier': policy.tier.apiKey,
-      'plan_name': policy.planName ?? policy.tier.displayName,
-      'policy_number': policy.policyNumber,
-      'status': policy.status.name,
-      'weekly_premium': policy.weeklyPremium,
-      'base_premium': policy.basePremium,
-      'coverage_start': policy.startDate?.toIso8601String(),
-      'commitment_end': policy.endDate?.toIso8601String(),
-      'created_at': (policy.createdAt ?? policy.startDate)?.toIso8601String(),
-      'expires_at': (policy.expiresAt ?? policy.endDate)?.toIso8601String(),
-      'max_weekly_payout': policy.maxWeeklyPayout,
-      'max_daily_payout': policy.maxDailyPayout,
-      'riders': policy.riders,
-    };
-  }
 
   @override
   void initState() {
     super.initState();
-    _initialLoadStartedAt = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
     _checkLocationPermission();
     _fetchInitialLocation(); // ← get GPS fix immediately without waiting for movement
@@ -416,6 +338,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _recheckAllPermissions() async {
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _backgroundTrackingActive = false;
+          _locationPermissionStatus = 'GRANTED';
+        });
+      }
+      return;
+    }
+
     final locationPerm = await Geolocator.checkPermission();
 
     if (mounted) {
@@ -486,17 +418,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     return null;
   }
 
-  Future<void> _finishInitialLoading() async {
-    if (!isLoading) return;
-    final elapsed = DateTime.now().difference(_initialLoadStartedAt);
-    final remaining = _skeletonBuildUpMinDuration - elapsed;
-    if (remaining > Duration.zero) {
-      await Future<void>.delayed(remaining);
-    }
-    if (!mounted || !isLoading) return;
-    setState(() => isLoading = false);
-  }
-
   Future<bool> _restoreDashboardFromCache() async {
     try {
       final raw = StorageService.getString(_dashboardSnapshotKey);
@@ -531,10 +452,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         final cachedIss = snapshot['liveIssScore'];
         if (cachedIss is num) liveIssScore = cachedIss.toInt();
-
       });
-
-      await _finishInitialLoading();
 
       return true;
     } catch (_) {
@@ -599,27 +517,39 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // ── Demo Consistency Guard ───────────────────────────────────────────
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
-    if (mockSvc.worker.id.isNotEmpty) {
+    final box = Hive.box('appData');
+    final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
+    final isMockUser = mockSvc.worker.id.startsWith('DEMO_') || 
+                       mockSvc.worker.id.startsWith('00000000') || 
+                       userId?.startsWith('00000000') == true ||
+                       isDemoMode;
+
+    if (isMockUser) {
       Map<String, dynamic> weatherFallback = {
-        'source': 'Mock Engine (API Error)',
+        'source': 'Live System',
         'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
         'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
       };
 
-      // Fetch live API weather as default, override only when disruption is active.
-      // This must run outside setState.
-      try {
-        final liveDisruptions = await ApiService.instance.getDisruptions(userZone ?? '');
-        final liveWeather = liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
-        final apiRain = (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
-        final apiTemp = (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+      // Fetch live API weather without blocking the dashboard render
+      unawaited(() async {
+        try {
+          final liveDisruptions = await ApiService.instance.getDisruptions(userZone ?? '');
+          final liveWeather = liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
+          final apiRain = (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
+          final apiTemp = (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
 
-        weatherFallback = {
-          'source': 'Live API',
-          'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : apiRain,
-          'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : apiTemp,
-        };
-      } catch (_) {}
+          if (mounted) {
+            setState(() {
+              weatherData = {
+                'source': 'Live API',
+                'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : apiRain,
+                'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : apiTemp,
+              };
+            });
+          }
+        } catch (_) {}
+      }());
 
       if (mounted) {
         setState(() {
@@ -627,15 +557,32 @@ class _DashboardScreenState extends State<DashboardScreen>
           userName = mockSvc.worker.name;
           userZone = mockSvc.worker.zone;
           
-          policyData = mockSvc.hasActivePolicy ? {
-            'id': 'PROTO-POL-${mockSvc.worker.id.hashCode}',
-            'plan_tier': mockSvc.activePolicy.plan.split(' ')[0].toLowerCase(),
-            'plan_name': mockSvc.activePolicy.plan,
-            'status': mockSvc.activePolicy.status,
-            'weekly_premium': mockSvc.activePolicy.premium,
-            'coverage_start': mockSvc.activePolicy.coverageStart,
-            'commitment_end': mockSvc.activePolicy.coverageEnd,
-          } : null;
+          // Check MockDataService first, then fall back to local StorageService
+          // (covers real purchases that write to StorageService, not demo_hasActivePolicy).
+          final storedPolicyId = StorageService.policyId;
+          final hasAnyPolicy = mockSvc.hasActivePolicy || storedPolicyId.isNotEmpty;
+          if (hasAnyPolicy) {
+            final tier = mockSvc.hasActivePolicy
+                ? mockSvc.activePolicy.plan.split(' ')[0].toLowerCase()
+                : (StorageService.getString('activePlanTier') ?? 'standard');
+            final planName = mockSvc.hasActivePolicy
+                ? mockSvc.activePolicy.plan
+                : (StorageService.getString('activePlanName') ?? 'Standard Shield');
+            final premium = mockSvc.hasActivePolicy
+                ? mockSvc.activePolicy.premium
+                : (StorageService.getInt('weeklyPremium') ?? 49);
+            policyData = {
+              'id': storedPolicyId.isNotEmpty ? storedPolicyId : 'PROTO-POL-${mockSvc.worker.id.hashCode}',
+              'plan_tier': tier,
+              'plan_name': planName,
+              'status': 'active',
+              'weekly_premium': premium,
+              'coverage_start': mockSvc.hasActivePolicy ? mockSvc.activePolicy.coverageStart : '',
+              'commitment_end': mockSvc.hasActivePolicy ? mockSvc.activePolicy.coverageEnd : '',
+            };
+          } else {
+            policyData = null;
+          }
           
           walletData = {
             'balance': mockSvc.walletBalance,
@@ -663,9 +610,18 @@ class _DashboardScreenState extends State<DashboardScreen>
           weatherData = weatherFallback;
 
           liveIssScore = mockSvc.worker.issScore;
+          
+          // Construct ESI Work Advisor Data for Demo Mode so it's not empty!
+          workAdvisorData = {
+            'earning_stability_index': liveIssScore,
+            'stability_band_label': (liveIssScore ?? 0) > 80 ? 'High Stability' : 'Moderate Stability',
+            'headline': 'Your ESI is updated locally.',
+            'coverage_nudge': 'Stay protected.',
+          };
+
+          isLoading = false;
         });
       }
-      await _finishInitialLoading();
       unawaited(_persistDashboardSnapshot());
       _isDashboardLoading = false;
       return;
@@ -673,7 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (userId == null) {
       _isDashboardLoading = false;
-      await _finishInitialLoading();
+      if (mounted) setState(() => isLoading = false);
       return;
     }
 
@@ -697,7 +653,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Support new schema field names: coverage_start / commitment_end
       final policyWithAliases = rawPolicy == null ? null : {
         ...rawPolicy,
-        // Ensure start_date / end_date are always populated for legacy code paths
+        // Ensure start_date / end_date are always populated for legacy code paths.
         if (!rawPolicy.containsKey('start_date'))
           'start_date': rawPolicy['coverage_start'],
         if (!rawPolicy.containsKey('end_date'))
@@ -708,7 +664,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Gate: only show policyData if status is active or renewed
       final rawStatus = rawPolicy?['status']?.toString().toLowerCase() ?? '';
       final isPolicyActive = rawStatus == 'active' || rawStatus == 'renewed';
-      policyData = isPolicyActive ? policyWithAliases : null;
+      final hasValidTier = tier != null && tier.trim().isNotEmpty;
+      policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
 
       final events = disruptionRes['disruptions'] as List<dynamic>? ?? [];
       final active = disruptionRes['active'] == true;
@@ -764,9 +721,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           activeDisruption = latestDisruption;
           nudgeData = rawNudge;
           workAdvisorData = rawAdvisor;
+          isLoading = false;
         });
       }
-      await _finishInitialLoading();
       unawaited(_persistDashboardSnapshot());
 
       // ── Organic ML Data Fetch (Detached Background Task) ──
@@ -787,19 +744,20 @@ class _DashboardScreenState extends State<DashboardScreen>
         NotificationService.instance.addMissedPayout(350);
       }
     } catch (e) {
-      await _finishInitialLoading();
+      if (mounted) setState(() => isLoading = false);
     } finally {
       _isDashboardLoading = false;
     }
   }
 
   static String _planDisplayName(String? tier) {
+    if (tier == null || tier.trim().isEmpty) return 'No Active Plan';
     const m = {
       'basic': 'Basic Shield',
       'standard': 'Standard Shield',
       'full': 'Full Shield',
     };
-    return m[tier] ?? (tier == null ? 'No Active Plan' : 'Standard Shield');
+    return m[tier] ?? 'No Active Plan';
   }
 
   static String _disruptionTriggerLabel(String? t) {
@@ -870,8 +828,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    final blocPolicy = context.select<PolicyBloc, Policy?>((bloc) => bloc.state.activePolicy);
-    final planPolicy = _policyFromBloc(blocPolicy);
 
     if (isLoading) {
       return _buildDashboardSkeleton();
@@ -881,8 +837,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
-    final rawPlanName = planPolicy?['plan_name'] ?? 'No Active Plan';
-    final List<dynamic>? ridersData = planPolicy?['riders'];
+    final hasActivePolicy = policyData != null;
+    final rawPlanName = hasActivePolicy
+      ? (policyData!['plan_name']?.toString() ?? 'No Active Plan')
+      : 'No Active Plan';
+    final List<dynamic>? ridersData = policyData?['riders'];
     String planName = rawPlanName;
     if (ridersData != null && ridersData.isNotEmpty) {
       final names = ridersData.map((r) => r['name'].toString()).join(' + ');
@@ -899,13 +858,19 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     final displayUserName = titleCase(userName ?? 'Karthik');
 
-    final planTier = planPolicy?['plan_tier']?.toString().toLowerCase();
-    final tierBasePremium = planTier != null ? PlanTierPrice.fromString(planTier).weeklyPremium : 0;
+    final planTier = hasActivePolicy
+      ? policyData!['plan_tier']?.toString().toLowerCase() ?? 'standard'
+      : '';
+    final tierBasePremium = hasActivePolicy
+      ? PlanTierPrice.fromString(planTier).weeklyPremium
+      : 0;
 
     int riderCostFromName(String name) {
       final n = name.toLowerCase();
-      if (n.contains('bandh') || n.contains('curfew') || n.contains('strike')) return 15;
-      if (n.contains('internet')) return 12;
+      if (n.contains('cyclone')) return 20;
+      if (n.contains('curfew') || n.contains('strike')) return 12;
+      if (n.contains('election')) return 8;
+      if (n.contains('app downtime') || n.contains('downtime')) return 10;
       return 0;
     }
 
@@ -913,7 +878,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       final n = riderName.toLowerCase();
       if (planTier == 'full') return true;
       if (planTier == 'standard' &&
-          (n.contains('bandh') || n.contains('curfew') || n.contains('strike') || n.contains('internet'))) {
+          (n.contains('app downtime') || n.contains('downtime'))) {
         return true;
       }
       return false;
@@ -938,16 +903,18 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Prefer valid backend-stored weekly premium, but ensure we never under-show
     // when billable add-ons exist (base + add-ons must be reflected).
-    final rawWeeklyPremium = (planPolicy?['weekly_premium'] is num)
-      ? (planPolicy?['weekly_premium'] as num).toDouble()
-      : double.tryParse(planPolicy?['weekly_premium']?.toString() ?? '');
+    final rawWeeklyPremium = (policyData?['weekly_premium'] is num)
+      ? (policyData?['weekly_premium'] as num).toDouble()
+      : double.tryParse(policyData?['weekly_premium']?.toString() ?? '');
     final normalizedPremium = (rawWeeklyPremium != null &&
         rawWeeklyPremium >= computedTotalPremium &&
         rawWeeklyPremium <= 200)
       ? rawWeeklyPremium.round().toString()
-      : (planTier != null ? computedTotalPremium.toString() : '0');
+      : computedTotalPremium.toString();
 
-    final String premium = normalizedPremium;
+    final String premium = (liveDynamicPrice != null && billableAddonTotal == 0)
+      ? liveDynamicPrice!.toStringAsFixed(0)
+      : normalizedPremium;
 
     // Derive missed-payout amount from shadow_policies nudge data (real DB field),
     // then fall back to a disruption-based estimate — never reads a non-existent field.
@@ -1001,13 +968,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildWorkAdvisorCard(),
                         ],
                         const SizedBox(height: 20),
-                        if (planPolicy != null)
+                        if (policyData != null)
                           _buildActivePolicyCard(
                             planName,
                             premium,
                             l10n,
                             ridersData,
-                            planPolicy['plan_tier']?.toString() ?? 'standard',
+                            policyData?['plan_tier']?.toString() ?? 'standard',
                           )
                         else
                           _buildNoPolicyCard(l10n),
@@ -1022,14 +989,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                             borderRadius: BorderRadius.circular(22),
                             border: Border.all(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.06)
-                                  : const Color(0xFF1B5E20).withOpacity(0.08),
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : const Color(0xFF1B5E20).withValues(alpha: 0.08),
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: isDark
-                                    ? Colors.black.withOpacity(0.18)
-                                    : const Color(0xFF1B5E20).withOpacity(0.05),
+                                    ? Colors.black.withValues(alpha: 0.18)
+                                    : const Color(0xFF1B5E20).withValues(alpha: 0.05),
                                 blurRadius: 24,
                                 spreadRadius: 1,
                                 offset: const Offset(0, 10),
@@ -1076,7 +1043,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: mintColor.withOpacity(0.15),
+              color: mintColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
               border: Border.all(color: mintColor, width: 2),
             ),
@@ -1119,15 +1086,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isDark = theme.brightness == Brightness.dark;
     final card = isDark ? const Color(0xFF1C1F1C) : Colors.white;
     final soft = isDark
-        ? Colors.white.withOpacity(0.08)
-        : const Color(0xFF1B5E20).withOpacity(0.08);
-
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.08);
     Widget block({double? width, required double height, double radius = 12}) {
       return AnimatedSkeleton(
         width: width,
         height: height,
         borderRadius: radius,
-        buildUpOnly: true,
       );
     }
 
@@ -1151,8 +1116,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  block(width: 140, height: 18, radius: 8),
-                  const Spacer(),
+                  Expanded(
+                    child: block(height: 18, radius: 8),
+                  ),
+                  const SizedBox(width: 12),
                   block(width: 40, height: 40, radius: 20),
                   const SizedBox(width: 10),
                   block(width: 40, height: 40, radius: 20),
@@ -1206,7 +1173,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         decoration: BoxDecoration(
           color: Colors.transparent,
           shape: BoxShape.circle,
-          border: Border.all(color: mintColor.withOpacity(0.15)),
+          border: Border.all(color: mintColor.withValues(alpha: 0.15)),
         ),
         alignment: Alignment.center,
         child: Icon(icon, color: mintColor, size: 18),
@@ -1280,7 +1247,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildActivePolicyCard(String planName, String premium,
       AppLocalizations l10n, List<dynamic>? riders, String planTier) {
     // Get coverage items based on plan tier
-    List<Map<String, dynamic>> _getCoverageItems() {
+    List<Map<String, dynamic>> getCoverageItems() {
       final items = <Map<String, dynamic>>[];
       final tier = planTier.toLowerCase();
       
@@ -1312,8 +1279,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     final subtleText =
         isDark ? const Color(0xFFe1e3de) : const Color(0xFF4A6741);
     final shadowColor = isDark
-        ? const Color(0xFF1B5E20).withOpacity(0.04)
-        : const Color(0xFF1B5E20).withOpacity(0.08);
+        ? const Color(0xFF1B5E20).withValues(alpha: 0.04)
+        : const Color(0xFF1B5E20).withValues(alpha: 0.08);
 
     return Container(
       width: double.infinity,
@@ -1397,7 +1364,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            planName.replaceAll(' ', '\n'),
+            planName,
             style: TextStyle(
               color: textColor,
               fontSize: 34,
@@ -1405,13 +1372,15 @@ class _DashboardScreenState extends State<DashboardScreen>
               height: 1.1,
               fontFamily: 'Manrope',
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 28),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              ..._getCoverageItems().map((item) => _buildCoverageChip(
+              ...getCoverageItems().map((item) => _buildCoverageChip(
                     item['label'] as String,
                     item['icon'] as IconData,
                     mintColor,
@@ -1426,7 +1395,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   if (name.contains('Election')) {
                     icon = Icons.how_to_vote_rounded;
                   }
-                  if (name.contains('Internet')) {
+                  if (name.contains('App Downtime')) {
                     icon = Icons.phonelink_off_rounded;
                   }
 
@@ -1443,9 +1412,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: mintColor.withOpacity(0.1),
+              color: mintColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: mintColor.withOpacity(0.3)),
+              border: Border.all(color: mintColor.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -1475,7 +1444,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor = isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final subColor = textColor.withOpacity(0.68);
+    final subColor = textColor.withValues(alpha: 0.68);
 
     return GestureDetector(
       onTap: () => context.push(AppRoutes.policy),
@@ -1487,13 +1456,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: mintColor.withOpacity(0.08),
+              color: mintColor.withValues(alpha: 0.08),
               blurRadius: 30,
               spreadRadius: 6,
               offset: const Offset(0, 8),
             ),
           ],
-          border: Border.all(color: mintColor.withOpacity(0.2)),
+          border: Border.all(color: mintColor.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1504,7 +1473,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: mintColor.withOpacity(0.12),
+                    color: mintColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
@@ -1628,7 +1597,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final mintColor =
         isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final subColor = textColor.withOpacity(0.65);
+    final subColor = textColor.withValues(alpha: 0.65);
 
     final t = DynamicTranslator.of(context);
     final esi = (a['earning_stability_index'] as num?)?.round() ?? 0;
@@ -1644,7 +1613,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: mintColor.withOpacity(0.2)),
+        border: Border.all(color: mintColor.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1669,7 +1638,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: mintColor.withOpacity(0.15),
+                  color: mintColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -1710,7 +1679,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             Text(
               'Suggested shift focus',
               style: TextStyle(
-                color: textColor.withOpacity(0.85),
+                color: textColor.withValues(alpha: 0.85),
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 fontFamily: 'Manrope',
@@ -1728,7 +1697,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.schedule_rounded,
-                        size: 16, color: mintColor.withOpacity(0.85)),
+                        size: 16, color: mintColor.withValues(alpha: 0.85)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1752,7 +1721,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             Text(
               nudge,
               style: TextStyle(
-                color: suggest ? mintColor.withOpacity(0.95) : subColor,
+                color: suggest ? mintColor.withValues(alpha: 0.95) : subColor,
                 fontSize: 12,
                 height: 1.35,
                 fontWeight: FontWeight.w600,
@@ -1867,7 +1836,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () => context.push('/policy'),
+            onTap: () => context.push(AppRoutes.policy),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
@@ -1978,10 +1947,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: mintColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: mintColor.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: mintColor.withOpacity(0.1),
+            color: mintColor.withValues(alpha: 0.1),
             blurRadius: 15,
             spreadRadius: 2,
           )
@@ -2022,7 +1991,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ? '$desc\nYour active ${policyData!['plan_name']} will auto-cover any washout shifts.'
                 : '$desc\nCoverage starts next Monday — activate quarterly plan now to secure your income.',
             style: TextStyle(
-              color: textColor.withOpacity(0.8),
+              color: textColor.withValues(alpha: 0.8),
               fontSize: 13,
               height: 1.4,
               fontFamily: 'Manrope',
@@ -2364,7 +2333,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   decoration: BoxDecoration(
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: mintColor.withOpacity(0.3)),
+                    border: Border.all(color: mintColor.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -2428,7 +2397,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.5)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2441,7 +2410,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               fontSize: 12,
             ),
           ),
-          Divider(color: Colors.red.withOpacity(0.3)),
+          Divider(color: Colors.red.withValues(alpha: 0.3)),
 
           Wrap(
             spacing: 8,
@@ -2556,8 +2525,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       _enableLiveML = !_enableLiveML;
                     });
                     if (_enableLiveML) {
-                      _fetchLiveMLData(
-                          policyData?['plan_tier'] ?? 'standard');
+                        _fetchLiveMLData(policyData?['plan_tier'] ?? 'standard');
                     } else {
                       setState(() {
                         liveDynamicPrice = null;
@@ -2577,14 +2545,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   textStyle: const TextStyle(fontSize: 10),
                 ),
                 onPressed: () async {
-                  await StorageService.clearAll();
-                  try {
-                    final box = Hive.box('appData');
-                    await box.put('isLoggedIn', false);
-                    await box.put('isDemoSession', false);
-                    await box.put('onboardingComplete', false);
-                  } catch (_) {}
-                  if (context.mounted) context.go(AppRoutes.login);
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  context.read<MockDataService>().resetDemo();
+                  context.go(AppRoutes.login);
                 },
                 child:
                     const Text('LOGOUT', style: TextStyle(color: Colors.white)),
@@ -2681,7 +2645,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text('↻ RE-RUN CHECK',
@@ -2735,7 +2699,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: event.isError ? Colors.red : textColor,
+                    color: textColor,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -2743,7 +2707,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   event.message,
                   style: TextStyle(
                     fontSize: 11,
-                    color: event.isError ? Colors.red : textColor,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -2796,7 +2760,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(
                 fontSize: 8,
                 fontWeight: FontWeight.w900,
-                color: color.withOpacity(0.6),
+                color: color.withValues(alpha: 0.6),
                 letterSpacing: 0.5,
               ),
             ),
@@ -2836,18 +2800,6 @@ class _DebugHeader extends StatelessWidget {
   }
 }
 
-class _SystemFeedEvent {
-  final String message;
-  final DateTime timestamp;
-  final bool isError;
-
-  const _SystemFeedEvent(
-    this.message, {
-    required this.timestamp,
-    this.isError = false,
-  });
-}
-
 class _DebugRow extends StatelessWidget {
   final String keyName;
   final String valName;
@@ -2864,4 +2816,11 @@ class _DebugRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SystemFeedEvent {
+  final String message;
+  final DateTime timestamp;
+
+  const _SystemFeedEvent(this.message, this.timestamp);
 }

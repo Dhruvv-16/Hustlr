@@ -1,6 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../../models/claim.dart';
 
 import '../../features/splash/splash_screen.dart';
@@ -19,6 +19,7 @@ import '../../features/policy/premium_breakdown_screen.dart';
 import '../../features/policy/payment_screen.dart';
 import '../../features/policy/compound_triggers_screen.dart';
 import '../../features/policy/insurance_compliance_screen.dart';
+import '../../features/payment/checkout_screen.dart';
 import '../../features/claims/claims_screen.dart';
 import '../../features/claims/claim_detail_screen.dart';
 import '../../features/claims/manual_evidence_screen.dart';
@@ -42,7 +43,8 @@ import '../services/storage_service.dart';
 
 // ─── Route names (type-safe) ─────────────────────────────────────────────────
 class AppRoutes {
-  static const splash = '/';
+  static const root = '/';
+  static const splash = '/splash';
   static const login = '/login';
   static const otp = '/otp';
   static const kycConsent = '/kyc-consent';
@@ -55,6 +57,7 @@ class AppRoutes {
   static const shadowPolicy = '/policy/shadow';
   static const premiumBreakdown = '/policy/premium';
   static const payment = '/policy/payment';
+  static const checkout = '/checkout';
   static const compoundTriggers = '/policy/compound';
   static const insuranceCompliance = '/policy/compliance';
   static const claims = '/claims';
@@ -62,6 +65,7 @@ class AppRoutes {
   static const claimSubmitted = '/claims/submitted';
   static const autoExplanation = '/claims/explanation';
   static const claimDetail = '/claims/:id';
+  static const claimAppeal = '/claims/:id/appeal';
   static const wallet = '/wallet';
   static const analytics = '/wallet/analytics';
   static const notifications = '/notifications';
@@ -76,46 +80,101 @@ class AppRoutes {
   static const riskMap = '/dashboard/risk-map';
   static const manualClaimCamera = '/claims/evidence/camera';
   static const manualClaimReview = '/claims/evidence/review';
+
+  static String claimDetailById(String id) => '/claims/$id';
+  static String claimAppealById(String id) => '/claims/$id/appeal';
 }
 
-// ─── Initial Route Logic ─────────────────────────────────────────────────────
-Future<String> _getInitialRoute() async {
-  if (!Hive.isBoxOpen('appData')) return AppRoutes.splash;
-  final isComplete = await StorageService.instance.isOnboardingComplete();
-  final userId = await StorageService.instance.getUserId();
-  final sessionToken = await StorageService.instance.getSessionToken();
-  final hasSession = sessionToken != null && sessionToken.isNotEmpty;
-  final box = Hive.box('appData');
-  final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-  if (!isLoggedIn || !hasSession) {
-    return AppRoutes.login;
-  }
-  if (isComplete && userId != null) {
-    return AppRoutes.dashboard;
-  }
-  return AppRoutes.carousel;
+bool _isSamePath(String path, String route) {
+  return path == route;
+}
+
+bool _isOnboardingPath(String path) {
+  return _isSamePath(path, AppRoutes.carousel) ||
+      _isSamePath(path, AppRoutes.kycConsent) ||
+      _isSamePath(path, AppRoutes.onboarding) ||
+      _isSamePath(path, AppRoutes.onboardingComplete);
+}
+
+bool _isCompliancePath(String path) {
+  return _isSamePath(path, AppRoutes.insuranceCompliance);
+}
+
+bool _isPublicPath(String path) {
+  return _isSamePath(path, AppRoutes.root) ||
+      _isSamePath(path, AppRoutes.splash) ||
+      _isSamePath(path, AppRoutes.login) ||
+      _isSamePath(path, AppRoutes.otp) ||
+    _isSamePath(path, AppRoutes.stepUpAuth) ||
+    _isCompliancePath(path) ||
+      _isOnboardingPath(path);
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 final GoRouter appRouter = GoRouter(
-  initialLocation: AppRoutes.splash,
+  initialLocation: AppRoutes.login,
   redirect: (context, state) async {
-    if (state.uri.toString() == AppRoutes.splash) {
-      final isOnboarded = await StorageService.instance.isOnboardingComplete();
-      final userId = await StorageService.instance.getUserId();
-      final sessionToken = await StorageService.instance.getSessionToken();
-      final hasSession = sessionToken != null && sessionToken.isNotEmpty;
-      if (!Hive.isBoxOpen('appData')) return null;
-      final box = Hive.box('appData');
-      final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-      if (!isLoggedIn || !hasSession) return AppRoutes.login;
-      if (isOnboarded && userId != null) return AppRoutes.dashboard;
+    final path = state.uri.path;
+    final spOnboarded = await StorageService.instance.isOnboardingComplete();
+    final spLoggedIn = StorageService.isLoggedIn;
+
+    bool hiveOnboarded = false;
+    bool hiveLoggedIn = false;
+    try {
+      if (Hive.isBoxOpen('appData')) {
+        final box = Hive.box('appData');
+        hiveOnboarded = box.get('onboardingComplete', defaultValue: false) == true;
+        hiveLoggedIn = box.get('isLoggedIn', defaultValue: false) == true;
+      }
+    } catch (_) {
+      // Keep redirect resilient if Hive is unavailable.
+    }
+
+    final isOnboarded = spOnboarded || hiveOnboarded;
+    final isLoggedIn = spLoggedIn || hiveLoggedIn;
+    final isAuthenticated = isLoggedIn;
+
+    // Never linger on root/splash routes.
+    if (_isSamePath(path, AppRoutes.root) ||
+        _isSamePath(path, AppRoutes.splash)) {
+      if (!isAuthenticated) return AppRoutes.login;
+      if (isOnboarded) return AppRoutes.dashboard;
       return AppRoutes.carousel;
     }
+
+    if (!isAuthenticated) {
+      // Keep unauthenticated users inside public onboarding/login routes only.
+      if (!_isPublicPath(path)) return AppRoutes.login;
+      return null;
+    }
+
+    if (isOnboarded) {
+      // Fully onboarded users should never be routed back into auth/onboarding.
+      if (_isSamePath(path, AppRoutes.splash) ||
+          _isSamePath(path, AppRoutes.login) ||
+          _isSamePath(path, AppRoutes.otp) ||
+          _isOnboardingPath(path)) {
+        return AppRoutes.dashboard;
+      }
+      return null;
+    }
+
+    // Authenticated but not fully onboarded: keep flow inside onboarding stack,
+    // while allowing compliance review screen from KYC consent.
+    if (!_isOnboardingPath(path) &&
+        !_isSamePath(path, AppRoutes.stepUpAuth) &&
+        !_isCompliancePath(path)) {
+      return AppRoutes.carousel;
+    }
+
     return null;
   },
   routes: [
     // ── Public ──────────────────────────────────────────────────────────────
+    GoRoute(
+      path: AppRoutes.root,
+      builder: (_, __) => const LoginScreen(),
+    ),
     GoRoute(
       path: AppRoutes.splash,
       builder: (_, __) => const SplashScreen(),
@@ -176,6 +235,16 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
+          path: AppRoutes.checkout,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>;
+            return CheckoutScreen(
+              amount: extra['amount'] as double,
+              planName: extra['planName'] as String,
+            );
+          },
+        ),
+        GoRoute(
           path: AppRoutes.claims,
           builder: (_, __) => const ClaimsScreen(),
         ),
@@ -233,7 +302,7 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
-          path: '/claims/:id',
+          path: AppRoutes.claimDetail,
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             final extra = state.extra;
@@ -242,7 +311,7 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
-          path: '/claims/:id/appeal',
+          path: AppRoutes.claimAppeal,
           builder: (context, state) {
             final claim = state.extra as Claim;
             return AppealClaimScreen(rejectedClaim: claim);
@@ -296,7 +365,7 @@ final GoRouter appRouter = GoRouter(
             final signal = extra?['signalStrength'] as int?;
             return ManualClaimReviewScreen(
               disruptionType: type,
-              capturedImages: images.cast<File>(),
+              capturedImages: images.cast<XFile>(),
               signalStrength: signal,
             );
           },

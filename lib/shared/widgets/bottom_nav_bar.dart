@@ -81,8 +81,8 @@ class AppBottomNavBar extends StatelessWidget {
     final isDark      = Theme.of(context).brightness == Brightness.dark;
     final bgColor     = isDark ? const Color(0xFF141614) : Colors.white;
     final shadowColor = isDark
-        ? Colors.black.withOpacity(0.6)
-        : Colors.black.withOpacity(0.1);
+        ? Colors.black.withValues(alpha: 0.6)
+        : Colors.black.withValues(alpha: 0.1);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

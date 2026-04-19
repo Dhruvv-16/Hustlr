@@ -64,8 +64,8 @@ class _AuditReceiptBadgeState extends State<AuditReceiptBadge>
     final isDark    = Theme.of(context).brightness == Brightness.dark;
     final accent    = isDark ? _green    : _greenDark;
     final bg        = isDark ? _bgDark   : _bgLight;
-    final border    = accent.withOpacity(0.20);
-    final textMid   = isDark ? Colors.white.withOpacity(0.45) : Colors.black.withOpacity(0.45);
+    final border    = accent.withValues(alpha: 0.20);
+    final textMid   = isDark ? Colors.white.withValues(alpha: 0.45) : Colors.black.withValues(alpha: 0.45);
     final textMain  = isDark ? Colors.white : Colors.black;
 
     final hash      = widget.receiptHash!;
@@ -170,7 +170,7 @@ class _AuditReceiptBadgeState extends State<AuditReceiptBadge>
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             decoration: BoxDecoration(
-                              color: isDark ? Colors.black.withOpacity(0.3) : Colors.white.withOpacity(0.7),
+                              color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.7),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: border, width: 0.5),
                             ),
@@ -257,7 +257,7 @@ class _ShieldIcon extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.12),
+        color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(Icons.verified_outlined, size: 17, color: accent),
@@ -340,7 +340,7 @@ class _PayloadChips extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: accent.withOpacity(0.08),
+            color: accent.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: border, width: 0.5),
           ),

@@ -8,6 +8,7 @@ import '../../services/storage_service.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../shared/widgets/notification_bell.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/connectivity_service.dart';
@@ -126,15 +127,20 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
       }
 
       final userId = await StorageService.instance.getUserId();
-      if (userId == null) {
-        if (!mounted) return;
-        setState(() { _error = 'Not logged in'; _loading = false; });
-        return;
+      final fallbackUserId = (StorageService.phone.isNotEmpty)
+          ? 'local-${StorageService.phone.replaceAll(RegExp(r'\D'), '')}'
+          : 'demo-local-user';
+      final effectiveUserId = (userId == null || userId.trim().isEmpty)
+          ? fallbackUserId
+          : userId;
+
+      if (userId == null || userId.trim().isEmpty) {
+        await StorageService.setUserId(effectiveUserId);
       }
 
-      await _syncQueuedManualClaims(userId);
+      await _syncQueuedManualClaims(effectiveUserId);
 
-      final data = await ApiService.instance.getClaims(userId);
+      final data = await ApiService.instance.getClaims(effectiveUserId);
       final raw = data['claims'];
       final list = raw is List
           ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
@@ -322,7 +328,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                                         ),
                                                       ),
                                                     InkWell(
-                                                      onTap: () => context.push('/claims/$claimId', extra: claim),
+                                                      onTap: () => context.push(AppRoutes.claimDetailById(claimId.toString()), extra: claim),
                                                       borderRadius: BorderRadius.circular(16),
                                                       child: _ClaimCard(
                                                         iconBg: iconBg,
@@ -366,7 +372,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: () => context.push('/claims/evidence'),
+              onPressed: () => context.push(AppRoutes.manualEvidence),
             ),
           ),
         ],
@@ -406,7 +412,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     if (triggerType.contains('aqi'))      return 'Air Quality Alert';
     if (triggerType.contains('internet') || triggerType.contains('blackout')) return 'Internet Blackout';
     if (triggerType.contains('downtime')) return 'Platform Downtime';
-    if (triggerType.contains('app'))      return 'Platform Outage';
+    if (triggerType.contains('app'))      return 'App Downtime';
     if (triggerType.contains('manual'))   return 'Manual Report';
     return triggerType.isNotEmpty ? triggerType[0].toUpperCase() + triggerType.substring(1) : 'Disruption';
   }
@@ -732,7 +738,7 @@ class _ClaimCard extends StatelessWidget {
                   if (status == 'DECLINED' || status == 'REJECTED') ...[
                     const SizedBox(width: 12),
                     GestureDetector(
-                      onTap: () => context.push('/claims/explanation'),
+                      onTap: () => context.push(AppRoutes.autoExplanation),
                       child: Text('See why →', style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.bold, color: errorRed)),
                     ),

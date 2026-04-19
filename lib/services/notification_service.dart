@@ -68,25 +68,31 @@ class NotificationService {
       _localReady = true;
     }
 
-    // Foreground messages - display in notification bar
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      final title = message.notification?.title ?? 'Hustlr Update';
-      final body =
-          message.notification?.body ?? 'You have a new activity update.';
-      
-      // Include data payload for navigation
-      _showLocalNotification(
-        title: title,
-        body: body,
-        payload: message.data,
-      );
-    });
+    // Firebase calls can crash if Firebase is not initialized, especially on web.
+    try {
+      if (kIsWeb) return; // Skip push notifications on web for demo purposes
 
-    // When notification is clicked (app in background or terminated)
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('Notification opened app: ${message.data}');
-      _onNotificationTap?.call(message.data);
-    });
+      // Foreground messages - display in notification bar
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final title = message.notification?.title ?? 'Hustlr Update';
+        final body = message.notification?.body ?? 'You have a new activity update.';
+        
+        // Include data payload for navigation
+        _showLocalNotification(
+          title: title,
+          body: body,
+          payload: message.data,
+        );
+      });
+
+      // When notification is clicked (app in background or terminated)
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        print('Notification opened app: ${message.data}');
+        _onNotificationTap?.call(message.data);
+      });
+    } catch (e) {
+      print('Firebase messaging init skipped: $e');
+    }
   }
 
   static Future<void> _showLocalNotification({

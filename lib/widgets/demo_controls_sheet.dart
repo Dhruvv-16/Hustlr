@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../services/mock_data_service.dart';
 import '../services/location_service.dart';
 import '../services/fraud_sensor_service.dart';
-import 'restart_widget.dart';
+import '../core/router/app_router.dart';
 
 class DemoControlsSheet extends StatefulWidget {
   const DemoControlsSheet({super.key});
@@ -278,11 +278,11 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: isActive
-                              ? (isDark ? color.withOpacity(0.15) : cardBg)
+                              ? (isDark ? color.withValues(alpha: 0.15) : cardBg)
                               : (isDark ? const Color(0xFF1C1F1C) : Colors.white),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isActive ? color : theme.dividerColor.withOpacity(0.08),
+                            color: isActive ? color : theme.dividerColor.withValues(alpha: 0.08),
                             width: isActive ? 2 : 1,
                           ),
                         ),
@@ -329,7 +329,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isDark ? color.withOpacity(0.15) : cardBg,
+                                        color: isDark ? color.withValues(alpha: 0.15) : cardBg,
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
@@ -408,7 +408,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                                           height: 18,
                                           alignment: Alignment.center,
                                           decoration: BoxDecoration(
-                                            color: color.withOpacity(0.15),
+                                            color: color.withValues(alpha: 0.15),
                                             shape: BoxShape.circle,
                                           ),
                                           child: Text(
@@ -450,7 +450,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             decoration: BoxDecoration(
               color: surface,
                     borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,7 +477,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text('Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
-                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               ],
             ),
           ),
@@ -489,7 +489,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             decoration: BoxDecoration(
               color: surface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,9 +544,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
               padding: const EdgeInsets.all(20),
               margin: const EdgeInsets.only(top: 16),
               decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.1),
+                color: Colors.blueAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -562,7 +562,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                         const SizedBox(height: 4),
                         Text('Trigger weather, platform events',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.blueAccent.withOpacity(0.7))),
+                            color: Colors.blueAccent.withValues(alpha: 0.7))),
                       ],
                     ),
                   ),
@@ -579,13 +579,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             decoration: BoxDecoration(
               color: surface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Force-inject fraud signals to test the detection engine',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.45))),
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.45))),
                 const SizedBox(height: 16),
                 // GPS spoof toggle
                 Row(
@@ -596,14 +596,14 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                         children: [
                           Text('Mock GPS Spoofing', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                           Text('Sets jitter=0.0, isMocked=true -> triggers fraud flag',
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
                         ],
                       ),
                     ),
                     const SizedBox(width: 12),
                     Switch(
                       value: FraudSensorService.mockFraudSpoofing,
-                      activeColor: Colors.redAccent,
+                      activeThumbColor: Colors.redAccent,
                       onChanged: (val) => setState(() => FraudSensorService.mockFraudSpoofing = val),
                     ),
                   ],
@@ -657,7 +657,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       },
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.3)),
+        side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
@@ -686,7 +686,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
               const SizedBox(height: 2),
               Text(subtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
             ],
           ),
         ),
@@ -804,7 +804,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     if (mounted) {
       Navigator.pop(context);
       await Future.delayed(const Duration(milliseconds: 300));
-      context.push('/policy?demo=shadow_nudge&missed=680');
+      context.push('${AppRoutes.policy}?demo=shadow_nudge&missed=680');
     }
   }
 
@@ -852,7 +852,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     if (mounted) {
       Navigator.pop(context);
       await Future.delayed(const Duration(milliseconds: 300));
-      context.push('/profile?demo=trust_score');
+      context.push('${AppRoutes.profile}?demo=trust_score');
     }
   }
 
@@ -950,7 +950,7 @@ void _showStep(String message) {
                             color: theme.colorScheme.onSurface)),
                           Text('Trigger weather and platform events',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
                         ],
                       ),
                     ),

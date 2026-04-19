@@ -240,7 +240,7 @@ class ShiftTrackingService extends ChangeNotifier {
         lat: pos.latitude,
         lng: pos.longitude,
         accuracy: pos.accuracy,
-        timestamp: (pos.timestamp ?? DateTime.now()).toIso8601String(),
+        timestamp: pos.timestamp.toIso8601String(),
         isMockLocation: isMock,
         activityType: isHeartbeat ? 'heartbeat' : 'in_vehicle',
         batteryLevel: null,

@@ -87,9 +87,12 @@ class _OTPScreenState extends State<OTPScreen> {
         await FirebaseAuth.instance.signInWithCredential(credential);
       }
 
-      // 2. Firebase Success! Proceed to local Hustlr routing logic
-      final box = Hive.box('appData');
+        // 2. Firebase Success! Proceed to local Hustlr routing logic
+        final box = Hive.isBoxOpen('appData')
+          ? Hive.box('appData')
+          : await Hive.openBox('appData');
       await box.put('isLoggedIn', true);
+      await StorageService.setLoggedIn(true);
       final phoneNumber = '+91${widget.phone}';
       await box.put('phone', phoneNumber);
       await StorageService.instance.savePhone(phoneNumber);
@@ -282,30 +285,40 @@ class _OTPScreenState extends State<OTPScreen> {
               const SizedBox(height: 32),
 
               // ── Static OTP Tiles ──────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (i) {
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const spacing = 6.0;
+                  final adaptiveWidth =
+                      ((constraints.maxWidth - (spacing * 5)) / 6)
+                          .clamp(32.0, 44.0)
+                          .toDouble();
+
                   return Row(
-                    children: [
-                      if (i > 0) const SizedBox(width: 8),
-                      _StaticOtpBox(
-                        index: i,
-                        controller: _controllers[i],
-                        focusNode: _focusNodes[i],
-                        hasError: _error != null,
-                        theme: theme,
-                        isDark: isDark,
-                        onChanged: (v) => _onDigitChanged(i, v),
-                        onBackspace: () {
-                          if (_controllers[i].text.isEmpty && i > 0) {
-                            _focusNodes[i - 1].requestFocus();
-                            _controllers[i - 1].clear();
-                          }
-                        },
-                      ),
-                    ],
+                    children: List.generate(6, (i) {
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: i == 5 ? 0 : spacing),
+                          child: _StaticOtpBox(
+                            index: i,
+                            controller: _controllers[i],
+                            focusNode: _focusNodes[i],
+                            hasError: _error != null,
+                            theme: theme,
+                            isDark: isDark,
+                            boxWidth: adaptiveWidth,
+                            onChanged: (v) => _onDigitChanged(i, v),
+                            onBackspace: () {
+                              if (_controllers[i].text.isEmpty && i > 0) {
+                                _focusNodes[i - 1].requestFocus();
+                                _controllers[i - 1].clear();
+                              }
+                            },
+                          ),
+                        ),
+                      );
+                    }),
                   );
-                }),
+                },
               ),
 
               // ── Error State ────────────────────────────────────────────
@@ -406,6 +419,7 @@ class _StaticOtpBox extends StatefulWidget {
   final bool hasError;
   final ThemeData theme;
   final bool isDark;
+  final double boxWidth;
   final ValueChanged<String> onChanged;
   final VoidCallback onBackspace;
 
@@ -416,6 +430,7 @@ class _StaticOtpBox extends StatefulWidget {
     required this.hasError,
     required this.theme,
     required this.isDark,
+    required this.boxWidth,
     required this.onChanged,
     required this.onBackspace,
   });
@@ -477,14 +492,14 @@ class _StaticOtpBoxState extends State<_StaticOtpBox> {
       borderWidth = 1.5;
     } else {
       borderColor =
-          isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E7EB);
+          isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE5E7EB);
       bgColor = defaultBg;
       borderWidth = 1.0;
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 44,
+      width: widget.boxWidth,
       height: 52,
       decoration: BoxDecoration(
         color: bgColor,

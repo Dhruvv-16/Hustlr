@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/storage_service.dart';
@@ -13,6 +12,7 @@ import '../../core/theme/theme_provider.dart';
 import '../../widgets/language_switcher.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_health_service.dart';
+import '../../core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
 import '../../widgets/demo_controls_sheet.dart';
@@ -20,8 +20,6 @@ import '../../services/mock_data_service.dart';
 import '../../services/location_service.dart';
 import '../../services/background_heartbeat_service.dart';
 import '../../services/shift_tracking_service.dart';
-import '../../blocs/policy/policy_bloc.dart';
-import '../../blocs/policy/policy_event.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,8 +28,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
-  with WidgetsBindingObserver {
+class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _worker;
   Map<String, dynamic>? _policy;
   Map<String, dynamic>? _trustProfile = {
@@ -50,7 +47,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _loadData();
     _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadData());
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadData());
@@ -58,20 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(_loadData());
-      StorageService.instance.getUserId().then((uid) {
-        if (uid != null && mounted) {
-          context.read<PolicyBloc>().add(LoadPolicy(uid));
-        }
-      });
-    }
-  }
-
-  @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _policySub?.cancel();
     _claimSub?.cancel();
     _walletSub?.cancel();
@@ -79,11 +62,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _loadData() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
     final userId = await StorageService.instance.getUserId();
     
     // Prioritize mock data for demo consistency
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
-    if (mockSvc.worker.id.isNotEmpty) {
+    if (mockSvc.worker.id.startsWith('DEMO_')) {
       if (mounted) {
         setState(() {
           _worker = {
@@ -109,7 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     
     try {
-      final rawWorker = await ApiService.instance.getWorkerById(userId);
+      final rawWorker = await ApiService.instance
+          .getWorkerById(userId)
+          .timeout(const Duration(seconds: 12), onTimeout: () => <String, dynamic>{});
       final worker = Map<String, dynamic>.from(rawWorker);
       
       final localName = await StorageService.instance.getUserName();
@@ -125,12 +114,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       Map<String, dynamic>? policy;
       Map<String, dynamic>? trustProfile;
       try {
-        final policyData = await ApiService.instance.getPolicy(userId);
+        final policyData = await ApiService.instance
+            .getPolicy(userId)
+            .timeout(const Duration(seconds: 12), onTimeout: () => <String, dynamic>{});
         policy = policyData['policy'] as Map<String, dynamic>?;
       } catch (_) {}
       
       try {
-        trustProfile = await ApiService.instance.getTrustProfile(userId);
+        trustProfile = await ApiService.instance
+            .getTrustProfile(userId)
+            .timeout(const Duration(seconds: 12), onTimeout: () => <String, dynamic>{});
       } catch (_) {}
       
       final prefs = await SharedPreferences.getInstance();
@@ -141,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         final mock = context.read<MockDataService>();
         Map<String, dynamic>? finalPolicy;
 
-        if (mock.worker.id.isNotEmpty && mock.hasActivePolicy) {
+        if (mock.worker.id.startsWith('DEMO_') && mock.hasActivePolicy) {
           finalPolicy = {
             'plan_name': mock.activePolicy.plan,
             'status': mock.activePolicy.status,
@@ -179,19 +172,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    final blocTier = context.select<PolicyBloc, String?>((bloc) {
-      final active = bloc.state.activePolicy;
-      if (active == null) return null;
-      return active.tier.name;
-    });
-    final localTier = _policy?['plan_tier']?.toString();
-    final effectiveTier = (localTier != null && localTier.isNotEmpty)
-      ? localTier
-      : blocTier;
-    final activePlanLabel = effectiveTier != null
-      ? '${effectiveTier.toUpperCase()} SHIELD'
-      : 'None';
-
     return MobileContainer(
       child: Scaffold(
         backgroundColor: theme.canvasColor,
@@ -215,7 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               if (context.canPop()) {
                                 context.pop();
                               } else {
-                                context.go('/dashboard');
+                                context.go(AppRoutes.dashboard);
                               }
                             },
                           ),
@@ -270,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       isDark: isDark,
                       rows: [
                         (Icons.badge_rounded, l10n.profile_hustlr_id, _worker?['id']?.toString().split('-')[0].toUpperCase() ?? 'HUSTLR-XXXX'),
-                        (Icons.shield_rounded, l10n.profile_active_plan, activePlanLabel),
+                        (Icons.shield_rounded, l10n.profile_active_plan, _policy?['plan_tier'] != null ? '${_policy!['plan_tier'].toString().toUpperCase()} SHIELD' : 'None'),
                         (Icons.calendar_today_rounded, l10n.profile_validity, _policy != null ? 'Active' : 'N/A'),
                       ],
                     ),
@@ -284,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: isDark ? [] : [
-                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+                          BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 24, offset: const Offset(0, 10))
                         ],
                       ),
                       child: FutureBuilder<bool>(
@@ -354,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: isDark ? [] : [
-                          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+                          BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 24, offset: const Offset(0, 10))
                         ],
                       ),
                       child: Column(
@@ -373,7 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               Text(
                                 l10n.profile_language.toUpperCase(),
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.5)
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5)
                                 ),
                               ),
                             ],
@@ -390,13 +370,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                     
                     // ── Developer Options ─────────────────────────────────
                     GestureDetector(
-                      onTap: () => context.push('/admin/ml-tester'),
+                      onTap: () => context.push(AppRoutes.mlTester),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1B5E20).withOpacity(0.2) : const Color(0xFFE8F5E9),
+                          color: isDark ? const Color(0xFF1B5E20).withValues(alpha: 0.2) : const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
+                          border: Border.all(color: const Color(0xFF3FFF8B).withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -421,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           await AuthService.logout();
                           if (context.mounted) {
                             context.read<MockDataService>().resetDemo();
-                            context.go('/login');
+                            context.go(AppRoutes.login);
                           }
                         },
                         child: Container(
@@ -430,9 +410,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF1c1f1c) : const Color(0xFFFFF0F0),
                             borderRadius: BorderRadius.circular(28),
-                            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
                             boxShadow: isDark ? [] : [
-                              BoxShadow(color: Colors.redAccent.withOpacity(0.1), blurRadius: 16, offset: const Offset(0, 8)),
+                              BoxShadow(color: Colors.redAccent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 8)),
                             ],
                           ),
                           alignment: Alignment.center,
@@ -466,14 +446,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: isDark ? [] : [
-          BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+          BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 24, offset: const Offset(0, 10))
         ],
       ),
       child: Column(
         children: [
           CircleAvatar(
             radius: 40,
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             child: Text(
               worker?['name']?.substring(0, 1) ?? 'U',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
@@ -504,7 +484,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1c1f1c) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF3FFF8B).withOpacity(0.3)),
+          border: Border.all(color: const Color(0xFF3FFF8B).withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -564,14 +544,23 @@ class _ThemeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    ThemeProvider? themeProvider;
+    try {
+      themeProvider = Provider.of<ThemeProvider>(context);
+    } catch (_) {
+      themeProvider = null;
+    }
     final theme = Theme.of(context);
-    final isDark = themeProvider.isDarkMode(context);
+    final isDark =
+        themeProvider?.isDarkMode(context) ??
+        (MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
     // Pill switch with sun/moon
     return GestureDetector(
       onTap: () {
-        themeProvider.toggleTheme(!isDark);
+        if (themeProvider != null) {
+          themeProvider.toggleTheme(!isDark);
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
@@ -583,11 +572,11 @@ class _ThemeToggle extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           color: isDark ? theme.colorScheme.surface : theme.colorScheme.surface,
           border: Border.all(
-            color: theme.colorScheme.primary.withOpacity(isDark ? 0.4 : 0.2),
+            color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.4 : 0.2),
             width: 1,
           ),
           boxShadow: isDark ? [
-             BoxShadow(color: theme.colorScheme.primary.withOpacity(0.1), blurRadius: 12)
+             BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.1), blurRadius: 12)
           ] : [],
         ),
         child: Stack(
@@ -604,7 +593,7 @@ class _ThemeToggle extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: theme.colorScheme.primary,
                   boxShadow: [
-                    BoxShadow(color: theme.colorScheme.primary.withOpacity(0.5), blurRadius: 8)
+                    BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.5), blurRadius: 8)
                   ],
                 ),
                 child: Icon(
@@ -748,7 +737,7 @@ class _InfoCard extends StatelessWidget {
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: isDark ? [] : [
-            BoxShadow(color: theme.colorScheme.primary.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
+            BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 24, offset: const Offset(0, 10))
           ],
         ),
         child: Column(
@@ -766,7 +755,7 @@ class _InfoCard extends StatelessWidget {
                       Container(
                         width: 40, height: 40,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          color: theme.colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(row.$1, color: theme.colorScheme.primary, size: 20),
@@ -777,7 +766,7 @@ class _InfoCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(row.$2, style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.5)
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5)
                             )),
                             const SizedBox(height: 4),
                             Text(row.$3, style: theme.textTheme.bodyLarge),
@@ -825,7 +814,7 @@ class _ApiStatusTile extends StatelessWidget {
         };
 
         return GestureDetector(
-          onTap: () => context.push('/profile/api-status'),
+          onTap: () => context.push(AppRoutes.apiStatus),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
@@ -833,7 +822,7 @@ class _ApiStatusTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: isDark ? [] : [
                 BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.04),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.04),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -844,7 +833,7 @@ class _ApiStatusTile extends StatelessWidget {
                 Container(
                   width: 40, height: 40,
                   decoration: BoxDecoration(
-                    color: dotColor.withOpacity(0.12),
+                    color: dotColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: isChecking
@@ -881,7 +870,7 @@ class _ApiStatusTile extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: dotColor,
-                              boxShadow: [BoxShadow(color: dotColor.withOpacity(0.5), blurRadius: 4)],
+                              boxShadow: [BoxShadow(color: dotColor.withValues(alpha: 0.5), blurRadius: 4)],
                             ),
                           ),
                           Text(
@@ -899,7 +888,7 @@ class _ApiStatusTile extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurface.withOpacity(0.35),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
                   size: 20,
                 ),
               ],

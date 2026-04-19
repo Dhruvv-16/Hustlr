@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/router/app_router.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/storage_service.dart';
@@ -29,7 +30,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
 
     // ── Demo Shadow Sync ────────────────────────────────────────────────────
     final mock = Provider.of<MockDataService>(context, listen: false);
-    if (mock.worker.id.isNotEmpty) {
+    if (mock.worker.id.startsWith('DEMO_')) {
       if (mounted) {
         setState(() {
           _live = {
@@ -156,7 +157,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: green.withOpacity(isDark ? 0.15 : 0.2),
+                    color: green.withValues(alpha: isDark ? 0.15 : 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -183,7 +184,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
                     Text(
                       'Live estimate from disruptions in your zone',
                       style: TextStyle(
-                          color: Colors.white.withOpacity(0.65), fontSize: 11),
+                          color: Colors.white.withValues(alpha: 0.65), fontSize: 11),
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -210,7 +211,7 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => context.push('/policy'),
+                onPressed: () => context.push(AppRoutes.policy),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: green,
                   foregroundColor: btnTxt,
@@ -261,11 +262,11 @@ class _ShadowPolicyScreenState extends State<ShadowPolicyScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final cardBg = theme.cardColor;
     final border =
-        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB);
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB);
     final redBg = isDark ? const Color(0xFF2D0011) : const Color(0xFFFFEBEE);
     final red = isDark ? const Color(0xFFFF6B6B) : const Color(0xFFB71C1C);
     final text = theme.colorScheme.onSurface;
-    final sub = theme.colorScheme.onSurface.withOpacity(0.5);
+    final sub = theme.colorScheme.onSurface.withValues(alpha: 0.5);
 
     final missed = event['missed'] ?? event['claimableAmount'];
     final amt = missed is num ? missed.round().toString() : missed?.toString() ?? '—';

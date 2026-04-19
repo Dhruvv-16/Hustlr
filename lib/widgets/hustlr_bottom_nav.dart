@@ -24,7 +24,7 @@ class HustlrBottomNav extends StatelessWidget {
     final activeColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
     final inactiveColor = isDark ? const Color(0xFF91938d) : const Color(0xFF8FAE8B);
     final activeTextColor = isDark ? const Color(0xFF3fff8b) : const Color(0xFF1B5E20);
-    final shadowColor = isDark ? Colors.black.withOpacity(0.6) : Colors.black.withOpacity(0.1);
+    final shadowColor = isDark ? Colors.black.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.1);
 
     return Container(
       decoration: BoxDecoration(

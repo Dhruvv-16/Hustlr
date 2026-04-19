@@ -10,6 +10,7 @@ import '../../models/claim.dart';
 import '../../models/policy.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
+import '../../core/router/app_router.dart';
 import 'package:intl/intl.dart';
 
 class AnalyticsDashboardScreen extends StatefulWidget {
@@ -21,6 +22,22 @@ class AnalyticsDashboardScreen extends StatefulWidget {
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   String _zone = '';
+
+  String _policyAddonsLabel(Policy? policy) {
+    if (policy == null || !policy.status.isCoverageActive) return 'None';
+
+    if (policy.tier == PlanTier.full) {
+      return 'Included in Full Shield';
+    }
+
+    final names = policy.riders
+        .map((r) => (r['name'] ?? '').toString().trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    if (names.isEmpty) return 'None';
+    return names.join(', ');
+  }
 
   DateTime _parseDemoClaimDate(ClaimModel claim) {
     if (claim.date.toLowerCase() == 'just now') return DateTime.now();
@@ -143,7 +160,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: heroBg.withOpacity(0.25),
+            color: heroBg.withValues(alpha: 0.25),
             blurRadius: 20, offset: const Offset(0, 8),
           ),
         ],
@@ -189,6 +206,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
 
         final activePlanName = getPlanDisplayName(policyState.activePolicy?.tier);
         final hasActivePolicy = policyState.activePolicy != null && policyState.activePolicy!.status.isCoverageActive;
+        final addonLabel = _policyAddonsLabel(policyState.activePolicy);
 
         // Only show the policy info card if there's an active policy
         if (!hasActivePolicy) {
@@ -222,7 +240,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               const SizedBox(height: 12),
               _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
               const SizedBox(height: 12),
-              _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'Bandh / Internet coverage'),
+              _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: addonLabel),
             ],
           ),
         );
@@ -334,7 +352,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(days[value.toInt()],
-                              style: TextStyle(color: text.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500)),
+                              style: TextStyle(color: text.withValues(alpha: 0.6), fontSize: 12, fontWeight: FontWeight.w500)),
                         );
                       },
                     ),
@@ -532,7 +550,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
                 child: Text(status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
               ),
             ],
@@ -552,7 +570,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cardBg,
-        border: Border.all(color: green.withOpacity(isDark ? 0.4 : 1.0)),
+        border: Border.all(color: green.withValues(alpha: isDark ? 0.4 : 1.0)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -566,7 +584,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => context.push('/policy'),
+              onPressed: () => context.push(AppRoutes.policy),
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: btnTxt,

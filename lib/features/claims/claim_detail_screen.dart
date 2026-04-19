@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/mock_data_service.dart';
+import '../../core/router/app_router.dart';
 import '../../core/utils/pdf_generator.dart';
 import 'widgets/audit_receipt_badge.dart';
 
@@ -99,12 +100,18 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
       }
 
       final userId = await StorageService.instance.getUserId();
-      if (userId == null) {
-        setState(() { _error = 'Not logged in'; _loading = false; });
-        return;
+      final fallbackUserId = (StorageService.phone.isNotEmpty)
+          ? 'local-${StorageService.phone.replaceAll(RegExp(r'\D'), '')}'
+          : 'demo-local-user';
+      final effectiveUserId = (userId == null || userId.trim().isEmpty)
+          ? fallbackUserId
+          : userId;
+
+      if (userId == null || userId.trim().isEmpty) {
+        await StorageService.setUserId(effectiveUserId);
       }
       
-      final data = await ApiService.instance.getClaims(userId);
+      final data = await ApiService.instance.getClaims(effectiveUserId);
       final raw = data['claims'];
       final list = raw is List
           ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
@@ -184,7 +191,7 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: () => context.go('/claims'), 
+                      onPressed: () => context.go(AppRoutes.claims), 
                       icon: const Icon(Icons.arrow_back),
                       label: const Text('Back to Claims'),
                       style: ElevatedButton.styleFrom(
@@ -250,20 +257,20 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
             // Header
             Container(
               width: 72, height: 72,
-              decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(24)),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(24)),
               child: Icon(triggerIcon, size: 36, color: statusColor),
             ),
             const SizedBox(height: 20),
             Text(displayName, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface, letterSpacing: -0.5)),
             const SizedBox(height: 6),
-            Text(dateStr, style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withOpacity(0.5), fontWeight: FontWeight.w600)),
+            Text(dateStr, style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.5), fontWeight: FontWeight.w600)),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
+                color: statusColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: statusColor.withOpacity(0.2), width: 1.5),
+                border: Border.all(color: statusColor.withValues(alpha: 0.2), width: 1.5),
               ),
               child: Text(
                 status,
@@ -276,9 +283,9 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton(
-                    onPressed: () => context.push('/claims/explanation'),
+                    onPressed: () => context.push(AppRoutes.autoExplanation),
                     style: TextButton.styleFrom(
-                      backgroundColor: statusColor.withOpacity(0.08),
+                      backgroundColor: statusColor.withValues(alpha: 0.08),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
@@ -293,7 +300,7 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: () => context.push('/claims/$claimId/appeal', extra: claim),
+                    onPressed: () => context.push(AppRoutes.claimAppealById(claimId), extra: claim),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: statusColor, foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -395,7 +402,7 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04), width: 1.5),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04), width: 1.5),
         boxShadow: isDark ? [] : [const BoxShadow(color: Color(0x05000000), blurRadius: 16, offset: Offset(0, 8))],
       ),
       child: Column(
@@ -403,22 +410,22 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
         children: [
           Row(children: [
             Container(width: 4, height: 16, color: theme.colorScheme.primary, margin: const EdgeInsets.only(right: 12)),
-            Text('PAYOUT BREAKDOWN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface.withOpacity(0.5), letterSpacing: 1.5)),
+            Text('PAYOUT BREAKDOWN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface.withValues(alpha: 0.5), letterSpacing: 1.5)),
           ]),
           const SizedBox(height: 24),
           _buildBreakdownRow('Trigger', displayName, theme),
           _buildBreakdownRow('Gross payout', '₹$grossPayout', theme, isBold: true),
-          Divider(height: 32, color: theme.colorScheme.onSurface.withOpacity(0.1)),
+          Divider(height: 32, color: theme.colorScheme.onSurface.withValues(alpha: 0.1)),
           if (isPending) ...[
             _buildBreakdownRow('Estimated payout', '₹$grossPayout', theme, isBold: true, valueColor: Colors.orange),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: theme.colorScheme.onSurface.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: theme.colorScheme.onSurface.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
               child: Row(children: [
-                Icon(Icons.info_outline_rounded, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.6)),
+                Icon(Icons.info_outline_rounded, size: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
                 const SizedBox(width: 8),
-                Text('Settlement: Sunday 11 PM', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.8), fontWeight: FontWeight.w600)),
+                Text('Settlement: Sunday 11 PM', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.8), fontWeight: FontWeight.w600)),
               ]),
             ),
           ] else ...[
@@ -437,7 +444,7 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 3, child: Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w700))),
+          Expanded(flex: 3, child: Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13, fontWeight: FontWeight.w700))),
           Expanded(
             flex: 4,
             child: Column(
@@ -469,9 +476,9 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.05),
+        color: theme.colorScheme.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2), width: 1.5),
+        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,9 +498,9 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('FPS Score', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: theme.colorScheme.primary.withOpacity(0.8), letterSpacing: 1.5)),
+                    Text('FPS Score', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: theme.colorScheme.primary.withValues(alpha: 0.8), letterSpacing: 1.5)),
                     const SizedBox(height: 6),
-                    Text('Normal Profile', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600)),
+                    Text('Normal Profile', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -502,7 +509,7 @@ String label, String value, ThemeData theme, {bool isBold = false, Color? valueC
                 children: [
                   Text('$score', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: theme.colorScheme.primary, height: 1.0)),
                   const SizedBox(width: 4),
-                  Text('/ 100', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.primary.withOpacity(0.5))),
+                  Text('/ 100', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.primary.withValues(alpha: 0.5))),
                 ],
               ),
             ],

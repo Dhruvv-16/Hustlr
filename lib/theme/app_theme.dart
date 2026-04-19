@@ -60,24 +60,24 @@ class AppTheme {
   // Dark mode: Electric Mint tinted ambient glow
   static List<BoxShadow> cardShadow(bool isDark) => isDark
     ? [BoxShadow(
-        color: const Color(0xFF3FFF8B).withOpacity(0.04),
+        color: const Color(0xFF3FFF8B).withValues(alpha: 0.04),
         blurRadius: 20,
         offset: const Offset(0, 8),
       )]
     : [BoxShadow(
-        color: const Color(0xFF0D1B0F).withOpacity(0.06),
+        color: const Color(0xFF0D1B0F).withValues(alpha: 0.06),
         blurRadius: 12,
         offset: const Offset(0, 4),
       )];
 
   static List<BoxShadow> floatingButtonShadow(bool isDark) => isDark
     ? [BoxShadow(
-        color: const Color(0xFF3FFF8B).withOpacity(0.25),
+        color: const Color(0xFF3FFF8B).withValues(alpha: 0.25),
         blurRadius: 20,
         offset: const Offset(0, 8),
       )]
     : [BoxShadow(
-        color: const Color(0xFF1B5E20).withOpacity(0.40),
+        color: const Color(0xFF1B5E20).withValues(alpha: 0.40),
         blurRadius: 16,
         offset: const Offset(0, 4),
       )];

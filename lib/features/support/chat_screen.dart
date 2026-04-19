@@ -253,7 +253,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(24),
                 ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
               ),
               child: Text(
@@ -271,7 +271,7 @@ class _ChatScreenState extends State<ChatScreen> {
           Text(
             time,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -280,7 +280,7 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(width: 12),
             CircleAvatar(
               radius: 18,
-              backgroundColor: primaryColor.withOpacity(0.2),
+              backgroundColor: primaryColor.withValues(alpha: 0.2),
               child: Icon(Icons.person_outline_rounded, size: 20, color: primaryColor),
             ),
           ],
@@ -337,7 +337,7 @@ class _ChatScreenState extends State<ChatScreen> {
           topRight: Radius.circular(32),
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, -5)),
         ],
       ),
       child: Column(
@@ -350,14 +350,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Container(
                     height: 56,
                     decoration: BoxDecoration(
-                      border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
+                      border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1)),
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: Row(
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(Icons.emoji_emotions_outlined, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                          child: Icon(Icons.emoji_emotions_outlined, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                         ),
                         Expanded(
                           child: TextField(
@@ -365,14 +365,14 @@ class _ChatScreenState extends State<ChatScreen> {
                             style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600),
                             decoration: InputDecoration(
                               hintText: l10n.chat_hint,
-                              hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.4), fontWeight: FontWeight.w600),
+                              hintStyle: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.w600),
                               border: InputBorder.none,
                             ),
                           ),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(Icons.mic_none_rounded, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                          child: Icon(Icons.mic_none_rounded, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                         ),
                       ],
                     ),
@@ -437,8 +437,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildQuickChip(IconData icon, String label, String presetMessage, bool isFilled, ThemeData theme, Color primaryColor) {
     final isDark = theme.brightness == Brightness.dark;
     final filledBg = isDark ? const Color(0xFF1c1f1c) : primaryColor;
-    final emptyBg  = isDark ? const Color(0xFF1c1f1c).withOpacity(0.4) : theme.scaffoldBackgroundColor;
-    final borderCol = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08);
+    final emptyBg  = isDark ? const Color(0xFF1c1f1c).withValues(alpha: 0.4) : theme.scaffoldBackgroundColor;
+    final borderCol = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
 
     return GestureDetector(
       onTap: () => _sendPreset(presetMessage),
@@ -453,7 +453,7 @@ class _ChatScreenState extends State<ChatScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16,
-              color: isFilled ? (isDark ? primaryColor : Colors.white) : theme.colorScheme.onSurface.withOpacity(0.7)),
+              color: isFilled ? (isDark ? primaryColor : Colors.white) : theme.colorScheme.onSurface.withValues(alpha: 0.7)),
             const SizedBox(width: 6),
             Text(label,
               style: TextStyle(

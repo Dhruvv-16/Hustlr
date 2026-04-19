@@ -90,7 +90,7 @@ class TrustScoreCard extends StatelessWidget {
 
           BoxShadow(
 
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
 
             blurRadius: 20,
 
@@ -120,7 +120,7 @@ class TrustScoreCard extends StatelessWidget {
 
                 style: TextStyle(
 
-                  color: theme.colorScheme.onSurface.withOpacity(0.9),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
 
                   fontSize: 16,
 
@@ -162,7 +162,7 @@ class TrustScoreCard extends StatelessWidget {
 
                     decoration: BoxDecoration(
 
-                      color: barColor.withOpacity(0.15),
+                      color: barColor.withValues(alpha: 0.15),
 
                       borderRadius: BorderRadius.circular(20),
 
@@ -226,7 +226,7 @@ class TrustScoreCard extends StatelessWidget {
 
               height: 1.4,
 
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
 
             ),
 
@@ -256,7 +256,7 @@ class TrustScoreCard extends StatelessWidget {
 
               style: OutlinedButton.styleFrom(
 
-                side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2)),
+                side: BorderSide(color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
 
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
 
@@ -366,7 +366,7 @@ class TrustScoreCard extends StatelessWidget {
 
                         decoration: BoxDecoration(
 
-                          color: isPositive ? const Color(0xFF43A047).withOpacity(0.1) : const Color(0xFFE53935).withOpacity(0.1),
+                          color: isPositive ? const Color(0xFF43A047).withValues(alpha: 0.1) : const Color(0xFFE53935).withValues(alpha: 0.1),
 
                           borderRadius: BorderRadius.circular(6),
 
@@ -386,7 +386,7 @@ class TrustScoreCard extends StatelessWidget {
 
                       ),
 
-                      Text('$days days ago', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
+                      Text('$days days ago', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
 
                     ],
 

@@ -36,8 +36,8 @@ class PrimaryButton extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(28),
           boxShadow: isDark 
-            ? [BoxShadow(color: gradColors[0].withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 10))]
-            : [BoxShadow(color: gradColors[0].withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 8))],
+            ? [BoxShadow(color: gradColors[0].withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 10))]
+            : [BoxShadow(color: gradColors[0].withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 8))],
         ),
         child: Material(
           color: Colors.transparent,
