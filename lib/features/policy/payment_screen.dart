@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -66,35 +65,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void initState() {
     super.initState();
     _loadBalance();
-    if (!kIsWeb) {
-      razorpay_bridge.initializeRazorpay(
-        onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
-        onPaymentError: (message) {
-          if (!mounted) return;
-          setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Payment failed: $message'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        },
-        onExternalWallet: (walletName) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('External wallet: $walletName'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-        },
-      );
-    }
+    razorpay_bridge.initializeRazorpay(
+      onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
+      onPaymentError: (message) {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: $message'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+      onExternalWallet: (walletName) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('External wallet: $walletName'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
-    if (!kIsWeb) razorpay_bridge.disposeRazorpay();
+    razorpay_bridge.disposeRazorpay();
     super.dispose();
   }
 
@@ -118,17 +115,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
     final userId = await StorageService.instance.getUserId();
 
-    // Web fallback: use backend sandbox flow since razorpay_flutter callbacks
-    // can be unreliable/not supported in Flutter web contexts.
-    if (kIsWeb) {
-      await _startWebSandboxPayment(
-        total: total,
-        planName: planName.toString(),
-        userId: userId,
-      );
-      return;
-    }
-    
     // Razorpay test key (sandbox mode)
     const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; // Replace with your test key
     
@@ -153,7 +139,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     };
 
     try {
-      razorpay_bridge.openRazorpay(options);
+      await razorpay_bridge.openRazorpay(options);
     } catch (e) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,58 +151,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  Future<void> _startWebSandboxPayment({
-    required int total,
-    required String planName,
-    required String? userId,
-  }) async {
-    try {
-      final session = await ApiService.instance.createPaymentSandboxSession(
-        provider: 'razorpay',
-        amount: total,
-        description: '$planName Coverage',
-        userId: userId,
-        metadata: {
-          'plan': planName,
-          'source': 'flutter_web_payment_screen',
-        },
-      );
-
-      final sessionId = session['session_id']?.toString();
-      if (sessionId == null || sessionId.isEmpty) {
-        throw Exception('Sandbox session not created');
-      }
-
-      await ApiService.instance.confirmPaymentSandbox(
-        provider: 'razorpay',
-        amount: total,
-        sessionId: sessionId,
-        userId: userId,
-        metadata: {
-          'plan': planName,
-          'simulated': true,
-        },
-      );
-
-      await _verifyAndCreatePolicy('sandbox_$sessionId');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Web sandbox payment failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
   Future<void> _verifyAndCreatePolicy(String paymentId) async {
     String? currentUserId;
     try {
       final userId = await StorageService.instance.getUserId();
-      if (userId == null) {
+      if (userId == null || userId.isEmpty) {
         if (mounted) setState(() => _loading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please complete login/onboarding before payment.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
         return;
       }
       currentUserId = userId;
@@ -244,7 +192,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       // ── Demo Sync ─────────────────────────────────────────────────────────
       final mock = context.read<MockDataService>();
-      if (mock.worker.id.isNotEmpty) {
+      if (mock.worker.id.startsWith('DEMO_')) {
         mock.activatePolicy(planTier);
       }
       
@@ -332,7 +280,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       // ── Demo Sync ─────────────────────────────────────────────────────────
       final mock = context.read<MockDataService>();
-      if (mock.worker.id.isNotEmpty) {
+      if (mock.worker.id.startsWith('DEMO_')) {
         mock.activatePolicy(planTier);
       }
 
@@ -427,7 +375,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               'hustlr.app',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -846,9 +794,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(
-                                  _useRazorpay ? 'Proceed to Pay $formattedTotal' : 'Pay with Wallet',
-                                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                                Flexible(
+                                  child: Text(
+                                    _useRazorpay ? 'Proceed to Pay $formattedTotal' : 'Pay with Wallet',
+                                    maxLines: 1,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                                  ),
                                 ),
                                 if (_useRazorpay) ...[
                                   const SizedBox(width: 8),
@@ -893,15 +846,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 color: active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
               ),
               const SizedBox(width: 7),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
-                  ),
-                ),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                          color: active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
+                        ),
+                      ),
               ),
             ],
           ),
@@ -911,24 +865,41 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _paymentMethodChip(String label, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDDE3DF)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFF57636C)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF344054), fontWeight: FontWeight.w500),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth <= 90;
+
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 8 : 10,
+            vertical: 10,
           ),
-        ],
-      ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFDDE3DF)),
+          ),
+          child: isCompact
+              ? Icon(icon, size: 16, color: const Color(0xFF57636C))
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: const Color(0xFF57636C)),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF344054),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }

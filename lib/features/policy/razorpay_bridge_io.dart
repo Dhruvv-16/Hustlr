@@ -20,7 +20,7 @@ void initializeRazorpay({
   });
 }
 
-void openRazorpay(Map<String, dynamic> options) {
+Future<void> openRazorpay(Map<String, dynamic> options) async {
   final r = _razorpay;
   if (r == null) {
     throw StateError('Razorpay not initialized');
