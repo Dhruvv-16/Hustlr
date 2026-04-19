@@ -1,14 +1,14 @@
 // src/services/cell-tower-service.js
 // Location from cell towers: OpenCelliD (optional) → Unwired Labs / LocationAPI → fallback.
 
-const axios = require('axios');
-const { withFallback } = require('./api-wrapper');
-const { FALLBACKS } = require('./fallback-service');
+const axios = require("axios");
+const { withFallback } = require("./api-wrapper");
+const { FALLBACKS } = require("./fallback-service");
 
-const UNWIRED_KEY = process.env.CELL_LOCATION_API_KEY || '';
-const OPENCELLID_KEY = process.env.OPENCELLID_API_KEY || 'pk.28291702cc0fe8633be9310cafe2260b';
+const UNWIRED_KEY = process.env.CELL_LOCATION_API_KEY || "";
+const OPENCELLID_KEY = process.env.OPENCELLID_API_KEY || "";
 
-const OPENCELLID_URL = 'https://opencellid.org/cell/get';
+const OPENCELLID_URL = "https://opencellid.org/cell/get";
 
 /**
  * OpenCelliD — first cell only; free tier may require whitelisted key (see opencellid.org).
@@ -30,7 +30,7 @@ async function tryOpenCellId(payload) {
     mnc: c.mnc,
     lac,
     cellid,
-    format: 'json',
+    format: "json",
   };
   if (payload.radio) params.radio = String(payload.radio).toUpperCase();
 
@@ -54,7 +54,7 @@ async function tryOpenCellId(payload) {
     lat: Number(lat),
     lng: Number(lon),
     accuracy: res.data.range != null ? Number(res.data.range) : 1000,
-    source: 'opencellid',
+    source: "opencellid",
     samples: res.data.samples,
   };
 }
@@ -64,22 +64,27 @@ async function tryOpenCellId(payload) {
  * Order: OpenCelliD (if OPENCELLID_API_KEY) → Unwired (if CELL_LOCATION_API_KEY) → api-wrapper fallback.
  */
 async function estimateLocation(payload) {
-  if (!payload || !payload.cells || !Array.isArray(payload.cells) || payload.cells.length === 0) {
-    return { error: 'Insufficient cell data' };
+  if (
+    !payload ||
+    !payload.cells ||
+    !Array.isArray(payload.cells) ||
+    payload.cells.length === 0
+  ) {
+    return { error: "Insufficient cell data" };
   }
 
   try {
     const oc = await tryOpenCellId(payload);
     if (oc) return oc;
   } catch (e) {
-    console.warn('[OpenCelliD]', e.message);
+    console.warn("[OpenCelliD]", e.message);
   }
 
   if (!UNWIRED_KEY) {
     return {
       ...FALLBACKS.cell_tower,
-      _source: 'fallback_no_cell_api_keys',
-      hint: 'Set OPENCELLID_API_KEY and/or CELL_LOCATION_API_KEY for live cell lookup',
+      _source: "fallback_no_cell_api_keys",
+      hint: "Set OPENCELLID_API_KEY and/or CELL_LOCATION_API_KEY for live cell lookup",
     };
   }
 
@@ -94,12 +99,12 @@ async function estimateLocation(payload) {
   const mcc = payload.cells[0].mcc;
 
   return withFallback(
-    'cell_tower',
+    "cell_tower",
     async () => {
-      const url = 'https://us1.unwiredlabs.com/v2/process.php';
+      const url = "https://us1.unwiredlabs.com/v2/process.php";
       const requestBody = {
         token: UNWIRED_KEY,
-        radio: payload.radio || 'lte',
+        radio: payload.radio || "lte",
         mcc,
         mnc,
         cells: formattedCells,
@@ -108,21 +113,23 @@ async function estimateLocation(payload) {
 
       const res = await axios.post(url, requestBody, {
         timeout: 5000,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
 
-      if (res.data.status !== 'ok' && res.data.status !== 'success') {
-        throw new Error(`LocationAPI failed: ${res.data.message || res.data.status}`);
+      if (res.data.status !== "ok" && res.data.status !== "success") {
+        throw new Error(
+          `LocationAPI failed: ${res.data.message || res.data.status}`,
+        );
       }
 
       return {
         lat: res.data.lat,
         lng: res.data.lon,
         accuracy: res.data.accuracy,
-        source: 'live_cell_tower_api',
+        source: "live_cell_tower_api",
       };
     },
-    FALLBACKS.cell_tower
+    FALLBACKS.cell_tower,
   );
 }
 
@@ -134,11 +141,11 @@ async function estimateLocation(payload) {
  * New thresholds per connection type target <10% FPR.
  */
 const BLACKOUT_THRESHOLDS = {
-  '2G':   1.0,   // Mbps
-  '3G':   1.0,   // Mbps
-  '4G':   2.5,   // Mbps (raised from 2.0 for 4G infrastructure)
-  '5G':   5.0,   // Mbps
-  'WiFi': 5.0,   // Mbps
+  "2G": 1.0, // Mbps
+  "3G": 1.0, // Mbps
+  "4G": 2.5, // Mbps (raised from 2.0 for 4G infrastructure)
+  "5G": 5.0, // Mbps
+  WiFi: 5.0, // Mbps
 };
 
 /**
@@ -147,12 +154,12 @@ const BLACKOUT_THRESHOLDS = {
  * threshold oscillation at the boundary (was causing false +ve surges).
  */
 class BlackoutDetector {
-  constructor(connectionType = '4G') {
+  constructor(connectionType = "4G") {
     this.connectionType = connectionType;
-    this.ewma           = null;
-    this.alpha          = 0.3;   // EWMA smoothing factor
-    this.threshold      = BLACKOUT_THRESHOLDS[connectionType] ?? 2.5;
-    this._readings      = [];    // circular buffer for isCriticalBlackout
+    this.ewma = null;
+    this.alpha = 0.3; // EWMA smoothing factor
+    this.threshold = BLACKOUT_THRESHOLDS[connectionType] ?? 2.5;
+    this._readings = []; // circular buffer for isCriticalBlackout
   }
 
   /**
@@ -161,16 +168,17 @@ class BlackoutDetector {
    * @returns {{ ewmaSpeed: number, isWeak: boolean, weakSignalPct: number }}
    */
   update(speedMbps) {
-    this.ewma = this.ewma === null
-      ? speedMbps
-      : this.alpha * speedMbps + (1 - this.alpha) * this.ewma;
+    this.ewma =
+      this.ewma === null
+        ? speedMbps
+        : this.alpha * speedMbps + (1 - this.alpha) * this.ewma;
 
     const isWeak = this.ewma < this.threshold;
     this._readings.push({ isWeak, ts: Date.now() });
     if (this._readings.length > 30) this._readings.shift(); // keep 30 min
 
     return {
-      ewmaSpeed:     Math.round(this.ewma * 100) / 100,
+      ewmaSpeed: Math.round(this.ewma * 100) / 100,
       isWeak,
       weakSignalPct: isWeak ? 1.0 : 0.0,
     };
@@ -182,8 +190,8 @@ class BlackoutDetector {
    */
   isCriticalBlackout() {
     const recent = this._readings.slice(-18);
-    if (recent.length < 10) return false;  // insufficient data
-    const weakCount = recent.filter(r => r.isWeak).length;
+    if (recent.length < 10) return false; // insufficient data
+    const weakCount = recent.filter((r) => r.isWeak).length;
     return weakCount / recent.length > 0.28;
   }
 }
@@ -194,4 +202,3 @@ module.exports = {
   BlackoutDetector,
   BLACKOUT_THRESHOLDS,
 };
-

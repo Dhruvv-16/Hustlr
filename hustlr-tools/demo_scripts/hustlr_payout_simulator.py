@@ -22,8 +22,8 @@ from datetime import datetime, timezone
 SUPABASE_URL      = os.environ.get("SUPABASE_URL",  "http://localhost:54321")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_KEY",  "demo_key_123")
 BACKEND_URL       = os.environ.get("BACKEND_URL",   "http://localhost:3001")
-# Mock Generic UPI webhook secret — matches .env on Node.js server
-MOCK_WEBHOOK_SECRET = "hustlr_demo_secret_2026"
+# Mock Generic UPI webhook secret — set in environment to match backend .env
+MOCK_WEBHOOK_SECRET = os.environ.get("MOCK_WEBHOOK_SECRET", "")
 # Generic UPI requirement stripped per user request
 # Supabase headers
 SB_HEADERS = {
@@ -165,6 +165,9 @@ def trigger_mock_payout(
             }
         },
     }
+    if not MOCK_WEBHOOK_SECRET:
+        raise RuntimeError("MOCK_WEBHOOK_SECRET is required to sign payout webhooks")
+
     body_bytes = json.dumps(webhook_body, separators=(",", ":")).encode("utf-8")
     signature  = _sign_webhook(body_bytes, MOCK_WEBHOOK_SECRET)
     headers = {

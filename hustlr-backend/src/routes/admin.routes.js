@@ -12,6 +12,11 @@ const adminMiddleware = (req, res, next) => {
 
 const authMiddleware = (req, res, next) => next();
 
+function toInt(value, fallback = 0) {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 // Get fraud queue - all claims needing review
 router.get(
   "/fraud-queue",
@@ -19,21 +24,16 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
-      const { page = 1, limit = 20, status = "FLAGGED" } = req.query;
+      const pageNum = toInt(req.query.page, 1);
+      const limitNum = toInt(req.query.limit, 20);
+      const status = req.query.status || "FLAGGED";
 
       const { data: claims, error } = await supabase
         .from("claims")
-        .select(
-          `
-        *,
-        user:users(id, name, phone, trust_score, trust_tier),
-        policy:policies(id, plan_tier, weekly_premium),
-        fraud_signal_logs(signal_name, signal_value, weight, contribution)
-      `,
-        )
+        .select("*")
         .eq("fraud_status", status)
         .order("created_at", { ascending: false })
-        .range((page - 1) * limit, page * limit - 1);
+        .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
       if (error) throw error;
 
@@ -42,13 +42,68 @@ router.get(
         .select("id", { count: "exact", head: true })
         .eq("fraud_status", status);
 
+      const userIds = Array.from(
+        new Set((claims || []).map((c) => c.user_id).filter(Boolean)),
+      );
+      const policyIds = Array.from(
+        new Set((claims || []).map((c) => c.policy_id).filter(Boolean)),
+      );
+
+      let usersById = {};
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("id, name, phone, trust_score, trust_tier")
+          .in("id", userIds);
+        usersById = (usersData || []).reduce((acc, u) => {
+          acc[u.id] = u;
+          return acc;
+        }, {});
+      }
+
+      let policiesById = {};
+      if (policyIds.length > 0) {
+        const { data: policiesData } = await supabase
+          .from("policies")
+          .select("id, plan_tier, weekly_premium")
+          .in("id", policyIds);
+        policiesById = (policiesData || []).reduce((acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+      }
+
+      const mappedClaims = (claims || []).map((c) => ({
+        id: c.id,
+        userId: c.user_id,
+        userName: usersById[c.user_id]?.name || "Unknown User",
+        userPhone: usersById[c.user_id]?.phone || "",
+        trustScore: Number(usersById[c.user_id]?.trust_score ?? 0),
+        trustTier: usersById[c.user_id]?.trust_tier || "SILVER",
+        policyId: c.policy_id || "",
+        planTier: policiesById[c.policy_id]?.plan_tier || "standard",
+        weeklyPremium: Number(policiesById[c.policy_id]?.weekly_premium ?? 0),
+        fraudStatus: c.fraud_status || "FLAGGED",
+        fraudScore: Number(c.fraud_score ?? 0),
+        triggerType: c.trigger_type || "unknown",
+        zone: c.zone || "",
+        city: c.city || "",
+        severity: Number(c.severity ?? 0),
+        grossPayout: Number(c.gross_payout ?? 0),
+        createdAt: c.created_at,
+        fraudSignals: [],
+        reason: c.fps_signals
+          ? `Signals: ${JSON.stringify(c.fps_signals).slice(0, 160)}`
+          : "No explicit fraud signals recorded",
+      }));
+
       res.json({
-        claims,
+        claims: mappedClaims,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNum,
+          limit: limitNum,
           total: count,
-          pages: Math.ceil(count / limit),
+          pages: Math.ceil((count || 0) / limitNum),
         },
       });
     } catch (error) {
@@ -111,21 +166,16 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
-      const { page = 1, limit = 20, status = "APPROVED" } = req.query;
+      const pageNum = toInt(req.query.page, 1);
+      const limitNum = toInt(req.query.limit, 20);
+      const status = req.query.status || "APPROVED";
 
       const { data: claims, error } = await supabase
         .from("claims")
-        .select(
-          `
-        *,
-        user:users(id, name, phone, trust_score),
-        policy:policies(id, plan_tier, max_weekly_payout),
-        wallet_transactions(amount, type, category, created_at)
-      `,
-        )
+        .select("*")
         .eq("status", status)
         .order("created_at", { ascending: false })
-        .range((page - 1) * limit, page * limit - 1);
+        .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
       if (error) throw error;
 
@@ -134,13 +184,40 @@ router.get(
         .select("id", { count: "exact", head: true })
         .eq("status", status);
 
+      const userIds = Array.from(
+        new Set((claims || []).map((c) => c.user_id).filter(Boolean)),
+      );
+      let usersById = {};
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("id, name, phone")
+          .in("id", userIds);
+        usersById = (usersData || []).reduce((acc, u) => {
+          acc[u.id] = u;
+          return acc;
+        }, {});
+      }
+
+      const mappedPayouts = (claims || []).map((c) => ({
+        id: c.id,
+        claimId: c.id,
+        userId: c.user_id,
+        userName: usersById[c.user_id]?.name || "Unknown User",
+        userPhone: usersById[c.user_id]?.phone || "",
+        amount: Number(c.gross_payout ?? 0),
+        status: c.status || "APPROVED",
+        paymentMethod: "UPI",
+        createdAt: c.created_at,
+      }));
+
       res.json({
-        claims,
+        payouts: mappedPayouts,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNum,
+          limit: limitNum,
           total: count,
-          pages: Math.ceil(count / limit),
+          pages: Math.ceil((count || 0) / limitNum),
         },
       });
     } catch (error) {
@@ -207,38 +284,131 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
-      const { page = 1, limit = 50, tier, minScore, maxScore } = req.query;
+      const pageNum = toInt(req.query.page, 1);
+      const limitNum = toInt(req.query.limit, 50);
+      const { tier, minScore, maxScore, search } = req.query;
 
-      let query = supabase
+      let usersQuery = supabase
         .from("users")
-        .select(
-          `
-        id, name, phone, trust_score, trust_tier, clean_weeks,
-        claims:claims(count),
-        policies:policies(count)
-      `,
-        )
+        .select("*")
         .order("trust_score", { ascending: false });
 
-      // Apply filters
-      if (tier) query = query.eq("trust_tier", tier);
-      if (minScore) query = query.gte("trust_score", minScore);
-      if (maxScore) query = query.lte("trust_score", maxScore);
+      let countQuery = supabase
+        .from("users")
+        .select("id", { count: "exact", head: true });
 
-      const { data: users, error } = await query.range(
-        (page - 1) * limit,
-        page * limit - 1,
+      if (tier) {
+        usersQuery = usersQuery.eq("trust_tier", tier);
+        countQuery = countQuery.eq("trust_tier", tier);
+      }
+
+      if (minScore) {
+        usersQuery = usersQuery.gte("trust_score", Number(minScore));
+        countQuery = countQuery.gte("trust_score", Number(minScore));
+      }
+
+      if (maxScore) {
+        usersQuery = usersQuery.lte("trust_score", Number(maxScore));
+        countQuery = countQuery.lte("trust_score", Number(maxScore));
+      }
+
+      if (search) {
+        const searchTerm = String(search).trim();
+        if (searchTerm) {
+          usersQuery = usersQuery.or(
+            `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`,
+          );
+          countQuery = countQuery.or(
+            `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`,
+          );
+        }
+      }
+
+      const { data: users, error } = await usersQuery.range(
+        (pageNum - 1) * limitNum,
+        pageNum * limitNum - 1,
       );
-
       if (error) throw error;
 
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+
+      const userIds = Array.from(
+        new Set((users || []).map((u) => u.id).filter(Boolean)),
+      );
+      let policiesByUser = {};
+      let claimsByUser = {};
+
+      if (userIds.length > 0) {
+        const { data: policiesData } = await supabase
+          .from("policies")
+          .select("user_id, plan_tier, weekly_premium, status, created_at")
+          .in("user_id", userIds);
+
+        policiesByUser = (policiesData || []).reduce((acc, p) => {
+          if (!acc[p.user_id]) acc[p.user_id] = [];
+          acc[p.user_id].push(p);
+          return acc;
+        }, {});
+
+        const { data: claimsData } = await supabase
+          .from("claims")
+          .select("user_id, created_at")
+          .in("user_id", userIds);
+
+        claimsByUser = (claimsData || []).reduce((acc, c) => {
+          if (!acc[c.user_id]) acc[c.user_id] = [];
+          acc[c.user_id].push(c);
+          return acc;
+        }, {});
+      }
+
+      const mappedUsers = (users || []).map((u) => {
+        const policies = Array.isArray(policiesByUser[u.id])
+          ? policiesByUser[u.id]
+          : [];
+        const claims = Array.isArray(claimsByUser[u.id])
+          ? claimsByUser[u.id]
+          : [];
+        const activePolicy =
+          policies.find(
+            (p) => p.status === "active" || p.status === "renewed",
+          ) || null;
+
+        const lastClaimTs = claims
+          .map((c) => c.created_at)
+          .filter(Boolean)
+          .sort()
+          .pop();
+
+        return {
+          id: u.id,
+          name: u.name || "Unknown",
+          phone: u.phone || "",
+          zone: u.zone || "",
+          city: u.city || "",
+          trustScore: Number(u.trust_score ?? 0),
+          trustTier: u.trust_tier || "SILVER",
+          cleanWeeks: Number(u.clean_weeks ?? 0),
+          cashbackEarned: Number(u.cashback_earned ?? 0),
+          cashbackPending: Number(u.cashback_pending ?? 0),
+          activePolicy: Boolean(activePolicy),
+          policyTier: activePolicy?.plan_tier || "NONE",
+          weeklyPremium: Number(activePolicy?.weekly_premium ?? 0),
+          claimsCount: claims.length,
+          lastClaimDate: lastClaimTs || null,
+          kycStatus: u.kyc_status || "pending",
+          createdAt: u.created_at,
+        };
+      });
+
       res.json({
-        users,
+        users: mappedUsers,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: users.length,
-          pages: Math.ceil(users.length / limit),
+          page: pageNum,
+          limit: limitNum,
+          total: count || 0,
+          pages: Math.ceil((count || 0) / limitNum),
         },
       });
     } catch (error) {
@@ -562,18 +732,36 @@ router.get("/analytics", authMiddleware, adminMiddleware, async (req, res) => {
 // Policies Endpoint
 router.get("/policies", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { page = 1, limit = 30 } = req.query;
+    const pageNum = toInt(req.query.page, 1);
+    const limitNum = toInt(req.query.limit, 30);
     const { data, error } = await supabase
       .from("policies")
-      .select("*, users!inner(name)")
+      .select(
+        "id,user_id,plan_tier,base_premium,zone_adjustment,iss_adjustment,weekly_premium,max_weekly_payout,max_daily_payout,status,auto_renew,coverage_start,coverage_end,pool_id,created_at",
+      )
       .order("created_at", { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+      .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
     if (error) throw error;
 
+    const userIds = Array.from(
+      new Set((data || []).map((p) => p.user_id).filter(Boolean)),
+    );
+    let usersById = {};
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("id, name")
+        .in("id", userIds);
+      usersById = (usersData || []).reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+      }, {});
+    }
+
     const mapped = data.map((p) => ({
       ...p,
-      userName: p.users?.name || "Unknown User",
+      userName: usersById[p.user_id]?.name || "Unknown User",
       userId: p.user_id,
       planTier: p.plan_tier,
       basePremium: p.base_premium || 0,
@@ -639,9 +827,9 @@ router.get(
   },
 );
 
-// Fraud Queue Endpoint
+// Legacy duplicate endpoints retained for reference but moved off active paths.
 router.get(
-  "/fraud-queue",
+  "/_legacy/fraud-queue",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
@@ -678,9 +866,9 @@ router.get(
   },
 );
 
-// Payout Queue Endpoint
+// Legacy duplicate endpoints retained for reference but moved off active paths.
 router.get(
-  "/payout-queue",
+  "/_legacy/payout-queue",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
@@ -716,9 +904,9 @@ router.get(
   },
 );
 
-// System Health Endpoint
+// Legacy duplicate endpoints retained for reference but moved off active paths.
 router.get(
-  "/system-health",
+  "/_legacy/system-health",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
@@ -747,9 +935,9 @@ router.get(
   },
 );
 
-// Trust Scores Endpoint
+// Legacy duplicate endpoints retained for reference but moved off active paths.
 router.get(
-  "/trust-scores",
+  "/_legacy/trust-scores",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {

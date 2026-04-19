@@ -63,7 +63,7 @@ app.use("/policies", requireSession, policyRoutes);
 app.use("/addons", requireSession, addonRoutes);
 app.use("/claims", requireSession, claimsRoutes);
 app.use("/wallet", requireSession, walletRoutes);
-app.use("/payments", requireSession, paymentRoutes);
+app.use("/payments", paymentRoutes);
 app.use("/disruptions", disruptionRoutes);
 app.use("/guidewire", guidewireRoutes);
 app.use("/cities", citiesRoutes);
