@@ -49,6 +49,7 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   Future<void> close() {
     _claimsSubscription?.cancel();
     _profileSubscription?.cancel();
+    _watchedUserId = null;
     return super.close();
   }
 
@@ -367,9 +368,4 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
   }
 
   @override
-  Future<void> close() {
-    _claimsSubscription?.cancel();
-    _watchedUserId = null;
-    return super.close();
-  }
 }
