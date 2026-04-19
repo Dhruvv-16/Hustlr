@@ -866,7 +866,7 @@ class ApiService {
       return _decodeMap(res);
     } catch (e) {
       if (e is ApiServiceException) rethrow;
-      throw ApiServiceException('Network or timeout error', 0);
+      throw ApiServiceException('Withdrawal failed: ${e.toString()}', 0);
     }
   }
 
