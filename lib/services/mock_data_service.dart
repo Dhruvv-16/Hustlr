@@ -780,122 +780,47 @@ class MockDataService extends ChangeNotifier {
     ));
     notifyListeners();
 
-    // Bypass real API for demo sessions to ensure optimistic UI consistency.
-    final appBox = Hive.box('appData');
-    final isDemoSession = appBox.get('isDemoSession', defaultValue: true) == true;
-    if (userId.isEmpty || isDemoSession) {
-      final payout = switch (triggerType) {
-        'rain_heavy' => 120,    // README: ₹120
-        'platform_outage' => 140, // README: ₹140
-        'heat_severe' => 130,   // README: ₹130
-        _ => 100,
-      };
-      claims.first.status = 'APPROVED';
-      if (claims.first.id == tempId) {
-        claims[0] = ClaimModel(
-          id: tempId, type: _triggerLabel(triggerType),
-          date: 'Just now', amount: payout, status: 'APPROVED',
-          zone: worker.zone, icon: _triggerIcon(triggerType),
-          grossAmount: payout, immediateAmount: (payout * 0.7).round(),
-          heldAmount: (payout * 0.3).round(),
-        );
-      }
-      walletBalance += payout;
-      monthlySavings += payout;
-      transactions.insert(0, {
-        'type': 'credit',
-        'title': '${_triggerLabel(triggerType)} Payout',
-        'subtitle': 'Auto-triggered · ${worker.zone}',
-        'amount': payout,
-        'date': 'Just now',
-      });
-      // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
-      onClaimApproved?.call(domain.Claim(
-        id: tempId,
-        userId: '',
-        triggerType: triggerType,
-        displayLabel: _triggerLabel(triggerType),
-        status: domain.ClaimStatus.approved,
-        grossPayout: payout,
-        tranche1: (payout * 0.7).round(),
-        tranche2: (payout * 0.3).round(),
-        zone: worker.zone,
-        createdAt: DateTime.now(),
-      ));
-      _persistDemoState(); // ← save so it survives refresh
-      notifyListeners();
-      return;
-    }
-
-    ApiService.submitClaim(
-      userId: userId,
-      triggerType: triggerType,
-      severity: severity,
-      durationHours: durationHours,
-    ).then((result) {
-      final payout = result['payout'] as Map<String, dynamic>;
-      final gross = (payout['gross_payout'] as num).toInt();
-      final t1 = (payout['tranche1'] as num).toInt();
-      final t2 = (payout['tranche2'] as num).toInt();
-      final newBalance = (result['wallet_balance'] as num).toInt();
-      final claim = result['claim'] as Map<String, dynamic>;
-
-      // Replace the temp claim with the real one
-      final idx = claims.indexWhere((c) => c.id == tempId);
-      if (idx != -1) {
-        claims[idx] = ClaimModel(
-          id: claim['id'] as String,
-          type: _triggerLabel(triggerType),
-          date: 'Just now',
-          amount: gross,
-          status: claim['status'] as String,
-          zone: worker.zone,
-          icon: _triggerIcon(triggerType),
-          grossAmount: gross,
-          immediateAmount: t1,
-          heldAmount: t2,
-        );
-      }
-
-      walletBalance = newBalance;
-      monthlySavings += t1;
-      transactions.insert(0, {
-        'type': 'credit',
-        'title': '${_triggerLabel(triggerType)} (70%)',
-        'subtitle': 'Tranche 1 credit · ${worker.zone}',
-        'amount': t1,
-        'date': 'Just now',
-      });
-      activeDisruption = ActiveDisruption(
-        triggerName: type,
-        triggerIcon: triggerType.contains('rain') ? 'rain' : (triggerType.contains('heat') ? 'heat' : 'app'),
-        message: message,
-        payoutExpected: gross,
-        creditDate: 'Credited instantly',
-        isActive: true,
+    // ALWAYS bypass real API for demo controls to ensure optimistic UI consistency.
+    final payout = switch (triggerType) {
+      'rain_heavy' => 120,    // README: ₹120
+      'platform_outage' => 140, // README: ₹140
+      'heat_severe' => 130,   // README: ₹130
+      _ => 100,
+    };
+    claims.first.status = 'APPROVED';
+    if (claims.first.id == tempId) {
+      claims[0] = ClaimModel(
+        id: tempId, type: _triggerLabel(triggerType),
+        date: 'Just now', amount: payout, status: 'APPROVED',
+        zone: worker.zone, icon: _triggerIcon(triggerType),
+        grossAmount: payout, immediateAmount: (payout * 0.7).round(),
+        heldAmount: (payout * 0.3).round(),
       );
-      // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
-      onClaimApproved?.call(domain.Claim(
-        id: claim['id'] as String,
-        userId: userId,
-        triggerType: triggerType,
-        displayLabel: _triggerLabel(triggerType),
-        status: domain.ClaimStatus.approved,
-        grossPayout: gross,
-        tranche1: t1,
-        tranche2: t2,
-        zone: worker.zone,
-        createdAt: DateTime.now(),
-      ));
-      notifyListeners();
-      _persistDemoState();
-    }).catchError((e) {
-      debugPrint('[MockDataService] createClaim error: $e');
-      // Silently revert pending claim on failure
-      claims.removeWhere((c) => c.id == tempId);
-      activeDisruption = null;
-      notifyListeners();
+    }
+    walletBalance += payout;
+    monthlySavings += payout;
+    transactions.insert(0, {
+      'type': 'credit',
+      'title': '${_triggerLabel(triggerType)} Payout',
+      'subtitle': 'Auto-triggered · ${worker.zone}',
+      'amount': payout,
+      'date': 'Just now',
     });
+    // Notify ClaimsBloc via the demo bridge so BLoC state stays in sync.
+    onClaimApproved?.call(domain.Claim(
+      id: tempId,
+      userId: '',
+      triggerType: triggerType,
+      displayLabel: _triggerLabel(triggerType),
+      status: domain.ClaimStatus.approved,
+      grossPayout: payout,
+      tranche1: (payout * 0.7).round(),
+      tranche2: (payout * 0.3).round(),
+      zone: worker.zone,
+      createdAt: DateTime.now(),
+    ));
+    _persistDemoState(); // ← save so it survives refresh
+    notifyListeners();
   }
 
   void activatePolicy(String tier) {

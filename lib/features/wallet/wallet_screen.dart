@@ -293,8 +293,22 @@ class _BalanceCard extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: green,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1B4332), const Color(0xFF0D2B1D)]
+              : [const Color(0xFF2E7D32), const Color(0xFF1B5E20)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20))
+                .withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -304,16 +318,109 @@ class _BalanceCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l10n.wallet_balance, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                Icon(Icons.contactless_outlined, color: Colors.white.withValues(alpha: 0.8), size: 20),
+                Row(children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.account_balance_wallet_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(l10n.wallet_balance,
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500)),
+                ]),
+                GestureDetector(
+                  onTap: onRefresh,
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.refresh_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              formattedBalance,
-              style: const TextStyle(color: Colors.white, fontSize: 52, fontWeight: FontWeight.bold, height: 1.1),
-            ),
+            const SizedBox(height: 12),
+            Text(formattedBalance,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 52,
+                    fontWeight: FontWeight.bold,
+                    height: 1.0)),
+            const SizedBox(height: 4),
+            Text('Available to withdraw',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 12)),
             const SizedBox(height: 20),
+            // ── Stats row ──────────────────────────────────────────────────
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('TOTAL EARNED',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.65),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8)),
+                        const SizedBox(height: 4),
+                        Text('₹$totalPayouts',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                      width: 1,
+                      height: 36,
+                      color: Colors.white.withValues(alpha: 0.2)),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('PREMIUMS PAID',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8)),
+                          const SizedBox(height: 4),
+                          Text('₹$totalPremiums',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -323,15 +430,19 @@ class _BalanceCard extends StatelessWidget {
                   backgroundColor: Colors.white,
                   foregroundColor: green,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(l10n.wallet_withdraw,
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: green)),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, size: 16, color: green),
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: green)),
+                    const SizedBox(width: 6),
+                    Icon(Icons.arrow_upward_rounded, size: 16, color: green),
                   ],
                 ),
               ),
@@ -871,6 +982,384 @@ class _SupportCard extends StatelessWidget {
 
 // ─── UPI Withdrawal Flow ──────────────────────────────────────────────────────
 void _showWithdrawBottomSheet(BuildContext context, int balance) {
+  if (balance <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No balance available to withdraw')),
+    );
+    return;
+  }
+
+  final savedUpi    = StorageService.upiId;
+  final hasLinkedUpi = savedUpi.trim().isNotEmpty && savedUpi != 'add-upi-id@ybl';
+  final displayUpi  = savedUpi == 'add-upi-id@ybl' ? 'Not set — update in Profile' : savedUpi;
+  final isDark      = Theme.of(context).brightness == Brightness.dark;
+  final sheetBg     = isDark ? const Color(0xFF1C1F1C) : Colors.white;
+  final inputBg     = isDark ? const Color(0xFF0A0B0A) : const Color(0xFFF4F6F4);
+  final green       = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+  final lightGreen  = isDark ? const Color(0xFF004734) : const Color(0xFFE8F5E9);
+  final primary     = isDark ? Colors.white : const Color(0xFF0D1B0F);
+  final grey        = isDark ? const Color(0xFF91938D) : const Color(0xFF8FAE8B);
+  final divider     = isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFE5E7EB);
+  final btnTxt      = isDark ? const Color(0xFF0A0B0A) : Colors.white;
+
+  final parentContext = context;
+  bool bankDirect  = false;
+  int selectedAmt  = balance;
+  final chip25     = (balance * 0.25).round().clamp(1, balance);
+  final chip50     = (balance * 0.5).round().clamp(1, balance);
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: sheetBg,
+    barrierColor: Colors.black.withValues(alpha: 0.5),
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+    builder: (sheetCtx) {
+      return StatefulBuilder(builder: (ctx, setSS) {
+        // ── Amount chip builder ──────────────────────────────────────────
+        Widget chip(String label, int val) {
+          final sel = selectedAmt == val;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setSS(() => selectedAmt = val),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: sel ? green : inputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: sel ? green : divider, width: 1.5),
+                ),
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: sel ? btnTxt : primary)),
+              ),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: grey.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Header ──────────────────────────────────────────
+                    Row(children: [
+                      Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(
+                            color: lightGreen, shape: BoxShape.circle),
+                        child: Icon(Icons.arrow_upward_rounded,
+                            color: green, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Withdraw Funds',
+                              style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: primary)),
+                          Text('Available: ₹$balance',
+                              style: TextStyle(fontSize: 13, color: grey)),
+                        ],
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+
+                    // ── Amount chips ─────────────────────────────────────
+                    Text('SELECT AMOUNT',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: grey,
+                            letterSpacing: 1.0)),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      chip('₹$chip25', chip25),
+                      const SizedBox(width: 8),
+                      chip('₹$chip50', chip50),
+                      const SizedBox(width: 8),
+                      chip('Full  ₹$balance', balance),
+                    ]),
+                    const SizedBox(height: 20),
+
+                    // ── Method toggle ────────────────────────────────────
+                    Text('TRANSFER TO',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: grey,
+                            letterSpacing: 1.0)),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                          color: inputBg,
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.all(4),
+                      child: Row(children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setSS(() => bankDirect = false),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              decoration: BoxDecoration(
+                                color: !bankDirect ? green : Colors.transparent,
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.account_balance_wallet_rounded,
+                                      size: 15,
+                                      color: !bankDirect ? btnTxt : grey),
+                                  const SizedBox(width: 6),
+                                  Text('UPI / Wallet',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: !bankDirect ? btnTxt : grey)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setSS(() => bankDirect = true),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              decoration: BoxDecoration(
+                                color: bankDirect ? green : Colors.transparent,
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.account_balance_rounded,
+                                      size: 15,
+                                      color: bankDirect ? btnTxt : grey),
+                                  const SizedBox(width: 6),
+                                  Text('Bank Direct',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: bankDirect ? btnTxt : grey)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Destination card ─────────────────────────────────
+                    if (!bankDirect) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: hasLinkedUpi ? lightGreen : inputBg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: hasLinkedUpi
+                                  ? green.withValues(alpha: 0.4)
+                                  : divider),
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 38, height: 38,
+                            decoration: BoxDecoration(
+                              color: hasLinkedUpi
+                                  ? green.withValues(alpha: 0.15)
+                                  : divider,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(Icons.account_balance_wallet_rounded,
+                                color: hasLinkedUpi ? green : grey, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Linked UPI',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: grey,
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 2),
+                                Text(displayUpi,
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: hasLinkedUpi ? primary : grey)),
+                              ],
+                            ),
+                          ),
+                          if (!hasLinkedUpi)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text('Set in Profile',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: green,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                        ]),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: lightGreen,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: green.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(children: [
+                          Icon(Icons.account_balance_rounded,
+                              color: green, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Transfers directly to your bank account'
+                              ' linked with your registered phone number.',
+                              style: TextStyle(
+                                  fontSize: 12, color: green, height: 1.5),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+
+                    // ── ETA pill ─────────────────────────────────────────
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: inputBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: divider),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.schedule_rounded,
+                              size: 14, color: grey),
+                          const SizedBox(width: 6),
+                          Text(
+                            bankDirect
+                                ? 'Arrives in 1–2 business days'
+                                : 'Arrives instantly via UPI',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: grey,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── CTA ──────────────────────────────────────────────
+                    SizedBox(
+                      width: double.infinity, height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (!bankDirect && !hasLinkedUpi) {
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Please set your UPI ID in Profile first.')),
+                            );
+                            return;
+                          }
+                          final upi = bankDirect ? '' : displayUpi;
+                          Navigator.pop(sheetCtx);
+                          _processWithdrawal(parentContext, selectedAmt, upi,
+                              bankDirect: bankDirect);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: green,
+                          foregroundColor: btnTxt,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.arrow_upward_rounded,
+                                size: 18, color: btnTxt),
+                            const SizedBox(width: 8),
+                            Text(
+                              bankDirect
+                                  ? 'Transfer ₹$selectedAmt to Bank'
+                                  : 'Withdraw ₹$selectedAmt',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: btnTxt),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(sheetCtx),
+                        child: Text('Cancel',
+                            style: TextStyle(
+                                color: grey,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    },
+  );
+}
+
+
   if (balance <= 0) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('No balance available to withdraw')),
