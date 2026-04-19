@@ -36,11 +36,11 @@ class TrustScoreCard extends StatelessWidget {
 
     // Tier Definitions
 
-    String tierName = 'Elite';
+    String tierName = 'Full';
 
     Color barColor = const Color(0xFF43A047);
 
-    String subtitle = "Elite status — automatic claim approval, priority support.";
+    String subtitle = "Full Shield — maximum coverage, priority support.";
 
     
 

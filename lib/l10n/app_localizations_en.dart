@@ -216,9 +216,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get policy_full => 'Full Shield';
 
   @override
-  String get policy_elite => 'Full Shield';
-
-  @override
   String get policy_covers => 'Covers';
 
   @override

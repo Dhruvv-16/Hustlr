@@ -4,7 +4,7 @@ const {
   verifyIntegrityToken,
   isConfigured,
   isSimulatedMode,
-} = require('../services/play_integrity_service');
+} = require('../services/play-integrity-service');
 
 const router = express.Router();
 
@@ -93,7 +93,7 @@ router.post('/play/verify', async (req, res) => {
       play_integrity_pass: false,
       mode: 'server_not_configured',
       detail:
-        'Set PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON (Render) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON). Or use PLAY_INTEGRITY_SIMULATED=true for a mock verdict (demo only).',
+        'Set play-integrity-service_ACCOUNT_JSON (Render) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON). Or use PLAY_INTEGRITY_SIMULATED=true for a mock verdict (demo only).',
     });
   }
 
@@ -122,3 +122,4 @@ router.post('/play/verify', async (req, res) => {
 });
 
 module.exports = router;
+

@@ -3,8 +3,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireSession } = require('../middleware/session_auth');
-const demoDisruptionControl = require('../services/demo_disruption_control');
+const { requireSession } = require('../middleware/session-auth');
+const demoDisruptionControl = require('../services/demo-disruption-control');
 
 // GET /demo/status - Get demo control panel status
 router.get('/status', requireSession, async (req, res) => {
@@ -51,3 +51,5 @@ router.get('/active', requireSession, async (req, res) => {
 });
 
 module.exports = router;
+
+

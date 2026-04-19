@@ -406,7 +406,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
     if (triggerType.contains('aqi'))      return 'Air Quality Alert';
     if (triggerType.contains('internet') || triggerType.contains('blackout')) return 'Internet Blackout';
     if (triggerType.contains('downtime')) return 'Platform Downtime';
-    if (triggerType.contains('app'))      return 'App Downtime';
+    if (triggerType.contains('app'))      return 'Platform Outage';
     if (triggerType.contains('manual'))   return 'Manual Report';
     return triggerType.isNotEmpty ? triggerType[0].toUpperCase() + triggerType.substring(1) : 'Disruption';
   }

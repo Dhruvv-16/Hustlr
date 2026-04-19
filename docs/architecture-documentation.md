@@ -64,8 +64,8 @@ Once cleared, the payout is triggered:
 
 ---
 
-## 4. Supabase Database Triggers (`triggers.sql`)
-The backend heavily delegates logic to the database layer via PostgreSQL triggers:
+## 4. Supabase Database Logic (`supabase/hustlr_consolidated_schema.sql`)
+The backend heavily delegates logic to the database layer via PostgreSQL schema-level logic and triggers:
 - **Automatic Metadata:** Always syncing `updated_at`.
 - **Pool Synchronization:** Automatically increments/decrements active_policies counts in `risk_pools` when policies change state.
 - **Financial Auto-Compute:** When a claim status updates to `SETTLED`, a trigger computes and adds the loss amount directly replacing `total_claims_paid` and re-computing `loss_ratio` locally on the DB side.

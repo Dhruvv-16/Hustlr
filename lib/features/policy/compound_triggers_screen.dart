@@ -11,7 +11,7 @@ class CompoundTriggersScreen extends StatelessWidget {
       backgroundColor: app_colors.background,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white), onPressed: () => context.pop()),
-        title: const Text('Elite Shield — Compound Protection'),
+        title: const Text('Full Shield — Compound Protection'),
         backgroundColor: const Color(0xFFE87722),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -32,7 +32,7 @@ class CompoundTriggersScreen extends StatelessWidget {
                     border: Border.all(color: const Color(0xFFFFB74D)),
                   ),
                   child: const Text(
-                    'When two disruptions hit simultaneously, income loss is multiplicative — not additive. Rain alone reduces deliveries by 70%. Rain plus platform downtime reduces them by 100%. Elite Shield pays a compound bonus reflecting the true income impact.',
+                    'When two disruptions hit simultaneously, income loss is multiplicative — not additive. Rain alone reduces deliveries by 70%. Rain plus platform downtime reduces them by 100%. Full Shield pays a compound bonus reflecting the true income impact.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Color(0xFFE65100),
@@ -170,7 +170,7 @@ class CompoundTriggersScreen extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    'Upgrade to Elite Shield — ₹109/wk',
+                    'Upgrade to Full Shield — ₹150/wk',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

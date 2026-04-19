@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/mock_data_service.dart';
+import '../../core/utils/pdf_generator.dart';
 import 'widgets/audit_receipt_badge.dart';
 
 class ClaimDetailScreen extends StatefulWidget {
@@ -332,7 +333,30 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () async {
+                    try {
+                      final createdAt = DateTime.tryParse(rawDate) ?? DateTime.now();
+                      await PdfGenerator.generateAndPreviewClaimReceipt(
+                        claimId: claimId.isEmpty ? widget.claimId : claimId,
+                        trigger: displayName,
+                        status: status,
+                        createdAt: createdAt,
+                        grossPayout: grossPayout,
+                        tranche1: tranche1,
+                        tranche2: tranche2,
+                        zone: claim['zone']?.toString(),
+                        fpsScore: fpsScore,
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Could not generate receipt: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: theme.colorScheme.primary, width: 2),
                     padding: const EdgeInsets.symmetric(vertical: 20),
@@ -360,7 +384,7 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
     if (t.contains('heat'))     return 'Extreme Heat';
     if (t.contains('aqi'))      return 'Air Quality Alert';
     if (t.contains('downtime')) return 'Platform Downtime';
-    if (t.contains('app'))      return 'App Downtime';
+    if (t.contains('app'))      return 'Platform Outage';
     if (t.contains('manual'))   return 'Manual Report';
     return t.isNotEmpty ? t[0].toUpperCase() + t.substring(1) : 'Disruption';
   }

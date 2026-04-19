@@ -384,7 +384,7 @@ router.get(
       const { zone, status } = req.query;
 
       let query = supabase
-        .from("circuit_breakers")
+        .from("circuit-breakers")
         .select("*")
         .order("bcr_at_trip", { ascending: false });
 
@@ -395,7 +395,7 @@ router.get(
 
       if (error) throw error;
 
-      res.json({ circuit_breakers: data });
+      res.json({ "circuit-breakers": data });
     } catch (error) {
       console.error("Error fetching circuit breakers:", error);
       res.status(500).json({ error: "Failed to fetch circuit breakers" });
@@ -414,7 +414,7 @@ router.put(
       const { reason } = req.body;
 
       const { data, error } = await supabase
-        .from("circuit_breakers")
+        .from("circuit-breakers")
         .update({
           tripped: false,
           reset_at: new Date().toISOString(),
@@ -430,12 +430,12 @@ router.put(
       await supabase.from("admin_actions").insert({
         admin_id: req.user.id,
         action_type: "other",
-        target_type: "circuit_breaker",
+        target_type: "circuit-breaker",
         target_id: cbId,
         reason: reason || "Circuit breaker manually reset",
       });
 
-      res.json({ success: true, circuit_breaker: data });
+      res.json({ success: true, "circuit-breaker": data });
     } catch (error) {
       console.error("Error resetting circuit breaker:", error);
       res.status(500).json({ error: "Failed to reset circuit breaker" });
@@ -597,7 +597,7 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
-      const { getAPIHealth } = require("../services/api_wrapper");
+      const { getAPIHealth } = require("../services/api-wrapper");
       const liveHealth = getAPIHealth();
 
       const apis = [
@@ -814,7 +814,7 @@ router.post(
       }
 
       // Call ML service to recalculate ISS
-      const mlService = require("../services/ml_service");
+      const mlService = require("../services/ml-service");
       const issResult = await mlService.getISSScore({
         zone_flood_risk: 0.6, // default, could be looked up from zone
         avg_daily_income: user.avg_daily_income || 600,

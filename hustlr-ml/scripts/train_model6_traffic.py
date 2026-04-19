@@ -1,6 +1,6 @@
 """
 Train traffic classifier from traffic_accidents.csv (all Chennai zones × corridors).
-Feature order matches hustlr-backend/ml_service/main.py classify_traffic (6 dims).
+Feature order matches hustlr-ml/main.py classify_traffic (6 dims).
 """
 
 import joblib

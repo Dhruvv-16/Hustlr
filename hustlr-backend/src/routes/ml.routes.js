@@ -8,21 +8,17 @@ const TIMEOUT = 60000; // 60s — allows for Render free tier cold start (~30-50
 
 // Legacy endpoints to prevent jsonDecode crash on old APK
 router.post("/nlp", (req, res) => {
-  res
-    .status(404)
-    .json({
-      error:
-        "Deprecated in Phase 3. Please update the APK to use the new ML Tester demo.",
-    });
+  res.status(404).json({
+    error:
+      "Deprecated in Phase 3. Please update the APK to use the new ML Tester demo.",
+  });
 });
 
 router.post("/traffic", (req, res) => {
-  res
-    .status(404)
-    .json({
-      error:
-        "Deprecated in Phase 3. Please update the APK to use the new ML Tester demo.",
-    });
+  res.status(404).json({
+    error:
+      "Deprecated in Phase 3. Please update the APK to use the new ML Tester demo.",
+  });
 });
 
 // Pass-through proxy routes so the UI ML Data Tester works without direct access to ML url

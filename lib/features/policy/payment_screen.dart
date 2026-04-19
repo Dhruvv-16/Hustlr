@@ -212,12 +212,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _verifyAndCreatePolicy(String paymentId) async {
+    String? currentUserId;
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null) {
         if (mounted) setState(() => _loading = false);
         return;
       }
+      currentUserId = userId;
       final planTier = _resolvePlanTier();
       final riders = widget.checkoutData?['riders'] as List<Map<String, dynamic>>?;
       final selectedPlanName = widget.checkoutData?['plan']?.toString() ?? 'Standard Shield';
@@ -251,16 +253,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         await StorageService.instance.savePolicyId(policyId);
       }
 
-      AppEvents.instance.walletUpdated();
-      
-      // Small delay to ensure DB consistency before UI reloads
+      // Small delay to ensure DB consistency before UI reloads.
       await Future.delayed(const Duration(milliseconds: 1200));
-      
-      AppEvents.instance.policyUpdated();
-      if (mounted) {
-        context.read<PolicyBloc>().add(LoadPolicy(userId));
-        context.read<ClaimsBloc>().add(LoadClaims(userId));
-      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -277,6 +271,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     context.go(AppRoutes.dashboard);
+
+    // Trigger cross-screen refresh once destination listeners are mounted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AppEvents.instance.walletUpdated();
+      AppEvents.instance.policyUpdated();
+      if (currentUserId != null) {
+        final uid = currentUserId;
+        context.read<PolicyBloc>().add(LoadPolicy(uid));
+        context.read<ClaimsBloc>().add(LoadClaims(uid));
+      }
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -335,16 +341,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
         await StorageService.instance.savePolicyId(policyId);
       }
 
-      AppEvents.instance.policyUpdated();
-      AppEvents.instance.walletUpdated();
-      if (mounted) {
-        context.read<PolicyBloc>().add(LoadPolicy(userId));
-        context.read<ClaimsBloc>().add(LoadClaims(userId));
-      }
-
       if (!mounted) return;
       setState(() => _loading = false);
       context.go(AppRoutes.dashboard);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        AppEvents.instance.policyUpdated();
+        AppEvents.instance.walletUpdated();
+        context.read<PolicyBloc>().add(LoadPolicy(userId));
+        context.read<ClaimsBloc>().add(LoadClaims(userId));
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

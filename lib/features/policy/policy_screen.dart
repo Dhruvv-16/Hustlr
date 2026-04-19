@@ -1,26 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/app_events.dart';
-import '../../services/mock_data_service.dart';
 import '../../services/storage_service.dart';
+import '../../blocs/policy/policy_bloc.dart';
+import '../../blocs/policy/policy_event.dart';
+import '../../models/policy.dart';
 import '../../shared/widgets/mobile_container.dart';
 import '../../shared/widgets/offline_banner.dart';
 import '../../shared/widgets/animated_skeleton.dart';
-
-// Dark mode palette
-const _darkGreen       = Color(0xFF3FFF8B);
-const _darkLightGreen  = Color(0xFF003D2A);
-const _darkCardBg      = Color(0xFF1c1f1c);
-const _darkTextPrimary = Colors.white;
-const _darkTextSub     = Color(0xFF91938d);
-const _darkBorder      = Color(0xFF2a2d2a);
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 class _Plan {
@@ -29,7 +23,6 @@ class _Plan {
   final String subtitle;
   final String price;
   final bool accentLeft;
-  final bool isElite;
   final bool isMostPopular;
 
   const _Plan({
@@ -39,35 +32,44 @@ class _Plan {
     required this.price,
     this.accentLeft = false,
     this.isMostPopular = false,
-    this.isElite = false,
   });
 }
 
 List<_Plan> _getPlans(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
   return [
-    _Plan(id: 'basic',    name: l10n.policy_basic,    subtitle: 'Rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
-    _Plan(id: 'standard', name: l10n.policy_standard, subtitle: 'Rain, heat, AQI, app downtime',         price: '₹49/wk', isMostPopular: true),
-    _Plan(id: 'full',     name: l10n.policy_full,     subtitle: 'All 9 triggers + compound',             price: '₹79/wk'),
+    _Plan(id: 'basic',    name: l10n.policy_basic,    subtitle: 'Heavy rain + extreme heat cover',             price: '₹35/wk', accentLeft: true),
+    _Plan(id: 'standard', name: l10n.policy_standard, subtitle: '3 base + 2 optional add-ons',                 price: '₹49/wk', isMostPopular: true),
+    _Plan(id: 'full',     name: l10n.policy_full,     subtitle: 'All 9 triggers + compound + cashback',        price: '₹79/wk'),
   ];
 }
 
-// ─── Rider Data ───────────────────────────────────────────────────────────────
-class _Rider {
+// ─── Add-on Data (Standard Shield only) ───────────────────────────────────────
+class _Addon {
   final IconData icon;
-  final String name;
-  final String price;
-  final bool defaultOn;
+  final String triggerId;
+  final String label;
+  final String weeklyPrice;
+  final String quarterlyCost;  // 13 weeks
+  final List<String> eligibleTiers;
 
-  const _Rider({required this.icon, required this.name, required this.price, required this.defaultOn});
+  const _Addon({
+    required this.icon,
+    required this.triggerId,
+    required this.label,
+    required this.weeklyPrice,
+    required this.quarterlyCost,
+    required this.eligibleTiers,
+  });
 }
 
-const _riders = [
-  _Rider(icon: Icons.cyclone_rounded,      name: 'Cyclone',         price: '+₹20/wk', defaultOn: false),
-  _Rider(icon: Icons.groups_rounded,       name: 'Curfew & Strike', price: '+₹12/wk', defaultOn: false),
-  _Rider(icon: Icons.how_to_vote_rounded,  name: 'Election Day',    price: '+₹8/wk', defaultOn: false),
-  _Rider(icon: Icons.phonelink_off_rounded,name: 'App Downtime',    price: '+₹10/wk', defaultOn: true),
+const _addons = [
+  // Standard Shield add-ons (13-week quarterly commitment)
+  _Addon(icon: Icons.groups_rounded,       triggerId: 'bandh_strike',      label: 'Bandh & Strikes',         weeklyPrice: '₹15/wk', quarterlyCost: '₹195',  eligibleTiers: ['standard']),
+  _Addon(icon: Icons.phonelink_off_rounded,triggerId: 'internet_blackout', label: 'Internet Blackout',      weeklyPrice: '₹12/wk', quarterlyCost: '₹156',  eligibleTiers: ['standard']),
 ];
+
+const List<_Addon> _riders = _addons;
 
 String _normalizePlanTier(dynamic raw) {
   final s = raw?.toString().toLowerCase().trim() ?? '';
@@ -77,21 +79,24 @@ String _normalizePlanTier(dynamic raw) {
 }
 
 int _planBasePremium(String tier) {
+  // Actuarial pricing (rupees per week) — Corrected
   if (tier == 'full') return 79;
-  if (tier == 'basic') return 35;
-  return 49;
+  if (tier == 'standard') return 49;
+  return 35;                          // basic
 }
 
 int _planWeeklyPayoutCap(String tier) {
+  // Plan-tier weekly caps (rupees) — Corrected
   if (tier == 'full') return 500;
-  if (tier == 'basic') return 210;
-  return 340;
+  if (tier == 'standard') return 340;
+  return 210;                         // basic
 }
 
 int _planDailyPayoutCap(String tier) {
+  // Plan-tier daily caps (rupees) — Corrected
   if (tier == 'full') return 250;
-  if (tier == 'basic') return 100;
-  return 150;
+  if (tier == 'standard') return 150;
+  return 100;                         // basic
 }
 
 int? _asPositiveInt(dynamic raw) {
@@ -156,14 +161,14 @@ int _riderCostFromName(String riderName) {
   if (n.contains('cyclone')) return 20;
   if (n.contains('curfew') || n.contains('strike')) return 12;
   if (n.contains('election')) return 8;
-  if (n.contains('app downtime') || n.contains('downtime')) return 10;
+  if (n.contains('internet') || n.contains('blackout')) return 12;
   return 0;
 }
 
 bool _isRiderIncludedInPlan(String tier, String riderName) {
   final n = riderName.toLowerCase();
   if (tier == 'full') return true;
-  if (tier == 'standard' && (n.contains('app downtime') || n.contains('downtime'))) {
+  if (tier == 'standard' && (n.contains('internet') || n.contains('blackout'))) {
     return true;
   }
   return false;
@@ -220,6 +225,26 @@ int _effectiveWeeklyPremiumFromPolicy(Map<String, dynamic> item) {
   return computed;
 }
 
+Map<String, dynamic>? _policyFromBloc(Policy? policy) {
+  if (policy == null) return null;
+  return {
+    'id': policy.id,
+    'plan_tier': policy.tier.apiKey,
+    'plan_name': policy.planName ?? policy.tier.displayName,
+    'policy_number': policy.policyNumber,
+    'status': policy.status.name,
+    'weekly_premium': policy.weeklyPremium,
+    'base_premium': policy.basePremium,
+    'coverage_start': policy.startDate?.toIso8601String(),
+    'commitment_end': policy.endDate?.toIso8601String(),
+    'created_at': (policy.createdAt ?? policy.startDate)?.toIso8601String(),
+    'expires_at': (policy.expiresAt ?? policy.endDate)?.toIso8601String(),
+    'max_weekly_payout': policy.maxWeeklyPayout,
+    'max_daily_payout': policy.maxDailyPayout,
+    'riders': policy.riders,
+  };
+}
+
 Map<String, dynamic>? _coverageFromRiderName(String riderName) {
   final n = riderName.toLowerCase();
   if (n.contains('cyclone')) {
@@ -246,12 +271,12 @@ Map<String, dynamic>? _coverageFromRiderName(String riderName) {
       'subtitle': 'Poll-related closures',
     };
   }
-  if (n.contains('app downtime') || n.contains('downtime')) {
+  if (n.contains('internet') || n.contains('blackout')) {
     return {
-      'key': 'downtime',
+      'key': 'internet',
       'icon': Icons.phonelink_off_rounded,
-      'title': 'App Downtime',
-      'subtitle': 'Outages over 90 minutes',
+      'title': 'Internet Blackout',
+      'subtitle': 'Connectivity outages',
     };
   }
   return null;
@@ -268,7 +293,7 @@ class PolicyScreen extends StatefulWidget {
 }
 
 class _PolicyScreenState extends State<PolicyScreen>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   Map<String, dynamic>? activePolicy;
   List<Map<String, dynamic>> policyHistory = [];
@@ -282,22 +307,36 @@ class _PolicyScreenState extends State<PolicyScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    WidgetsBinding.instance.addObserver(this);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: 1);
     _loadPolicy();
     // Use debounced listeners to prevent rapid successive reloads
-    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _debouncedLoad());
+    _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _debouncedLoad(force: true));
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) => _debouncedLoad());
   }
 
   /// Debounced version of _loadPolicy to prevent excessive API calls from event spam
-  Future<void> _debouncedLoad() async {
+  Future<void> _debouncedLoad({bool force = false}) async {
     final now = DateTime.now();
-    if (_lastLoadTime != null && now.difference(_lastLoadTime!).inMilliseconds < _loadDebounceMs) {
+    if (!force && _lastLoadTime != null && now.difference(_lastLoadTime!).inMilliseconds < _loadDebounceMs) {
       // Skip if called within debounce window
       return;
     }
     _lastLoadTime = now;
     await _loadPolicy();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_debouncedLoad(force: true));
+      final uidFuture = StorageService.instance.getUserId();
+      uidFuture.then((uid) {
+        if (uid != null && mounted) {
+          context.read<PolicyBloc>().add(LoadPolicy(uid));
+        }
+      });
+    }
   }
 
   Future<void> _loadPolicy() async {
@@ -308,17 +347,15 @@ class _PolicyScreenState extends State<PolicyScreen>
     try {
       final uid = await StorageService.instance.getUserId();
       if (uid != null) {
+        if (mounted) {
+          context.read<PolicyBloc>().add(LoadPolicy(uid));
+        }
         try {
           final data = await ApiService.instance.getPolicyInstance(uid);
           if (mounted) {
-            final mock = context.read<MockDataService>();
-            final rawPolicy = data['policy'];
             final rawHistory = data['history'];
-            final wasInactive = activePolicy == null;
 
             setState(() {
-              activePolicy = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
-
               policyHistory = rawHistory is List
                   ? rawHistory
                       .whereType<Map>()
@@ -326,13 +363,6 @@ class _PolicyScreenState extends State<PolicyScreen>
                       .toList()
                   : [];
               isLoading = false;
-              
-              // If policy was just purchased, switch to "Current Plan" tab
-              if (wasInactive && activePolicy != null) {
-                Future.microtask(() {
-                  _tabController.animateTo(0);
-                });
-              }
             });
           }
         } catch (e) {
@@ -348,6 +378,7 @@ class _PolicyScreenState extends State<PolicyScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _policySub?.cancel();
     _walletSub?.cancel();
     _tabController.dispose();
@@ -363,6 +394,9 @@ class _PolicyScreenState extends State<PolicyScreen>
     final appBarBg   = isDark ? const Color(0xFF141614) : Colors.white;
     final green      = theme.colorScheme.primary;
     final textSub    = theme.colorScheme.onSurface.withOpacity(0.5);
+
+    final blocPolicy = context.select<PolicyBloc, Policy?>((bloc) => bloc.state.activePolicy);
+    final effectiveActivePolicy = _policyFromBloc(blocPolicy);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -415,10 +449,10 @@ class _PolicyScreenState extends State<PolicyScreen>
                     child: isLoading ? _buildPolicySkeleton() : TabBarView(
                       controller: _tabController,
                       children: [
-                        _CurrentPlanTab(activePolicy: activePolicy),
-                        _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: activePolicy),
+                        _CurrentPlanTab(activePolicy: effectiveActivePolicy),
+                        _UpgradeTab(onProceed: () => context.push('/policy/payment'), activePolicy: effectiveActivePolicy),
                         _LiveHistoryTab(
-                          activePolicy: activePolicy,
+                          activePolicy: effectiveActivePolicy,
                           policyHistory: policyHistory,
                         ),
                       ],
@@ -431,22 +465,6 @@ class _PolicyScreenState extends State<PolicyScreen>
         ],
       ),
     );
-  }
-
-  void _handleNavTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/dashboard');
-        break;
-      case 1:
-        break;
-      case 2:
-        context.go('/claims');
-        break;
-      case 3:
-        context.go('/wallet');
-        break;
-    }
   }
 
   Widget _buildPolicySkeleton() {
@@ -668,13 +686,13 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
       );
     }
     
-    // Standard & Full include App Downtime
+    // Standard add-ons include Internet Blackout only
     if (tier == 'standard' || tier == 'full') {
       addCoverage(
-        key: 'downtime',
+        key: 'internet',
         icon: Icons.phonelink_off_rounded,
-        title: 'App Downtime',
-        subtitle: 'Outages over 90 minutes',
+        title: 'Internet Blackout',
+        subtitle: 'Connectivity outages',
       );
     }
 
@@ -1205,10 +1223,8 @@ class _UpgradeTab extends StatefulWidget {
 class _UpgradeTabState extends State<_UpgradeTab> {
   String? _selectedPlan;
   final Map<String, bool> _riderToggles = {
-    'Curfew & Strike': false,
-    'Election Day': false,
-    'App Downtime': true,
-    'Cyclone': false,
+    'Bandh & Strikes': false,
+    'Internet Blackout': false,
   };
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -1223,15 +1239,14 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     int total = _planBasePrice(_selectedPlan);
 
     const riderPrices = {
-      'Cyclone': 20, 'Curfew & Strike': 12,
-      'Election Day': 8, 'App Downtime': 10,
+      'Bandh / Curfew': 15,
+      'Internet Blackout': 12,
     };
     
     final bool allIncluded = _selectedPlan == 'full';
 
     if (!allIncluded) {
       for (final r in _riderToggles.entries) {
-        if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
         if (r.value) total += riderPrices[r.key] ?? 0;
       }
     }
@@ -1274,15 +1289,15 @@ class _UpgradeTabState extends State<_UpgradeTab> {
 
     if (plan == 'basic') {
       rules.add({
-        'title': 'Addon-dependent triggers',
-        'desc': 'Downtime, Curfew, Election, and Cyclone triggers apply only when added',
+        'title': 'No add-ons on Basic',
+        'desc': 'Basic Shield has no purchasable add-ons and no manual claims',
       });
     }
 
     if (plan == 'standard') {
       rules.add({
-        'title': 'Built-in App Downtime',
-        'desc': 'App Downtime coverage is included by default in Standard Shield',
+        'title': 'Standard add-ons available',
+        'desc': 'Bandh / Curfew and Internet Blackout are available as quarterly add-ons',
       });
     }
 
@@ -1290,7 +1305,6 @@ class _UpgradeTabState extends State<_UpgradeTab> {
       final selectedAddons = _riderToggles.entries
           .where((e) {
             if (!e.value) return false;
-            if (plan == 'standard' && e.key == 'App Downtime') return false;
             return true;
           })
           .map((e) => e.key)
@@ -1334,9 +1348,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
                 onTap: () => setState(() {
                   _selectedPlan = p.id;
                   if (_selectedPlan == 'basic') {
-                    _riderToggles['App Downtime'] = false;
-                  } else if (_selectedPlan == 'standard') {
-                    _riderToggles['App Downtime'] = true;
+                    _riderToggles['Bandh & Strikes'] = false;
+                    _riderToggles['Internet Blackout'] = false;
                   }
                 }),
               )),
@@ -1347,12 +1360,12 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           const SizedBox(height: 12),
           ..._riders.map((r) {
             final bool allIncluded = (_selectedPlan == 'full');
-            final bool thisIncluded = allIncluded || (_selectedPlan == 'standard' && r.name == 'App Downtime');
+            final bool thisIncluded = allIncluded || (_selectedPlan == 'standard' && (r.label == 'Bandh & Strikes' || r.label == 'Internet Blackout'));
             return _RiderRow(
               rider: r,
-              value: _riderToggles[r.name] ?? r.defaultOn,
+              value: _riderToggles[r.label] ?? false,
               isIncluded: thisIncluded,
-              onChanged: thisIncluded ? null : (v) => setState(() => _riderToggles[r.name] = v),
+              onChanged: thisIncluded ? null : (v) => setState(() => _riderToggles[r.label] = v),
             );
           }),
           const SizedBox(height: 20),
@@ -1388,7 +1401,6 @@ class _UpgradeTabState extends State<_UpgradeTab> {
             if (allIncluded) return 0;
             int count = 0;
             for (final r in _riderToggles.entries) {
-              if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
               if (r.value) count++;
             }
             return count;
@@ -1396,7 +1408,7 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           activePolicy: widget.activePolicy,
           selectedPlan: _selectedPlan,
           onProceed: () {
-            final riderPrices = {'Cyclone': 20, 'Curfew & Strike': 12, 'Election Day': 8, 'App Downtime': 10};
+            final riderPrices = {'Bandh & Strikes': 15, 'Internet Blackout': 12};
             final plans = _getPlans(context);
             final selectedPlanObj = plans.firstWhere((p) => p.id == _selectedPlan, orElse: () => plans[1]);
             final planName = selectedPlanObj.name;
@@ -1406,7 +1418,6 @@ class _UpgradeTabState extends State<_UpgradeTab> {
             List<Map<String, dynamic>> activeRiders = [];
             if (!allIncluded) {
               for (final r in _riderToggles.entries) {
-                if (r.key == 'App Downtime' && _selectedPlan == 'standard') continue;
                 if (r.value) {
                   activeRiders.add({
                     'name': '${r.key} Rider',
@@ -1472,17 +1483,13 @@ class _PlanCard extends StatelessWidget {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final green  = theme.colorScheme.primary;
-    final cardBg = plan.isElite
-        ? (isDark ? const Color(0xFF2D1A00) : const Color(0xFFF57C00))
-        : theme.cardColor;
+    final cardBg = theme.cardColor;
     final borderCol = isSelected
         ? green
         : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E7EB));
-    final textColor  = plan.isElite ? Colors.white : theme.colorScheme.onSurface;
-    final subColor   = plan.isElite ? Colors.white70 : theme.colorScheme.onSurface.withOpacity(0.5);
-    final priceColor = plan.isElite
-        ? Colors.white
-        : (isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32));
+    final textColor  = theme.colorScheme.onSurface;
+    final subColor   = theme.colorScheme.onSurface.withOpacity(0.5);
+    final priceColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
 
     return GestureDetector(
       onTap: onTap,
@@ -1491,7 +1498,7 @@ class _PlanCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Container(
-            margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
+            margin: EdgeInsets.only(bottom: 10, top: plan.isMostPopular ? 10 : 0),
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(12),
@@ -1519,7 +1526,7 @@ class _PlanCard extends StatelessWidget {
                                 const SizedBox(height: 2),
                                 Text(plan.subtitle, style: TextStyle(
                                   fontSize: 12, color: subColor)),
-                                if (plan.isElite) ...[
+                                if (plan.isMostPopular) ...[
                                   const SizedBox(height: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1527,20 +1534,9 @@ class _PlanCard extends StatelessWidget {
                                       color: Colors.black.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    child: const Text('10% CASHBACK',
+                                    child: const Text('MOST POPULAR',
                                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
                                             color: Colors.white, letterSpacing: 0.5)),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  GestureDetector(
-                                    onTap: () => context.push('/policy/compound'),
-                                    child: const Text('Learn about compound triggers →',
-                                        style: TextStyle(
-                                          fontSize: 11, fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          decoration: TextDecoration.underline,
-                                          decorationColor: Colors.white,
-                                        )),
                                   ),
                                 ],
                               ],
@@ -1572,20 +1568,6 @@ class _PlanCard extends StatelessWidget {
                         color: Colors.white, letterSpacing: 0.3)),
               ),
             ),
-          if (plan.isElite)
-            Positioned(
-              right: 12, top: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE65100),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('★ BEST VALUE',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                        color: Colors.white, letterSpacing: 0.3)),
-              ),
-            ),
         ],
       ),
     );
@@ -1594,7 +1576,7 @@ class _PlanCard extends StatelessWidget {
 
 // ─── Rider Row ────────────────────────────────────────────────────────────────
 class _RiderRow extends StatelessWidget {
-  final _Rider rider;
+  final _Addon rider;
   final bool value;
   final ValueChanged<bool>? onChanged;
   final bool isIncluded;
@@ -1632,11 +1614,11 @@ class _RiderRow extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(rider.name, style: TextStyle(
+            Text(rider.label, style: TextStyle(
               fontSize: 14, fontWeight: FontWeight.w600,
               color: isIncluded ? theme.colorScheme.primary : theme.colorScheme.onSurface)),
             const SizedBox(height: 2),
-            Text(isIncluded ? 'Included in Plan' : rider.price, style: TextStyle(
+            Text(isIncluded ? 'Included in Plan' : rider.weeklyPrice, style: TextStyle(
               fontSize: 12, 
               color: isIncluded ? theme.colorScheme.primary : subColor,
               fontWeight: isIncluded ? FontWeight.w700 : FontWeight.normal,

@@ -221,9 +221,6 @@ class AppLocalizationsTa extends AppLocalizations {
   String get policy_full => 'ஃபுல் ஷீல்ட்';
 
   @override
-  String get policy_elite => 'ஃபுல் ஷீல்ட்';
-
-  @override
   String get policy_covers => 'கவர் செய்கிறது';
 
   @override

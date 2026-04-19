@@ -5,6 +5,7 @@ class AnimatedSkeleton extends StatefulWidget {
   final double height;
   final double borderRadius;
   final EdgeInsetsGeometry? margin;
+  final bool buildUpOnly;
 
   const AnimatedSkeleton({
     super.key,
@@ -12,6 +13,7 @@ class AnimatedSkeleton extends StatefulWidget {
     required this.height,
     this.borderRadius = 12.0,
     this.margin,
+    this.buildUpOnly = false,
   });
 
   @override
@@ -29,7 +31,13 @@ class _AnimatedSkeletonState extends State<AnimatedSkeleton>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
+
+    if (widget.buildUpOnly) {
+      _controller.forward();
+    } else {
+      _controller.repeat(reverse: true);
+    }
   }
 
   @override

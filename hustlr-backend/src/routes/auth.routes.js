@@ -3,8 +3,8 @@ const { supabase } = require('../config/supabase');
 const {
   startSingleSession,
   revokeSessionByToken,
-} = require('../services/session_service');
-const { requireSession } = require('../middleware/session_auth');
+} = require('../services/session-service');
+const { requireSession } = require('../middleware/session-auth');
 
 const router = express.Router();
 
@@ -107,3 +107,5 @@ router.get('/session/me', requireSession, async (req, res) => {
 });
 
 module.exports = router;
+
+

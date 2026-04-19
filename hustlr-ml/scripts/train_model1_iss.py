@@ -1,5 +1,5 @@
 """
-Train ISS regressor — feature order must match hustlr-backend/ml_service/main.py /iss ML branch.
+Train ISS regressor — feature order must match hustlr-ml/main.py /iss ML branch.
 """
 
 import joblib

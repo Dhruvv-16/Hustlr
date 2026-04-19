@@ -304,8 +304,8 @@ class MockDataService extends ChangeNotifier {
     status: "ACTIVE",
     coverageStart: "26 Oct 2025",
     coverageEnd: "25 Oct 2026",
-    riders: ["App Downtime"],
-    coverageDescription: "Rain, heat, pollution, app downtime, AQI > 200",
+    riders: ["Bandh / Curfew", "Internet Blackout"],
+    coverageDescription: "Rain, heat, pollution, AQI > 200, bandh, internet blackout",
   );
 
   int walletBalance = 0;
@@ -652,7 +652,7 @@ class MockDataService extends ChangeNotifier {
           coverageStart: _formatDate(policy['start_date'] as String?),
           coverageEnd: _formatDate(null, addDays: 365),
           riders: [],
-          coverageDescription: 'Rain, heat, pollution, app downtime, AQI > 200',
+          coverageDescription: 'Rain, heat, pollution, AQI > 200',
         );
         // Update premium breakdown with real API values
         premiumBreakdown = PremiumBreakdownModel(
@@ -712,7 +712,7 @@ class MockDataService extends ChangeNotifier {
 
   void triggerPlatformDowntime() => _triggerClaim(
     type: 'Downtime',
-    message: 'Platform app downtime in your zone',
+    message: 'Platform outage in your zone',
     triggerType: 'platform_outage',
     severity: 0.9,
     durationHours: 2,
@@ -891,10 +891,12 @@ class MockDataService extends ChangeNotifier {
       status: "ACTIVE",
       coverageStart: _formatDate(DateTime.now().toIso8601String()),
       coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()),
-      riders: tier == 'full' ? ["App Downtime", "Cyclone", "Election Day"] : ["App Downtime"],
-      coverageDescription: tier == 'full' 
-          ? "All 9 triggers + compound disruptions covered" 
-          : "Rain, heat, and platform downtime covered",
+      riders: tier == 'standard' ? ["Bandh / Curfew", "Internet Blackout"] : [],
+      coverageDescription: tier == 'full'
+          ? "All 9 triggers + compound disruptions covered"
+          : (tier == 'standard'
+              ? "Rain, heat, pollution, bandh, and internet blackout covered"
+              : "Rain and heat only"),
     );
   }
 

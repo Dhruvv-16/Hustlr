@@ -10,7 +10,7 @@ const { PLAN_CONFIG, ZONE_RISK, MONSOON_SURCHARGE } = require('../config/constan
   5. Monsoon surcharge = +22% if policy purchased Oct–Dec (rain trigger freq rises 12% → 32%)
   6. Hard clamp: final premium never drifts >±20% from advertised base (README guardrail)
 
-  BCR guardrails (enforced by circuit_breaker.js, NOT here):
+  BCR guardrails (enforced by circuit-breaker.js, NOT here):
     BCR > 0.80  → auto +15% + enrollment pause
     BCR < 0.45  → auto -10% (fairness obligation)
 */
@@ -92,3 +92,4 @@ function calculatePremium(plan_tier, iss_score, zone, {
 }
 
 module.exports = { calculatePremium };
+

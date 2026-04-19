@@ -64,24 +64,34 @@ class Policy extends Equatable {
   final String userId;
   final PlanTier tier;
   final PolicyStatus status;
+  final String? planName;
+  final String? policyNumber;
   final DateTime? startDate;
   final DateTime? endDate;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
   final int basePremium;
   final int weeklyPremium;
   final int? maxWeeklyPayout;
   final int? maxDailyPayout;
+  final List<Map<String, dynamic>> riders;
 
   const Policy({
     required this.id,
     required this.userId,
     required this.tier,
     required this.status,
+    this.planName,
+    this.policyNumber,
     this.startDate,
     this.endDate,
+    this.createdAt,
+    this.expiresAt,
     required this.basePremium,
     required this.weeklyPremium,
     this.maxWeeklyPayout,
     this.maxDailyPayout,
+    this.riders = const [],
   });
 
   factory Policy.fromJson(Map<String, dynamic> json) {
@@ -91,6 +101,8 @@ class Policy extends Equatable {
     // Support both old schema (start_date/end_date) and new schema (coverage_start/commitment_end)
     final startStr = (json['coverage_start'] ?? json['start_date']) as String?;
     final endStr   = (json['commitment_end'] ?? json['paid_until'] ?? json['end_date']) as String?;
+    final createdStr = json['created_at'] as String?;
+    final expiresStr = (json['expires_at'] ?? json['commitment_end'] ?? json['paid_until']) as String?;
 
     final tier = PlanTierPrice.fromString(tierStr);
 
@@ -114,17 +126,30 @@ class Policy extends Equatable {
       json['max_daily_payout'] ?? json['max_daily_payout_paise'],
     );
 
+    final ridersRaw = json['riders'] as List<dynamic>?;
+    final riders = ridersRaw == null
+        ? <Map<String, dynamic>>[]
+        : ridersRaw
+            .whereType<Map>()
+            .map((r) => Map<String, dynamic>.from(r))
+            .toList();
+
     return Policy(
       id: json['id'] as String? ?? '',
       userId: json['user_id'] as String? ?? '',
       tier: tier,
       status: PolicyStatusLabel.fromString(statusStr),
+      planName: json['plan_name'] as String?,
+      policyNumber: json['policy_number'] as String?,
       startDate: startStr != null ? DateTime.tryParse(startStr) : null,
       endDate: endStr != null ? DateTime.tryParse(endStr) : null,
+      createdAt: createdStr != null ? DateTime.tryParse(createdStr) : null,
+      expiresAt: expiresStr != null ? DateTime.tryParse(expiresStr) : null,
       basePremium: (json['base_premium'] as num?)?.toInt() ?? canonicalPremium,
       weeklyPremium: weeklyPremium,
       maxWeeklyPayout: maxWeekly,
       maxDailyPayout: maxDaily,
+      riders: riders,
     );
   }
 
@@ -133,24 +158,34 @@ class Policy extends Equatable {
     String? userId,
     PlanTier? tier,
     PolicyStatus? status,
+    String? planName,
+    String? policyNumber,
     DateTime? startDate,
     DateTime? endDate,
+    DateTime? createdAt,
+    DateTime? expiresAt,
     int? basePremium,
     int? weeklyPremium,
     int? maxWeeklyPayout,
     int? maxDailyPayout,
+    List<Map<String, dynamic>>? riders,
   }) {
     return Policy(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       tier: tier ?? this.tier,
       status: status ?? this.status,
+      planName: planName ?? this.planName,
+      policyNumber: policyNumber ?? this.policyNumber,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      createdAt: createdAt ?? this.createdAt,
+      expiresAt: expiresAt ?? this.expiresAt,
       basePremium: basePremium ?? this.basePremium,
       weeklyPremium: weeklyPremium ?? this.weeklyPremium,
       maxWeeklyPayout: maxWeeklyPayout ?? this.maxWeeklyPayout,
       maxDailyPayout: maxDailyPayout ?? this.maxDailyPayout,
+      riders: riders ?? this.riders,
     );
   }
 
@@ -163,11 +198,16 @@ class Policy extends Equatable {
         userId,
         tier,
         status,
+        planName,
+        policyNumber,
         startDate,
         endDate,
+        createdAt,
+        expiresAt,
         basePremium,
         weeklyPremium,
         maxWeeklyPayout,
         maxDailyPayout,
+        riders,
       ];
 }

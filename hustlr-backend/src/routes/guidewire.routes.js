@@ -5,7 +5,7 @@ const {
   buildPolicyPayload,
   buildBillingPayload,
   forwardToGuidewire,
-} = require('../services/guidewire_service');
+} = require('../services/guidewire-service');
 
 const router = express.Router();
 
@@ -175,3 +175,4 @@ router.get('/marketplace-manifest', (req, res) => {
 });
 
 module.exports = router;
+

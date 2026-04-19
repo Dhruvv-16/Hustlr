@@ -44,7 +44,6 @@ export default function PolicyManagement() {
 
   const getTierColor = (tier: string) => {
     switch (tier) {
-      case 'elite': return 'purple';
       case 'full': return 'blue';
       case 'standard': return 'green';
       case 'basic': return 'gray';

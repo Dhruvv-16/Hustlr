@@ -1,5 +1,5 @@
 const express = require('express');
-const { listCityRiskProfiles, getCityRiskProfile } = require('../services/city_risk_service');
+const { listCityRiskProfiles, getCityRiskProfile } = require('../services/city-risk-service');
 
 const router = express.Router();
 
@@ -14,3 +14,4 @@ router.get('/risk-profiles/:city', (req, res) => {
 });
 
 module.exports = router;
+

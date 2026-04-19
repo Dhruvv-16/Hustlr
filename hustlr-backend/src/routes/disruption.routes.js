@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const { fetchDisruptionBundle, getAQILevel } = require('../services/disruption_snapshot');
-const { getAPIHealth } = require('../services/api_wrapper');
-const mlService = require('../services/ml_service');
-const { attachWorkAdvisor } = require('../services/work_advisor_service');
+const { fetchDisruptionBundle, getAQILevel } = require('../services/disruption-snapshot');
+const { getAPIHealth } = require('../services/api-wrapper');
+const mlService = require('../services/ml-service');
+const { attachWorkAdvisor } = require('../services/work-advisor-service');
 
 // Literal paths must be registered before `/:zone` so "forecast" is not treated as a zone name.
 
@@ -31,7 +31,7 @@ router.post('/create', (req, res) => {
   });
   
   // Clear cache to ensure demo disruption is immediately visible
-  const { _clearDisruptionCache } = require('../services/disruption_snapshot');
+  const { _clearDisruptionCache } = require('../services/disruption-snapshot');
   _clearDisruptionCache();
   
   return res.json({ success: true });
@@ -58,19 +58,19 @@ router.get('/health/apis', async (req, res) => {
 
 // ─── Debug routes ─────────────────────────────
 router.get('/weather/current', async (req, res) => {
-  const { getCurrentWeather } = require('../services/weather_service');
+  const { getCurrentWeather } = require('../services/weather-service');
   const data = await getCurrentWeather();
   return res.json(data);
 });
 
 router.get('/aqi/current', async (req, res) => {
-  const { getCurrentAQI } = require('../services/aqi_service');
+  const { getCurrentAQI } = require('../services/aqi-service');
   const data = await getCurrentAQI();
   return res.json(data);
 });
 
 router.get('/news/check', async (req, res) => {
-  const { checkBandhNLP } = require('../services/news_service');
+  const { checkBandhNLP } = require('../services/news-service');
   const zone = req.query.zone;
   const data = await checkBandhNLP(zone);
   return res.json(data);
@@ -109,3 +109,4 @@ router.get('/:zone', async (req, res) => {
 
 module.exports = router;
 module.exports.getAQILevel = getAQILevel;
+

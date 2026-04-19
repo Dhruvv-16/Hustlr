@@ -1,9 +1,0 @@
-{
-  "supabase": "PASS HTTP 200",
-  "owm": "PASS Park Town 28.19C",
-  "aqicn": "PASS AQI=41 Royapuram, Chennai, Chennai, India",
-  "newsapi": "PASS status=ok results=3",
-  "maxmind": "PASS 8.8.8.8=United States",
-  "googlemaps": "FAIL REQUEST_DENIED You must enable Billing on the Google Cloud Project at https://console.cloud.google.com/project/_/billing/enable Learn more at https://developers.google.com/maps/gmp-get-started",
-  "unwired": "WARN No matches found"
-}

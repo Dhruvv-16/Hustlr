@@ -62,6 +62,18 @@ flutter run
 - Android Studio / Android SDK (for Android builds)
 - A connected Android device or emulator
 
+### Secrets And Env Setup
+
+- Never commit real secrets (`.env`, service account JSON, private keys).
+- Backend env template lives at `hustlr-backend/.env.example`.
+- Create local env files from the template and fill your own values:
+
+```bash
+cp hustlr-backend/.env.example hustlr-backend/.env
+```
+
+- Keep platform credential files local-only (`google-services.json`, `GoogleService-Info.plist`) unless you intentionally use demo placeholders.
+
 ## 🎬 Judge's Quick-Start Demo Guide
 
 > **This section is for hackathon judges.** Follow this exact flow to experience the full Hustlr demo in under 3 minutes.
@@ -502,13 +514,13 @@ Example:
 | Trigger                     | Threshold                               | Data Source             | Hourly Rate | Daily Cap | Min Plan             | Freq/yr |
 | --------------------------- | --------------------------------------- | ----------------------- | ----------- | --------- | -------------------- | ------- |
 | Heavy Rain                  | 64.5–115mm/hr                           | IMD + OpenWeatherMap    | ₹40/hr      | ₹120      | All plans            | 8×      |
-| Extreme Rain / Cyclone band | ≥ 115.6mm/hr                            | IMD + OpenWeatherMap    | ₹65/hr      | ₹200      | Standard+            | 2×      |
+| Extreme Rain / Cyclone band | ≥ 115.6mm/hr                            | IMD + OpenWeatherMap    | ₹65/hr      | ₹200      | **Full Shield only** | 2×      |
 | Heat Wave                   | ≥ 43°C · IMD forecast                   | IMD                     | ₹45/hr      | ₹130      | All plans            | 5×      |
-| Severe Pollution            | AQI ≥ 200                               | AQICN / WAQI            | ₹35/hr      | ₹100      | Standard+            | 3×      |
-| Platform App Outage         | Order failure rate > 60%                | Platform API            | ₹50/hr      | ₹140      | Standard+            | 6×      |
-| Bandh / Strike / Curfew     | NLP confidence ≥ 0.6 + platform OFFLINE | NewsAPI + NLP           | ₹55/hr      | ₹150      | Standard+            | 3×      |
+| Severe Pollution            | AQI ≥ 200                               | AQICN / WAQI            | ₹35/hr      | ₹100      | Standard Shield      | 3×      |
+| Platform App Outage         | Order failure rate > 60%                | Platform API            | ₹50/hr      | ₹140      | Standard Shield      | 6×      |
+| Bandh / Strike / Curfew     | NLP confidence ≥ 0.6 + platform OFFLINE | NewsAPI + NLP           | ₹55/hr      | ₹150      | Standard add-on only | 3×      |
 | Heavy Traffic Congestion    | Speed ≥ 40% below baseline, ≥ 45 min    | Google Maps Traffic API | ₹30/hr      | ₹80       | Full Shield          | 10×     |
-| Internet Zone Blackout      | Connectivity < 10% for ≥ 30 min         | Ookla / TRAI            | ₹45/hr      | ₹110      | Standard+            | 2×      |
+| Internet Zone Blackout      | Connectivity < 10% for ≥ 30 min         | Ookla / TRAI            | ₹45/hr      | ₹110      | Standard add-on only | 2×      |
 | Cyclone Landfall            | IMD Category 1–5 · Oct–Dec              | IMD                     | ₹80/hr      | ₹250      | **Full Shield only** | 0.4×    |
 
 > **The Min Plan column is canonical.** A Basic Shield worker experiencing a cyclone trigger receives only their plan's daily cap (₹100/day) — not the cyclone rate. **The product you are buying at each tier is the cap, not the trigger list.** Cyclone's ₹250/day rate and ₹80/hr rate are accessible only on Full Shield.
@@ -1051,9 +1063,9 @@ ISS 40–80  →  Recommend Standard Shield (₹49/wk)
 ISS 81–100 →  Recommend Basic Shield (₹35/wk)
 
 Add-on recommendations:
-  Zone bandh frequency > 4/year   →  Curfew & Strike add-on
-  Platform outage rate > 2/month  →  App Downtime add-on
-  Coastal cyclone belt zone        →  Cyclone add-on
+  Zone bandh frequency > 4/year    →  Recommend Bandh / Curfew add-on (+₹15)
+  Zone internet outage > 2/month   →  Recommend Internet Blackout add-on (+₹12)
+  Coastal cyclone belt zone        →  Recommend Full Shield (cyclone is Full-only base)
 ```
 
 ### Model 3 — Fraud Detection Engine (FRS)
@@ -1212,71 +1224,150 @@ The `api_wrapper.js` resilience layer means Hustlr never stops monitoring even w
 
 ---
 
-## 💰 Weekly Premium Tiers
+## 💰 Weekly Premium Tiers — Actuarial Framework (Phase 3)
 
-| Plan                  | Weekly Premium | Daily Cap | Weekly Cap | Core Coverage                                       | Target BCR | Multiplier |
-| --------------------- | -------------- | --------- | ---------- | --------------------------------------------------- | ---------- | ---------- |
-| **Basic Shield**      | ₹35/wk         | ₹100/day  | ₹210/week  | Rain + extreme heat                                 | 0.62       | 6.0×       |
-| **Standard Shield** ⭐ | ₹49/wk         | ₹150/day  | ₹340/week  | Rain, heat, AQI, platform outage, bandh             | 0.63       | 6.9×       |
-| **Full Shield** 🔥     | ₹79/wk         | ₹250/day  | ₹500/week  | All triggers + compound acceleration + 10% cashback | 0.65       | 6.3×       |
+### **Phase 3 Tier Restructure — New Pricing & Guardrails**
 
-**Pricing Philosophy — Subsidised Entry, Sustainable at Scale:**
-Hustlr premiums are priced 30–55% below full actuarial cost. This is a deliberate worker affordability decision, not a modelling error.
+Hustlr's premium structure has been completely rebuilt using **Guidewire-compliant actuarial underwriting**, hard weekly caps, trigger eligibility gates, and activity-based loading — ensuring profitability while maintaining affordability.
 
-> Note on "days exposed": The Guidewire formula uses **weekly** exposure days. At 80 rain days/year, weekly exposure = 80 ÷ 52 × disruption set fraction. This is the correct weekly basis — not monthly days, which would overstate exposure by 4.3×.
+| Plan                      | Weekly Premium | Daily Cap | Weekly Cap | Multiplier | Core Coverage                                    | Notes                                 |
+| ------------------------- | -------------- | --------- | ---------- | ---------- | ------------------------------------------------ | ------------------------------------- |
+| **Basic Shield**          | ₹35/wk         | ₹100/day  | ₹210/week  | 6.0×       | Heavy rain + extreme heat                        | No add-ons. Fully automated.           |
+| **Standard Shield** ⭐     | ₹49/wk         | ₹150/day  | ₹340/week  | 6.9×       | 3 base + 2 optional quarterly add-ons            | Add-ons available. Manual claims.      |
+| **Full Shield** 🔥         | ₹79/wk         | ₹250/day  | ₹500/week  | 6.3×       | All 9 triggers + compound + 10% cashback         | Premium tier. All features.           |
 
-**Premium formula (actuarially derived — Guidewire formula: Trigger Probability × Avg Income Lost × Weekly Exposed Days ÷ Target BCR):**
+### **Trigger Eligibility by Plan Tier**
 
-| Plan     | Actuarial Calculation         | Pure Premium | With Load          | Charged | Subsidy        |
-| -------- | ----------------------------- | ------------ | ------------------ | ------- | -------------- |
-| Basic    | 0.18 × ₹420 × 0.33d/wk ÷ 0.62 | ₹40.2/wk     | ₹48/wk (20% load)  | ₹35/wk  | 27% below cost |
-| Standard | 0.27 × ₹420 × 0.50d/wk ÷ 0.63 | ₹90/wk       | ₹106/wk (18% load) | ₹49/wk  | 54% below cost |
-| Full     | 0.35 × ₹420 × 0.65d/wk ÷ 0.65 | ₹147/wk      | ₹172/wk (17% load) | ₹79/wk  | 54% below cost |
+| Trigger Type              | Basic | Standard | Full | Can Add-On? |
+| ------------------------- | ----- | -------- | ---- | ----------- |
+| Heavy Rain (64.5–115mm)   | ✓     | ✓        | ✓    | N/A         |
+| Extreme Heat (≥43°C)      | ✓     | ✓        | ✓    | N/A         |
+| Severe AQI (>200)         | ✗     | ✓        | ✓    | No          |
+| Platform Outage (>60%)    | ✗     | ✓        | ✓    | No          |
+| Dark Store Closure        | ✗     | ✓        | ✓    | No          |
+| Bandh / Curfew            | ✗     | Add-on   | ✓    | Yes (+₹15/wk) |
+| Internet Blackout         | ✗     | Add-on   | ✓    | Yes (+₹12/wk) |
+| Heavy Traffic (40%+ below) | ✗     | ✗        | ✓    | No — Full only |
+| Extreme Rain (≥115.6mm)   | ✗     | ✗        | ✓    | No — Full only |
+| Cyclone Landfall (Cat 1–5)| ✗     | ✗        | ✓    | No — Full only |
 
-### Premium Bounds — Actuarial Guardrails
+**Add-on Rules:** 13-week quarterly commitment. 72-hour cooling-off period before activation. Standard can add Bandh (+₹15/wk) or Internet (+₹12/wk). Cyclone, Traffic, and Extreme Rain are **Full Shield exclusive** (not add-ons).
 
-| Bound                     | Multiplier          | Example (Standard Shield ₹49 base) |
-| ------------------------- | ------------------- | ---------------------------------- |
-| Maximum premium           | 2.0× base tier rate | ₹98/week                           |
-| Minimum premium           | 0.7× base tier rate | ₹34/week                           |
-| Week-over-week change cap | ±20% max            | ₹49 → ₹39–₹59 max in one week      |
+### **Actuarial Premium Formula (Guidewire-Derived)**
 
-**Loss ratio guardrails (automated):**
-- BCR > 0.80 in any 4-week rolling window → premiums auto-increase 15% + new enrollments pause
-- BCR < 0.45 → premiums decrease 10% (fairness obligation — workers are over-paying)
-- Both adjustments are fully automated via `circuit_breaker.js`
+```
+Premium = (Trigger Probability × Avg Daily Income Lost × Exposure Days/Week ÷ Target BCR) 
+          × Activity Loading × Monsoon Surcharge
+          + Zone Risk Adjustment
 
-### Monsoon Season Surcharge
+Where:
+  Avg Daily Income Lost  = ₹420 (Chennai gig worker baseline)
+  Weekly Exposure Days  = Disruption frequency × trigger set
+  Target BCR            = 0.65–0.70 (maintains <70% loss ratio)
+  Activity Loading      = 1.00 (20+ days) or 1.08 (+8% penalty, 7–20 days)
+  Monsoon Surcharge     = +22% Oct–Dec (rain probability 32% vs 12%)
+  Zone Adjustment       = ±₹4–7 based on flood risk profile
+```
 
-Chennai monsoon season (Oct–Dec) raises rain trigger probability from baseline 12% to 32%. 
-Premiums auto-adjust upward ~22% for policies purchased Oct–Dec vs Jan–Mar. BCR target 
-remains ≤0.70 throughout. Workers are notified of seasonal pricing before policy activation.
+**Pure Premium → Charged Premium Conversion:**
 
-### Worker Activity Tier Underwriting
+| Plan     | Trigger Set % | Multiplier | Actuarial Premium | Charged | Loss Ratio |
+| -------- | ------------- | ---------- | ----------------- | ------- | ---------- |
+| Basic    | 18%           | 6.0×       | ₹35/week          | ₹35/wk  | 0.65–0.68  |
+| Standard | 27%           | 6.9×       | ₹49/week          | ₹49/wk  | 0.68–0.70  |
+| Full     | 35%           | 6.3×       | ₹79/week          | ₹79/wk  | 0.65–0.67  |
 
-| Activity level                           | Underwriting outcome                                |
-| ---------------------------------------- | --------------------------------------------------- |
-| > 20 active days/month                   | Standard rate — full behavioral baseline available  |
-| 7–20 active days/month                   | +8% loading — insufficient fraud detection baseline |
-| < 7 active delivery days in past 30 days | Declined — per Guidewire minimum activity mandate   |
+### **Weekly Cap Philosophy — No Exceptions**
 
-### Add-On Combination Risk
+The weekly cap is a **hard ceiling**, not a soft target. Even if multiple triggers fire simultaneously (compound events), total payout cannot exceed:
+- Basic: ₹210/week (₹100/day limit enforced)
+- Standard: ₹340/week (₹150/day limit enforced)
+- Full: ₹500/week (₹250/day limit enforced)
 
-When cyclone + bandh + blackout add-ons are purchased together, a 10% systemic risk 
-surcharge applies on top of individual add-on prices. All three can trigger simultaneously 
-in a disaster event — correlated peril risk is priced accordingly.
+Compound bonuses (e.g., "Rain + Cyclone = 1.2× multiplier") **accelerate** the worker toward the cap but do **not lift it**.
 
-### Income Add-Ons
+### **Activity Tier Underwriting — Guidewire Mandate**
 
-| Add-On                   | Weekly Cost | Min Plan             | Covers                                               |
-| ------------------------ | ----------- | -------------------- | ---------------------------------------------------- |
-| Election Day             | +₹8/wk      | All plans            | Polling day restricted movement                      |
-| App Downtime             | +₹10/wk     | Basic only           | Platform outage >60% failure (included in Standard+) |
-| Internet Blackout        | +₹18/wk     | Standard+            | Zone-level connectivity outage                       |
-| Curfew & Strike          | +₹12/wk     | Standard+            | Bandh, curfew, Section 144                           |
-| Accident Blockspot       | +₹15/wk     | Standard+            | Road blocked on hotspot corridors                    |
-| Heavy Traffic Congestion | +₹15/wk     | Standard+            | Speed ≥ 40% below baseline ≥ 45 min                  |
-| Cyclone                  | +₹20/wk     | **Full Shield only** | Cyclone Category 1–5 · Oct–Dec                       |
+| Activity Level (Last 30 Days) | Underwriting Decision                                      | Premium Load | Notes                           |
+| ----------------------------- | ---------------------------------------------------------- | ------------ | ------------------------------- |
+| ≥ 20 active delivery days     | ✅ Approved — full standard rate                           | 1.00×        | Full behavioral baseline        |
+| 7–20 active delivery days     | ✅ Approved — +8% loading applied                          | 1.08×        | Reduced fraud signal history    |
+| < 7 active delivery days      | ❌ DECLINED — per Guidewire minimum activity mandate       | N/A          | No policy activation until ≥7   |
+
+**Worker experience:** If a worker falls below 7 days of activity, their policy automatically pauses. They can reactivate after 7 days of new deliveries (tracked in real-time). No premium refund for paused periods.
+
+### **Monsoon Season Surcharge (Oct–Dec)**
+
+During Chennai monsoon (Oct–Dec), rain trigger probability jumps from 12% to 32% baseline. Policies purchased in monsoon season pay +22% premium surcharge on top of base tier rate:
+
+- Basic: ₹35 → ₹42.70/week
+- Standard: ₹49 → ₹59.78/week
+- Full: ₹79 → ₹96.38/week
+
+BCR guardrail remains ≤0.70 throughout monsoon. Workers are notified of seasonal pricing **before policy creation**.
+
+### **Zone-Based Adjustment**
+
+Each Chennai zone has a unique flood risk profile. Premium adjusts ±₹2–7 based on historical flood data and IMD sensor coverage:
+
+| Zone               | Flood Risk | Adjustment |
+| ------------------ | ---------- | ---------- |
+| Adyar              | High (0.72 | +₹7        |
+| T. Nagar           | High (0.68 | +₹6        |
+| Velachery          | High (0.65 | +₹5        |
+| Chromepet          | Medium     | +₹3        |
+| Anna Nagar         | Low (0.41) | -₹1        |
+| Guindy             | Low (0.48) | +₹1        |
+| Korattur           | Low (0.45) | ±₹0        |
+
+### **Add-On Framework — Quarterly Commitments**
+
+Add-ons are **NOT** weekly toggles — they are **13-week quarterly commitments** with no pro-rata refund. Cannot activate within 72hrs of IMD alert or 48hrs of known civil event.
+
+**Standard Shield Add-Ons (13-week quarterly commitment):**
+
+| Add-On                  | Weekly | Quarterly | Triggers                                     |
+| ----------------------- | ------ | --------- | -------------------------------------------- |
+| Bandh & Strikes         | +₹15/wk| ₹195      | Bandh, Section 144, strike declarations     |
+| Internet Blackout       | +₹12/wk| ₹156      | Zone connectivity outage (TRAI confirmed)   |
+
+**Full Shield triggers included (not optional):**
+- Extreme Rain / Cyclone band: Included in ₹79/wk
+- Traffic Congestion: Included in ₹79/wk
+- Compound multipliers: Included in ₹79/wk
+- Claim-free cashback: 10% after 4 clean weeks
+
+### **Compound Trigger Acceleration (Full Shield Only)**
+
+When two triggers fire within the same 6-hour window on Full Shield, payout acceleration applies:
+
+| Trigger Pair                  | Acceleration | Interpretation                        | Cap Behavior         |
+| ----------------------------- | ------------ | ------------------------------------- | -------------------- |
+| Rain Heavy + Platform Outage  | 1.0× (both)  | 100% of both rates simultaneously     | Still capped at ₹500 |
+| Cyclone + Bandh               | 1.2×         | 120% on higher rate                   | Still capped at ₹500 |
+| Heat Severe + AQI Hazardous   | 1.1×         | 110% on higher rate                   | Still capped at ₹500 |
+| Rain Extreme + Internet       | 1.3×         | 130% (catastrophic) — fastest ₹500   | Still capped at ₹500 |
+
+**Key:** Compound multipliers **accelerate** workers to the ₹500 ceiling faster (within 6–8 hours vs 12 hours), but do **not lift the ceiling**.
+
+### **Reinsurance Treaty Trigger**
+
+If the weekly pool payouts exceed **4× the pooled premium** in any rolling week, the excess is transferred to the reinsurance treaty partner (Guidewire Soar allocation). This prevents tail-risk insolvency while maintaining worker payouts at 100%.
+
+### **Premium Bounds — Automated Guardrails**
+
+| Guardrail                     | Range              | Action                                |
+| ----------------------------- | ------------------ | ------------------------------------- |
+| Week-over-week change         | ±20% max           | Changes > 20% require admin approval  |
+| Max premium (any tier)        | 2.0× base rate     | ₹70 for Basic → ₹158 for Full max    |
+| Min premium (any tier)        | 0.7× base rate     | ₹24.50 for Basic min                 |
+| **Loss Ratio (BCR)**          | Target ≤ 0.70      | Auto-adjust weekly via circuit breaker |
+| — If BCR > 0.80 (4-wk window) | +15% premium       | New enrollments pause; existing rate   |
+| — If BCR < 0.45 (4-wk window) | -10% premium       | Fairness adjustment (workers over-pay) |
+
+---
+
+## 📋 Income Add-Ons (Continued — Quarterly Model)
 
 ---
 
@@ -1451,7 +1542,7 @@ Background GPS tracking via `flutter_background_geolocation` runs continuously d
 | Circuit Breaker   | `circuit_breaker.js` — BCR monitoring + zone rate limits                |
 | Payout Dispatch   | `payout_service.js` + `instamojo_payout.js` — 70/30 tranche             |
 | API Resilience    | `api_wrapper.js` — 3-strike degraded mode + 5-min cache fallback        |
-| DB Triggers       | `triggers.sql` — pool sync, financial auto-compute, baseline generation |
+| DB Logic          | `supabase/hustlr_consolidated_schema.sql` — schema, RLS, triggers, and verification queries |
 
 **AI/ML**
 
@@ -1577,7 +1668,7 @@ Once a claim clears fraud scoring and the circuit breaker allows it:
 
 ## 🗄 Phase 2: Database Architecture — Supabase Triggers
 
-Rather than burdening the Node.js application layer with synchronisation logic, Hustlr delegates critical financial state management to the PostgreSQL database itself via `triggers.sql`.
+Rather than burdening the Node.js application layer with synchronisation logic, Hustlr delegates critical financial state management to PostgreSQL via the consolidated script `supabase/hustlr_consolidated_schema.sql`.
 
 | Trigger                    | Event                    | What It Does                                                                                                                                  |
 | -------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1647,23 +1738,24 @@ Monday 12:01 AM  →  New policy issued for next week (loop continues)
 
 ### Plan Tiers — Active in Phase 2
 
-| Plan                  | Weekly Premium | Core Coverage                       | Add-Ons Available                         |
-| --------------------- | -------------- | ----------------------------------- | ----------------------------------------- |
-| **Basic Shield**      | ₹35/wk         | Rain + extreme heat                 | Cyclone, App Downtime                     |
-| **Standard Shield** ⭐ | ₹49/wk         | Rain, heat, pollution, app downtime | Curfew/Strike, Cyclone, Internet Blackout |
-| **Full Shield** 🔥     | ₹79/wk         | All types + compound triggers       | All add-ons bundled                       |
+| Plan                  | Weekly Premium | Core Coverage                                | Add-Ons Available                          | Manual Claim Access |
+| --------------------- | -------------- | -------------------------------------------- | ------------------------------------------ | ------------------- |
+| **Basic Shield**      | ₹35/wk         | Heavy rain + extreme heat                     | None                                       | No (automated only) |
+| **Standard Shield** ⭐ | ₹49/wk         | 3 base triggers: heat, heavy rain, severe AQI | Bandh/Curfew (+₹15), Internet (+₹12)      | Yes                 |
+| **Full Shield** 🔥     | ₹79/wk         | All 9 triggers + compound acceleration + cashback | None to purchase (all Full features included) | Yes             |
 
 ### Policy Add-Ons — Phase 2 Live
 
-| Add-On                   | Weekly Cost | Status           |
-| ------------------------ | ----------- | ---------------- |
-| Curfew & Strike          | +₹12/wk     | ✅ Live           |
-| App Downtime             | +₹10/wk     | ✅ Live           |
-| Cyclone                  | +₹20/wk     | ✅ Live           |
-| Election Day             | +₹8/wk      | ✅ Live           |
-| Internet Blackout        | +₹18/wk     | ✅ Live — Phase 2 |
-| Accident Blockspot       | +₹15/wk     | ✅ Live — Phase 2 |
-| Heavy Traffic Congestion | +₹15/wk     | ✅ Live — Phase 2 |
+| Add-On (Standard Shield only) | Weekly Cost | Status           |
+| ----------------------------- | ----------- | ---------------- |
+| Bandh / Curfew               | +₹15/wk     | ✅ Live           |
+| Internet Blackout            | +₹12/wk     | ✅ Live — Phase 2 |
+
+**Add-on purchase rules (final):**
+- Add-ons are 13-week quarterly commitments.
+- Mid-quarter purchases are allowed, but lock-in still runs until that quarter's end (no pro-rata removal).
+- 72-hour cooling-off applies before activation.
+- Cyclone, Extreme Rain, Heavy Traffic, and Accident Blockspot are **not purchasable add-ons**; they are Full Shield base coverage.
 
 ---
 
@@ -1718,7 +1810,7 @@ For all parametric triggers (weather, AQI, bandh, internet blackout, platform ou
 | #   | Trigger                 | API Source                          | Threshold                               |
 | --- | ----------------------- | ----------------------------------- | --------------------------------------- |
 | 1   | Heavy Rain              | OpenWeatherMap + IMD                | ≥ 64.5 mm/hr                            |
-| 2   | Extreme Rain / Cyclone  | OpenWeatherMap + IMD                | ≥ 115.6 mm/hr                           |
+| 2   | Extreme Rain / Cyclone  | OpenWeatherMap + IMD                | ≥ 115.6 mm/hr (Full Shield only)        |
 | 3   | Platform App Outage     | Mock Zepto API (order failure rate) | Order failure > 60%                     |
 | 4   | Internet Zone Blackout  | Ookla Speed Map + TRAI Registry     | < 10% connectivity for ≥ 30 min         |
 | 5   | Bandh / Curfew / Strike | NewsAPI + NLP scraper               | NLP confidence ≥ 0.6 + platform OFFLINE |
@@ -1726,6 +1818,8 @@ For all parametric triggers (weather, AQI, bandh, internet blackout, platform ou
 ### Manual Claims — Worker-Initiated (Assisted Flow)
 
 For accident blockspots and road closures where automated APIs cannot confirm the disruption with sufficient confidence, workers use the **"Report a Disruption"** button on the Claims screen.
+
+**Manual claim access:** Standard Shield and Full Shield only. Basic Shield remains fully automated with zero manual claim flow.
 
 ```
 Step 1 — Select Disruption Type
@@ -1861,9 +1955,8 @@ def check_pool_health(city_zone):
 - 70/30 tranche payout dispatch (Instamojo test mode)
 - Supabase DB triggers (metadata sync, pool sync, financial auto-compute, baseline generation)
 - API resilience wrapper (3-strike degraded mode + 5-minute fallback cache)
-- Internet Blackout add-on live
-- Accident Blockspot add-on live
-- Heavy Traffic Congestion add-on live
+- Internet Blackout add-on live (Standard-only)
+- Full Shield base trigger set live (includes Accident Blockspot + Heavy Traffic; not add-ons)
 - Wallet screen — financial ledger (payouts vs premiums)
 - Dashboard — real-time disruption status, active policy card, ISS score
 
@@ -1959,9 +2052,8 @@ def check_pool_health(city_zone):
 - [x] API resilience wrapper (3-strike degraded mode + 5-min cache fallback)
 - [x] Manual claim camera screen (AI reticle + live-capture enforcement)
 - [x] Manual evidence submission + status tracking
-- [x] Internet Blackout add-on live
-- [x] Accident Blockspot add-on live
-- [x] Heavy Traffic Congestion add-on live
+- [x] Internet Blackout add-on live (Standard-only)
+- [x] Full Shield base trigger set live (Accident Blockspot + Heavy Traffic; not add-ons)
 - [x] Wallet screen — payout/premium ledger
 - [x] Shadow policy calculation live
 - [x] Predictive nudge notification live
@@ -2010,28 +2102,22 @@ Hustlr is not priced as a traditional insurance product. It is a subsidised para
 This is not a modelling error. It is a deliberate constraint driven by the Guidewire affordability band (₹20–₹50 target range), worker willingness-to-pay ceilings, and the need for rapid adoption in the B2C phase. The gap is structurally supported by B2B2C licensing, zero claims processing cost, and reinsurance.
 
 ### 2. Phase 2 — B2B2C Revenue Model (Platform Integration)
-In Phase 2, Hustlr embeds natively within the Zepto partner app. The 54% pricing subsidy required to drive adoption in Phase 1 is offset by a B2B Platform Licensing Fee.
+In Phase 2, Hustlr embeds natively within the Zepto partner app. The affordability subsidy from worker pricing is structurally offset by platform licensing and strict cap discipline.
 
 **The Revenue Stack (At 10,000 Insured Workers):**
 
 | Revenue Source        | Calculation                       | Monthly Gross   | Annual Gross    |
 | --------------------- | --------------------------------- | --------------- | --------------- |
-| Worker Premiums (B2C) | ₹50/wk (blended) × 4.33 wks × 10k | ₹21.6 Lakhs     | ₹2.6 Crores     |
+| Worker Premiums (B2C) | ₹54.3/wk (blended) × 4.33 wks × 10k | ₹23.5 Lakhs   | ₹2.82 Crores    |
 | Zepto Licensing (B2B) | ₹150/mo × 10,000                  | ₹15.0 Lakhs     | ₹1.8 Crores     |
-| **Total Inflow**      |                                   | **₹36.6 Lakhs** | **₹4.4 Crores** |
+| **Total Inflow**      |                                   | **₹38.5 Lakhs** | **₹4.62 Crores** |
 
-**Resolving the Actuarial Gap:**
-The actuarial cost of Standard Shield is ~₹106/week.
-- Worker Premium: +₹49
-- Zepto Subsidy: +₹37 (₹150/mo equivalent)
-- Effective Revenue per Worker: ₹86/week
+**Corrected cost structure (Hustlr infra economics):**
+- Processing + infra COGS: **₹10.39/worker/month**
+- Gross margin on Hustlr MGA + SaaS revenue: **92.8%**
+- COGS components: Razorpay ₹7.25 + Render ₹1.43 + Maps ₹1.00 + Rekognition ₹0.50 + Supabase ₹0.21
 
-The remaining ₹20 gap is closed by structural risk reduction. Our modelled actual payout is 36%–45% (based on simulation of 10,000 workers over 12 months using Chennai IMD data) because:
-- **Caps:** 6.0x–6.9x Cap Discipline truncates ~18% of extreme tail payouts.
-- **Fraud:** 7-Layer FRS Engine removes ~8–10% of fraudulent leakage.
-- **Filters:** Zone Depth Scoring eliminates boundary gaming.
-
-At a 36–45% effective loss ratio, the insurer retains a 20–25% underwriting margin after reinsurance and operational costs, making this segment profitable for the first time.
+**Important framing:** this margin is Hustlr's technology/infrastructure margin. Insurance pool economics remain separate, with the carrier retaining the majority of gross written premium for claims reserves and reinsurance.
 
 ### 3. Hustlr Unit Economics (MGA / Tech Fee)
 Hustlr operates as a Managing General Agent (MGA) and tech infrastructure layer. We do not take balance sheet risk.
@@ -2044,7 +2130,7 @@ Hustlr operates as a Managing General Agent (MGA) and tech infrastructure layer.
 | 50,000  | ₹83.5L                 |
 | 100,000 | ₹1.67 Cr               |
 
-**The Zepto ROI:** Replacing a churned worker costs Zepto ~₹2,000. If Hustlr extends average worker lifetime value (LTV) by just one month, the ₹150 fee yields a 13x ROI. Even without platform licensing, the model remains operational at reduced margins due to caps and circuit breakers.
+**The Zepto ROI:** Replacing a churned worker costs Zepto ~₹1,500–₹3,000. If Hustlr extends average worker lifetime value (LTV) by one month, the ₹150 fee yields roughly a 10×–20× ROI.
 
 ### 4. Addressing Reinsurance at Scale
 Hustlr does not independently procure reinsurance. Because we are integrated via the Guidewire Marketplace, our parametric pool is simply bundled into the underwriter's (e.g., ICICI Lombard) existing multi-billion dollar catastrophe treaty. The 2-5% allocation for reinsurance is passed directly to the carrier to cover this bundled exposure.
@@ -2137,7 +2223,7 @@ All source code submitted in the GitHub repository covers:
 | Fraud Engine                | `hustlr-backend/src/services/fraud_engine.js`    |
 | Circuit Breaker             | `hustlr-backend/src/services/circuit_breaker.js` |
 | Payout Dispatch             | `hustlr-backend/src/services/payout_service.js`  |
-| Supabase DB Triggers        | `hustlr-backend/db/triggers.sql`                 |
+| Supabase DB Schema + Triggers | `supabase/hustlr_consolidated_schema.sql`      |
 | API Resilience Wrapper      | `hustlr-backend/src/services/api_wrapper.js`     |
 
 ---

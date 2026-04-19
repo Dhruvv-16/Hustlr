@@ -217,9 +217,6 @@ class AppLocalizationsHi extends AppLocalizations {
   String get policy_full => 'फुल शील्ड';
 
   @override
-  String get policy_elite => 'फुल शील्ड';
-
-  @override
   String get policy_covers => 'कवर करता है';
 
   @override

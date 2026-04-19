@@ -431,7 +431,7 @@ class MockAdminDataService {
   }
 
   private static getPlanTier(): string {
-    const tiers = ['basic', 'standard', 'full', 'elite'];
+    const tiers = ['basic', 'standard', 'full'];
     return tiers[Math.floor(this.random() * tiers.length)];
   }
 

@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../core/services/storage_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/biometric_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -25,63 +24,64 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigate() async {
     if (!mounted) return;
     final box = Hive.box('appData');
-    bool isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
-    final isComplete = await StorageService.instance.isOnboardingComplete();
-    final userId = await StorageService.instance.getUserId();
-
-    if (isLoggedIn) {
-      final loggedInFlag = box.get('isLoggedIn', defaultValue: false);
-      if (!loggedInFlag) {
-        if (mounted) context.go('/login');
-        return;
-      }
-    }
+    final isLoggedIn = box.get('isLoggedIn', defaultValue: false) as bool;
 
     if (!mounted) return;
     if (!isLoggedIn) {
       context.go('/login');
-    } else if (!isComplete || userId == null) {
+      return;
+    }
+
+    final startupChecks = await Future.wait<dynamic>([
+      StorageService.instance.isOnboardingComplete(),
+      StorageService.instance.getUserId(),
+    ]);
+    if (!mounted) return;
+    final isComplete = startupChecks[0] as bool;
+    final userId = startupChecks[1] as String?;
+
+    if (!isComplete || userId == null) {
       context.go('/carousel');
-    } else {
-      // Biometric lock check
-      final prefs = await SharedPreferences.getInstance();
-      final bioEnabled = prefs.getBool('biometric_enabled') ?? true;
+      return;
+    }
 
-      if (bioEnabled) {
-        final biometric = BiometricService.instance;
-        final available = await biometric.isAvailable();
+    // Biometric lock check
+    final bioEnabled = StorageService.getBool('biometric_enabled') ?? true;
+    if (bioEnabled) {
+      final biometric = BiometricService.instance;
+      final available = await biometric.isAvailable();
 
-        if (available) {
-          final result = await biometric.authenticate(
-            reason: 'Unlock Hustlr to access your wallet',
-          );
+      if (available) {
+        final result = await biometric.authenticate(
+          reason: 'Unlock Hustlr to access your wallet',
+        );
 
-          if (!result.success && !result.notAvailable) {
-            if (mounted) {
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => AlertDialog(
-                  title: const Text('Authentication Required'),
-                  content: const Text('Please authenticate to access Hustlr'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _navigate();
-                      },
-                      child: const Text('Try Again'),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return;
+        if (!result.success && !result.notAvailable) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => AlertDialog(
+                title: const Text('Authentication Required'),
+                content: const Text('Please authenticate to access Hustlr'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _navigate();
+                    },
+                    child: const Text('Try Again'),
+                  ),
+                ],
+              ),
+            );
           }
+          return;
         }
       }
-      if (mounted) context.go('/dashboard');
     }
+
+    if (mounted) context.go('/dashboard');
   }
 
   @override

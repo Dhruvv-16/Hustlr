@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/storage_service.dart';
@@ -19,6 +20,8 @@ import '../../services/mock_data_service.dart';
 import '../../services/location_service.dart';
 import '../../services/background_heartbeat_service.dart';
 import '../../services/shift_tracking_service.dart';
+import '../../blocs/policy/policy_bloc.dart';
+import '../../blocs/policy/policy_event.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -27,7 +30,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+  with WidgetsBindingObserver {
   Map<String, dynamic>? _worker;
   Map<String, dynamic>? _policy;
   Map<String, dynamic>? _trustProfile = {
@@ -46,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
     _policySub = AppEvents.instance.onPolicyUpdated.listen((_) => _loadData());
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) => _loadData());
@@ -53,7 +58,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_loadData());
+      StorageService.instance.getUserId().then((uid) {
+        if (uid != null && mounted) {
+          context.read<PolicyBloc>().add(LoadPolicy(uid));
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _policySub?.cancel();
     _claimSub?.cancel();
     _walletSub?.cancel();
@@ -161,6 +179,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
+    final blocTier = context.select<PolicyBloc, String?>((bloc) {
+      final active = bloc.state.activePolicy;
+      if (active == null) return null;
+      return active.tier.name;
+    });
+    final localTier = _policy?['plan_tier']?.toString();
+    final effectiveTier = (localTier != null && localTier.isNotEmpty)
+      ? localTier
+      : blocTier;
+    final activePlanLabel = effectiveTier != null
+      ? '${effectiveTier.toUpperCase()} SHIELD'
+      : 'None';
+
     return MobileContainer(
       child: Scaffold(
         backgroundColor: theme.canvasColor,
@@ -239,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       isDark: isDark,
                       rows: [
                         (Icons.badge_rounded, l10n.profile_hustlr_id, _worker?['id']?.toString().split('-')[0].toUpperCase() ?? 'HUSTLR-XXXX'),
-                        (Icons.shield_rounded, l10n.profile_active_plan, _policy?['plan_tier'] != null ? '${_policy!['plan_tier'].toString().toUpperCase()} SHIELD' : 'None'),
+                        (Icons.shield_rounded, l10n.profile_active_plan, activePlanLabel),
                         (Icons.calendar_today_rounded, l10n.profile_validity, _policy != null ? 'Active' : 'N/A'),
                       ],
                     ),

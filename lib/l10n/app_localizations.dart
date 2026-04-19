@@ -508,12 +508,6 @@ abstract class AppLocalizations {
   /// **'Full Shield'**
   String get policy_full;
 
-  /// No description provided for @policy_elite.
-  ///
-  /// In en, this message translates to:
-  /// **'Full Shield'**
-  String get policy_elite;
-
   /// No description provided for @policy_covers.
   ///
   /// In en, this message translates to:

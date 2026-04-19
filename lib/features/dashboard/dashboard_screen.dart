@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
@@ -16,6 +17,7 @@ import '../../core/services/storage_service.dart';
 import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/notification_service.dart';
+import '../../services/connectivity_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
@@ -29,6 +31,7 @@ import '../../shared/widgets/animated_skeleton.dart';
 
 import '../../services/dynamic_translator.dart';
 import '../../services/app_events.dart';
+import '../../blocs/policy/policy_bloc.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,6 +43,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with WidgetsBindingObserver {
   static const _dashboardSnapshotKey = 'dashboardSnapshotV1';
+  static const _skeletonBuildUpMinDuration = Duration(milliseconds: 1200);
 
   Map<String, dynamic>? policyData;
   Map<String, dynamic>? walletData;
@@ -63,6 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   StreamSubscription? _claimSub;
 
   // Guard: prevents concurrent _loadDashboardData calls
+  bool _isReviewing = false;
   bool _isDashboardLoading = false;
 
   // Debounce timestamps for event-driven reloads
@@ -88,13 +93,30 @@ class _DashboardScreenState extends State<DashboardScreen>
   // API health check results
   Map<String, String> _apiHealthStatus = {};
   bool _reverifyPromptOpen = false;
+  late final DateTime _initialLoadStartedAt;
+
+  List<_SystemFeedEvent> get _events {
+    final events = <_SystemFeedEvent>[];
+    final source = weatherData?['source']?.toString() ?? 'N/A';
+    final zone = (userZone == null || userZone!.isEmpty) ? 'Unknown' : userZone!;
+    events.add(_SystemFeedEvent('Zone: $zone', timestamp: DateTime.now()));
+    events.add(_SystemFeedEvent('Weather source: $source', timestamp: DateTime.now()));
+    if (activeDisruption != null) {
+      final name = activeDisruption?['display_name']?.toString() ??
+          activeDisruption?['trigger_type']?.toString() ??
+          'Active disruption';
+      events.add(_SystemFeedEvent(name, timestamp: DateTime.now()));
+    }
+    if (!ConnectivityService.instance.isReachable) {
+      events.add(_SystemFeedEvent('Backend unreachable - offline mode', timestamp: DateTime.now(), isError: true));
+    }
+    return events;
+  }
 
   static int _riderCostFromName(String name) {
     final n = name.toLowerCase();
-    if (n.contains('cyclone')) return 20;
-    if (n.contains('curfew') || n.contains('strike')) return 12;
-    if (n.contains('election')) return 8;
-    if (n.contains('app downtime') || n.contains('downtime')) return 10;
+    if (n.contains('bandh') || n.contains('curfew') || n.contains('strike')) return 15;
+    if (n.contains('internet')) return 12;
     return 0;
   }
 
@@ -102,7 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final t = tier.toLowerCase();
     final n = riderName.toLowerCase();
     if (t == 'full') return true;
-    if (t == 'standard' && (n.contains('app downtime') || n.contains('downtime'))) {
+    if (t == 'standard' && (n.contains('bandh') || n.contains('curfew') || n.contains('strike') || n.contains('internet'))) {
       return true;
     }
     return false;
@@ -128,40 +150,30 @@ class _DashboardScreenState extends State<DashboardScreen>
     return total;
   }
 
-  static String _policyPlanWithRiders(Map<String, dynamic> policy) {
-    final tier = policy['plan_tier']?.toString().toLowerCase();
-    final base = (policy['plan_name']?.toString().trim().isNotEmpty ?? false)
-        ? policy['plan_name'].toString().trim()
-        : _planDisplayName(tier);
-    final riders = policy['riders'] as List<dynamic>?;
-    if (riders == null || riders.isEmpty) return base;
-
-    final riderNames = riders
-        .whereType<Map>()
-        .map((r) => r['name']?.toString().trim() ?? '')
-        .where((name) => name.isNotEmpty && !_isRiderIncludedInTier(tier ?? 'standard', name))
-        .toList();
-
-    if (riderNames.isEmpty) return base;
-    return '$base + ${riderNames.join(' + ')}';
-  }
-
-  static int _resolvedPolicyWeeklyPremium(Map<String, dynamic> policy) {
-    final tier = policy['plan_tier']?.toString().toLowerCase() ?? 'standard';
-    final computed = PlanTierPrice.fromString(tier).weeklyPremium +
-        _billableAddonTotalForPolicy(policy);
-
-    final raw = policy['weekly_premium'];
-    final rawNum = (raw is num) ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
-    if (rawNum != null && rawNum >= computed && rawNum <= 200) {
-      return rawNum.round();
-    }
-    return computed;
+  static Map<String, dynamic>? _policyFromBloc(Policy? policy) {
+    if (policy == null) return null;
+    return {
+      'id': policy.id,
+      'plan_tier': policy.tier.apiKey,
+      'plan_name': policy.planName ?? policy.tier.displayName,
+      'policy_number': policy.policyNumber,
+      'status': policy.status.name,
+      'weekly_premium': policy.weeklyPremium,
+      'base_premium': policy.basePremium,
+      'coverage_start': policy.startDate?.toIso8601String(),
+      'commitment_end': policy.endDate?.toIso8601String(),
+      'created_at': (policy.createdAt ?? policy.startDate)?.toIso8601String(),
+      'expires_at': (policy.expiresAt ?? policy.endDate)?.toIso8601String(),
+      'max_weekly_payout': policy.maxWeeklyPayout,
+      'max_daily_payout': policy.maxDailyPayout,
+      'riders': policy.riders,
+    };
   }
 
   @override
   void initState() {
     super.initState();
+    _initialLoadStartedAt = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
     _checkLocationPermission();
     _fetchInitialLocation(); // ← get GPS fix immediately without waiting for movement
@@ -474,9 +486,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     return null;
   }
 
+  Future<void> _finishInitialLoading() async {
+    if (!isLoading) return;
+    final elapsed = DateTime.now().difference(_initialLoadStartedAt);
+    final remaining = _skeletonBuildUpMinDuration - elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
+    if (!mounted || !isLoading) return;
+    setState(() => isLoading = false);
+  }
+
   Future<bool> _restoreDashboardFromCache() async {
     try {
-      final raw = await StorageService.instance.getString(_dashboardSnapshotKey);
+      final raw = StorageService.getString(_dashboardSnapshotKey);
       if (raw == null || raw.isEmpty) return false;
 
       final decoded = jsonDecode(raw);
@@ -509,8 +532,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         final cachedIss = snapshot['liveIssScore'];
         if (cachedIss is num) liveIssScore = cachedIss.toInt();
 
-        isLoading = false;
       });
+
+      await _finishInitialLoading();
 
       return true;
     } catch (_) {
@@ -533,7 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'liveIssScore': liveIssScore,
         'cachedAt': DateTime.now().toIso8601String(),
       };
-      await StorageService.instance.setString(
+      await StorageService.setString(
         _dashboardSnapshotKey,
         jsonEncode(snapshot),
       );
@@ -639,9 +663,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           weatherData = weatherFallback;
 
           liveIssScore = mockSvc.worker.issScore;
-          isLoading = false;
         });
       }
+      await _finishInitialLoading();
       unawaited(_persistDashboardSnapshot());
       _isDashboardLoading = false;
       return;
@@ -649,7 +673,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (userId == null) {
       _isDashboardLoading = false;
-      if (mounted) setState(() => isLoading = false);
+      await _finishInitialLoading();
       return;
     }
 
@@ -740,9 +764,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           activeDisruption = latestDisruption;
           nudgeData = rawNudge;
           workAdvisorData = rawAdvisor;
-          isLoading = false;
         });
       }
+      await _finishInitialLoading();
       unawaited(_persistDashboardSnapshot());
 
       // ── Organic ML Data Fetch (Detached Background Task) ──
@@ -763,7 +787,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         NotificationService.instance.addMissedPayout(350);
       }
     } catch (e) {
-      if (mounted) setState(() => isLoading = false);
+      await _finishInitialLoading();
     } finally {
       _isDashboardLoading = false;
     }
@@ -775,7 +799,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       'standard': 'Standard Shield',
       'full': 'Full Shield',
     };
-    return m[tier] ?? 'Standard Shield';
+    return m[tier] ?? (tier == null ? 'No Active Plan' : 'Standard Shield');
   }
 
   static String _disruptionTriggerLabel(String? t) {
@@ -842,26 +866,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     return l10n.dashboard_greeting_evening;
   }
 
-  void _handleNavTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        break;
-      case 1:
-        context.go('/policy');
-        break;
-      case 2:
-        context.go('/claims');
-        break;
-      case 3:
-        context.go('/wallet');
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
+    final blocPolicy = context.select<PolicyBloc, Policy?>((bloc) => bloc.state.activePolicy);
+    final planPolicy = _policyFromBloc(blocPolicy);
 
     if (isLoading) {
       return _buildDashboardSkeleton();
@@ -871,8 +881,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _locationPermissionStatus.contains('permanentlyDenied');
     final isGpsOff = _locationPermissionStatus == 'GPS_DISABLED_ON_DEVICE';
 
-    final rawPlanName = policyData?['plan_name'] ?? 'Standard Shield';
-    final List<dynamic>? ridersData = policyData?['riders'];
+    final rawPlanName = planPolicy?['plan_name'] ?? 'No Active Plan';
+    final List<dynamic>? ridersData = planPolicy?['riders'];
     String planName = rawPlanName;
     if (ridersData != null && ridersData.isNotEmpty) {
       final names = ridersData.map((r) => r['name'].toString()).join(' + ');
@@ -889,15 +899,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     final displayUserName = titleCase(userName ?? 'Karthik');
 
-    final planTier = policyData?['plan_tier']?.toString().toLowerCase() ?? 'standard';
-    final tierBasePremium = PlanTierPrice.fromString(planTier).weeklyPremium;
+    final planTier = planPolicy?['plan_tier']?.toString().toLowerCase();
+    final tierBasePremium = planTier != null ? PlanTierPrice.fromString(planTier).weeklyPremium : 0;
 
     int riderCostFromName(String name) {
       final n = name.toLowerCase();
-      if (n.contains('cyclone')) return 20;
-      if (n.contains('curfew') || n.contains('strike')) return 12;
-      if (n.contains('election')) return 8;
-      if (n.contains('app downtime') || n.contains('downtime')) return 10;
+      if (n.contains('bandh') || n.contains('curfew') || n.contains('strike')) return 15;
+      if (n.contains('internet')) return 12;
       return 0;
     }
 
@@ -905,7 +913,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       final n = riderName.toLowerCase();
       if (planTier == 'full') return true;
       if (planTier == 'standard' &&
-          (n.contains('app downtime') || n.contains('downtime'))) {
+          (n.contains('bandh') || n.contains('curfew') || n.contains('strike') || n.contains('internet'))) {
         return true;
       }
       return false;
@@ -930,18 +938,16 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Prefer valid backend-stored weekly premium, but ensure we never under-show
     // when billable add-ons exist (base + add-ons must be reflected).
-    final rawWeeklyPremium = (policyData?['weekly_premium'] is num)
-      ? (policyData?['weekly_premium'] as num).toDouble()
-      : double.tryParse(policyData?['weekly_premium']?.toString() ?? '');
+    final rawWeeklyPremium = (planPolicy?['weekly_premium'] is num)
+      ? (planPolicy?['weekly_premium'] as num).toDouble()
+      : double.tryParse(planPolicy?['weekly_premium']?.toString() ?? '');
     final normalizedPremium = (rawWeeklyPremium != null &&
         rawWeeklyPremium >= computedTotalPremium &&
         rawWeeklyPremium <= 200)
       ? rawWeeklyPremium.round().toString()
-      : computedTotalPremium.toString();
+      : (planTier != null ? computedTotalPremium.toString() : '0');
 
-    final String premium = (liveDynamicPrice != null && billableAddonTotal == 0)
-      ? liveDynamicPrice!.toStringAsFixed(0)
-      : normalizedPremium;
+    final String premium = normalizedPremium;
 
     // Derive missed-payout amount from shadow_policies nudge data (real DB field),
     // then fall back to a disruption-based estimate — never reads a non-existent field.
@@ -995,13 +1001,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildWorkAdvisorCard(),
                         ],
                         const SizedBox(height: 20),
-                        if (policyData != null)
+                        if (planPolicy != null)
                           _buildActivePolicyCard(
                             planName,
                             premium,
                             l10n,
                             ridersData,
-                            policyData?['plan_tier']?.toString() ?? 'standard',
+                            planPolicy['plan_tier']?.toString() ?? 'standard',
                           )
                         else
                           _buildNoPolicyCard(l10n),
@@ -1115,15 +1121,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     final soft = isDark
         ? Colors.white.withOpacity(0.08)
         : const Color(0xFF1B5E20).withOpacity(0.08);
-    final pulse = isDark
-        ? Colors.white.withOpacity(0.12)
-        : const Color(0xFF1B5E20).withOpacity(0.12);
 
     Widget block({double? width, required double height, double radius = 12}) {
       return AnimatedSkeleton(
         width: width,
         height: height,
         borderRadius: radius,
+        buildUpOnly: true,
       );
     }
 
@@ -1422,7 +1426,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   if (name.contains('Election')) {
                     icon = Icons.how_to_vote_rounded;
                   }
-                  if (name.contains('App Downtime')) {
+                  if (name.contains('Internet')) {
                     icon = Icons.phonelink_off_rounded;
                   }
 
@@ -2553,7 +2557,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     });
                     if (_enableLiveML) {
                       _fetchLiveMLData(
-                          policyData?['plan_tier'] ?? 'Standard Shield');
+                          policyData?['plan_tier'] ?? 'standard');
                     } else {
                       setState(() {
                         liveDynamicPrice = null;
@@ -2830,6 +2834,18 @@ class _DebugHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SystemFeedEvent {
+  final String message;
+  final DateTime timestamp;
+  final bool isError;
+
+  const _SystemFeedEvent(
+    this.message, {
+    required this.timestamp,
+    this.isError = false,
+  });
 }
 
 class _DebugRow extends StatelessWidget {

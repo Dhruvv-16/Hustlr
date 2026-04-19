@@ -1,12 +1,12 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
-const { computeZoneDepthAsync } = require('../services/zone_depth_service');
-const { estimateLocation } = require('../services/cell_tower_service');
+const { computeZoneDepthAsync } = require('../services/zone-depth-service');
+const { estimateLocation } = require('../services/cell-tower-service');
 const {
   recordFingerprint,
   getFingerprintStats,
-} = require('../services/device_fingerprint_service');
-const { requireSession } = require('../middleware/session_auth');
+} = require('../services/device-fingerprint-service');
+const { requireSession } = require('../middleware/session-auth');
 const router = express.Router();
 
 // GET /workers/phone/:phone
@@ -193,3 +193,5 @@ router.patch('/:id/zone-depth', async (req, res) => {
 });
 
 module.exports = router;
+
+

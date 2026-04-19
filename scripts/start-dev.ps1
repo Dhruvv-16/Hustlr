@@ -17,8 +17,8 @@
     .\scripts\start-dev.ps1 -ApiBase "http://192.168.1.10:3000"   # physical phone on Wi‑Fi
     .\scripts\start-dev.ps1 -ApiBase "http://127.0.0.1:3000"      # rare: special proxy setup
 
-  Prerequisites: Python 3 with ml_service deps, Node/npm in hustlr-backend, Flutter SDK.
-  Optional: venv at hustlr-backend\ml_service\.venv — set -UseVenv to use it for ML.
+  Prerequisites: Python 3 with hustlr-ml deps, Node/npm in hustlr-backend, Flutter SDK.
+  Optional: venv at hustlr-ml\.venv — set -UseVenv to use it for ML.
 #>
 param(
   [string]$ApiBase = "http://10.0.2.2:3000",
@@ -27,16 +27,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$mlDir = Join-Path $repoRoot "hustlr-backend\ml_service"
+$mlDir = Join-Path $repoRoot "hustlr-ml"
 $beDir = Join-Path $repoRoot "hustlr-backend"
 
 $venvPy = Join-Path $mlDir ".venv\Scripts\python.exe"
 $python = if ($UseVenv -and (Test-Path $venvPy)) { $venvPy } else { "python" }
 if ($UseVenv -and -not (Test-Path $venvPy)) {
-  Write-Warning "ml_service\.venv not found — using 'python' from PATH"
+  Write-Warning "hustlr-ml\.venv not found — using 'python' from PATH"
 }
 if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-  Write-Error "Python not found. Install Python 3 or create hustlr-backend\ml_service\.venv"
+  Write-Error "Python not found. Install Python 3 or create hustlr-ml\.venv"
 }
 
 Write-Host ""

@@ -222,7 +222,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               const SizedBox(height: 12),
               _buildPolicyRow(context, isDark, green, primary, title: 'Policy Valid', value: _quarterlyExpiry()),
               const SizedBox(height: 12),
-              _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'App Downtime coverage'),
+              _buildPolicyRow(context, isDark, green, primary, title: 'Add-ons', value: 'Bandh / Internet coverage'),
             ],
           ),
         );
