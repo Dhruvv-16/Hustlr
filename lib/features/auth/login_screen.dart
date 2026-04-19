@@ -95,13 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 l10n.login_subtitle,
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodySmall?.color),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
               // ── Static Graphic ───────────────────────────────
               Center(
                 child: Container(
                   width: double.infinity,
-                  height: 240,
+                  height: 140,
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(24),
@@ -116,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   alignment: Alignment.center,
                   child: Icon(
                     Icons.electric_moped_rounded,
-                    size: 100,
+                    size: 72,
                     color: theme.colorScheme.primary.withValues(alpha: isDark ? 1.0 : 0.7),
                     shadows: isDark ? [
                       Shadow(color: theme.colorScheme.primary.withValues(alpha: 0.5), blurRadius: 40, offset: const Offset(0, 10))
@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
               // ── Input Section ──────────────────────────────────
               Text(

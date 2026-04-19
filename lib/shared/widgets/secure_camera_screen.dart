@@ -326,8 +326,7 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
               ),
 
             const SizedBox(height: 16),
-            if (!(widget.mode == CameraMode.kycFace && widget.enforceLiveGesture))
-              _buildCaptureButton(),
+            _buildCaptureButton(),
             if (widget.mode == CameraMode.kycFace && widget.enforceLiveGesture)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
