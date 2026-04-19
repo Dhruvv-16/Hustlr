@@ -1,5 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/pending_claim_queue_item.dart';
+
 /// Local persistence for auth, onboarding, and profile fields.
 /// Keeps static accessors (used by [MockDataService], [AuthService]) in sync with instance helpers.
 class StorageService {
@@ -30,7 +30,6 @@ class StorageService {
   static const _keyLastRiskReviewAt = 'lastRiskReviewAt';
   static const _keyKycDataConsentAccepted = 'kycDataConsentAccepted';
   static const _keyActiveRiders = 'activeRiders';
-    static const _keyPendingManualClaims = 'pendingManualClaims';
 
   // ── Static sync API (after [init]) ─────────────────────────────────────────
   static bool get isLoggedIn => _prefs.getBool(_keyIsLoggedIn) ?? false;
@@ -61,8 +60,6 @@ class StorageService {
       _prefs.getBool(_keyKycDataConsentAccepted) ?? false;
   static List<String> get activeRiders =>
       _prefs.getStringList(_keyActiveRiders) ?? [];
-  static List<String> get pendingManualClaims =>
-      _prefs.getStringList(_keyPendingManualClaims) ?? [];
 
   /// New users must see consent before profile onboarding; completed users skip.
   static bool get needsKycDataConsent =>
@@ -103,80 +100,6 @@ class StorageService {
       _prefs.setBool(_keyKycDataConsentAccepted, v);
   static Future<void> setActiveRiders(List<String> riders) =>
       _prefs.setStringList(_keyActiveRiders, riders);
-
-  static List<PendingClaimQueueItem> _readAllPendingManualClaims() {
-    final list = _prefs.getStringList(_keyPendingManualClaims) ?? [];
-    return list
-        .map((c) {
-          try {
-            return PendingClaimQueueItem.fromJson(c);
-          } catch (_) {
-            return null;
-          }
-        })
-        .whereType<PendingClaimQueueItem>()
-        .toList();
-  }
-      
-  /// Add a claim to the offline queue
-  static Future<void> enqueueManualClaim(PendingClaimQueueItem item) async {
-    final claims = _readAllPendingManualClaims();
-    // Don't add if we already have one with this localId
-    if (!claims.any((c) => c.localId == item.localId)) {
-      claims.add(item);
-      await _prefs.setStringList(
-        _keyPendingManualClaims, 
-        claims.map((c) => c.toJson()).toList()
-      );
-    }
-  }
-
-  /// Get the full typed queue for the currently logged-in user
-  static Future<List<PendingClaimQueueItem>> getPendingManualClaimsQueue() async {
-    final allClaims = _readAllPendingManualClaims();
-    final currentUserId = userId;
-    return allClaims.where((c) => c.userId == currentUserId).toList();
-  }
-
-  /// Update an existing item in the queue (e.g. after a failed retry)
-  static Future<void> updateQueuedClaim(PendingClaimQueueItem item) async {
-    final list = _prefs.getStringList(_keyPendingManualClaims) ?? [];
-    final allClaims = list.map((c) {
-      try {
-        return PendingClaimQueueItem.fromJson(c);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<PendingClaimQueueItem>().toList();
-
-    final idx = allClaims.indexWhere((c) => c.localId == item.localId);
-    if (idx >= 0) {
-      allClaims[idx] = item;
-      await _prefs.setStringList(
-        _keyPendingManualClaims, 
-        allClaims.map((c) => c.toJson()).toList()
-      );
-    }
-  }
-
-  /// Remove a claim from the queue (e.g. after successful sync)
-  static Future<void> removeQueuedClaim(String localId) async {
-    final list = _prefs.getStringList(_keyPendingManualClaims) ?? [];
-    final allClaims = list.map((c) {
-      try {
-        return PendingClaimQueueItem.fromJson(c);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<PendingClaimQueueItem>().toList();
-
-    allClaims.removeWhere((c) => c.localId == localId);
-    await _prefs.setStringList(
-      _keyPendingManualClaims, 
-      allClaims.map((c) => c.toJson()).toList()
-    );
-  }
-
   static Future<void> clearSessionToken() => _prefs.remove(_keySessionToken);
   static Future<void> clearAll() => _prefs.clear();
 

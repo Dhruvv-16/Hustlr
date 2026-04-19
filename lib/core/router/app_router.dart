@@ -33,6 +33,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/profile/api_status_screen.dart';
 import '../../features/support/support_screen.dart';
 import '../../features/support/chat_screen.dart';
+import '../../features/dashboard/risk_map_screen.dart';
 import '../../features/admin/ml_tester_screen.dart';
 import '../../features/ml_live/ml_live_screen.dart';
 import '../../screens/notifications_screen.dart';
@@ -72,6 +73,7 @@ class AppRoutes {
   static const stepUpAuth = '/step-up-auth';
   
   static const supportChat = '/support/chat';
+  static const riskMap = '/dashboard/risk-map';
   static const manualClaimCamera = '/claims/evidence/camera';
   static const manualClaimReview = '/claims/evidence/review';
 }
@@ -273,6 +275,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.supportChat,
           builder: (_, __) => const ChatScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.riskMap,
+          builder: (_, __) => const RiskMapScreen(),
         ),
         GoRoute(
           path: AppRoutes.manualClaimCamera,

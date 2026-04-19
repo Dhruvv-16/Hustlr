@@ -10,8 +10,6 @@ import 'package:go_router/go_router.dart';
 import '../../services/app_events.dart';
 import '../../services/mock_data_service.dart';
 import '../../shared/widgets/mobile_container.dart';
-import '../../shared/widgets/offline_banner.dart';
-import '../../shared/widgets/animated_skeleton.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../services/notification_service.dart';
@@ -198,7 +196,7 @@ class _WalletScreenState extends State<WalletScreen> {
           Positioned.fill(
             child: MobileContainer(
               child: _loading
-                  ? _buildWalletSkeleton()
+                  ? const Center(child: CircularProgressIndicator())
                   : _error != null
                       ? _ErrorState(error: _error!, onRetry: _loadWallet)
                       : RefreshIndicator(
@@ -209,7 +207,6 @@ class _WalletScreenState extends State<WalletScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                             child: Column(
                               children: [
-                                const OfflineBanner(),
                                 _BalanceCard(
                                   balance: _balance,
                                   totalPayouts: _totalPayouts,
@@ -236,33 +233,6 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWalletSkeleton() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Balance Card Skeleton
-          const AnimatedSkeleton(height: 200, width: double.infinity, borderRadius: 20),
-          const SizedBox(height: 16),
-          // Savings Insight Skeleton
-          const AnimatedSkeleton(height: 76, width: double.infinity, borderRadius: 16),
-          const SizedBox(height: 16),
-          // Analytics Button Skeleton
-          const AnimatedSkeleton(height: 48, width: double.infinity, borderRadius: 12),
-          const SizedBox(height: 24),
-          // Recent Activity Title Skeleton
-          const AnimatedSkeleton(height: 24, width: 150, borderRadius: 6),
-          const SizedBox(height: 16),
-          // Recent Activity Items
-          const AnimatedSkeleton(height: 72, width: double.infinity, borderRadius: 12),
-          const SizedBox(height: 12),
-          const AnimatedSkeleton(height: 72, width: double.infinity, borderRadius: 12),
         ],
       ),
     );
