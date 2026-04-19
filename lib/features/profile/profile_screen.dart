@@ -159,6 +159,159 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Widget _buildZoneRow(ThemeData theme, bool isDark) {
+    final currentZone = _worker?['zone'] as String? ?? 'Not set';
+    return GestureDetector(
+      onTap: () => _showZonePicker(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isDark ? [] : [
+            BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.location_on_rounded, size: 20, color: theme.colorScheme.primary),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Work Zone', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5), fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(currentZone, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit_rounded, size: 12, color: theme.colorScheme.primary),
+                  const SizedBox(width: 4),
+                  Text('Change', style: TextStyle(fontSize: 11, color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showZonePicker() async {
+    final mockSvc = Provider.of<MockDataService>(context, listen: false);
+    final allZones = <String>[];
+    mockSvc.autocompleteCities.forEach((city, zones) {
+      for (final z in zones) { allZones.add('$z|$city'); }
+    });
+    allZones.sort();
+    String filter = '';
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) {
+          final filtered = allZones.where((z) => z.toLowerCase().contains(filter.toLowerCase())).toList();
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.75,
+            decoration: BoxDecoration(
+              color: Theme.of(ctx).cardColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 16),
+                Text('Change Work Zone', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Search zone or city...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: Theme.of(ctx).colorScheme.surface,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onChanged: (v) => setInner(() => filter = v),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final parts = filtered[i].split('|');
+                      final zoneName = parts[0];
+                      final cityName = parts.length > 1 ? parts[1] : '';
+                      return ListTile(
+                        leading: Icon(Icons.location_on_rounded, color: Theme.of(ctx).colorScheme.primary, size: 20),
+                        title: Text(zoneName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: Text(cityName, style: const TextStyle(fontSize: 12)),
+                        onTap: () async {
+                          Navigator.of(ctx).pop();
+                          await StorageService.instance.saveUserZone(zoneName);
+                          // WorkerModel.copyWith only carries zone & issScore,
+                          // so rebuild with city updated too.
+                          final w = mockSvc.worker;
+                          mockSvc.worker = WorkerModel(
+                            id: w.id, name: w.name, platform: w.platform,
+                            city: cityName, zone: zoneName,
+                            weeklyIncomeEstimate: w.weeklyIncomeEstimate,
+                            issScore: w.issScore,
+                          );
+                          mockSvc.notifyListeners();
+                          if (mounted) setState(() => _worker = {...?_worker, 'zone': zoneName, 'city': cityName});
+                          AppEvents.instance.profileUpdated();
+
+                          // Persist change to the backend database
+                          var zoneSynced = false;
+                          if (w.id.isNotEmpty) {
+                            zoneSynced = await ApiService.instance.updateWorkerZone(
+                              w.id,
+                              zoneName,
+                              cityName,
+                            );
+                          }
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(
+                                zoneSynced
+                                    ? 'Zone updated to $zoneName'
+                                    : 'Zone changed locally. Backend sync pending.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ));
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -230,10 +383,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       isDark: isDark,
                       rows: [
                         (Icons.person_rounded, l10n.profile_name, _worker?['name'] as String? ?? 'John Doe'),
-                        (Icons.location_on_rounded, l10n.profile_zone, _worker?['zone'] as String? ?? 'N/A'),
                         (Icons.phone_rounded, l10n.profile_mobile, _worker?['phone'] as String? ?? '+91 98765 43210'),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    // Zone row — tappable to change
+                    _buildZoneRow(theme, isDark),
                     const SizedBox(height: 32),
 
                     // ── Payout Settings ──────────────────────────────────

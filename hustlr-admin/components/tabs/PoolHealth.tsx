@@ -1,10 +1,14 @@
 'use client';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
 import { BCRGauge } from '@/components/BCRGauge';
 import { MetricCard } from '@/components/ui';
+import { useAdminData } from '@/components/AdminContext';
+import AdminApiService from '@/lib/api-service';
+import type { AdminPolicy } from '@/lib/mock-data';
 import { PLAN_CONFIG, WEEKLY_HISTORY } from '@/lib/constants';
 import { fmt, bcrColor } from '@/lib/utils';
 
@@ -13,24 +17,98 @@ interface Props {
   loading: boolean;
 }
 
-const PLAN_DIST = [
-  { name: 'Basic',    value: 30, color: '#3FFF8B66' },
-  { name: 'Standard', value: 50, color: '#3FFF8B' },
-  { name: 'Full',     value: 20, color: '#3FFF8BCC' },
-];
-
-const PLAN_ROWS = [
-  { key: 'basic' as const,    pct: 30, workers: 3000 },
-  { key: 'standard' as const, pct: 50, workers: 5000 },
-  { key: 'full' as const,     pct: 20, workers: 2000 },
-];
-
 export default function PoolHealth({ pool, loading }: Props) {
+  const { analytics } = useAdminData();
+  const [policies, setPolicies] = useState<AdminPolicy[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    AdminApiService.getPolicies({ limit: 300 })
+      .then((res) => {
+        if (alive) setPolicies(Array.isArray(res) ? res : []);
+      })
+      .catch(() => {
+        if (alive) setPolicies([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const bcr     = pool?.bcr ?? 58.3;
   const weekly  = pool?.weeklyPool ?? 490000;
   const active  = pool?.activePolicies ?? 8420;
   const reserve = pool?.reserve ?? 940000;
   const tripped = pool?.circuitBreakerTripped ?? false;
+
+  const weeklyHistory = useMemo(() => {
+    const premiums = analytics?.premiumsTimeline || [];
+    const losses = analytics?.lossRatioTimeline || [];
+    if (premiums.length === 0) return WEEKLY_HISTORY;
+
+    const lossByWeek = new Map(losses.map((l) => [l.week, l.payout]));
+    return premiums.map((p, idx) => ({
+      week: p.week || `Wk ${idx + 1}`,
+      premiums: Number(p.amount ?? 0),
+      claims: Number(lossByWeek.get(p.week) ?? 0),
+    }));
+  }, [analytics?.premiumsTimeline, analytics?.lossRatioTimeline]);
+
+  const planBuckets = useMemo(() => {
+    const buckets = {
+      basic: { count: 0, weeklyPremium: 0 },
+      standard: { count: 0, weeklyPremium: 0 },
+      full: { count: 0, weeklyPremium: 0 },
+    };
+
+    for (const p of policies) {
+      const tier = String((p as any).planTier || (p as any).plan_tier || '').toLowerCase();
+      const weeklyPremium = Number((p as any).weeklyPremium ?? (p as any).weekly_premium ?? 0);
+      if (tier.includes('basic')) {
+        buckets.basic.count += 1;
+        buckets.basic.weeklyPremium += weeklyPremium;
+      } else if (tier.includes('full')) {
+        buckets.full.count += 1;
+        buckets.full.weeklyPremium += weeklyPremium;
+      } else {
+        buckets.standard.count += 1;
+        buckets.standard.weeklyPremium += weeklyPremium;
+      }
+    }
+
+    return buckets;
+  }, [policies]);
+
+  const totalPolicies = planBuckets.basic.count + planBuckets.standard.count + planBuckets.full.count;
+  const planDist = totalPolicies > 0
+    ? [
+        { name: 'Basic', value: Math.round((planBuckets.basic.count / totalPolicies) * 100), color: '#3FFF8B66' },
+        { name: 'Standard', value: Math.round((planBuckets.standard.count / totalPolicies) * 100), color: '#3FFF8B' },
+        { name: 'Full', value: Math.round((planBuckets.full.count / totalPolicies) * 100), color: '#3FFF8BCC' },
+      ]
+    : [
+        { name: 'Basic', value: 30, color: '#3FFF8B66' },
+        { name: 'Standard', value: 50, color: '#3FFF8B' },
+        { name: 'Full', value: 20, color: '#3FFF8BCC' },
+      ];
+
+  const planRows = [
+    {
+      key: 'basic' as const,
+      pct: planDist[0].value,
+      workers: totalPolicies > 0 ? planBuckets.basic.count : 3000,
+    },
+    {
+      key: 'standard' as const,
+      pct: planDist[1].value,
+      workers: totalPolicies > 0 ? planBuckets.standard.count : 5000,
+    },
+    {
+      key: 'full' as const,
+      pct: planDist[2].value,
+      workers: totalPolicies > 0 ? planBuckets.full.count : 2000,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -63,7 +141,7 @@ export default function PoolHealth({ pool, loading }: Props) {
             WEEKLY PREMIUMS vs CLAIMS (8 WEEKS)
           </p>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={WEEKLY_HISTORY} barGap={4}>
+            <BarChart data={weeklyHistory} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="week" tick={{ fill: '#91938D', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#91938D', fontSize: 10 }} axisLine={false} tickLine={false}
@@ -86,8 +164,8 @@ export default function PoolHealth({ pool, loading }: Props) {
         <p className="text-xs font-bold tracking-widest uppercase mb-6" style={{ color: '#91938D' }}>PLAN DISTRIBUTION</p>
         <div className="flex flex-col lg:flex-row items-center gap-8">
           <PieChart width={200} height={200}>
-            <Pie data={PLAN_DIST} cx={100} cy={100} innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
-              {PLAN_DIST.map((e, i) => <Cell key={i} fill={e.color} />)}
+            <Pie data={planDist} cx={100} cy={100} innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
+              {planDist.map((e, i) => <Cell key={i} fill={e.color} />)}
             </Pie>
             <Tooltip
               contentStyle={{ background: '#111311', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
@@ -96,7 +174,7 @@ export default function PoolHealth({ pool, loading }: Props) {
           </PieChart>
 
           <div className="flex-1 w-full space-y-4">
-            {PLAN_ROWS.map(row => {
+            {planRows.map(row => {
               const cfg = PLAN_CONFIG[row.key];
               return (
                 <div key={row.key} className="card-sm p-4">

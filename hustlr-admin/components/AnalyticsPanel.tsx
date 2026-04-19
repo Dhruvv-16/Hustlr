@@ -118,7 +118,7 @@ export default function AnalyticsPanel({ analytics }: Props) {
         ) : (
           <>
             <div className="min-w-0 w-full" style={{ height: 200 }}>
-              <ResponsiveContainer width="99%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                 <AreaChart data={claimsTimeline} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="payoutG" x1="0" y1="0" x2="0" y2="1">
@@ -166,7 +166,7 @@ export default function AnalyticsPanel({ analytics }: Props) {
             <p className="text-sm text-[#555] text-center py-8">No events yet</p>
           ) : (
             <div className="min-w-0 w-full" style={{ height: 180 }}>
-              <ResponsiveContainer width="99%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                 <BarChart data={triggerData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -196,7 +196,7 @@ export default function AnalyticsPanel({ analytics }: Props) {
           ) : (
             <div className="flex items-center justify-around">
               <div className="min-w-0 w-[55%]" style={{ height: 180 }}>
-                <ResponsiveContainer width="99%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie data={severityData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} dataKey="value" strokeWidth={0}>
                       {severityData.map((_, i) => (

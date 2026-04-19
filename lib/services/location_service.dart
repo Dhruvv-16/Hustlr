@@ -178,10 +178,14 @@ class LocationService extends ChangeNotifier {
     _positionStreamSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.best,
-        distanceFilter: 10,
+        distanceFilter: 20, // Hardware filter: only emit after 20m real movement
       ),
     ).listen((position) {
       if (!_isTracking) return;
+
+      // Accuracy guard: ignore noisy fixes (GPS jitter on both web and phone)
+      // A reading worse than 30m accuracy is pure noise when stationary.
+      if (position.accuracy > 30.0) return;
 
       if (_shiftPings.isNotEmpty) {
         final lastPing = _shiftPings.last;
@@ -203,8 +207,11 @@ class LocationService extends ChangeNotifier {
           }
         }
 
-        // Accumulate distance
-        _traveledDistance += (distanceDelta / 1000.0);
+        // Software gate: only accumulate distance if movement >= 20m
+        // This prevents GPS drift noise from inflating the protected distance.
+        if (distanceDelta >= 20.0) {
+          _traveledDistance += (distanceDelta / 1000.0);
+        }
       }
 
       _currentLat = position.latitude;

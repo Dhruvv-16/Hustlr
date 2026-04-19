@@ -1,11 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Installing admin app dependencies"
-npm ci
+echo "Building static export with Next.js"
+npx next build
 
-echo "Building static export"
-npm run build
+if [ ! -d "out" ]; then
+	echo "ERROR: Next.js static export directory 'out' was not generated"
+	exit 1
+fi
 
 echo "Preparing Vercel output directory"
 rm -rf build/web

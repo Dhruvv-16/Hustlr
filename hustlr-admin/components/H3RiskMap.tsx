@@ -1,7 +1,17 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 
-const ZONES = [
+type MapZone = {
+  name: string;
+  lat: number;
+  lng: number;
+  risk: number;
+  claims: number;
+  trigger: string;
+  workers: number;
+};
+
+const BASE_ZONES: MapZone[] = [
   { name: 'Adyar',          lat: 13.0067, lng: 80.2206, risk: 87, claims: 12, trigger: 'Rain',     workers: 43 },
   { name: 'T. Nagar',       lat: 13.0418, lng: 80.2341, risk: 72, claims: 8,  trigger: 'Rain',     workers: 61 },
   { name: 'Anna Nagar',     lat: 13.0850, lng: 80.2101, risk: 55, claims: 5,  trigger: 'Heat',     workers: 34 },
@@ -15,6 +25,10 @@ const ZONES = [
   { name: 'Perambur',       lat: 13.1175, lng: 80.2446, risk: 28, claims: 1,  trigger: 'None',     workers: 15 },
   { name: 'Kattankulathur', lat: 12.8185, lng: 80.0419, risk: 58, claims: 4,  trigger: 'Heat',     workers: 30 },
 ];
+
+const byName: Record<string, Pick<MapZone, 'lat' | 'lng'>> = Object.fromEntries(
+  BASE_ZONES.map((z) => [z.name, { lat: z.lat, lng: z.lng }]),
+);
 
 function riskColor(risk: number): string {
   if (risk >= 81) return '#ff3b59';
@@ -30,9 +44,27 @@ function riskLabel(risk: number): string {
   return 'Low';
 }
 
-export default function H3RiskMap() {
+interface H3RiskMapProps {
+  zones?: Array<{ name: string; risk: number; claims: number; trigger: string; workers: number }>;
+}
+
+export default function H3RiskMap({ zones }: H3RiskMapProps) {
+  const zonesData: MapZone[] =
+    Array.isArray(zones) && zones.length > 0
+      ? zones
+          .map((z) => ({
+            name: z.name,
+            lat: byName[z.name]?.lat ?? 13.028,
+            lng: byName[z.name]?.lng ?? 80.21,
+            risk: Number(z.risk ?? 0),
+            claims: Number(z.claims ?? 0),
+            trigger: String(z.trigger ?? 'None'),
+            workers: Number(z.workers ?? 0),
+          }))
+      : BASE_ZONES;
+
   const mapRef = useRef<HTMLDivElement>(null);
-  const [selected, setSelected] = useState<typeof ZONES[0] | null>(null);
+  const [selected, setSelected] = useState<MapZone | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const initializingRef = useRef(false);
 
@@ -86,7 +118,7 @@ export default function H3RiskMap() {
       }).addTo(map);
 
       // Add circle markers for each zone
-      ZONES.forEach((zone) => {
+      zonesData.forEach((zone) => {
         const color = riskColor(zone.risk);
         const radius = 800 + zone.risk * 8; // bigger = higher risk
 
@@ -167,9 +199,9 @@ export default function H3RiskMap() {
       mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
     };
-  }, []);
+  }, [zonesData]);
 
-  const sorted = [...ZONES].sort((a, b) => b.risk - a.risk);
+  const sorted = [...zonesData].sort((a, b) => b.risk - a.risk);
 
   return (
     <div className="space-y-3">
@@ -194,7 +226,7 @@ export default function H3RiskMap() {
 
         {/* Selected zone overlay */}
         {selected && (
-          <div className="absolute bottom-4 right-4 z-[500] rounded-xl border border-white/20 bg-black/90 backdrop-blur-md p-4 min-w-[180px]">
+          <div className="absolute bottom-4 right-4 z-500 rounded-xl border border-white/20 bg-black/90 backdrop-blur-md p-4 min-w-45">
             <div className="flex items-center justify-between mb-2">
               <span style={{ color: riskColor(selected.risk) }} className="font-bold text-sm">{selected.name}</span>
               <button onClick={() => setSelected(null)} className="text-white/40 hover:text-white text-xs">✕</button>

@@ -5,10 +5,12 @@ import { CompactCard, MiniStat } from '@/components/AdminShared';
 import type { SystemHealth } from '@/lib/mock-data';
 
 function SystemHealthPanel({
-  systemHealth, healthMeta,
+  systemHealth, healthMeta, totalClaims, flaggedClaims,
 }: {
   systemHealth: SystemHealth | null;
   healthMeta: { healthyApis: number; totalApis: number; livePct: number; degraded: boolean };
+  totalClaims: number;
+  flaggedClaims: number;
 }) {
   if (!systemHealth) return null;
   return (
@@ -34,7 +36,8 @@ function SystemHealthPanel({
       <div className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h4 className="text-sm font-semibold text-white">Live Queue Snapshot</h4>
         <div className="mt-3 space-y-2 text-sm text-white/70">
-          <p>Flagged cases: {systemHealth.lastAdjudicatorRun?.claimsCreated ?? 0}</p>
+          <p>Flagged cases: {flaggedClaims}</p>
+          <p>Total claims tracked: {totalClaims}</p>
           <p>Last adjudicator run: {systemHealth.lastAdjudicatorRun ? `${systemHealth.lastAdjudicatorRun.durationMs}ms` : '—'}</p>
           <p>24h errors: {systemHealth.errors24h}</p>
         </div>
@@ -44,11 +47,18 @@ function SystemHealthPanel({
 }
 
 export default function HealthPage() {
-  const { systemHealth, healthMeta } = useAdminData();
+  const { systemHealth, healthMeta, analytics } = useAdminData();
+  const totalClaims = Number(analytics?.summary?.totalClaims ?? 0);
+  const flaggedClaims = Number(analytics?.summary?.flaggedClaims ?? 0);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <CompactCard title="System Health" accent="blue">
-        <SystemHealthPanel systemHealth={systemHealth} healthMeta={healthMeta} />
+        <SystemHealthPanel
+          systemHealth={systemHealth}
+          healthMeta={healthMeta}
+          totalClaims={totalClaims}
+          flaggedClaims={flaggedClaims}
+        />
       </CompactCard>
       <div >
         <CompactCard title="API Live Rate" accent="emerald">

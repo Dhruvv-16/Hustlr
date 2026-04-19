@@ -260,7 +260,7 @@ export default function FraudQueue() {
                             <div className="space-y-4">
                               <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-1.5"><MapPin size={14}/> Background Shift Route</h4>
                               <div className="h-40 bg-[#0A0B0A] border rounded-lg overflow-hidden relative" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                                   <LineChart data={row.gpsTrace} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                                     <XAxis dataKey="x" hide />
                                     <YAxis dataKey="y" hide domain={['dataMin', 'dataMax']} />
@@ -292,7 +292,7 @@ export default function FraudQueue() {
                             <div className="space-y-4">
                               <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-1.5"><AlertTriangle size={14}/> FRS Weight Breakdown</h4>
                               <div className="h-48">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                                   <BarChart data={row.frsBreakdown} layout="vertical" margin={{ left: -10, right: 20 }}>
                                     <XAxis type="number" hide domain={[0, 100]} />
                                     <YAxis dataKey="layer" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} width={110} />

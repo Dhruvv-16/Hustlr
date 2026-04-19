@@ -15,7 +15,6 @@ import '../../core/services/storage_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
@@ -517,10 +516,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // ── Demo Consistency Guard ───────────────────────────────────────────
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
-    final box = Hive.box('appData');
-    final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
-    final isMockUser = mockSvc.worker.id.startsWith('DEMO_') || 
-                       mockSvc.worker.id.startsWith('00000000') || 
+    final isDemoMode = StorageService.getString('isDemoSession') == 'true';
+    final isMockUser = mockSvc.worker.id.startsWith('DEMO_') ||
+                       mockSvc.worker.id.startsWith('00000000') ||
                        userId?.startsWith('00000000') == true ||
                        isDemoMode;
 
@@ -610,13 +608,49 @@ class _DashboardScreenState extends State<DashboardScreen>
           weatherData = weatherFallback;
 
           liveIssScore = mockSvc.worker.issScore;
-          
-          // Construct ESI Work Advisor Data for Demo Mode so it's not empty!
+          final iss = liveIssScore ?? 62;
+
+          // Construct rich ESI Work Advisor data driven by actual ISS score
+          String bandLabel, headline, nudge;
+          List<Map<String, dynamic>> shiftWindows;
+          bool suggestCoverage;
+
+          if (iss >= 80) {
+            bandLabel = 'High Stability';
+            headline = 'Your earnings are consistent, but sudden weather changes could still disrupt your peak windows.';
+            nudge = 'Protect your strong run — even high earners face unexpected disruptions.';
+            suggestCoverage = false;
+            shiftWindows = [
+              {'label': 'Morning', 'time': '7 AM – 11 AM', 'demand': 'High'},
+              {'label': 'Evening', 'time': '6 PM – 9 PM', 'demand': 'Peak'},
+            ];
+          } else if (iss >= 60) {
+            bandLabel = 'Moderate Stability';
+            headline = 'There is a moderate chance of weather or platform issues coming up that might dip your earnings.';
+            nudge = 'An upcoming disruption could cost you ₹${mockSvc.potentialLoss}. A ₹${mockSvc.activePolicy.premium}/week plan covers that.';
+            suggestCoverage = true;
+            shiftWindows = [
+              {'label': 'Late Morning', 'time': '10 AM – 1 PM', 'demand': 'Medium'},
+              {'label': 'Evening', 'time': '5 PM – 8 PM', 'demand': 'High'},
+            ];
+          } else {
+            bandLabel = 'Low Stability';
+            headline = 'High chances of severe weather or outages coming up in your zone. Your earnings are at risk.';
+            nudge = 'You missed ₹${mockSvc.missedAmount} in recent events. Don\'t lose out again. Coverage starts at ₹35/week.';
+            suggestCoverage = true;
+            shiftWindows = [
+              {'label': 'Mid-morning', 'time': '9 AM – 12 PM', 'demand': 'Medium'},
+              {'label': 'Evening', 'time': '6 PM – 9 PM', 'demand': 'High'},
+            ];
+          }
+
           workAdvisorData = {
-            'earning_stability_index': liveIssScore,
-            'stability_band_label': (liveIssScore ?? 0) > 80 ? 'High Stability' : 'Moderate Stability',
-            'headline': 'Your ESI is updated locally.',
-            'coverage_nudge': 'Stay protected.',
+            'earning_stability_index': iss,
+            'stability_band_label': bandLabel,
+            'headline': headline,
+            'coverage_nudge': nudge,
+            'suggest_activate_coverage': suggestCoverage,
+            'recommended_shift_windows': shiftWindows,
           };
 
           isLoading = false;

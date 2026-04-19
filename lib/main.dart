@@ -19,6 +19,7 @@ import 'services/mock_data_service.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/claims/claims_bloc.dart';
+import 'blocs/policy/policy_bloc.dart';
 import 'services/api_service.dart';
 
 Future<void> main() async {
@@ -58,11 +59,18 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider(create: (_) => MockDataService()),
       ],
-      child: BlocProvider<ClaimsBloc>(
-        create: (_) => ClaimsBloc(
-          apiService: ApiService.instance,
-          supabase: null,
-        ),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<ClaimsBloc>(
+            create: (_) => ClaimsBloc(
+              apiService: ApiService.instance,
+              supabase: null,
+            ),
+          ),
+          BlocProvider<PolicyBloc>(
+            create: (_) => PolicyBloc(apiService: ApiService.instance),
+          ),
+        ],
         child: const ShieldGigApp(),
       ),
     ),

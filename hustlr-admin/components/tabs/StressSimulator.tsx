@@ -1,8 +1,10 @@
 'use client';
+import { useEffect, useRef } from 'react';
 import { useStressStore } from '@/lib/store';
 import { SliderRow } from '@/components/ui';
 import { fmt, bcrColor } from '@/lib/utils';
 import { SimParams } from '@/lib/constants';
+import { useAdminData } from '@/components/AdminContext';
 
 const PRESETS: Array<{ label: string; emoji: string } & Partial<SimParams>> = [
   { label: 'Cyclone Michaung', emoji: '🌀', workers: 8000, days: 4, realizationRate: 80, pctBasic: 30, pctStandard: 50, pctFull: 20 },
@@ -18,9 +20,30 @@ const STATUS_STYLES = {
 };
 
 export default function StressSimulator() {
+  const { analytics, poolSummary } = useAdminData();
   const { params, result, computing, setParam, loadPreset } = useStressStore();
+  const seededFromLiveRef = useRef(false);
   const planSum = params.pctBasic + params.pctStandard + params.pctFull;
   const sc = result ? STATUS_STYLES[result.status] : null;
+
+  useEffect(() => {
+    if (seededFromLiveRef.current) return;
+    const totalPremium = Number(analytics?.summary?.totalPremium ?? 0);
+    const totalPayout = Number(analytics?.summary?.totalPayout ?? 0);
+    const activePolicies = Number(poolSummary?.activePolicies ?? 0);
+    if (totalPremium <= 0) return;
+
+    const inferredRealization = Math.max(
+      50,
+      Math.min(100, Math.round((totalPayout / totalPremium) * 100)),
+    );
+
+    loadPreset({
+      workers: activePolicies > 0 ? activePolicies : params.workers,
+      realizationRate: inferredRealization,
+    });
+    seededFromLiveRef.current = true;
+  }, [analytics?.summary, poolSummary?.activePolicies, loadPreset, params.workers]);
 
   return (
     <div className="space-y-6">

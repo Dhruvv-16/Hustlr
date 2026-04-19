@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html if (dart.library.io) 'dart:io' show File;
+
 // These imports are only used in the non-web path, but they are safe to import
 // on web because path_provider and open_filex both provide stub implementations.
 // dart:io is accessed only inside kIsWeb guards below.
@@ -138,7 +141,15 @@ class PdfGenerator {
     final fileName = 'Hustlr_Certificate_$safePolicyNo.pdf';
 
     if (kIsWeb) {
-      throw UnsupportedError('PDF file open is not supported on web builds.');
+      // On web, trigger a browser file download instead of native file open.
+      // ignore: avoid_web_libraries_in_flutter
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+      return;
     }
 
     // ignore: avoid_web_libraries_in_flutter

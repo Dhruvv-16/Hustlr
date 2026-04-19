@@ -267,6 +267,34 @@ class ApiService {
     }
   }
 
+  /// Update worker's zone and city in the backend database.
+  /// Returns true when backend confirms persistence.
+  Future<bool> updateWorkerZone(String userId, String zone, String city) async {
+    try {
+      final res = await http.patch(
+        Uri.parse('$baseUrl/workers/$userId'),
+        headers: headers,
+        body: jsonEncode({'zone': zone, 'city': city}),
+      );
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return true;
+      }
+
+      developer.log(
+        '[ApiService] Failed to update zone. status=${res.statusCode}, body=${res.body}',
+        name: 'ApiService',
+      );
+      return false;
+    } catch (e) {
+      developer.log(
+        '[ApiService] Failed to update zone in DB: $e',
+        name: 'ApiService',
+      );
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> registerWorker({
     required String name,
     required String phone,
@@ -341,7 +369,7 @@ class ApiService {
           'id': savedPolicyId,
           'plan_tier': resolvedTier,
           'plan_name': resolvedTier,
-          'weekly_premium': premium?.toString() ?? resolvedPremium.toString(),
+          'weekly_premium': premium ?? resolvedPremium,
           'riders': riders.map((r) => {'name': r, 'cost': 0}).toList(),
           'base_premium': resolvedPremium,
           'zone_adjustment': 0,

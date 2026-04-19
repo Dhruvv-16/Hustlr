@@ -1,16 +1,26 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { MetricCard, SliderRow } from '@/components/ui';
 import { fmt, bcrColor } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { AlertCircle } from 'lucide-react';
+import { useAdminData } from '@/components/AdminContext';
+import AdminApiService from '@/lib/api-service';
+
+type LivePremiums = { basic: number; standard: number; full: number };
 
 export default function ProfitSimulator() {
+  const { analytics, poolSummary } = useAdminData();
   // Inputs
   const [workers, setWorkers] = useState(10000);
   const [lossRatio, setLossRatio] = useState(0.40); // 40%
   const [fraudReduc, setFraudReduc] = useState(0.09); // 9%
   const [zones, setZones] = useState('all');
+  const [premiums, setPremiums] = useState<LivePremiums>({
+    basic: 35,
+    standard: 49,
+    full: 79,
+  });
   
   // Plan mix
   const [pctBasic, setPctBasic] = useState(20);
@@ -25,20 +35,74 @@ export default function ProfitSimulator() {
   const REINSURANCE_ALLOCATION = 0.02;
   const FIXED_COSTS = 50000;
 
-  const PREM_BASIC = 35;
-  const PREM_STD = 49;
-  const PREM_FULL = 79;
-
   // Stress State
   const [isStressed, setIsStressed] = useState(false);
+  const seededFromLiveRef = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    AdminApiService.getPolicies({ limit: 300 })
+      .then((rows) => {
+        if (!alive || !Array.isArray(rows) || rows.length === 0) return;
+
+        const sums = { basic: 0, standard: 0, full: 0 };
+        const counts = { basic: 0, standard: 0, full: 0 };
+
+        for (const p of rows as any[]) {
+          const tier = String(p?.planTier ?? p?.plan_tier ?? '').toLowerCase();
+          const wp = Number(p?.weeklyPremium ?? p?.weekly_premium ?? 0);
+          if (!Number.isFinite(wp) || wp <= 0) continue;
+          if (tier.includes('basic')) {
+            sums.basic += wp;
+            counts.basic += 1;
+          } else if (tier.includes('full')) {
+            sums.full += wp;
+            counts.full += 1;
+          } else {
+            sums.standard += wp;
+            counts.standard += 1;
+          }
+        }
+
+        setPremiums((prev) => ({
+          basic: counts.basic > 0 ? Math.round(sums.basic / counts.basic) : prev.basic,
+          standard:
+            counts.standard > 0 ? Math.round(sums.standard / counts.standard) : prev.standard,
+          full: counts.full > 0 ? Math.round(sums.full / counts.full) : prev.full,
+        }));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (seededFromLiveRef.current) return;
+    const totalPremium = Number(analytics?.summary?.totalPremium ?? 0);
+    const totalPayout = Number(analytics?.summary?.totalPayout ?? 0);
+    const activePolicies = Number(poolSummary?.activePolicies ?? 0);
+    if (totalPremium <= 0) return;
+
+    setWorkers(activePolicies > 0 ? activePolicies : 10000);
+    setLossRatio(Math.max(0.25, Math.min(0.95, totalPayout / totalPremium)));
+
+    const flagged = Number(analytics?.summary?.flaggedClaims ?? 0);
+    const totalClaims = Number(analytics?.summary?.totalClaims ?? 0);
+    const inferredFraudCut = totalClaims > 0 ? Math.min(0.25, Math.max(0.05, (flagged / totalClaims) * 0.3)) : 0.09;
+    setFraudReduc(inferredFraudCut);
+
+    seededFromLiveRef.current = true;
+  }, [analytics?.summary, poolSummary?.activePolicies]);
 
   const activeLossRatio = isStressed ? 0.85 : lossRatio;
 
   // Math
   const blendedWeeklyPremium = (
-    (PREM_BASIC * (pctBasic / 100)) +
-    (PREM_STD * (pctStandard / 100)) +
-    (PREM_FULL * (pctFull / 100))
+    (premiums.basic * (pctBasic / 100)) +
+    (premiums.standard * (pctStandard / 100)) +
+    (premiums.full * (pctFull / 100))
   );
 
   const monthlyPremiumPool = workers * blendedWeeklyPremium * 4.33;
@@ -129,9 +193,9 @@ export default function ProfitSimulator() {
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: planSum !== 100 ? '#FF9800' : '#91938D' }}>
                 Plan Distribution {planSum !== 100 && `(Must sum to 100, currently ${planSum})`}
               </p>
-              <SliderRow label="Basic (₹35)" value={pctBasic} min={0} max={100} format={v => `${v}%`} onChange={setPctBasic} />
-              <SliderRow label="Standard (₹49)" value={pctStandard} min={0} max={100} format={v => `${v}%`} onChange={setPctStandard} />
-              <SliderRow label="Full Shield (₹79)" value={pctFull} min={0} max={100} format={v => `${v}%`} onChange={setPctFull} />
+              <SliderRow label={`Basic (₹${premiums.basic})`} value={pctBasic} min={0} max={100} format={v => `${v}%`} onChange={setPctBasic} />
+              <SliderRow label={`Standard (₹${premiums.standard})`} value={pctStandard} min={0} max={100} format={v => `${v}%`} onChange={setPctStandard} />
+              <SliderRow label={`Full Shield (₹${premiums.full})`} value={pctFull} min={0} max={100} format={v => `${v}%`} onChange={setPctFull} />
             </div>
           </div>
         </div>
@@ -146,7 +210,7 @@ export default function ProfitSimulator() {
                 Live Benefit-Cost Ratio (BCR)
               </p>
               <div className="relative w-40 h-40">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={[ { value: bcr }, { value: 1 - bcr > 0 ? 1 - bcr : 0 } ]}
@@ -214,7 +278,7 @@ export default function ProfitSimulator() {
               Hustlr Revenue Scale Projection
             </p>
             <div className="h-60 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                 <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="workers" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} />

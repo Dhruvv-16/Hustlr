@@ -25,6 +25,17 @@ export type Claim = {
   fps_signals?: Record<string, unknown>;
 };
 
+export type RiskPool = {
+  id?: string;
+  city?: string;
+  zone?: string;
+  risk_type?: string;
+  loss_ratio?: number;
+  bcr?: number;
+  claims_count?: number;
+  active_policies?: number;
+};
+
 // Render free-tier cold starts can take up to 60 s — retry with backoff
 async function apiFetch<T>(path: string, init?: RequestInit, retries = 2): Promise<T> {
   const TIMEOUT_MS = 65_000; // 65 s covers Render cold-start window
@@ -119,4 +130,11 @@ export async function fetchFraudModelHealth() {
       await new Promise((r) => setTimeout(r, 3000));
     }
   }
+}
+
+/** GET /api/admin/risk-pools — admin route used for live zone risk view */
+export async function fetchRiskPools(): Promise<RiskPool[]> {
+  const data = await apiFetch<{ pools?: RiskPool[] } | RiskPool[]>('/api/admin/risk-pools');
+  if (Array.isArray(data)) return data;
+  return Array.isArray(data?.pools) ? data.pools : [];
 }

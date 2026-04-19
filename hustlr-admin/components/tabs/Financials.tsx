@@ -1,19 +1,6 @@
 'use client';
 import { fmt } from '@/lib/utils';
-
-const PNL = [
-  { label: 'Premium Pool',            value:  24000000, color: '#3FFF8B',   bold: false },
-  { label: 'Gross Claims Paid',        value: -12000000, color: '#E24B4A',   bold: false },
-  { label: '+ Fraud Detection Savings', value:  2140000, color: '#3FFF8B88', bold: false },
-  { label: '+ Cap Savings',            value:   780000,  color: '#3FFF8B66', bold: false },
-  { label: 'Net Claims (36.7%)',       value:  -8970000, color: '#E24B4A88', bold: false },
-  { label: 'Operating Costs',          value:  -6110000, color: '#FF980088', bold: false },
-  { label: 'Reserve Fund',             value:  -1960000, color: '#2196F388', bold: false },
-  { label: 'Reinsurance Premium',      value:   -730000, color: '#9C27B088', bold: false },
-  { label: 'Guidewire Platform Fee',   value:   -730000, color: '#FF572288', bold: false },
-  { label: 'Insurer Margin',           value:   2440000, color: '#3FFF8B',   bold: false },
-  { label: 'Net Profit (14.3%)',       value:   3490000,  color: '#3FFF8B',  bold: true  },
-];
+import { useAdminData } from '@/components/AdminContext';
 
 const B2B2C = [
   { workers: '10,000',   rev: '₹4.4L',  arr: '₹52.8L'  },
@@ -34,6 +21,45 @@ const thStyle = { color: 'rgba(255,255,255,0.28)' };
 const rowBorder = { borderColor: 'rgba(255,255,255,0.07)' };
 
 export default function Financials() {
+  const { analytics, poolSummary } = useAdminData();
+
+  const premiums = Number(analytics?.summary?.totalPremium ?? 24000000);
+  const grossClaims = Number(analytics?.summary?.totalPayout ?? 12000000);
+  const fraudSavings = Math.round(grossClaims * 0.12);
+  const capSavings = Math.round(grossClaims * 0.04);
+  const netClaims = -(grossClaims - fraudSavings - capSavings);
+  const operatingCosts = Math.round(premiums * 0.25);
+  const reserveFund = Number(
+    poolSummary?.reserve ?? Math.round((poolSummary?.weeklyPool ?? 490000) * 2),
+  );
+  const reinsurancePremium = Math.round(premiums * 0.03);
+  const platformFee = Math.round(premiums * 0.03);
+  const insurerMargin =
+    premiums +
+    netClaims -
+    operatingCosts -
+    reserveFund -
+    reinsurancePremium -
+    platformFee;
+  const netProfit = insurerMargin;
+
+  const claimsRatio = premiums > 0 ? ((Math.abs(netClaims) / premiums) * 100).toFixed(1) : '0.0';
+  const netMargin = premiums > 0 ? ((netProfit / premiums) * 100).toFixed(1) : '0.0';
+
+  const pnl = [
+    { label: 'Premium Pool',             value: premiums,            color: '#3FFF8B',   bold: false },
+    { label: 'Gross Claims Paid',        value: -grossClaims,        color: '#E24B4A',   bold: false },
+    { label: '+ Fraud Detection Savings', value: fraudSavings,        color: '#3FFF8B88', bold: false },
+    { label: '+ Cap Savings',            value: capSavings,           color: '#3FFF8B66', bold: false },
+    { label: `Net Claims (${claimsRatio}%)`, value: netClaims,       color: '#E24B4A88', bold: false },
+    { label: 'Operating Costs',          value: -operatingCosts,      color: '#FF980088', bold: false },
+    { label: 'Reserve Fund',             value: -reserveFund,         color: '#2196F388', bold: false },
+    { label: 'Reinsurance Premium',      value: -reinsurancePremium,  color: '#9C27B088', bold: false },
+    { label: 'Guidewire Platform Fee',   value: -platformFee,         color: '#FF572288', bold: false },
+    { label: 'Insurer Margin',           value: insurerMargin,        color: '#3FFF8B',   bold: false },
+    { label: `Net Profit (${netMargin}%)`, value: netProfit,          color: '#3FFF8B',   bold: true  },
+  ];
+
   return (
     <div className="space-y-6">
       {/* P&L */}
@@ -44,7 +70,7 @@ export default function Financials() {
           </p>
         </div>
         <div>
-          {PNL.map(row => (
+          {pnl.map(row => (
             <div
               key={row.label}
               className={`flex justify-between px-6 py-3.5 border-b ${row.bold ? 'border-t' : ''}`}
@@ -79,7 +105,7 @@ export default function Financials() {
             </thead>
             <tbody>
               {B2B2C.map((row, i) => (
-                <tr key={i} className="border-b transition-colors hover:bg-white/[0.02]" style={rowBorder}>
+                <tr key={i} className="border-b transition-colors hover:bg-white/2" style={rowBorder}>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', fontWeight: 700 }}>{row.workers}</td>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', fontWeight: 800, color: '#3FFF8B' }}>{row.rev}</td>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', fontWeight: 700, color: '#2196F3' }}>{row.arr}</td>
@@ -106,7 +132,7 @@ export default function Financials() {
             </thead>
             <tbody>
               {ACTUARIAL.map(row => (
-                <tr key={row.tier} className="border-b hover:bg-white/[0.02]" style={rowBorder}>
+                <tr key={row.tier} className="border-b hover:bg-white/2" style={rowBorder}>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', fontWeight: 700 }}>{row.tier}</td>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.45)' }}>₹{row.actuarial}/wk</td>
                   <td className={TD} style={{ borderColor: 'rgba(255,255,255,0.07)', fontWeight: 800, color: '#3FFF8B' }}>₹{row.charged}/wk</td>

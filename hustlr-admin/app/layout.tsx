@@ -1,7 +1,13 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  'http://localhost:3001';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'Hustlr — Parametric Income Insurance for Gig Workers',
     template: '%s | Hustlr',

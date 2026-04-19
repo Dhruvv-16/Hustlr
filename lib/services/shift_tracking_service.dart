@@ -233,7 +233,11 @@ class ShiftTrackingService extends ChangeNotifier {
   }) async {
     try {
       final userId = await StorageService.instance.getUserId();
-      if (userId == null) return;
+      if (userId == null || userId.isEmpty) return;
+      
+      // Stop 404 spam: Only send heartbeats for real backend users (UUIDs), not local phone number logins
+      final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(userId);
+      if (!isUuid) return;
 
       await ApiService.instance.postShiftHeartbeat(
         workerId: userId,

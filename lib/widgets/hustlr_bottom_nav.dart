@@ -45,38 +45,40 @@ class HustlrBottomNav extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(_items.length, (index) {
             final isActive = currentIndex == index;
-            return GestureDetector(
-              onTap: () => onTap(index),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: isActive ? activeColor : Colors.transparent,
-                      shape: BoxShape.circle,
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onTap(index),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: isActive ? activeColor : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _items[index].icon,
+                        color: isActive
+                            ? (isDark ? const Color(0xFF0a0b0a) : Colors.white)
+                            : inactiveColor,
+                        size: 24,
+                      ),
                     ),
-                    child: Icon(
-                      _items[index].icon,
-                      color: isActive
-                          ? (isDark ? const Color(0xFF0a0b0a) : Colors.white)
-                          : inactiveColor,
-                      size: 24,
+                    const SizedBox(height: 2),
+                    Text(
+                      _items[index].label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? activeTextColor : inactiveColor,
+                        letterSpacing: 0.8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _items[index].label,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? activeTextColor : inactiveColor,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }),
