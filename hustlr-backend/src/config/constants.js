@@ -308,7 +308,7 @@ module.exports = {
   ACTIVITY_LOADING: {
     above_20_days: 1.0,
     between_7_20: 1.08,
-    below_7_days: null,
+    below_7_days: 1.15,
   },
   MONSOON_SURCHARGE: 0.22,
   REINSURANCE_TRIGGER: 4.0,

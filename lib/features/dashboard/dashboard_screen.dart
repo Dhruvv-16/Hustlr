@@ -106,11 +106,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     LocationService.instance.addListener(_onLocationUpdate);
     ShiftTrackingService.instance.addListener(_onShiftUpdate);
 
-    // Ensure we restore any active shift state immediately on mount
-    // to prevent redundant "Go Online" prompts if the service was 
-    // initialized but status was lost or not synced.
-    ShiftTrackingService.instance.restoreActiveShiftOnLaunch();
-
     _loadDashboardData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeRunRiskIdentityReview();
@@ -1022,40 +1017,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           const SizedBox(height: 16),
                           _buildWorkAdvisorCard(),
                         ],
-                        const SizedBox(height: 16),
-                        // ── ACTION SECTION (Go Online / Permissions) ──
-                        // We move this ABOVE the policy cards to prioritize the primary
-                        // worker action: going online to earn.
-                        if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF121512)
-                                  : const Color(0xFFF7FAF7),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.06)
-                                    : const Color(0xFF1B5E20).withValues(alpha: 0.08),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: isDark
-                                      ? Colors.black.withValues(alpha: 0.18)
-                                      : const Color(0xFF1B5E20).withValues(alpha: 0.05),
-                                  blurRadius: 24,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: _buildActionCards(context, l10n),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-
+                        const SizedBox(height: 20),
                         if (policyData != null)
                           _buildActivePolicyCard(
                             planName,
@@ -1066,11 +1028,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           )
                         else
                           _buildNoPolicyCard(l10n),
-
                         const SizedBox(height: 16),
-                        // ── SECONDARY ACTION SECTION (View Cert / Add Coverage) ──
-                        // Only shown if we are already online (the primary action card is hidden)
-                        if (ShiftTrackingService.instance.status != ShiftStatus.offline)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
@@ -1098,16 +1056,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                           child: Column(
                             children: [
                               _buildActionCards(context, l10n),
+                              // Show missed-payouts card only for UNINSURED users
+                              // so it serves as a conversion nudge, not a bug.
+                              if (policyData == null) ...[
+                                const SizedBox(height: 16),
+                                _buildMissedPayoutsCard(pAmount, context, l10n),
+                              ],
                             ],
                           ),
                         ),
-
-                        // Show missed-payouts card only for UNINSURED users
-                        // so it serves as a conversion nudge, not a bug.
-                        if (policyData == null) ...[
-                          const SizedBox(height: 16),
-                          _buildMissedPayoutsCard(pAmount, context, l10n),
-                        ],
                         if (_debugMode) _buildDebugPanel(),
                       ],
                     ),

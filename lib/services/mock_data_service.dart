@@ -1012,26 +1012,6 @@ class MockDataService extends ChangeNotifier {
         LocationService.instance.forceMockLocation('Velachery Dark Store Zone', 12.9815, 80.2180, depthScore: 0.88);
         spoofedZone = 'Velachery Dark Store Zone';
         break;
-      case 'muthu':
-        worker = WorkerModel(id: 'DEMO_MUTHU', name: 'Muthu, 28', platform: 'Zepto', city: 'Chennai', zone: 'Tambaram', weeklyIncomeEstimate: 4500, issScore: 62);
-        activePolicy = PolicyModel(plan: 'None', premium: 0, status: 'INACTIVE', coverageStart: '', coverageEnd: '', riders: [], coverageDescription: '');
-        LocationService.instance.forceMockLocation('Tambaram Dark Store Zone', 12.9249, 80.1000, depthScore: 0.75);
-        spoofedZone = 'Tambaram Dark Store Zone';
-        hasActivePolicy = false;
-        break;
-      case 'fraudster':
-        worker = WorkerModel(id: 'DEMO_FRAUD', name: 'Fraud Attempt', platform: 'Zepto', city: 'Chennai', zone: 'Adyar', weeklyIncomeEstimate: 4200, issScore: 45);
-        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain, heat, outage, AQI covered');
-        LocationService.instance.forceMockLocation('Adyar Dark Store Zone', 13.0067, 80.2206, depthScore: 0.10);
-        spoofedZone = 'Adyar Dark Store Zone';
-        FraudSensorService.mockFraudSpoofing = true;
-        break;
-      case 'santhosh':
-        worker = WorkerModel(id: 'DEMO_SANTHOSH', name: 'Santhosh, 26', platform: 'Zepto', city: 'Chennai', zone: 'OMR', weeklyIncomeEstimate: 4800, issScore: 88);
-        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Clean history specialist');
-        LocationService.instance.forceMockLocation('OMR Dark Store Zone', 12.8948, 80.2210, depthScore: 0.95);
-        spoofedZone = 'OMR Dark Store Zone';
-        break;
       case 'priya':
         worker = WorkerModel(id: 'DEMO_PRIYA', name: 'Priya Mani', platform: 'Zepto', city: 'Chennai', zone: 'T.Nagar', weeklyIncomeEstimate: 3800, issScore: 65);
         activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain and Heat only');

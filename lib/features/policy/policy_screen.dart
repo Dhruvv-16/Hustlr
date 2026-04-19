@@ -1803,19 +1803,20 @@ class _StickyBottomBar extends StatelessWidget {
         status == 'suspended');
     final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
     final bool isSame = selectedRank == currentRank && currentRank > 0;
-    final bool isDisabled = isDowngrade || isSame || hasActivePolicy;
+    final bool isDisabled = isSame; // Allow upgrade and downgrade, block only if same
 
     String btnText = 'Proceed to\nPayment';
     IconData btnIcon = Icons.arrow_forward_rounded;
-    if (hasActivePolicy) {
-      btnText = 'ACTIVE PLAN';
-      btnIcon = Icons.verified_user_rounded;
-    } else if (isSame) {
+    
+    if (isSame) {
       btnText = 'Already Active';
       btnIcon = Icons.check_circle_rounded;
+    } else if (hasActivePolicy) {
+      btnText = isDowngrade ? 'Downgrade\nPlan' : 'Upgrade\nPlan';
+      btnIcon = isDowngrade ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
     } else if (isDowngrade) {
-      btnText = 'Downgrade\nUnavailable';
-      btnIcon = Icons.block_rounded;
+      btnText = 'Downgrade\nPlan';
+      btnIcon = Icons.arrow_downward_rounded;
     }
 
     return Container(

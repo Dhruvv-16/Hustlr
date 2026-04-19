@@ -115,35 +115,66 @@ router.post('/debit', async (req, res) => {
 });
 
 // POST /wallet/initiate-upi
-router.post('/initiate-upi', async (req, res) => {
-  const { user_id, amount, upi_id } = req.body;
+// POST /wallet/withdraw - Unified endpoint for UPI and Bank withdrawals
+router.post('/withdraw', async (req, res) => {
+  const { user_id, amount, destination, upi_id } = req.body;
   
   if (!user_id || !amount) {
     return res.status(400).json({ error: 'Missing required parameters' });
   }
   
-  // Create a deterministic key based on user, amount, and the current minute
-  // This prevents accidental double-taps within the same minute
-  const minuteWindow = new Date().toISOString().slice(0, 16); 
-  const idempotencyKey = crypto.createHash('sha256').update(`withdraw-${user_id}-${amount}-${minuteWindow}`).digest('hex');
-
-  const { error } = await supabase.from('wallet_transactions').insert({
-    user_id, 
-    amount: Math.abs(amount), 
-    type: 'debit', 
-    category: 'withdrawal', 
-    upi_ref: upi_id,
-    idempotency_key: idempotencyKey // DB will safely reject if this key already exists
-  });
-  
-  if (error) {
-    if (error.code === '23505') { // Postgres Unique Violation
-      return res.status(409).json({ error: 'Duplicate transaction detected. Please wait a minute before retrying.' });
+  try {
+    // 1. Check current balance
+    const { data: txns, error: balanceError } = await supabase
+      .from('wallet_transactions')
+      .select('amount, type')
+      .eq('user_id', user_id);
+      
+    if (balanceError) throw balanceError;
+    
+    const balance = (txns || []).reduce((acc, t) => 
+      t.type === 'credit' ? acc + t.amount : acc - t.amount, 0);
+      
+    if (balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
     }
-    return res.status(500).json({ error: error.message });
+
+    // 2. Idempotency to prevent double-withdrawals within the same minute
+    const minuteWindow = new Date().toISOString().slice(0, 16); 
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`withdraw-${user_id}-${amount}-${destination}-${minuteWindow}`)
+      .digest('hex');
+
+    // 3. Record the withdrawal
+    const { data: txn, error } = await supabase.from('wallet_transactions').insert({
+      user_id, 
+      amount: Math.abs(amount), 
+      type: 'debit', 
+      category: 'withdrawal',
+      description: `Withdrawal to ${destination.toUpperCase()}${upi_id ? ' (' + upi_id + ')' : ''}`,
+      upi_ref: upi_id,
+      metadata: { destination, upi_id },
+      idempotency_key: idempotencyKey
+    }).select().single();
+    
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Duplicate withdrawal detected. Please wait a minute.' });
+      }
+      throw error;
+    }
+    
+    res.json({ 
+      status: 'success',
+      message: 'Withdrawal processed', 
+      transaction_id: txn.id,
+      amount,
+      destination 
+    });
+  } catch (e) {
+    console.error('[Wallet] Withdraw error:', e.message);
+    res.status(500).json({ error: e.message });
   }
-  
-  res.json({ message: 'Withdrawal initiated successfully', amount, upi_id });
 });
 
 module.exports = router;
