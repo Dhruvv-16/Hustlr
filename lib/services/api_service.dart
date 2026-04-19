@@ -48,7 +48,7 @@ class ApiService {
   }
 
   static const _timeout =
-      Duration(seconds: 60); // 60s — accommodates Render free tier cold starts
+      Duration(seconds: 15); // 15s — enough for Render cold starts but doesn't hang UI
 
   static String get _googleVisionApiKey => Secrets.googleVisionApiKey;
 
