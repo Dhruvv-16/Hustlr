@@ -2014,6 +2014,69 @@ CREATE INDEX IF NOT EXISTS idx_notif_inbox
 CREATE INDEX IF NOT EXISTS idx_disruptions_started_at
   ON disruption_events(started_at DESC);
 
+-- Supabase security check hardening: PostGIS reference table is in public schema.
+-- Keep it read-only for client roles and enable RLS so the public-schema RLS check passes.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'spatial_ref_sys'
+      AND c.relkind = 'r'
+  ) THEN
+    BEGIN
+      EXECUTE 'ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY';
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'spatial_ref_sys'
+          AND policyname = 'spatial_ref_sys_read_all'
+      ) THEN
+        EXECUTE 'CREATE POLICY spatial_ref_sys_read_all ON public.spatial_ref_sys FOR SELECT USING (true)';
+      END IF;
+
+      EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public.spatial_ref_sys FROM anon, authenticated';
+      EXECUTE 'GRANT SELECT ON public.spatial_ref_sys TO anon, authenticated';
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Skipping spatial_ref_sys hardening: insufficient ownership/privileges on PostGIS system table.';
+    END;
+  END IF;
+END;
+$$;
+
+-- Ensure backend (service_role) can persist worker registrations.
+-- Some hardening scripts revoke broad defaults; keep this explicit and idempotent.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'users'
+      AND c.relkind = 'r'
+  ) THEN
+    EXECUTE 'GRANT USAGE ON SCHEMA public TO service_role';
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.users TO service_role';
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'users'
+        AND policyname = 'users_service_role_all'
+    ) THEN
+      EXECUTE 'CREATE POLICY users_service_role_all ON public.users FOR ALL USING (auth.jwt() ->> ''role'' = ''service_role'') WITH CHECK (auth.jwt() ->> ''role'' = ''service_role'')';
+    END IF;
+  END IF;
+END;
+$$;
+
 
 COMMIT;
 
