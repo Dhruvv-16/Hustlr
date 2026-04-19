@@ -33,9 +33,7 @@ class DynamicTranslator {
     final tag = Localizations.localeOf(context).languageCode;
     return DynamicTranslator._(tag);
   }
-
-  static const _apiKey = Secrets.geminiApiKey;
-
+  static String get _apiKey => Secrets.geminiApiKey;
   // ── In-memory cache to avoid re-calling the API for the same string ──────
   static final Map<String, String> _cache = {};
 

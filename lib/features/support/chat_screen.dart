@@ -13,7 +13,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  static const _geminiApiKey = Secrets.geminiApiKey;
+  static String get _geminiApiKey => Secrets.geminiApiKey;
   final TextEditingController _messageController = TextEditingController();
 
   bool _isTyping = false;
