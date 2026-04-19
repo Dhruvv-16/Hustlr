@@ -367,5 +367,4 @@ class ClaimsBloc extends Bloc<ClaimsEvent, ClaimsState> {
     }
   }
 
-  @override
 }
