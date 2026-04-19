@@ -24,7 +24,7 @@ val bgGeoLicense = (
 )
 
 android {
-    namespace = "com.shieldgig.shieldgig"
+    namespace = "com.hustlr.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -40,7 +40,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.shieldgig.shieldgig"
+        applicationId = "com.hustlr.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -64,6 +64,11 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 

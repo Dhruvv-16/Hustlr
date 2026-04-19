@@ -63,11 +63,11 @@ dependencies:
   background_fetch: ^1.3.8
   app_settings: ^5.1.1 # Deep-links to battery optimization settings
 
-
   flutter_local_notifications: ^21.0.0
   camera: ^0.12.0+1
   connectivity_plus: ^7.1.1
   uuid: ^4.5.3
+  webview_flutter: ^4.13.1
 
 dev_dependencies:
   flutter_test:
@@ -86,7 +86,7 @@ flutter:
   generate: true
   uses-material-design: true
   assets:
+    - assets/icon.png
     - assets/images/
     - assets/icons/
     - assets/lottie/
-

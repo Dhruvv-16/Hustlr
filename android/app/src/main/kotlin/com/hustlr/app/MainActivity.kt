@@ -1,4 +1,4 @@
-package com.shieldgig.shieldgig
+package com.hustlr.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
