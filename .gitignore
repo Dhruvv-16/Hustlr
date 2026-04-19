@@ -169,6 +169,9 @@ hustlr_ml_complete/
 # APK releases (too large for GitHub free tier)
 releases/*.apk
 
+# Large training datasets are local artifacts; do not commit
+hustlr-ml/outputs/datasets/prophet_training.csv
+
 # Flutter build cache (auto-generated, can be huge)
 build/
 .dart_tool/flutter_build/
