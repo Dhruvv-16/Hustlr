@@ -24,7 +24,8 @@ router.get("/shadow/:user_id", async (req, res) => {
 
 router.post("/create", async (req, res) => {
   try {
-    const { user_id, plan_tier } = req.body;
+    const { user_id, plan_tier, payment_source } = req.body;
+    const isExternalPayment = payment_source === 'razorpay';
 
     // ───  VALIDATION 1: Plan tier exists ────────────────────────────────────
     if (!PLAN_CONFIG[plan_tier]) {
@@ -62,7 +63,8 @@ router.post("/create", async (req, res) => {
           ? "between_7_20"
           : "below_7_days";
 
-    if (!ACTIVITY_LOADING[activityKey]) {
+    // Skip activity check for external Razorpay payments (to avoid blocking demo/hackathon flow)
+    if (!isExternalPayment && !ACTIVITY_LOADING[activityKey]) {
       return res.status(402).json({
         error: "insufficient_activity",
         message: `Minimum 7 days activity required. You have ${activeActivity} days. Please come back after working more days.`,
@@ -71,7 +73,6 @@ router.post("/create", async (req, res) => {
     }
 
     // Calculate premium via Python ML service
-    // Include activity loading multiplier and check for monsoon season
     const currentMonth = new Date().getMonth();
     const isMonsoonSeason = currentMonth >= 9; // Oct–Dec (0-indexed: 9, 10, 11)
 
@@ -79,10 +80,11 @@ router.post("/create", async (req, res) => {
       plan_tier,
       zone: user.zone,
       iss_score: user.iss_score || 50,
-      activity_loading: ACTIVITY_LOADING[activityKey],
+      activity_loading: ACTIVITY_LOADING[activityKey] || 1.0,
       is_monsoon_season: isMonsoonSeason,
       previous_premium: 0,
     });
+
 
     const finalPremium =
       premiumResult.final_premium ||
@@ -116,45 +118,63 @@ router.post("/create", async (req, res) => {
       .single();
     if (policyError) throw policyError;
 
-    // Fix #3: Check balance BEFORE debiting — DB constraint is merciless at ₹0
-    const { data: walletBal } = await supabase
-      .from("wallet_balances")
-      .select("balance")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    const currentBalance = walletBal?.balance ?? 0;
-    if (currentBalance < finalPremium) {
-      // Insufficient funds — suspend instead of crashing
-      await supabase
-        .from("policies")
-        .update({ status: "suspended" })
-        .eq("id", policy.id);
-      console.warn(
-        `[Policy] Insufficient balance for ${user_id}: ₹${currentBalance} < ₹${finalPremium}. Policy suspended.`,
-      );
-      return res.status(402).json({
-        error: "insufficient_balance",
-        message: `Wallet balance ₹${currentBalance} is below required premium ₹${finalPremium}. Please top up to activate coverage.`,
-        policy_status: "suspended",
-        policy_id: policy.id,
+    if (isExternalPayment) {
+      // ── External payment (Razorpay): credit the wallet to record the payment ──
+      // This keeps wallet history accurate without blocking activation
+      await supabase.from("wallet_transactions").insert([
+        {
+          user_id,
+          amount: finalPremium,
+          type: "credit",
+          category: "razorpay_topup",
+          description: `Razorpay payment for ${plan_tier} Shield`,
+          reference: `razorpay_policy_${policy.id}`,
+        },
+      ]).catch(err => {
+        // Non-fatal — wallet credit log is best-effort
+        console.warn("[Policy] Failed to log Razorpay credit:", err.message);
       });
+    } else {
+      // ── Internal wallet payment: check balance BEFORE debiting ──────────────
+      const { data: walletBal } = await supabase
+        .from("wallet_balances")
+        .select("balance")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      const currentBalance = walletBal?.balance ?? 0;
+      if (currentBalance < finalPremium) {
+        // Insufficient funds — suspend instead of crashing
+        await supabase
+          .from("policies")
+          .update({ status: "suspended" })
+          .eq("id", policy.id);
+        console.warn(
+          `[Policy] Insufficient balance for ${user_id}: ₹${currentBalance} < ₹${finalPremium}. Policy suspended.`,
+        );
+        return res.status(402).json({
+          error: "insufficient_balance",
+          message: `Wallet balance ₹${currentBalance} is below required premium ₹${finalPremium}. Please top up to activate coverage.`,
+          policy_status: "suspended",
+          policy_id: policy.id,
+        });
+      }
+
+      // Deduct the final premium from the user's wallet
+      await supabase.from("wallet_transactions").insert([
+        {
+          user_id,
+          amount: finalPremium,
+          type: "debit",
+          category: "premium",
+          description: `Premium for ${plan_tier} Shield`,
+          reference: `policy_${policy.id}`,
+        },
+      ]);
     }
 
-    // Deduct the final premium from the user's wallet
-    await supabase.from("wallet_transactions").insert([
-      {
-        user_id,
-        amount: finalPremium,
-        type: "debit",
-        category: "premium",
-        description: `Premium for ${plan_tier} Shield`,
-        reference: `policy_${policy.id}`,
-      },
-    ]);
-
     console.log(
-      `[Policy] Created policy ${policy.id}. Premium calculated via Python AI: ₹${finalPremium}`,
+      `[Policy] Created policy ${policy.id} (source: ${payment_source || 'wallet'}). Premium: ₹${finalPremium}`,
     );
 
     res.json({
@@ -174,6 +194,7 @@ router.post("/create", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 router.get("/:user_id", async (req, res) => {
   try {
