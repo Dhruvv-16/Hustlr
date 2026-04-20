@@ -1390,6 +1390,7 @@ class ApiService {
     required String userId,
     required String planTier,
     List<Map<String, dynamic>>? riders,
+    String? paymentSource, // e.g. 'razorpay' — skips wallet deduction on backend
   }) async {
     try {
       final res = await http
@@ -1400,6 +1401,7 @@ class ApiService {
               'user_id': userId,
               'plan_tier': planTier,
               'riders': riders,
+              if (paymentSource != null) 'payment_source': paymentSource,
             }),
           )
           .timeout(const Duration(seconds: 30)); // Increased for Render cold starts

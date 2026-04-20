@@ -1,4 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+
+import '../policy/razorpay_bridge_io.dart' if (dart.library.html) '../policy/razorpay_bridge_web.dart'
+    as razorpay_bridge;
+
+import '../../blocs/claims/claims_bloc.dart';
+import '../../blocs/claims/claims_event.dart';
+import '../../blocs/policy/policy_bloc.dart';
+import '../../blocs/policy/policy_event.dart';
+import '../../core/router/app_router.dart';
+import '../../services/api_service.dart';
+import '../../services/app_events.dart';
+import '../../services/mock_data_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/storage_service.dart';
+import 'package:provider/provider.dart';
 
 import 'wallet_tab_screen.dart';
 
@@ -32,17 +49,167 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _loading = false;
+
+  String _resolvePlanTier() {
+    final rawName = widget.planName.toLowerCase();
+    if (rawName.contains('full')) return 'full';
+    if (rawName.contains('basic')) return 'basic';
+    return 'standard';
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    razorpay_bridge.initializeRazorpay(
+      onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
+      onPaymentError: (message) {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: $message'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+      onExternalWallet: (walletName) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('External wallet: $walletName'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
+    razorpay_bridge.disposeRazorpay();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _openRazorpayCheckout() async {
+    setState(() => _loading = true);
+    
+    final total = widget.amount.toInt();
+    final planName = widget.planName;
+    final userId = await StorageService.instance.getUserId();
+
+    const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; 
+    
+    var options = {
+      'key': razorpayTestKey,
+      'amount': total * 100,
+      'currency': 'INR',
+      'name': 'Hustlr Insurance',
+      'description': '$planName Coverage',
+      'image': 'https://hustlr.in/logo.png',
+      'prefill': {
+        'contact': '',
+        'email': '',
+      },
+      'theme': {
+        'color': '#2E7D32',
+      },
+      'notes': {
+        'plan': planName,
+        'user_id': userId ?? 'unknown',
+      },
+    };
+
+    try {
+      await razorpay_bridge.openRazorpay(options);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _verifyAndCreatePolicy(String paymentId) async {
+    String? currentUserId;
+    try {
+      final userId = await StorageService.instance.getUserId();
+      if (userId == null || userId.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please complete login/onboarding before payment.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      currentUserId = userId;
+      final planTier = _resolvePlanTier();
+      final finalPremium = widget.amount.toInt();
+
+      final result = await ApiService.instance.createPolicy(
+        userId: userId,
+        planTier: planTier,
+        riders: null, // Since we only get amount and planName
+        paymentSource: 'razorpay', // Payment collected externally — skip wallet deduction
+      );
+
+      NotificationService.instance.addPremiumDeducted(
+        finalPremium,
+        planName: widget.planName,
+      );
+
+      final mock = context.read<MockDataService>();
+      mock.activatePolicy(planTier); 
+
+      final policyId = result['policy']?['id'] as String?;
+      if (policyId != null) {
+        await StorageService.instance.savePolicyId(policyId);
+      }
+
+      AppEvents.instance.policyUpdated();
+      AppEvents.instance.walletUpdated();
+      if (currentUserId != null) {
+        final uid = currentUserId;
+        if (mounted) {
+          context.read<PolicyBloc>().add(LoadPolicy(uid));
+          context.read<ClaimsBloc>().add(LoadClaims(uid));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating policy: $e'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+    context.go(AppRoutes.dashboard);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Payment successful! Coverage is active.',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
+        ),
+        backgroundColor: const Color(0xFF2E7D32),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
@@ -53,30 +220,40 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           ? _buildStickyBottom(
               amount: widget.amount,
               buttonLabel: 'Proceed to Pay ₹${widget.amount.toInt()} →',
-              onTap: () {
-                // Razorpay checkout will be triggered here
-              },
+              onTap: _loading ? () {} : _openRazorpayCheckout,
             )
           : null,
-      body: Column(
+      body: Stack(
         children: [
-          _buildHeader(),
-          _buildTabBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildCardUpiTab(),
-                WalletTabScreen(
-                  amount: widget.amount,
-                  onSwitchToCard: () {
-                    _tabController.animateTo(0);
-                    setState(() {}); // refresh bottomNavBar
-                  },
+          Column(
+            children: [
+              _buildHeader(),
+              _buildTabBar(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCardUpiTab(),
+                    WalletTabScreen(
+                      amount: widget.amount,
+                      planName: widget.planName,
+                      onSwitchToCard: () {
+                        _tabController.animateTo(0);
+                        setState(() {}); 
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (_loading)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(kDarkGreen)),
+              ),
+            ),
         ],
       ),
     );
