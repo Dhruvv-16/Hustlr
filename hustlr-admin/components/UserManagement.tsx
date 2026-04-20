@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Search, Filter, MoreHorizontal, Edit, Shield, TrendingUp } from 'lucide-react';
 import AdminApiService from '@/lib/api-service';
+import { useAdminData } from '@/components/AdminContext';
 import type { AdminUser } from '@/lib/mock-data';
 
 export default function UserManagement() {
@@ -12,9 +13,11 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editScore, setEditScore] = useState<number>(0);
 
+  const { useMockData, lastRefresh } = useAdminData();
+
   useEffect(() => {
     loadUsers();
-  }, [tierFilter]);
+  }, [tierFilter, useMockData, lastRefresh]);
 
   const loadUsers = async () => {
     setLoading(true);

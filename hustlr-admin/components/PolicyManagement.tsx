@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Search, Filter, MoreHorizontal, Calendar, IndianRupee, AlertCircle, PauseCircle } from 'lucide-react';
 import AdminApiService from '@/lib/api-service';
+import { useAdminData } from '@/components/AdminContext';
 import type { AdminPolicy } from '@/lib/mock-data';
 
 export default function PolicyManagement() {
@@ -11,9 +12,11 @@ export default function PolicyManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPolicy, setSelectedPolicy] = useState<AdminPolicy | null>(null);
 
+  const { useMockData, lastRefresh } = useAdminData();
+
   useEffect(() => {
     loadPolicies();
-  }, [statusFilter]);
+  }, [statusFilter, useMockData, lastRefresh]);
 
   const loadPolicies = async () => {
     setLoading(true);

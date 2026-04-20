@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function PoolHealth({ pool, loading }: Props) {
-  const { analytics } = useAdminData();
+  const { analytics, useMockData, lastRefresh } = useAdminData();
   const [policies, setPolicies] = useState<AdminPolicy[]>([]);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function PoolHealth({ pool, loading }: Props) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [useMockData, lastRefresh]);
 
   const bcr     = pool?.bcr ?? 0;
   const weekly  = pool?.weeklyPool ?? 0;

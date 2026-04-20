@@ -272,7 +272,7 @@ class AdminApiService {
 
       if (response.ok) {
         const data = await response.json();
-        return data.policies as AdminPolicy[];
+        return (data.policies || []) as AdminPolicy[];
       }
       throw new Error(`Failed to load policies: ${response.status}`);
     } catch (e) {

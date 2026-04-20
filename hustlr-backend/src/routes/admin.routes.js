@@ -372,7 +372,7 @@ router.get(
           : [];
         const activePolicy =
           policies.find(
-            (p) => p.status === "active" || p.status === "renewed",
+            (p) => p.status?.toLowerCase() === "active" || p.status?.toLowerCase() === "renewed",
           ) || null;
 
         const lastClaimTs = claims
@@ -814,13 +814,16 @@ router.get(
 );
 router.get("/policies", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const pageNum = toInt(req.query.page, 1);
+    const limitNum = toInt(req.query.limit, 100);
     const { status, plan } = req.query;
 
     console.log("[Admin] Fetching policies...");
     let query = supabase
       .from("policies")
-      .select("*") // Use * to ensure we get everything, including commitment_end
-      .order("created_at", { ascending: false });
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
     if (status) query = query.eq("status", status);
     if (plan) query = query.eq("plan_tier", plan);
