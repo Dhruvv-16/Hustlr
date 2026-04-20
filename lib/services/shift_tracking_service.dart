@@ -127,7 +127,6 @@ class ShiftTrackingService extends ChangeNotifier {
           foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationTitle: "Shift Protection Active",
             notificationText: "Hustlr is protecting your earnings in the background.",
-            notificationChannelId: 'hustlr_shift_service', // silent low-priority channel
             enableWakeLock: true,
           ),
         ),

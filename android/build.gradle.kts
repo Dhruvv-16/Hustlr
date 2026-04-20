@@ -7,12 +7,14 @@ allprojects {
         resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.1.0")
         resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0")
         resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
+        resolutionStrategy.force("androidx.concurrent:concurrent-futures:1.2.0")
     }
 }
 
 subprojects {
   afterEvaluate {
     if (project.hasProperty("android")) {
+      project.dependencies.add("implementation", "androidx.concurrent:concurrent-futures:1.2.0")
       project.extensions.configure<com.android.build.gradle.BaseExtension> {
         compileOptions {
           sourceCompatibility = JavaVersion.VERSION_17

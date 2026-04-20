@@ -400,6 +400,7 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
           Positioned(
             left: 16,
             bottom: 24,
+            child: FloatingActionButton.extended(
               onPressed: () async {
                 final uid = await StorageService.instance.getUserId();
                 if (uid != null) {
@@ -426,6 +427,8 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                 }
                 if (mounted) context.push(AppRoutes.manualEvidence);
               },
+              label: const Text('Report Manually'),
+              icon: const Icon(Icons.edit_document),
             ),
           ),
         ],

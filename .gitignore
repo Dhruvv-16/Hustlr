@@ -74,7 +74,7 @@ build/
 
 # Logs
 *.log
-logs/
+77: logs/
 
 # Repo root — analyzer / build scratch (was committed as analyze*.txt, build_*.txt, etc.)
 /analyze*.txt
@@ -188,3 +188,7 @@ ml_models/
 # App-layer secrets file
 lib/core/secrets.dart
 lib/firebase_options.dart
+
+# Local Android SDK and ZIP artifacts
+android_sdk/
+*.zip

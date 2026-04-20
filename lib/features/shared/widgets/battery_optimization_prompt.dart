@@ -178,4 +178,3 @@ class _BatteryOptimizationPromptState
     );
   }
 }
-}
