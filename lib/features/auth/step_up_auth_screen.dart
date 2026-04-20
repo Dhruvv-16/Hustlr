@@ -169,6 +169,15 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           setState(() => _state = _VerificationState.idle);
           return;
         }
+        
+        if (result['liveGesture'] != true) {
+          setState(() {
+            _state = _VerificationState.failed;
+            _errorMessage = 'Face and gesture not verified correctly. Please try again.';
+          });
+          return;
+        }
+
         setState(() => _state = _VerificationState.verifying);
         base64Image = result['base64'] as String;
 

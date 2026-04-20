@@ -53,7 +53,6 @@ router.post("/create", async (req, res) => {
       .single();
     if (userError) throw userError;
 
-    // ─── VALIDATION 3: User has minimum activity requirement ────────────────
     const { ACTIVITY_LOADING } = require("../config/constants");
     const activeActivity = user.active_days_last_30 || 0;
     const activityKey =
@@ -61,7 +60,18 @@ router.post("/create", async (req, res) => {
         ? "above_20_days"
         : activeActivity >= 7
           ? "between_7_20"
-          : "below_7_days";
+          : activeActivity >= 5
+            ? "below_7_days"
+            : "below_5_days";
+
+    // ─── UNDERWRITING: Workers with < 5 days -> Lower Tier (Basic only) ───
+    if (activeActivity < 5 && plan_tier !== 'basic') {
+      return res.status(403).json({
+        error: "tier_restricted",
+        message: "As a new partner (under 5 active days), you are only eligible for the Basic Shield plan. Complete more deliveries to unlock Standard and Full Shield.",
+        active_days: activeActivity,
+      });
+    }
 
     // Skip activity check for external Razorpay payments (to avoid blocking demo/hackathon flow)
     if (!isExternalPayment && !ACTIVITY_LOADING[activityKey]) {

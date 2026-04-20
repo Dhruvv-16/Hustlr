@@ -445,23 +445,32 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Test Mode',
+                        children: [
+                          const Text(
+                            'Demo Environment',
                             style: TextStyle(
                               color: kDarkGreen,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Card: 5267 3181 8797 5449\n'
-                            'Expiry: any future  CVV: any  OTP: 1234',
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Payouts are enabled after a 7-day probationary period from your first policy activation.',
+                            style: TextStyle(
+                              color: kDarkGreen,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'TEST CARD: 5267 3181 8797 5449\n'
+                            'Expiry: Any Future  CVV: Any  OTP: 1234',
                             style: TextStyle(
                               color: kTextDark,
-                              fontSize: 12,
-                              height: 1.5,
+                              fontSize: 11,
+                              height: 1.4,
                               fontFamily: 'monospace',
                             ),
                           ),

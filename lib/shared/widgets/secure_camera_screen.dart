@@ -483,8 +483,12 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
   }
 
   Widget _buildCaptureButton() {
+    if (widget.mode == CameraMode.kycFace && widget.enforceLiveGesture) {
+      return const SizedBox(height: 72);
+    }
+    
     return GestureDetector(
-      onTap: _capture,
+      onTap: () => _capture(autoTriggered: false),
       child: Container(
         width: 72,
         height: 72,

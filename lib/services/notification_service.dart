@@ -24,6 +24,17 @@ class NotificationService {
     importance: Importance.max,
   );
 
+  /// Low-priority silent channel for the persistent foreground service icon.
+  /// This keeps the icon in the status bar without making noise in the drawer.
+  static const AndroidNotificationChannel _shiftServiceChannel =
+      AndroidNotificationChannel(
+    'hustlr_shift_service',
+    'Shift Protection',
+    description: 'Indicates your shift protection is running in the background.',
+    importance: Importance.min,
+    showBadge: false,
+  );
+
   /// Set callback for handling notification taps
   static void setNotificationTapCallback(NotificationTapCallback callback) {
     _onNotificationTap = callback;
@@ -59,6 +70,7 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
       await androidPlugin?.createNotificationChannel(_defaultChannel);
+      await androidPlugin?.createNotificationChannel(_shiftServiceChannel);
       await androidPlugin?.requestNotificationsPermission();
 
       final iosPlugin = _localNotifications.resolvePlatformSpecificImplementation<

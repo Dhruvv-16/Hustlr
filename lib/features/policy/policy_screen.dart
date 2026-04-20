@@ -428,7 +428,7 @@ class _PolicyScreenState extends State<PolicyScreen>
                       controller: _tabController,
                       children: [
                         _CurrentPlanTab(activePolicy: activePolicy),
-                        _UpgradeTab(onProceed: () => context.push(AppRoutes.payment), activePolicy: activePolicy),
+                        _UpgradeTab(onProceed: () => context.push(AppRoutes.checkout, extra: {'amount': 79.0, 'planName': 'Full Shield'}), activePolicy: activePolicy),
                         _LiveHistoryTab(
                           activePolicy: activePolicy,
                           policyHistory: policyHistory,
@@ -794,7 +794,7 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: () => context.push(AppRoutes.payment),
+                    onPressed: () => context.push(AppRoutes.checkout, extra: {'amount': 79.0, 'planName': 'Full Shield'}),
                     child: const Text('Upgrade Now'),
                   ),
                 ],
@@ -821,6 +821,61 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
         _sectionLabel(context, 'ACTIVE COVERAGE'),
         SizedBox(height: isCompact ? 10 : 12),
         _ActiveCoverageCard(activePolicy: widget.activePolicy),
+        
+        // ── 7-Day Waiting Period Notice ──
+        if (widget.activePolicy != null) ...[
+          (() {
+            final createdAtStr = widget.activePolicy!['created_at']?.toString();
+            if (createdAtStr == null) return const SizedBox.shrink();
+            
+            final createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
+            final daysActive = DateTime.now().difference(createdAt).inDays;
+            
+            if (daysActive < 7) {
+              final daysLeft = 7 - daysActive;
+              return Container(
+                margin: EdgeInsets.only(top: isCompact ? 16 : 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, color: Colors.orange, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Waiting Period Active',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Payouts are enabled after 7 days of protection. $daysLeft days remaining.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }()),
+        ],
+
         SizedBox(height: isCompact ? 18 : 24),
         GestureDetector(
           onTap: () => setState(() => _coverageExpanded = !(_coverageExpanded ?? true)),
@@ -1513,12 +1568,11 @@ class _UpgradeTabState extends State<_UpgradeTab> {
               }
             }
 
-            context.push(AppRoutes.payment, extra: <String, dynamic>{
-              'plan': planName,
+            context.push(AppRoutes.checkout, extra: <String, dynamic>{
+              'amount': _totalCost,
+              'planName': planName,
               'planTier': _selectedPlan ?? 'standard',
-              'planCost': planCost,
-              'total': _totalCost,
-              'riders': activeRiders
+              'riders': activeRiders,
             });
           }
         ),
@@ -1569,9 +1623,18 @@ class _PlanCard extends StatelessWidget {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final green  = theme.colorScheme.primary;
-    final cardBg = plan.isElite
-        ? (isDark ? const Color(0xFF2D1A00) : const Color(0xFFF57C00))
-        : theme.cardColor;
+    final gradientBg = plan.isElite
+        ? (isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF4A2B00), Color(0xFF1F1200)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight)
+            : const LinearGradient(
+                colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight))
+        : null;
+    final cardBg = theme.cardColor;
     final borderCol = isSelected
         ? green
         : (isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB));
@@ -1590,7 +1653,8 @@ class _PlanCard extends StatelessWidget {
           Container(
             margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
             decoration: BoxDecoration(
-              color: cardBg,
+              color: plan.isElite ? null : cardBg,
+              gradient: gradientBg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderCol, width: isSelected ? 2 : 1),
             ),
@@ -1803,7 +1867,7 @@ class _StickyBottomBar extends StatelessWidget {
         status == 'suspended');
     final bool isDowngrade = selectedRank < currentRank && currentRank > 0;
     final bool isSame = selectedRank == currentRank && currentRank > 0;
-    final bool isDisabled = isSame; // Allow upgrade and downgrade, block only if same
+    final bool isDisabled = isSame || isDowngrade; // Block same and downgrade
 
     String btnText = 'Proceed to\nPayment';
     IconData btnIcon = Icons.arrow_forward_rounded;
@@ -1811,12 +1875,12 @@ class _StickyBottomBar extends StatelessWidget {
     if (isSame) {
       btnText = 'Already Active';
       btnIcon = Icons.check_circle_rounded;
-    } else if (hasActivePolicy) {
-      btnText = isDowngrade ? 'Downgrade\nPlan' : 'Upgrade\nPlan';
-      btnIcon = isDowngrade ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
     } else if (isDowngrade) {
-      btnText = 'Downgrade\nPlan';
-      btnIcon = Icons.arrow_downward_rounded;
+      btnText = 'Downgrades\nNot Allowed';
+      btnIcon = Icons.block_rounded;
+    } else if (hasActivePolicy) {
+      btnText = 'Upgrade\nPlan';
+      btnIcon = Icons.arrow_upward_rounded;
     }
 
     return Container(

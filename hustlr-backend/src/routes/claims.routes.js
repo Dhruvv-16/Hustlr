@@ -784,7 +784,7 @@ router.post("/manual", async (req, res) => {
   // Underwriting check — 7 days minimum
   const { data: user } = await supabase
     .from("users")
-    .select("created_at, zone")
+    .select("created_at, zone, city")
     .eq("id", user_id)
     .single();
 
@@ -847,7 +847,7 @@ router.post("/manual", async (req, res) => {
           policy_id: policy.id,
           trigger_type: "manual_" + disruption_type,
           zone: user.zone,
-          city: "Chennai",
+          city: user.city || "Unknown",
           severity: 0.7,
           duration_hours: 2.0,
           gross_payout: provisionalAmount,

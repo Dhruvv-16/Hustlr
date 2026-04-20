@@ -220,6 +220,45 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
+                                        // ── 7-Day Waiting Period Banner ──
+                                        if (context.read<MockDataService>().hasActivePolicy || _claims.any((c) => c['status'] == 'PENDING')) 
+                                          FutureBuilder<Map<String, dynamic>>(
+                                            future: StorageService.instance.getUserId().then((uid) => uid != null ? ApiService.instance.getPolicy(uid) : {}),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.hasData && snapshot.data!['policy'] != null) {
+                                                final policy = snapshot.data!['policy'];
+                                                final createdAtStr = policy['created_at']?.toString();
+                                                if (createdAtStr != null) {
+                                                  final createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
+                                                  final daysActive = DateTime.now().difference(createdAt).inDays;
+                                                  if (daysActive < 7) {
+                                                    return Container(
+                                                      margin: const EdgeInsets.only(bottom: 16),
+                                                      padding: const EdgeInsets.all(16),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.orange.withValues(alpha: 0.1),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          const Icon(Icons.info_outline, color: Colors.orange, size: 24),
+                                                          const SizedBox(width: 12),
+                                                          const Expanded(
+                                                            child: Text(
+                                                              'Waiting Period: Automated payouts and manual reports will be enabled after 7 days of protection.',
+                                                              style: TextStyle(fontSize: 13, color: Colors.orange, fontWeight: FontWeight.w500),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              }
+                                              return const SizedBox.shrink();
+                                            },
+                                          ),
                                         _SummaryRow(
                                           totalClaimed: totalClaimed,
                                           totalReceived: totalReceived,
@@ -361,18 +400,32 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
           Positioned(
             left: 16,
             bottom: 24,
-            child: FloatingActionButton.extended(
-              backgroundColor: isDark ? const Color(0xFF3FFF8B) : const Color(0xFF1B5E20),
-              elevation: 4,
-              icon: Icon(Icons.add, color: isDark ? const Color(0xFF0A0B0A) : Colors.white),
-              label: Text(
-                'Report a Disruption',
-                style: TextStyle(
-                  color: isDark ? const Color(0xFF0A0B0A) : Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () => context.push(AppRoutes.manualEvidence),
+              onPressed: () async {
+                final uid = await StorageService.instance.getUserId();
+                if (uid != null) {
+                  final data = await ApiService.instance.getPolicy(uid);
+                  final policy = data['policy'];
+                  if (policy != null) {
+                    final createdAtStr = policy['created_at']?.toString();
+                    if (createdAtStr != null) {
+                      final createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
+                      final daysActive = DateTime.now().difference(createdAt).inDays;
+                      if (daysActive < 7) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Waiting Period: Manual reporting enabled in ${7 - daysActive} days.'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                    }
+                  }
+                }
+                if (mounted) context.push(AppRoutes.manualEvidence);
+              },
             ),
           ),
         ],

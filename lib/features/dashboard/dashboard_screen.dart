@@ -20,6 +20,7 @@ import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
 import '../../models/policy.dart';
+import 'widgets/disruption_alert_overlay.dart';
 
 import '../../features/shared/widgets/battery_optimization_prompt.dart';
 import '../../services/shift_tracking_service.dart';
@@ -91,6 +92,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   // API health check results
   Map<String, String> _apiHealthStatus = {};
   bool _reverifyPromptOpen = false;
+
+  /// Dedup guard: store the ID of the last disruption for which we showed the
+  /// overlay — prevents re-showing the same alert on every 15-min data refresh.
+  String? _lastShownDisruptionId;
+  bool _disruptionOverlayOpen = false;
 
   @override
   void initState() {
@@ -797,11 +803,52 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (hasDisruptions && active && !hasActivePolicy) {
         NotificationService.instance.addMissedPayout(350);
       }
+
+      // ── Rapido-style disruption overlay (workers online with active policy) ──
+      if (active && hasActivePolicy && hasDisruptions && mounted) {
+        final disruptionId = latestDisruption?['id']?.toString() ??
+            latestDisruption?['trigger_type']?.toString() ??
+            'disruption_${DateTime.now().day}';
+        _maybeShowDisruptionOverlay(
+          disruptionId: disruptionId,
+          triggerType: latestDisruption?['trigger_type']?.toString() ?? 'rain',
+          zone: userZone ?? 'Your Zone',
+        );
+      }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
     } finally {
       _isDashboardLoading = false;
     }
+  }
+
+  /// Show the disruption overlay — but only once per unique disruption ID
+  /// and only when the worker is actively online.
+  void _maybeShowDisruptionOverlay({
+    required String disruptionId,
+    required String triggerType,
+    required String zone,
+  }) {
+    if (_disruptionOverlayOpen) return;
+    if (_lastShownDisruptionId == disruptionId) return;
+    if (ShiftTrackingService.instance.status != ShiftStatus.active) return;
+    if (!mounted) return;
+
+    _lastShownDisruptionId = disruptionId;
+    _disruptionOverlayOpen = true;
+
+    // Estimate payout based on plan tier
+    final tier = (policyData?['plan_tier'] as String? ?? 'standard').toLowerCase();
+    final payout = tier.contains('full') ? 300 : (tier.contains('basic') ? 150 : 220);
+
+    DisruptionAlertOverlay.show(
+      context,
+      triggerType: triggerType,
+      zone: zone,
+      estimatedPayout: payout,
+    ).whenComplete(() {
+      if (mounted) setState(() => _disruptionOverlayOpen = false);
+    });
   }
 
   static String _planDisplayName(String? tier) {

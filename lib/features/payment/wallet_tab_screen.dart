@@ -13,10 +13,12 @@ import 'checkout_screen.dart'
 // ─── Wallet tab screen ────────────────────────────────────────────────────────
 class WalletTabScreen extends StatefulWidget {
   final double amount;
+  final String planName;
   final VoidCallback onSwitchToCard;
 
   const WalletTabScreen({
     required this.amount,
+    required this.planName,
     required this.onSwitchToCard,
     super.key,
   });

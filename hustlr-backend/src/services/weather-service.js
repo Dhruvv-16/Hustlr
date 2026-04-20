@@ -17,6 +17,9 @@ const ZONE_COORDS = {
   "OMR (Old Mahabalipuram Road)": { lat: 12.901, lon: 80.2279 },
   "Anna Nagar": { lat: 13.085, lon: 80.2101 },
   "T Nagar": { lat: 13.0418, lon: 80.2341 },
+  "Delhi Central": { lat: 28.6139, lon: 77.209 },
+  "Gurugram Sector 44": { lat: 28.4595, lon: 77.0266 },
+  "Noida Sector 62": { lat: 28.5355, lon: 77.391 },
   default: { lat: 13.0827, lon: 80.2707 },
 };
 

@@ -11,11 +11,18 @@ const AQICN_KEY = process.env.WAQI_API_KEY || process.env.AQICN_API_KEY;
 
 const ZONE_COORDS = {
   "Adyar Dark Store Zone": { lat: 13.0067, lon: 80.2574 },
+  "Delhi Central": { lat: 28.6139, lon: 77.209 },
+  "Gurugram Sector 44": { lat: 28.4595, lon: 77.0266 },
+  "Noida Sector 62": { lat: 28.5355, lon: 77.391 },
   default: { lat: 13.0827, lon: 80.2707 },
 };
 
 function getCoordsForZone(zone) {
   if (ZONE_COORDS[zone]) return ZONE_COORDS[zone];
+  const normalized = (zone || "").toLowerCase();
+  for (const [key, coords] of Object.entries(ZONE_COORDS)) {
+    if (normalized.includes(key.toLowerCase())) return coords;
+  }
   return ZONE_COORDS["default"];
 }
 
@@ -59,15 +66,26 @@ async function getCurrentAQI(zone = "Adyar Dark Store Zone") {
   );
 }
 
-// AQI trigger check: US AQI >= 200 (Severe Pollution)
+// AQI trigger check: US AQI >= 300 (Hazardous - per underwriting slide)
 function assessAQIDisruption(aqi) {
-  if (aqi.aqi >= 200) {
+  if (aqi.aqi >= 300) {
     return {
       trigger_type: "severe_pollution",
+      display_name: "Hazardous AQI",
+      hourly_rate: 60,
+      severity: Math.min(aqi.aqi / 500, 1.0),
+      current_value: `AQI ${aqi.aqi}`,
+      threshold: "AQI 300",
+      source: aqi._source,
+      active: true,
+    };
+  } else if (aqi.aqi >= 200) {
+    return {
+      trigger_type: "aqi_unhealthy",
       display_name: "Severe Pollution",
       hourly_rate: 40,
       severity: Math.min(aqi.aqi / 300, 1.0),
-      current_value: `AQI ${aqi.aqi} (PM2.5: ${aqi.pm25}μg/m³)`,
+      current_value: `AQI ${aqi.aqi}`,
       threshold: "AQI 200",
       source: aqi._source,
       active: true,
