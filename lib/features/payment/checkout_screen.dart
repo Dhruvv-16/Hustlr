@@ -52,6 +52,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _loading = false;
+  int _activeDays = 0;
+  bool _checkingEligibility = true;
   bool _paymentHandled = false;
 
   String _resolvePlanTier() {
@@ -65,6 +67,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _checkEligibility();
     razorpay_bridge.initializeRazorpay(
       onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
       onPaymentError: (message) {
@@ -96,6 +99,38 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     razorpay_bridge.disposeRazorpay();
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkEligibility() async {
+    try {
+      final userId = await StorageService.instance.getUserId();
+      if (userId == null) {
+        setState(() => _checkingEligibility = false);
+        return;
+      }
+
+      // Demo/Persona bypass
+      final isDemoUser = userId.startsWith('DEMO_') ||
+          userId.startsWith('demo-') ||
+          userId.startsWith('mock-') ||
+          StorageService.getString('isDemoSession') == 'true';
+
+      if (isDemoUser) {
+        setState(() {
+          _activeDays = 15; // Mock high experience for demo personas
+          _checkingEligibility = false;
+        });
+        return;
+      }
+
+      final profile = await ApiService.instance.getWorkerById(userId);
+      setState(() {
+        _activeDays = profile['active_days'] ?? 0;
+        _checkingEligibility = false;
+      });
+    } catch (e) {
+      setState(() => _checkingEligibility = false);
+    }
   }
 
   void _openRazorpayCheckout() async {
@@ -228,8 +263,11 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       bottomNavigationBar: _tabController.index == 0
           ? _buildStickyBottom(
               amount: widget.amount,
-              buttonLabel: 'Proceed to Pay ₹${widget.amount.toInt()} →',
-              onTap: _loading ? () {} : _openRazorpayCheckout,
+              buttonLabel: _isEligible
+                  ? 'Proceed to Pay ₹${widget.amount.toInt()} →'
+                  : 'Plan Locked',
+              onTap: (_loading || !_isEligible) ? () {} : _openRazorpayCheckout,
+              enabled: !_loading && _isEligible,
             )
           : null,
       body: Stack(
@@ -237,6 +275,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           Column(
             children: [
               _buildHeader(),
+              if (!_checkingEligibility && !_isEligible) _buildEligibilityBanner(),
               _buildTabBar(),
               Expanded(
                 child: TabBarView(
@@ -246,6 +285,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                     WalletTabScreen(
                       amount: widget.amount,
                       planName: widget.planName,
+                      isEligible: _isEligible,
+                      activeDays: _activeDays,
                       onSwitchToCard: () {
                         _tabController.animateTo(0);
                         setState(() {});
@@ -264,6 +305,54 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                     valueColor: AlwaysStoppedAnimation<Color>(kDarkGreen)),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  bool get _isEligible {
+    final tier = _resolvePlanTier();
+    if (tier == 'basic') return true;
+    return _activeDays >= 5;
+  }
+
+  Widget _buildEligibilityBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: kRedLight,
+        border: const Border(
+          bottom: BorderSide(color: kRedBorder, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: kRed, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _activeDays > 0 ? '${5 - _activeDays} days left to unlock' : 'Complete 5 active days to unlock',
+                  style: const TextStyle(
+                    color: kRed,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Only Basic Shield is available during probation.',
+                  style: TextStyle(
+                    color: kRed.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
