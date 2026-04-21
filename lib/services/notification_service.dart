@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
+import 'api_service.dart';
+import 'storage_service.dart';
 
 typedef NotificationTapCallback = Future<void> Function(Map<String, dynamic> payload);
 
@@ -15,6 +17,7 @@ class NotificationService {
   static int _localNotificationId = 0;
   static bool _localReady = false;
   static NotificationTapCallback? _onNotificationTap;
+  static String? _lastSyncedToken;
 
   static const AndroidNotificationChannel _defaultChannel =
       AndroidNotificationChannel(
@@ -84,6 +87,12 @@ class NotificationService {
     try {
       if (kIsWeb) return; // Skip push notifications on web for demo purposes
 
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
       // Foreground messages - display in notification bar
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         final title = message.notification?.title ?? 'Hustlr Update';
@@ -102,8 +111,37 @@ class NotificationService {
         print('Notification opened app: ${message.data}');
         _onNotificationTap?.call(message.data);
       });
+
+      FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+        await syncDevicePushToken(tokenOverride: token);
+      });
+      await syncDevicePushToken();
     } catch (e) {
       print('Firebase messaging init skipped: $e');
+    }
+  }
+
+  static Future<bool> syncDevicePushToken({String? tokenOverride}) async {
+    try {
+      if (kIsWeb) return false;
+      final userId = StorageService.userId;
+      if (userId.isEmpty) return false;
+
+      final token = (tokenOverride?.trim().isNotEmpty == true)
+          ? tokenOverride!.trim()
+          : (await FirebaseMessaging.instance.getToken() ?? '').trim();
+      if (token.isEmpty) return false;
+      if (_lastSyncedToken == token) return true;
+
+      final ok = await ApiService.instance.registerFcmToken(
+        userId: userId,
+        token: token,
+      );
+      if (ok) _lastSyncedToken = token;
+      return ok;
+    } catch (e) {
+      print('FCM token sync failed: $e');
+      return false;
     }
   }
 

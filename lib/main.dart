@@ -4,7 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-// import 'package:firebase_core/firebase_core.dart'; // enable after adding google-services.json
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'core/router/app_router.dart';
@@ -22,60 +23,100 @@ import 'blocs/claims/claims_bloc.dart';
 import 'blocs/policy/policy_bloc.dart';
 import 'services/api_service.dart';
 import 'services/shift_tracking_service.dart';
+import 'services/notification_service.dart';
+import 'firebase_options.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await NotificationService.showBackgroundNotification(message);
+}
 
+void main() async {
+  // Catch Flutter framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
+    debugPrint('Flutter error: ${details.exception}');
   };
 
+  // Catch unhandled async errors
   PlatformDispatcher.instance.onError = (error, stack) {
-    // Always log errors regardless of build mode.
-    debugPrint('Uncaught app error: $error\n$stack');
-    // Return true to mark the error as handled — prevents the browser from
-    // swallowing the entire Flutter view and rendering a blank white screen.
+    debugPrint('Async error: $error');
     return true;
   };
+  
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase (messaging)
-  // TODO: Add google-services.json / GoogleService-Info.plist before enabling
-  // await Firebase.initializeApp();
-
-  // Ensure storage layers are ready before providers that read Hive/Prefs are built.
-  await _initializeAppServices();
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) {
-            final provider = LocaleProvider();
-            unawaited(provider.loadSavedLocale());
-            return provider;
-          },
-        ),
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider(appBox: Hive.box('appData')),
-        ),
-        ChangeNotifierProvider(create: (_) => MockDataService()),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<ClaimsBloc>(
-            create: (_) => ClaimsBloc(
-              apiService: ApiService.instance,
-              supabase: null,
+    // Add fallback error widget
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('Something went wrong.', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 16),
+                  Text(details.exception.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
             ),
           ),
-          BlocProvider<PolicyBloc>(
-            create: (_) => PolicyBloc(apiService: ApiService.instance),
+        ),
+      );
+    };
+
+    // Firebase (messaging + push)
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Ensure storage layers are ready before providers that read Hive/Prefs are built.
+    await _initializeAppServices();
+    await NotificationService.initialize();
+
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) {
+              final provider = LocaleProvider();
+              unawaited(provider.loadSavedLocale());
+              return provider;
+            },
           ),
+          ChangeNotifierProvider(
+            create: (_) => ThemeProvider(appBox: Hive.box('appData')),
+          ),
+          ChangeNotifierProvider(create: (_) => MockDataService()),
         ],
-        child: const ShieldGigApp(),
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<ClaimsBloc>(
+              create: (_) => ClaimsBloc(
+                apiService: ApiService.instance,
+                supabase: null,
+              ),
+            ),
+            BlocProvider<PolicyBloc>(
+              create: (_) => PolicyBloc(apiService: ApiService.instance),
+            ),
+          ],
+          child: const ShieldGigApp(),
+        ),
       ),
-    ),
-  );
+    );
+  }, (error, stack) {
+    debugPrint('runZonedGuarded caught error: $error\n$stack');
+  });
 }
 
 Future<void> _initializeAppServices() async {
