@@ -483,9 +483,8 @@ class _SecureCameraScreenState extends State<SecureCameraScreen>
   }
 
   Widget _buildCaptureButton() {
-    if (widget.mode == CameraMode.kycFace && widget.enforceLiveGesture) {
-      return const SizedBox(height: 72);
-    }
+    // Always show the capture button to allow manual fallback
+    // if automatic detection is slow or failing.
     
     return GestureDetector(
       onTap: () => _capture(autoTriggered: false),
