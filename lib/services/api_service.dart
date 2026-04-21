@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 
 import 'storage_service.dart';
@@ -27,43 +28,24 @@ class ApiService {
   static String get baseUrl {
     const prod = String.fromEnvironment('HUSTLR_API_PROD');
     const devOverride = String.fromEnvironment('HUSTLR_API_BASE');
-    
-    if (kIsWeb) {
-      if (prod.isNotEmpty) return prod;
-      if (devOverride.isNotEmpty) return devOverride;
-      return _prodUrl;
-    }
-    
-    // In production builds, prioritize prod environment variable, then hardcoded prod URL
-    if (kReleaseMode) {
-      return prod.isNotEmpty ? prod : _prodUrl;
-    }
-    
-    // In debug mode, allow overrides, but ensure regular devices don't see empty host
+    // Default to cloud instead of 127.0.0.1 so app + admin stay in sync by default
+    const cloudDefault = 'https://hustlr-ad32.onrender.com';
+
+    // Always honor explicit override first.
     if (devOverride.isNotEmpty) return devOverride;
     if (prod.isNotEmpty) return prod;
 
-    // Safe default on physical devices when no dart-defines are passed.
-    return _prodUrl;
+    // In debug/profile or release, default to cloud.
+    return cloudDefault;
   }
 
-  static const _timeout =
-      Duration(seconds: 15); // 15s — enough for Render cold starts but doesn't hang UI
+  static const _timeout = Duration(
+      seconds: 15); // 15s — enough for Render cold starts but doesn't hang UI
 
   static String get _googleVisionApiKey => Secrets.googleVisionApiKey;
 
   static final ApiService instance = ApiService._internal();
   ApiService._internal();
-
-  static String _localUuidFromPhone(String phone) {
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final seed = digits.isNotEmpty
-        ? BigInt.parse(digits).toRadixString(16)
-        : DateTime.now().microsecondsSinceEpoch.toRadixString(16);
-    final padded = seed.padLeft(12, '0');
-    final tail = padded.substring(padded.length - 12);
-    return '00000000-0000-4000-8000-$tail';
-  }
 
   static String get mlBackendUrl {
     const prod = String.fromEnvironment(
@@ -72,6 +54,7 @@ class ApiService {
     );
     const devOverride = String.fromEnvironment('HUSTLR_ML_BASE');
     if (devOverride.isNotEmpty) return devOverride;
+    // Always use cloud default even in debug
     return prod;
   }
 
@@ -148,7 +131,8 @@ class ApiService {
             body: jsonEncode({
               'user_id': userId,
               if (phone != null && phone.isNotEmpty) 'phone': phone,
-              if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+              if (deviceId != null && deviceId.isNotEmpty)
+                'device_id': deviceId,
               if (deviceLabel != null && deviceLabel.isNotEmpty)
                 'device_label': deviceLabel,
             }),
@@ -164,6 +148,16 @@ class ApiService {
       accessToken = token;
       currentUserId = userId;
       await StorageService.instance.saveSessionToken(token);
+      try {
+        if (!kIsWeb) {
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          if (fcmToken != null && fcmToken.trim().isNotEmpty) {
+            await registerFcmToken(userId: userId, token: fcmToken);
+          }
+        }
+      } catch (_) {
+        // Non-fatal. Push token sync can retry later.
+      }
       return data;
     } catch (_) {
       const localToken = 'offline-local-session';
@@ -188,18 +182,17 @@ class ApiService {
   }
 
   Future<void> logoutSession() async {
-    final token = accessToken ?? await StorageService.instance.getSessionToken();
+    final token =
+        accessToken ?? await StorageService.instance.getSessionToken();
     try {
       if (token != null && token.isNotEmpty) {
-        await http
-            .post(
-              Uri.parse('$baseUrl/auth/session/logout'),
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $token',
-              },
-            )
-            .timeout(_timeout);
+        await http.post(
+          Uri.parse('$baseUrl/auth/session/logout'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ).timeout(_timeout);
       }
     } catch (_) {
       // Best-effort logout.
@@ -221,6 +214,29 @@ class ApiService {
       throw ApiServiceException(msg, res.statusCode);
     }
     return data;
+  }
+
+  bool _looksLikeUuid(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    final uuidRe = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    return uuidRe.hasMatch(v);
+  }
+
+  Future<bool> _refreshSessionForUser(String userId) async {
+    if (!_looksLikeUuid(userId)) return false;
+    try {
+      final session = await startSession(
+        userId: userId,
+        phone: StorageService.phone.isNotEmpty ? StorageService.phone : null,
+      );
+      final token = session['session_token']?.toString() ?? '';
+      return token.isNotEmpty && token != 'offline-local-session';
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Fetch a worker by ID. Used by [UserBloc] on login.
@@ -295,6 +311,47 @@ class ApiService {
     }
   }
 
+  Future<bool> registerFcmToken({
+    required String userId,
+    required String token,
+  }) async {
+    try {
+      if (userId.trim().isEmpty || token.trim().isEmpty) return false;
+      final res = await http
+          .patch(
+            Uri.parse('$baseUrl/workers/$userId/fcm-token'),
+            headers: headers,
+            body: jsonEncode({'fcm_token': token}),
+          )
+          .timeout(_timeout);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      developer.log(
+        '[ApiService] Failed to register FCM token: $e',
+        name: 'ApiService',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> sendPushTest(String userId) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/workers/$userId/push-test'),
+            headers: headers,
+          )
+          .timeout(_timeout);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      developer.log(
+        '[ApiService] Failed to send push test: $e',
+        name: 'ApiService',
+      );
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> registerWorker({
     required String name,
     required String phone,
@@ -340,9 +397,27 @@ class ApiService {
           .timeout(_timeout);
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) throw Exception('Invalid response');
-      if (res.statusCode == 200) return data;
+      if (res.statusCode == 200) {
+        if (data['policy'] == null) {
+          // Backend confirmed there is no active policy. Clear stale local cache.
+          await StorageService.setPolicyId('');
+          await StorageService.setActiveRiders([]);
+          await StorageService.instance.setPlanTier('');
+          await StorageService.instance.setWeeklyPremium(0);
+        }
+        return data;
+      }
       throw Exception(data['error'] ?? 'Failed to fetch policy');
     } catch (_) {
+      final storedUserId = StorageService.userId;
+      final effectiveUserId = userId.trim().isNotEmpty ? userId : storedUserId;
+      final isDemoUser = effectiveUserId.startsWith('DEMO_') ||
+          effectiveUserId.startsWith('demo-') ||
+          effectiveUserId.startsWith('mock-');
+
+      // Never surface a cached "active" plan for real users when backend fetch fails.
+      if (!isDemoUser) return {'policy': null};
+
       final savedPolicyId = StorageService.policyId;
 
       // No stored policy ID → user has never bought a plan.
@@ -355,7 +430,9 @@ class ApiService {
       final premium = await StorageService.instance.getWeeklyPremium();
       final riders = StorageService.activeRiders;
       final resolvedTier = tier ?? 'Standard Shield';
-      final resolvedPremium = resolvedTier == 'Full Shield' ? 79 : (resolvedTier == 'Basic Shield' ? 35 : 49);
+      final resolvedPremium = resolvedTier == 'Full Shield'
+          ? 79
+          : (resolvedTier == 'Basic Shield' ? 35 : 49);
       final resolvedWeeklyCap = resolvedTier == 'Full Shield'
           ? 500
           : (resolvedTier == 'Basic Shield' ? 210 : 340);
@@ -430,52 +507,50 @@ class ApiService {
       return {
         'claims': [
           {
-            'id':           'demo-claim-apr-001',
-            'user_id':      userId,
+            'id': 'demo-claim-apr-001',
+            'user_id': userId,
             'trigger_type': 'rain_heavy',
-            'zone':         'Adyar',
-            'city':         'Chennai',
-            'status':       'APPROVED',
+            'zone': 'Adyar',
+            'city': 'Chennai',
+            'status': 'APPROVED',
             'gross_payout': 120,
-            'tranche1':     84,
-            'tranche2':     36,
-            'fraud_score':  14,
-            'fps_score':    14,
-            'severity':     0.82,
+            'tranche1': 84,
+            'tranche2': 36,
+            'fraud_score': 14,
+            'fps_score': 14,
+            'severity': 0.82,
             'duration_hours': 3,
-            'created_at':   DateTime.now()
+            'created_at': DateTime.now()
                 .subtract(const Duration(hours: 4))
                 .toIso8601String(),
             // ── Tamper-evident audit receipt ──────────────────────────────
             'audit_receipt_hash':
                 'a3f8c2d1e4b9071a6c5d2e8f3a7b4c9d1e6f2a8b5c7d3e9f1a4b6c8d2e5f7a1',
             'audit_receipt_version': 'HUSTLR-AUDIT-V1',
-            'audit_generated_at':
-                DateTime.now()
-                    .subtract(const Duration(hours: 4))
-                    .toIso8601String(),
+            'audit_generated_at': DateTime.now()
+                .subtract(const Duration(hours: 4))
+                .toIso8601String(),
             'audit_receipt_payload': {
-              'claim_id':           'demo-claim-apr-001',
-              'trigger_type':       'rain_heavy',
-              'trigger_value':      '72.4mm/hr',
-              'trigger_source':     'IMD+OpenWeatherMap',
-              'data_trust_score':   0.85,
-              'fps_score':          14,
-              'fps_tier':           'GREEN',
-              'device_integrity':   'PASS',
-              'zone_depth_score':   0.84,
+              'claim_id': 'demo-claim-apr-001',
+              'trigger_type': 'rain_heavy',
+              'trigger_value': '72.4mm/hr',
+              'trigger_source': 'IMD+OpenWeatherMap',
+              'data_trust_score': 0.85,
+              'fps_score': 14,
+              'fps_tier': 'GREEN',
+              'device_integrity': 'PASS',
+              'zone_depth_score': 0.84,
               'shift_overlap_hours': 3,
-              'gross_payout':       120,
-              'tranche1_amount':    84,
-              'tranche2_amount':    36,
-              'plan_tier':          'STANDARD',
+              'gross_payout': 120,
+              'tranche1_amount': 84,
+              'tranche2_amount': 36,
+              'plan_tier': 'STANDARD',
             },
           }
         ],
       };
     }
   }
-
 
   Future<Map<String, dynamic>> getWallet(String userId) async {
     try {
@@ -644,12 +719,14 @@ class ApiService {
     Map<String, dynamic>? updates,
   }) async {
     try {
-      final res = await http.patch(
-        Uri.parse('$baseUrl/workers/$userId'),
-        headers: headers,
-        body: jsonEncode(updates ?? {}),
-      ).timeout(_timeout);
-      
+      final res = await http
+          .patch(
+            Uri.parse('$baseUrl/workers/$userId'),
+            headers: headers,
+            body: jsonEncode(updates ?? {}),
+          )
+          .timeout(_timeout);
+
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -831,17 +908,32 @@ class ApiService {
     required int amount,
     required String description,
     String? reference,
+    bool didAuthRetry = false,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/wallet/debit'),
-      headers: instance.headers,
-      body: jsonEncode({
-        'user_id': userId,
-        'amount': amount,
-        'description': description,
-        'reference': reference,
-      }),
-    );
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/wallet/debit'),
+          headers: instance.headers,
+          body: jsonEncode({
+            'user_id': userId,
+            'amount': amount,
+            'description': description,
+            'reference': reference,
+          }),
+        )
+        .timeout(_timeout);
+    if (res.statusCode == 401 && !didAuthRetry) {
+      final refreshed = await instance._refreshSessionForUser(userId);
+      if (refreshed) {
+        return walletDebit(
+          userId: userId,
+          amount: amount,
+          description: description,
+          reference: reference,
+          didAuthRetry: true,
+        );
+      }
+    }
     return instance._decodeMap(res);
   }
 
@@ -853,24 +945,24 @@ class ApiService {
     bool bankDirect = false,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/wallet/withdraw'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': userId,
-          'amount': amount,
-          'destination': bankDirect ? 'bank' : 'upi',
-          if (upiId != null && !bankDirect) 'upi_id': upiId,
-        }),
-      ).timeout(_timeout);
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/wallet/withdraw'),
+            headers: headers,
+            body: jsonEncode({
+              'user_id': userId,
+              'amount': amount,
+              'destination': bankDirect ? 'bank' : 'upi',
+              if (upiId != null && !bankDirect) 'upi_id': upiId,
+            }),
+          )
+          .timeout(_timeout);
       return _decodeMap(res);
     } catch (e) {
       if (e is ApiServiceException) rethrow;
       throw ApiServiceException('Withdrawal failed: ${e.toString()}', 0);
     }
   }
-
-
 
   Future<Map<String, dynamic>> getPaymentSandboxConfig() async {
     if (kIsWeb) {
@@ -892,7 +984,9 @@ class ApiService {
           .get(Uri.parse('$baseUrl/payments/sandbox/config'), headers: headers)
           .timeout(_timeout);
       return _decodeMap(res);
-    } catch (e) { throw Exception("API request failed: $e"); }
+    } catch (e) {
+      throw Exception("API request failed: $e");
+    }
   }
 
   Future<Map<String, dynamic>> createPaymentSandboxSession({
@@ -936,7 +1030,9 @@ class ApiService {
           )
           .timeout(_timeout);
       return _decodeMap(res);
-    } catch (e) { throw Exception("API request failed: $e"); }
+    } catch (e) {
+      throw Exception("API request failed: $e");
+    }
   }
 
   Future<Map<String, dynamic>> confirmPaymentSandbox({
@@ -979,7 +1075,9 @@ class ApiService {
           )
           .timeout(_timeout);
       return _decodeMap(res);
-    } catch (e) { throw Exception("API request failed: $e"); }
+    } catch (e) {
+      throw Exception("API request failed: $e");
+    }
   }
 
   static Future<Map<String, dynamic>> createDisruption({
@@ -1018,27 +1116,30 @@ class ApiService {
     String? idempotencyKey,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/claims/manual'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': userId,
-          'disruption_type': disruptionType,
-          'description': description,
-          'evidence_urls': evidenceUrls ?? [],
-          'device_signal_strength': deviceSignalStrength,
-          'sensor_features': sensorFeatures,
-          if (integrityToken != null && integrityToken.isNotEmpty)
-            'integrity_token': integrityToken,
-          if (idempotencyKey != null)
-            'idempotency_key': idempotencyKey,
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/claims/manual'),
+            headers: headers,
+            body: jsonEncode({
+              'user_id': userId,
+              'disruption_type': disruptionType,
+              'description': description,
+              'evidence_urls': evidenceUrls ?? [],
+              'device_signal_strength': deviceSignalStrength,
+              'sensor_features': sensorFeatures,
+              if (integrityToken != null && integrityToken.isNotEmpty)
+                'integrity_token': integrityToken,
+              if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       final data = jsonDecode(res.body);
       if (res.statusCode == 201 || res.statusCode == 200) return data;
 
       throw Exception('Manual claim creation failed: ${res.statusCode}');
-    } catch (e) { throw Exception("API request failed: $e"); }
+    } catch (e) {
+      throw Exception("API request failed: $e");
+    }
   }
 
   // ── Trust & Cashback ─────────────────────────────────────────────────────────
@@ -1102,7 +1203,9 @@ class ApiService {
           )
           .timeout(_timeout);
       return _decodeMap(res);
-    } catch (e) { throw Exception('API failed'); }
+    } catch (e) {
+      throw Exception('API failed');
+    }
   }
 
   // ── Face liveness (step-up auth) ─────────────────────────────────────────────
@@ -1114,7 +1217,8 @@ class ApiService {
     String? expectedGesture,
   }) async {
     if (_googleVisionApiKey.isEmpty) {
-      developer.log('Google Vision API key missing, using local ML Kit face detection');
+      developer.log(
+          'Google Vision API key missing, using local ML Kit face detection');
       return _verifyFaceLivenessLocal(
         imageBase64: imageBase64,
         expectedGesture: expectedGesture,
@@ -1125,87 +1229,93 @@ class ApiService {
       final url = Uri.parse(
         'https://vision.googleapis.com/v1/images:annotate?key=$_googleVisionApiKey',
       );
-      
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "requests": [
-            {
-              "image": {
-                "content": imageBase64
-              },
-              "features": [
+
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              "requests": [
                 {
-                  "type": "FACE_DETECTION",
-                  "maxResults": 5
-                },
-                {
-                  "type": "LABEL_DETECTION",
-                  "maxResults": 10
+                  "image": {"content": imageBase64},
+                  "features": [
+                    {"type": "FACE_DETECTION", "maxResults": 5},
+                    {"type": "LABEL_DETECTION", "maxResults": 10}
+                  ]
                 }
               ]
-            }
-          ]
-        }),
-      ).timeout(_timeout);
+            }),
+          )
+          .timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonResult = jsonDecode(response.body);
         final responses = jsonResult['responses'] as List<dynamic>?;
-        if (responses == null || responses.isEmpty) throw Exception('Empty response from Vision API');
-        
-        final faceAnnotations = responses[0]['faceAnnotations'] as List<dynamic>? ?? [];
-        
+        if (responses == null || responses.isEmpty) {
+          throw Exception('Empty response from Vision API');
+        }
+
+        final faceAnnotations =
+            responses[0]['faceAnnotations'] as List<dynamic>? ?? [];
+
         // 1. Face Count Check: Must be exactly one face
         if (faceAnnotations.isEmpty) {
           return {
             'verified': false,
-            'reason': 'No face detected. Please ensure your face is clearly visible and centered.',
+            'reason':
+                'No face detected. Please ensure your face is clearly visible and centered.',
             'similarity_score': 0.0,
             'method': 'google_cloud_vision',
           };
         }
-        
+
         if (faceAnnotations.length > 1) {
           return {
             'verified': false,
-            'reason': 'Multiple faces detected. Please ensure only you are in the frame.',
+            'reason':
+                'Multiple faces detected. Please ensure only you are in the frame.',
             'similarity_score': 0.0,
             'method': 'google_cloud_vision',
           };
         }
-        
+
         final face = faceAnnotations[0];
-        final detectionConfidence = (face['detectionConfidence'] as num?)?.toDouble() ?? 0.0;
-        
+        final detectionConfidence =
+            (face['detectionConfidence'] as num?)?.toDouble() ?? 0.0;
+
         // 2. Quality Check
         if (detectionConfidence < 0.65) {
           return {
             'verified': false,
-            'reason': 'Face detection confidence too low. Please retake in better lighting.',
+            'reason':
+                'Face detection confidence too low. Please retake in better lighting.',
             'similarity_score': detectionConfidence,
             'method': 'google_cloud_vision',
           };
         }
-        
+
         // 3. Spoofing Check (Label Detection)
         final labels = responses[0]['labelAnnotations'] as List<dynamic>? ?? [];
         final hasScreenIndicators = labels.any((label) {
           final desc = (label['description'] as String).toLowerCase();
           final score = (label['score'] as num?)?.toDouble() ?? 0.0;
-          return score > 0.7 && (desc.contains('screen') || desc.contains('display') || desc.contains('monitor') || desc.contains('television'));
+          return score > 0.7 &&
+              (desc.contains('screen') ||
+                  desc.contains('display') ||
+                  desc.contains('monitor') ||
+                  desc.contains('television'));
         });
-        
+
         if (hasScreenIndicators) {
           return {
             'verified': false,
-            'reason': 'Possible screen capture detected. Please provide a live selfie.',
+            'reason':
+                'Possible screen capture detected. Please provide a live selfie.',
             'similarity_score': detectionConfidence,
             'method': 'google_cloud_vision',
           };
         }
-        
+
         // Simulate 'deep verification' for better UX feel
         await Future.delayed(const Duration(milliseconds: 800));
 
@@ -1216,11 +1326,12 @@ class ApiService {
           'method': 'google_cloud_vision',
         };
       }
-      
+
       throw Exception('Vision API error: ${response.statusCode}');
     } catch (e) {
       // Fallback to local heuristic or actual failure
-      return await _verifyFaceLivenessLocal(imageBase64: imageBase64, expectedGesture: expectedGesture);
+      return await _verifyFaceLivenessLocal(
+          imageBase64: imageBase64, expectedGesture: expectedGesture);
     }
   }
 
@@ -1232,16 +1343,18 @@ class ApiService {
   }) async {
     try {
       final imageBytes = base64Decode(imageBase64);
-      if (imageBytes.length < 25 * 1024) { // Increased minimum size for quality
+      if (imageBytes.length < 25 * 1024) {
+        // Increased minimum size for quality
         return {
           'verified': false,
-          'reason': 'Image resolution too low. Please use a better camera or lighting.',
+          'reason':
+              'Image resolution too low. Please use a better camera or lighting.',
           'similarity_score': 0.0,
           'method': 'local_heuristic',
         };
       }
 
-      // Simulate a small failure rate (2%) for realism in local mode if needed, 
+      // Simulate a small failure rate (2%) for realism in local mode if needed,
       // but for now just ensure it looks like it's doing something.
       await Future.delayed(const Duration(seconds: 1));
 
@@ -1341,7 +1454,9 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (e) { throw Exception('API failed'); }
+    } catch (e) {
+      throw Exception('API failed');
+    }
   }
 
   Future<Map<String, dynamic>> getIssScore() async {
@@ -1361,7 +1476,9 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (e) { throw Exception('API failed'); }
+    } catch (e) {
+      throw Exception('API failed');
+    }
   }
 
   Future<Map<String, dynamic>> getDynamicPremium(
@@ -1383,14 +1500,18 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (e) { throw Exception('API failed'); }
+    } catch (e) {
+      throw Exception('API failed');
+    }
   }
 
   Future<Map<String, dynamic>> createPolicy({
     required String userId,
     required String planTier,
     List<Map<String, dynamic>>? riders,
-    String? paymentSource, // e.g. 'razorpay' — skips wallet deduction on backend
+    String?
+        paymentSource, // e.g. 'razorpay' — skips wallet deduction on backend
+    bool didAuthRetry = false,
   }) async {
     try {
       final res = await http
@@ -1404,7 +1525,21 @@ class ApiService {
               if (paymentSource != null) 'payment_source': paymentSource,
             }),
           )
-          .timeout(const Duration(seconds: 30)); // Increased for Render cold starts
+          .timeout(
+              const Duration(seconds: 30)); // Increased for Render cold starts
+
+      if (res.statusCode == 401 && !didAuthRetry) {
+        final refreshed = await _refreshSessionForUser(userId);
+        if (refreshed) {
+          return createPolicy(
+            userId: userId,
+            planTier: planTier,
+            riders: riders,
+            paymentSource: paymentSource,
+            didAuthRetry: true,
+          );
+        }
+      }
 
       if (res.statusCode == 201 || res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -1414,7 +1549,7 @@ class ApiService {
           final policy = data['policy'];
           await StorageService.instance.savePolicyId(policy['id']);
           await StorageService.instance.setPlanTier(policy['plan_tier']);
-          
+
           // Store riders if present
           if (riders != null) {
             final names = riders.map((r) => r['name'].toString()).toList();
@@ -1432,18 +1567,24 @@ class ApiService {
       throw Exception('Status ${res.statusCode}: ${res.body}');
     } catch (e) {
       print('API createPolicy exception: $e');
-      
-      // If in debug/dev, we want to know why it failed rather than silent fallback
-      if (!kReleaseMode && (StorageService.userId.isEmpty || !StorageService.userId.startsWith('DEMO_'))) {
+
+      // Never fake a successful policy for real users.
+      // Local fallback is allowed only for explicit demo/mock users.
+      final storedUserId = StorageService.userId;
+      final effectiveUserId = userId.trim().isNotEmpty ? userId : storedUserId;
+      final isDemoUser = effectiveUserId.startsWith('DEMO_') ||
+          effectiveUserId.startsWith('demo-') ||
+          effectiveUserId.startsWith('mock-');
+      if (!isDemoUser) {
         rethrow;
       }
-      
-      // Backend-safe fallback (only for demos/release-safe):
+
+      // Demo-only fallback:
       final normalizedTier = planTier.toLowerCase();
       double premium = normalizedTier.contains('full')
           ? 79
           : (normalizedTier.contains('basic') ? 35 : 49);
-      
+
       List<String> riderNames = [];
       if (riders != null) {
         for (final r in riders) {
@@ -1453,7 +1594,8 @@ class ApiService {
         }
       }
 
-      final mockPolicyId = 'mock-policy-${DateTime.now().millisecondsSinceEpoch}';
+      final mockPolicyId =
+          'mock-policy-${DateTime.now().millisecondsSinceEpoch}';
       final now = DateTime.now();
       final expiry = now.add(const Duration(days: 91)); // Quarterly
 
@@ -1502,18 +1644,22 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
       return jsonDecode(res.body);
-    } catch (e) { throw Exception('API failed'); }
+    } catch (e) {
+      throw Exception('API failed');
+    }
   }
 
   // ── Demo / Simulation Helpers ──────────────────────────────────────────────────
 
   Future<void> updateIssScore(String userId, int newScore) async {
     try {
-      final res = await http.patch(
-        Uri.parse('$baseUrl/workers/$userId/iss'),
-        headers: headers,
-        body: jsonEncode({'iss_score': newScore}),
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .patch(
+            Uri.parse('$baseUrl/workers/$userId/iss'),
+            headers: headers,
+            body: jsonEncode({'iss_score': newScore}),
+          )
+          .timeout(const Duration(seconds: 10));
       if (res.statusCode >= 400) {
         throw Exception('Failed to update ISS score: ${res.body}');
       }

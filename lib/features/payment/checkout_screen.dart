@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../policy/razorpay_bridge_io.dart' if (dart.library.html) '../policy/razorpay_bridge_web.dart'
+import '../policy/razorpay_bridge_io.dart'
+    if (dart.library.html) '../policy/razorpay_bridge_web.dart'
     as razorpay_bridge;
 
 import '../../blocs/claims/claims_bloc.dart';
@@ -20,16 +22,16 @@ import 'package:provider/provider.dart';
 import 'wallet_tab_screen.dart';
 
 // ─── Shared colour constants ──────────────────────────────────────────────────
-const Color kDarkGreen  = Color(0xFF1B5E20);
+const Color kDarkGreen = Color(0xFF1B5E20);
 const Color kLightGreen = Color(0xFFE8F5E9);
 const Color kBorderGreen = Color(0xFFBBF7D0);
-const Color kBgGrey     = Color(0xFFF0F4F0);
-const Color kTextDark   = Color(0xFF0D1B0F);
-const Color kTextGrey   = Color(0xFF6B7280);
-const Color kTextLight  = Color(0xFF9CA3AF);
-const Color kRed        = Color(0xFFEF4444);
-const Color kRedLight   = Color(0xFFFEF2F2);
-const Color kRedBorder  = Color(0xFFFECACA);
+const Color kBgGrey = Color(0xFFF0F4F0);
+const Color kTextDark = Color(0xFF0D1B0F);
+const Color kTextGrey = Color(0xFF6B7280);
+const Color kTextLight = Color(0xFF9CA3AF);
+const Color kRed = Color(0xFFEF4444);
+const Color kRedLight = Color(0xFFFEF2F2);
+const Color kRedBorder = Color(0xFFFECACA);
 
 // ─── Checkout screen ─────────────────────────────────────────────────────────
 class CheckoutScreen extends StatefulWidget {
@@ -50,6 +52,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _loading = false;
+  bool _paymentHandled = false;
 
   String _resolvePlanTier() {
     final rawName = widget.planName.toLowerCase();
@@ -65,6 +68,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     razorpay_bridge.initializeRazorpay(
       onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
       onPaymentError: (message) {
+        if (_paymentHandled) return;
+        _paymentHandled = true;
         if (!mounted) return;
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,24 +100,20 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
   void _openRazorpayCheckout() async {
     setState(() => _loading = true);
-    
+    _paymentHandled = false;
+
     final total = widget.amount.toInt();
     final planName = widget.planName;
     final userId = await StorageService.instance.getUserId();
 
-    const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; 
-    
+    const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU';
+
     var options = {
       'key': razorpayTestKey,
       'amount': total * 100,
       'currency': 'INR',
       'name': 'Hustlr Insurance',
       'description': '$planName Coverage',
-      'image': 'https://hustlr.in/logo.png',
-      'prefill': {
-        'contact': '',
-        'email': '',
-      },
       'theme': {
         'color': '#2E7D32',
       },
@@ -135,7 +136,9 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   }
 
   Future<void> _verifyAndCreatePolicy(String paymentId) async {
-    String? currentUserId;
+    if (_paymentHandled) return;
+    _paymentHandled = true;
+
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null || userId.isEmpty) {
@@ -150,7 +153,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
         }
         return;
       }
-      currentUserId = userId;
       final planTier = _resolvePlanTier();
       final finalPremium = widget.amount.toInt();
 
@@ -158,7 +160,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
         userId: userId,
         planTier: planTier,
         riders: null, // Since we only get amount and planName
-        paymentSource: 'razorpay', // Payment collected externally — skip wallet deduction
+        paymentSource:
+            'razorpay', // Payment collected externally — skip wallet deduction
       );
 
       NotificationService.instance.addPremiumDeducted(
@@ -167,7 +170,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       );
 
       final mock = context.read<MockDataService>();
-      mock.activatePolicy(planTier); 
+      mock.activatePolicy(planTier);
 
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {
@@ -176,18 +179,17 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
       AppEvents.instance.policyUpdated();
       AppEvents.instance.walletUpdated();
-      if (currentUserId != null) {
-        final uid = currentUserId;
-        if (mounted) {
-          context.read<PolicyBloc>().add(LoadPolicy(uid));
-          context.read<ClaimsBloc>().add(LoadClaims(uid));
-        }
+      if (mounted) {
+        context.read<PolicyBloc>().add(LoadPolicy(userId));
+        context.read<ClaimsBloc>().add(LoadClaims(userId));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating policy: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error creating policy: $e'),
+              backgroundColor: Colors.red),
         );
       }
       return;
@@ -201,7 +203,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       SnackBar(
         content: const Text(
           'Payment successful! Coverage is active.',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
         ),
         backgroundColor: const Color(0xFF2E7D32),
         behavior: SnackBarBehavior.floating,
@@ -239,7 +242,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                       planName: widget.planName,
                       onSwitchToCard: () {
                         _tabController.animateTo(0);
-                        setState(() {}); 
+                        setState(() {});
                       },
                     ),
                   ],
@@ -251,7 +254,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             Container(
               color: Colors.black26,
               child: const Center(
-                child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(kDarkGreen)),
+                child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(kDarkGreen)),
               ),
             ),
         ],
@@ -262,10 +266,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   // ── Header ──────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
-      color: kBgGrey,
+      color: kDarkGreen,
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
-        bottom: 16,
+        bottom: 24,
         left: 16,
         right: 16,
       ),
@@ -277,17 +281,18 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             children: [
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.arrow_back, color: kDarkGreen, size: 22),
+                child:
+                    const Icon(Icons.arrow_back, color: Colors.white, size: 22),
               ),
               const Text(
                 'Checkout',
                 style: TextStyle(
-                  color: kDarkGreen,
+                  color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Icon(Icons.lock, color: kDarkGreen, size: 20),
+              const Icon(Icons.lock, color: Colors.white, size: 20),
             ],
           ),
           const SizedBox(height: 24),
@@ -301,16 +306,17 @@ class _CheckoutScreenState extends State<CheckoutScreen>
               Text(
                 '₹${widget.amount.toInt()}',
                 style: const TextStyle(
-                  color: kDarkGreen,
+                  color: Colors.white,
                   fontSize: 52,
                   fontWeight: FontWeight.bold,
                   height: 1.0,
                 ),
               ),
               const SizedBox(width: 4),
-              const Text(
+              Text(
                 '/week',
-                style: TextStyle(color: kTextGrey, fontSize: 18),
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7), fontSize: 18),
               ),
             ],
           ),
@@ -319,26 +325,29 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           // Plan name
           Text(
             '${widget.planName} — Weekly Premium',
-            style: const TextStyle(color: kTextDark, fontSize: 15),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9), fontSize: 15),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           // Razorpay badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: kLightGreen,
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock, color: kDarkGreen, size: 12),
+                Icon(Icons.verified_user_rounded,
+                    color: Colors.white, size: 12),
                 SizedBox(width: 6),
                 Text(
                   'RAZORPAY SECURED · TEST MODE',
                   style: TextStyle(
-                    color: kDarkGreen,
+                    color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
@@ -355,7 +364,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   // ── Tab bar ─────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
     return Container(
-      color: kBgGrey,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: kBorderGreen, width: 0.5)),
+      ),
       child: TabBar(
         controller: _tabController,
         labelColor: kDarkGreen,
@@ -363,7 +375,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         unselectedLabelStyle: const TextStyle(fontSize: 14),
         indicatorColor: kDarkGreen,
-        indicatorWeight: 2.5,
+        indicatorWeight: 3.0,
+        indicatorPadding: const EdgeInsets.symmetric(horizontal: 16),
         onTap: (_) => setState(() {}), // refresh bottomNavBar
         tabs: const [
           Tab(text: 'Card / UPI / Netbank'),
@@ -377,113 +390,155 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   Widget _buildCardUpiTab() {
     return Stack(
       children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
 
-              // PAY WITH label
-              const Text(
-                'PAY WITH',
-                style: TextStyle(
-                  color: kTextGrey,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
+                  // PAY WITH label
+                  const Text(
+                    'PAY WITH',
+                    style: TextStyle(
+                      color: kTextGrey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
-              // 2×2 payment method grid
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.4,
-                children: const [
-                  _PaymentMethodCard(
-                    icon: Icons.credit_card,
-                    title: 'Card',
-                    subtitle: 'Visa, MC, RuPay',
-                  ),
-                  _PaymentMethodCard(
-                    icon: Icons.qr_code_scanner,
-                    title: 'UPI',
-                    subtitle: 'GPay, PhonePe',
-                  ),
-                  _PaymentMethodCard(
-                    icon: Icons.account_balance,
-                    title: 'Net Banking',
-                    subtitle: 'All Indian Banks',
-                  ),
-                  _PaymentMethodCard(
-                    icon: Icons.account_balance_wallet,
-                    title: 'Wallets',
-                    subtitle: 'Paytm, MobiKwik',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Test Mode card
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: kLightGreen,
-                  border: Border.all(color: kBorderGreen, width: 1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.info_outline, color: kDarkGreen, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
+                  if (_loading)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: kBorderGreen),
+                      ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const CircularProgressIndicator(color: kDarkGreen),
+                          const SizedBox(height: 16),
                           const Text(
-                            'Demo Environment',
+                            'Initializing Secure Payment...',
                             style: TextStyle(
-                              color: kDarkGreen,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Payouts are enabled after a 7-day probationary period from your first policy activation.',
-                            style: TextStyle(
-                              color: kDarkGreen,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
+                                fontWeight: FontWeight.bold, color: kDarkGreen),
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'TEST CARD: 5267 3181 8797 5449\n'
-                            'Expiry: Any Future  CVV: Any  OTP: 1234',
-                            style: TextStyle(
-                              color: kTextDark,
-                              fontSize: 11,
-                              height: 1.4,
-                              fontFamily: 'monospace',
+                            'If the gateway doesn\'t open automatically, tap below:',
+                            style: TextStyle(fontSize: 12, color: kTextGrey),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: _openRazorpayCheckout,
+                            child: const Text('Open Payment Gateway →',
+                                style: TextStyle(
+                                    decoration: TextDecoration.underline)),
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    // 2×2 payment method grid
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.4,
+                      children: const [
+                        _PaymentMethodCard(
+                          icon: Icons.credit_card,
+                          title: 'Card',
+                          subtitle: 'Visa, MC, RuPay',
+                        ),
+                        _PaymentMethodCard(
+                          icon: Icons.qr_code_scanner,
+                          title: 'UPI',
+                          subtitle: 'GPay, PhonePe',
+                        ),
+                        _PaymentMethodCard(
+                          icon: Icons.account_balance,
+                          title: 'Net Banking',
+                          subtitle: 'All Indian Banks',
+                        ),
+                        _PaymentMethodCard(
+                          icon: Icons.account_balance_wallet,
+                          title: 'Wallets',
+                          subtitle: 'Paytm, MobiKwik',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Test Mode card
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: kLightGreen,
+                        border: Border.all(color: kBorderGreen, width: 1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline,
+                              color: kDarkGreen, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Demo Environment',
+                                  style: TextStyle(
+                                    color: kDarkGreen,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Payouts are enabled after a 7-day probationary period from your first policy activation.',
+                                  style: TextStyle(
+                                    color: kDarkGreen,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'TEST CARD: 5267 3181 8797 5449\n'
+                                  'Expiry: Any Future  CVV: Any  OTP: 1234',
+                                  style: TextStyle(
+                                    color: kTextDark,
+                                    fontSize: 11,
+                                    height: 1.4,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
 
-              // Bottom padding for sticky bar
-              const SizedBox(height: 100),
-            ],
+                    // Bottom padding for sticky bar
+                    const SizedBox(height: 100),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -532,10 +587,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             child: ElevatedButton(
               onPressed: enabled ? onTap : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    enabled ? kDarkGreen : const Color(0xFFE5E7EB),
-                foregroundColor:
-                    enabled ? Colors.white : kTextLight,
+                backgroundColor: enabled ? kDarkGreen : const Color(0xFFE5E7EB),
+                foregroundColor: enabled ? Colors.white : kTextLight,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
