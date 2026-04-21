@@ -274,6 +274,8 @@ class _PolicyScreenState extends State<PolicyScreen>
   StreamSubscription<void>? _policySub;
   StreamSubscription<void>? _walletSub;
   bool _isLoadingPolicy = false;  // Prevent concurrent loads
+  int _activeDays = 0;
+  bool _isCheckingEligibility = true;
   DateTime? _lastLoadTime;  // Debounce rapid successive loads
   static const _loadDebounceMs = 1500;  // Minimum 1.5s between loads
 
@@ -352,12 +354,31 @@ class _PolicyScreenState extends State<PolicyScreen>
                 });
               }
             });
+
+            // Fetch eligibility
+            try {
+              final profile = await ApiService.instance.getWorkerById(uid);
+              if (mounted) {
+                setState(() {
+                  _activeDays = profile['active_days'] ?? 0;
+                  _isCheckingEligibility = false;
+                });
+              }
+            } catch (_) {
+              if (mounted) setState(() => _isCheckingEligibility = false);
+            }
           }
         } catch (e) {
-          if (mounted) setState(() => isLoading = false);
+          if (mounted) setState(() {
+            isLoading = false;
+            _isCheckingEligibility = false;
+          });
         }
       } else {
-        if (mounted) setState(() => isLoading = false);
+        if (mounted) setState(() {
+          isLoading = false;
+          _isCheckingEligibility = false;
+        });
       }
     } finally {
       _isLoadingPolicy = false;
@@ -434,7 +455,11 @@ class _PolicyScreenState extends State<PolicyScreen>
                       controller: _tabController,
                       children: [
                         _CurrentPlanTab(activePolicy: activePolicy),
-                        _UpgradeTab(onProceed: () => context.push(AppRoutes.checkout, extra: {'amount': 79.0, 'planName': 'Full Shield'}), activePolicy: activePolicy),
+                        _UpgradeTab(
+                          onProceed: () => context.push(AppRoutes.checkout, extra: {'amount': 79.0, 'planName': 'Full Shield'}), 
+                          activePolicy: activePolicy,
+                          activeDays: _activeDays,
+                        ),
                         _LiveHistoryTab(
                           activePolicy: activePolicy,
                           policyHistory: policyHistory,
@@ -1348,7 +1373,8 @@ class _GhostButton extends StatelessWidget {
 class _UpgradeTab extends StatefulWidget {
   final VoidCallback onProceed;
   final Map<String, dynamic>? activePolicy;
-  const _UpgradeTab({required this.onProceed, this.activePolicy});
+  final int activeDays;
+  const _UpgradeTab({required this.onProceed, this.activePolicy, this.activeDays = 0});
 
   @override
   State<_UpgradeTab> createState() => _UpgradeTabState();
@@ -1456,7 +1482,6 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     final theme = Theme.of(context);
     final status = widget.activePolicy?['status']?.toString().toLowerCase() ?? '';
     final hasActivePolicy = status == 'active' || status == 'renewed';
-    // Use hardcoded internal ID default
     _selectedPlan ??= 'standard';
 
     return Stack(children: [
@@ -1467,22 +1492,29 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           const SizedBox(height: 12),
           _ActiveCoverageCard(activePolicy: widget.activePolicy),
           const SizedBox(height: 24),
+          if (widget.activeDays < 5) _buildProbationNotice(context),
           _sectionLabel(context, 'UPGRADE YOUR PROTECTION'),
           const SizedBox(height: 12),
-          ..._getPlans(context).map((p) => _PlanCard(
-                plan: p,
-                isSelected: _selectedPlan == p.id,
-                onTap: () => setState(() {
-                  _selectedPlan = p.id;
-                  if (_selectedPlan != 'standard') {
-                    for (final key in _riderToggles.keys) {
-                      _riderToggles[key] = false;
-                    }
+          ..._getPlans(context).map((p) {
+            final isLocked = (p.id == 'standard' || p.id == 'full') && widget.activeDays < 5;
+            return _PlanCard(
+              plan: p,
+              isSelected: _selectedPlan == p.id,
+              isLocked: isLocked,
+              activeDays: widget.activeDays,
+              onTap: isLocked 
+                ? () => _showLockedPlanInfo(context, p.name)
+                : () => setState(() {
+                _selectedPlan = p.id;
+                if (_selectedPlan != 'standard') {
+                  for (final key in _riderToggles.keys) {
+                    _riderToggles[key] = false;
                   }
-                }),
-              )),
+                }
+              }),
+            );
+          }),
           const SizedBox(height: 20),
-          // Add-on logic: Only show toggles for Standard plan, never for Basic or Full
           if (_selectedPlan == 'standard') ...[
             Row(children: [
               _sectionLabel(context, 'INCOME ADD-ONS'),
@@ -1551,19 +1583,18 @@ class _UpgradeTabState extends State<_UpgradeTab> {
           activePolicy: widget.activePolicy,
           selectedPlan: _selectedPlan,
           onProceed: () {
-            final riderPrices = {
-              'Bandh / Curfew': 15,
-              'Internet Blackout': 12,
-            };
             final plans = _getPlans(context);
             final selectedPlanObj = plans.firstWhere((p) => p.id == _selectedPlan, orElse: () => plans[1]);
             final planName = selectedPlanObj.name;
-            final planCost = _planBasePrice(_selectedPlan);
             final status = widget.activePolicy?['status']?.toString().toLowerCase() ?? '';
             final hasActivePolicy = status == 'active' || status == 'renewed';
 
             List<Map<String, dynamic>> activeRiders = [];
             if (hasActivePolicy && _selectedPlan == 'standard') {
+              const riderPrices = {
+                'Bandh / Curfew': 15,
+                'Internet Blackout': 12,
+              };
               for (final r in _riderToggles.entries) {
                 if (r.value) {
                   activeRiders.add({
@@ -1614,15 +1645,110 @@ class _UpgradeTabState extends State<_UpgradeTab> {
       ),
     );
   }
+
+  void _showLockedPlanInfo(BuildContext context, String planName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$planName Locked'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'To ensure platform stability, higher-tier plans like $planName are unlocked only after a 5-day active work period.',
+              style: const TextStyle(fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Remaining: ${5 - widget.activeDays} working days.',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('GOT IT'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProbationNotice(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final red = Colors.red;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: red.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: red.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.security_rounded, color: red, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Underwriting Requirement',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: red,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Hustlr requires a 5-day probation period for new partners. During this time, you can only subscribe to the Basic Shield plan.',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: (widget.activeDays / 5).clamp(0.0, 1.0),
+            backgroundColor: red.withValues(alpha: 0.1),
+            valueColor: AlwaysStoppedAnimation<Color>(red),
+            borderRadius: BorderRadius.circular(4),
+            minHeight: 6,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${widget.activeDays} of 5 days completed',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: red.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
   final _Plan plan;
   final bool isSelected;
-  final VoidCallback onTap;
+  final bool isLocked;
+  final int activeDays;
+  final VoidCallback? onTap;
 
-  const _PlanCard({required this.plan, required this.isSelected, required this.onTap});
+  const _PlanCard({required this.plan, required this.isSelected, required this.onTap, this.isLocked = false, this.activeDays = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -1655,78 +1781,98 @@ class _PlanCard extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Container(
-            margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              gradient: eliteBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderCol, width: isSelected ? 2 : 1),
-              boxShadow: (isSelected || plan.isElite) ? [
-                BoxShadow(
-                  color: (plan.isElite ? accentMint : green).withValues(alpha: 0.15),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                )
-              ] : null,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (plan.accentLeft)
-                      Container(width: 4, color: plan.isElite ? accentMint : green),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(plan.name, style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold,
-                                  color: textColor)),
-                                const SizedBox(height: 4),
-                                Text(plan.subtitle, style: TextStyle(
-                                  fontSize: 12, color: subColor)),
-                                if (plan.isElite) ...[
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.2), width: 0.5),
+          Opacity(
+            opacity: isLocked ? 0.6 : 1.0,
+            child: Container(
+              margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                gradient: eliteBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderCol, width: isSelected ? 2 : 1),
+                boxShadow: (isSelected || plan.isElite) ? [
+                  BoxShadow(
+                    color: (plan.isElite ? accentMint : green).withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ] : null,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (plan.accentLeft)
+                        Container(width: 4, color: plan.isElite ? accentMint : green),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          child: Row(children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(plan.name, style: TextStyle(
+                                        fontSize: 16, fontWeight: FontWeight.w700,
+                                        color: isLocked ? textColor.withValues(alpha: 0.5) : textColor,
+                                      )),
+                                      if (isLocked) ...[
+                                        const SizedBox(width: 6),
+                                        Icon(Icons.lock, size: 14, color: subColor),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isLocked 
+                                      ? (activeDays > 0 ? '${5 - activeDays} days left to unlock' : 'Complete 5 active days to unlock')
+                                      : plan.subtitle,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isLocked ? Colors.red.withValues(alpha: 0.7) : subColor,
+                                      fontWeight: isLocked ? FontWeight.w600 : FontWeight.normal,
                                     ),
-                                    child: Text('10% CASHBACK',
-                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                            color: isDark ? Colors.white : deepGreen, letterSpacing: 0.5)),
                                   ),
-                                  const SizedBox(height: 8),
-                                  GestureDetector(
-                                    onTap: () => context.push(AppRoutes.compoundTriggers),
-                                    child: Text('Learn about compound triggers →',
-                                        style: TextStyle(fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? Colors.white70 : deepGreen,
-                                            decoration: TextDecoration.underline,
-                                            decorationColor: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.3))),
-                                  ),
+                                  if (plan.isElite) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.2), width: 0.5),
+                                      ),
+                                      child: Text('10% CASHBACK',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white : deepGreen, letterSpacing: 0.5)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    GestureDetector(
+                                      onTap: () => context.push(AppRoutes.compoundTriggers),
+                                      child: Text('Learn about compound triggers →',
+                                          style: TextStyle(fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white70 : deepGreen,
+                                              decoration: TextDecoration.underline,
+                                              decorationColor: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.3))),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(plan.price, style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold,
-                            color: isDark && plan.isElite ? Colors.white : priceColor)),
-                        ]),
+                            const SizedBox(width: 8),
+                            Text(plan.price, style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold,
+                              color: isDark && plan.isElite ? Colors.white : priceColor)),
+                          ]),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
