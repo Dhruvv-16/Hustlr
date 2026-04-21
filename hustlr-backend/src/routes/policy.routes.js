@@ -1,10 +1,76 @@
 const express = require("express");
+const crypto = require("crypto");
 const { supabase } = require("../config/supabase");
 const { PLAN_CONFIG } = require("../config/constants");
 const mlService = require("../services/ml-service");
 const router = express.Router();
 const { getShadowSummary } = require("../services/shadow-policy-service");
 const { requireSession } = require("../middleware/session-auth");
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MOCK_ID_RE = /^(DEMO_|demo-|mock-)/;
+const ALLOW_MOCK_POLICY_SYNC = String(
+  process.env.ALLOW_MOCK_POLICY_SYNC || "",
+).toLowerCase() === "true";
+
+function toSyntheticUuid(seed) {
+  const hex = crypto.createHash("md5").update(seed).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function resolveBackendUserId(rawUserId) {
+  const source = String(rawUserId || "").trim();
+  if (UUID_RE.test(source)) {
+    return {
+      dbUserId: source,
+      isSynthetic: false,
+      externalUserId: source,
+    };
+  }
+
+  if (ALLOW_MOCK_POLICY_SYNC && MOCK_ID_RE.test(source)) {
+    return {
+      dbUserId: toSyntheticUuid(`mock-user:${source}`),
+      isSynthetic: true,
+      externalUserId: source,
+    };
+  }
+
+  return null;
+}
+
+async function ensureSyntheticUserExists({
+  dbUserId,
+  externalUserId,
+  planTier = "standard",
+}) {
+  const slug = String(externalUserId || "demo-user").toLowerCase();
+  const tail = dbUserId.replace(/-/g, "").slice(0, 10);
+
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", dbUserId)
+    .maybeSingle();
+  if (existing?.id) return;
+
+  const { error: insertError } = await supabase.from("users").insert([
+    {
+      id: dbUserId,
+      name: `Demo ${slug.slice(0, 16)}`,
+      phone: `mock-${tail}`,
+      zone: planTier === "full" ? "Adyar" : "Velachery",
+      city: "Chennai",
+      platform: "Demo",
+      iss_score: 60,
+      days_active: 14,
+      active_days_last_30: 14,
+      onboarding_complete: true,
+    },
+  ]);
+  if (insertError) throw insertError;
+}
 
 // GET /policies/shadow/:user_id — live shadow payout estimate from disruption_events
 router.get("/shadow/:user_id", async (req, res) => {
@@ -26,6 +92,7 @@ router.post("/create", async (req, res) => {
   try {
     const { user_id, plan_tier, payment_source } = req.body;
     const isExternalPayment = payment_source === 'razorpay';
+    const userRef = resolveBackendUserId(user_id);
 
     // ───  VALIDATION 1: Plan tier exists ────────────────────────────────────
     if (!PLAN_CONFIG[plan_tier]) {
@@ -36,12 +103,19 @@ router.post("/create", async (req, res) => {
     }
 
     // ─── VALIDATION 2: Mock IDs (offline onboarding) are not valid UUIDs ────
-    const UUID_RE =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(user_id)) {
+    if (!userRef) {
       return res.status(400).json({
-        error:
-          "Invalid user_id — please re-register with a live backend connection.",
+        error: "invalid_user_id",
+        message:
+          "Invalid user_id. Use a live UUID, or enable ALLOW_MOCK_POLICY_SYNC=true for demo IDs.",
+      });
+    }
+    const dbUserId = userRef.dbUserId;
+    if (userRef.isSynthetic) {
+      await ensureSyntheticUserExists({
+        dbUserId,
+        externalUserId: userRef.externalUserId,
+        planTier: plan_tier,
       });
     }
 
@@ -51,7 +125,7 @@ router.post("/create", async (req, res) => {
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("*")
-      .eq("id", user_id)
+       .eq("id", dbUserId)
       .single();
     if (userError) throw userError;
 
@@ -89,14 +163,28 @@ router.post("/create", async (req, res) => {
     const currentMonth = new Date().getMonth();
     const isMonsoonSeason = currentMonth >= 9; // Oct–Dec (0-indexed: 9, 10, 11)
 
-    const premiumResult = await mlService.getPremium({
-      plan_tier,
-      zone: user.zone,
-      iss_score: user.iss_score || 50,
-      activity_loading: ACTIVITY_LOADING[activityKey] || 1.0,
-      is_monsoon_season: isMonsoonSeason,
-      previous_premium: 0,
-    });
+    let premiumResult;
+    try {
+      premiumResult = await mlService.getPremium({
+        plan_tier,
+        zone: user.zone,
+        iss_score: user.iss_score || 50,
+        activity_loading: ACTIVITY_LOADING[activityKey] || 1.0,
+        is_monsoon_season: isMonsoonSeason,
+        previous_premium: 0,
+      });
+    } catch (mlError) {
+      console.warn(
+        `[Policy] ML premium fallback for user ${dbUserId}: ${mlError.message || mlError}`,
+      );
+      const fallbackBase =
+        PLAN_CONFIG[plan_tier].weekly_premium_paise / 100;
+      premiumResult = {
+        base_premium: fallbackBase,
+        zone_adjustment: 0,
+        final_premium: fallbackBase,
+      };
+    }
 
 
     const finalPremium =
@@ -107,14 +195,14 @@ router.post("/create", async (req, res) => {
     await supabase
       .from("policies")
       .update({ status: "cancelled" })
-      .eq("user_id", user_id)
+       .eq("user_id", dbUserId)
       .eq("status", "active");
 
     const { data: policy, error: policyError } = await supabase
       .from("policies")
       .insert([
         {
-          user_id,
+          user_id: dbUserId,
           plan_tier,
           base_premium:
             premiumResult.base_premium ||
@@ -134,25 +222,27 @@ router.post("/create", async (req, res) => {
     if (isExternalPayment) {
       // ── External payment (Razorpay): credit the wallet to record the payment ──
       // This keeps wallet history accurate without blocking activation
-      await supabase.from("wallet_transactions").insert([
-        {
-          user_id,
-          amount: finalPremium,
-          type: "credit",
-          category: "razorpay_topup",
-          description: `Razorpay payment for ${plan_tier} Shield`,
-          reference: `razorpay_policy_${policy.id}`,
-        },
-      ]).catch(err => {
+      try {
+        await supabase.from("wallet_transactions").insert([
+          {
+            user_id: dbUserId,
+            amount: finalPremium,
+            type: "credit",
+            category: "razorpay_topup",
+            description: `Razorpay payment for ${plan_tier} Shield`,
+            reference: `razorpay_policy_${policy.id}`,
+          },
+        ]);
+      } catch (err) {
         // Non-fatal — wallet credit log is best-effort
         console.warn("[Policy] Failed to log Razorpay credit:", err.message);
-      });
+      }
     } else {
       // ── Internal wallet payment: check balance BEFORE debiting ──────────────
       const { data: walletBal } = await supabase
         .from("wallet_balances")
         .select("balance")
-        .eq("user_id", user_id)
+         .eq("user_id", dbUserId)
         .maybeSingle();
 
       const currentBalance = walletBal?.balance ?? 0;
@@ -176,7 +266,7 @@ router.post("/create", async (req, res) => {
       // Deduct the final premium from the user's wallet
       await supabase.from("wallet_transactions").insert([
         {
-          user_id,
+          user_id: dbUserId,
           amount: finalPremium,
           type: "debit",
           category: "premium",
@@ -192,6 +282,11 @@ router.post("/create", async (req, res) => {
 
     res.json({
       policy,
+      user_ref: {
+        source_user_id: user_id,
+        stored_user_id: dbUserId,
+        synthetic: userRef.isSynthetic,
+      },
       premium_breakdown: {
         base_premium: premiumResult.base_premium || 49,
         zone_adjustment: premiumResult.zone_adjustment || 0,
@@ -211,22 +306,21 @@ router.post("/create", async (req, res) => {
 
 router.get("/:user_id", async (req, res) => {
   try {
-    const { user_id } = req.params;
-    const UUID_RE =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(user_id))
+    const userRef = resolveBackendUserId(req.params.user_id);
+    if (!userRef)
       return res.status(200).json({ policy: null, history: [] });
+    const dbUserId = userRef.dbUserId;
     const { data: policy, error } = await supabase
       .from("policies")
       .select("*")
-      .eq("user_id", user_id)
+       .eq("user_id", dbUserId)
       .eq("status", "active")
       .maybeSingle();
     if (error) throw error;
     const { data: history, error: historyError } = await supabase
       .from("policies")
       .select("*")
-      .eq("user_id", user_id)
+       .eq("user_id", dbUserId)
       .order("created_at", { ascending: false });
     if (historyError) throw historyError;
     res.json({ policy, history: history || [] });
@@ -570,5 +664,3 @@ router.get("/riders/available/:planTier", async (req, res) => {
 });
 
 module.exports = router;
-
-
