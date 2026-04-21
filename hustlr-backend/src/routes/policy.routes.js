@@ -187,15 +187,23 @@ router.post("/create", async (req, res) => {
     }
 
 
-    const finalPremium =
+    // Ensure premium is a rounded integer for DB (paise to rupees)
+    let finalPremium = Math.round(
       premiumResult.final_premium ||
-      PLAN_CONFIG[plan_tier].weekly_premium_paise / 100;
+        PLAN_CONFIG[plan_tier].weekly_premium_paise / 100,
+    );
+
+    // SAFETY CLAMP: Prevent DB constraint violations until SQL patch is applied
+    // basic: 30-40, standard: 45-55, full: 70-85
+    if (plan_tier === "basic") finalPremium = Math.min(40, Math.max(30, finalPremium));
+    if (plan_tier === "standard") finalPremium = Math.min(55, Math.max(45, finalPremium));
+    if (plan_tier === "full") finalPremium = Math.min(85, Math.max(70, finalPremium));
 
     // Deactivate any existing active policy for this user first
     await supabase
       .from("policies")
       .update({ status: "cancelled" })
-       .eq("user_id", dbUserId)
+      .eq("user_id", dbUserId)
       .eq("status", "active");
 
     const { data: policy, error: policyError } = await supabase
@@ -204,10 +212,11 @@ router.post("/create", async (req, res) => {
         {
           user_id: dbUserId,
           plan_tier,
-          base_premium:
+          base_premium: Math.round(
             premiumResult.base_premium ||
-            PLAN_CONFIG[plan_tier].weekly_premium_paise / 100,
-          zone_adjustment: premiumResult.zone_adjustment || 0,
+              PLAN_CONFIG[plan_tier].weekly_premium_paise / 100,
+          ),
+          zone_adjustment: Math.round(premiumResult.zone_adjustment || 0),
           iss_adjustment: 0,
           weekly_premium: finalPremium,
           max_weekly_payout: PLAN_CONFIG[plan_tier].weekly_cap_paise / 100,
