@@ -45,16 +45,19 @@ router.post("/create", async (req, res) => {
       });
     }
 
-    // Fetch user to get zone, iss_score, and active_days for loading
+    // Fetch user profile. Use broad select to avoid runtime failures when
+    // schema varies (some deployments use `days_active` instead of
+    // `active_days_last_30`).
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("zone, iss_score, active_days_last_30")
+      .select("*")
       .eq("id", user_id)
       .single();
     if (userError) throw userError;
 
     const { ACTIVITY_LOADING } = require("../config/constants");
-    const activeActivity = user.active_days_last_30 || 0;
+    const activeActivity =
+      Number(user.active_days_last_30 ?? user.days_active ?? 0) || 0;
     const activityKey =
       activeActivity >= 20
         ? "above_20_days"
