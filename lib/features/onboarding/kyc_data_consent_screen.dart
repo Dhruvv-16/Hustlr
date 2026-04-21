@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../core/router/app_router.dart';
 import '../../services/storage_service.dart';
+import '../../services/notification_service.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -38,8 +38,7 @@ class _KycDataConsentScreenState extends State<KycDataConsentScreen> {
       ].request();
 
       try {
-        final token = await FirebaseMessaging.instance.getToken();
-        print('FCM TOKEN: $token');
+        await NotificationService.syncDevicePushToken();
       } catch (_) {}
     }
 

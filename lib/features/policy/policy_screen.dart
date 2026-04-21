@@ -50,13 +50,15 @@ List<_Plan> _getPlans(BuildContext context) {
       name: l10n.policy_standard,
       subtitle: 'Everything in Basic + platform downtime + severe AQI',
       price: 'Rs.49/wk',
+      accentLeft: true,
       isMostPopular: true,
     ),
     _Plan(
       id: 'full',
       name: l10n.policy_full,
-      subtitle: 'Everything in Standard + bandh/curfew + internet blackout',
+      subtitle: 'Everything in Standard + bandh/curfew + internet blackout',      
       price: 'Rs.79/wk',
+      accentLeft: true,
       isElite: true,
     ),
   ];
@@ -272,6 +274,8 @@ class _PolicyScreenState extends State<PolicyScreen>
   bool _isLoadingPolicy = false;
   int _activeDays = 0;
   bool _isCheckingEligibility = true;
+  DateTime? _lastLoadTime;
+  static const _loadDebounceMs = 1500;
 
   @override
   void initState() {
@@ -283,6 +287,12 @@ class _PolicyScreenState extends State<PolicyScreen>
   }
 
   Future<void> _loadPolicy() async {
+    final now = DateTime.now();
+    if (_lastLoadTime != null && now.difference(_lastLoadTime!).inMilliseconds < _loadDebounceMs) {
+      return;
+    }
+    _lastLoadTime = now;
+
     if (_isLoadingPolicy) return;
     _isLoadingPolicy = true;
     try {
@@ -297,7 +307,12 @@ class _PolicyScreenState extends State<PolicyScreen>
           final mock = context.read<MockDataService>();
           var policyToUse = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
           
-          if (policyToUse == null && mock.hasActivePolicy) {
+          final isDemoUser = uid.startsWith('DEMO_') ||
+              uid.startsWith('demo-') ||
+              uid.startsWith('mock-') ||
+              StorageService.getString('isDemoSession') == 'true';
+
+          if (policyToUse == null && isDemoUser && mock.hasActivePolicy) {
             final tier = mock.activePolicy.plan.split(' ')[0].toLowerCase();
             policyToUse = {
               'id': 'MOCK-${uid.hashCode}',
@@ -394,6 +409,7 @@ class _PolicyScreenState extends State<PolicyScreen>
                       children: [
                         _CurrentPlanTab(activePolicy: activePolicy),
                         _UpgradeTab(
+                          onProceed: () => context.push(AppRoutes.checkout, extra: {'amount': 79.0, 'planName': 'Full Shield'}),
                           activePolicy: activePolicy,
                           activeDays: _activeDays,
                         ),
@@ -591,9 +607,10 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
 
 // ─── Upgrade Tab ─────────────────────────────────────────────────────────────
 class _UpgradeTab extends StatefulWidget {
+  final VoidCallback? onProceed;
   final Map<String, dynamic>? activePolicy;
   final int activeDays;
-  const _UpgradeTab({this.activePolicy, this.activeDays = 0});
+  const _UpgradeTab({this.onProceed, this.activePolicy, this.activeDays = 0});
 
   @override
   State<_UpgradeTab> createState() => _UpgradeTabState();

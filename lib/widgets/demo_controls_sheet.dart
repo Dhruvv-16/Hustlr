@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import '../services/mock_data_service.dart';
 import '../services/location_service.dart';
 import '../services/fraud_sensor_service.dart';
-import '../services/app_events.dart';
 import '../core/router/app_router.dart';
 
 class DemoControlsSheet extends StatefulWidget {
@@ -21,16 +20,16 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
   int _activePersona = -1;
   bool _isRunning = false;
 
-  // ── Persona definitions ────────────────────────────────────
+  // ── Persona definitions ──────────────────────────────────────────────────
   static const List<Map<String, dynamic>> PERSONAS = [
     {
-      'id':       'karthik',
-      'name':     'Karthik, 24',
-      'role':     'Standard Shield · Adyar Zone',
-      'icon':     '🚴',
-      'color':    Color(0xFF1976D2),
-      'bg':       Color(0xFFE3F2FD),
-      'tagline':  'Full parametric loop — rain → claim → payout',
+      'id': 'karthik',
+      'name': 'Karthik, 24',
+      'role': 'Standard Shield · Adyar Zone',
+      'icon': '🚲',
+      'color': Color(0xFF1976D2),
+      'bg': Color(0xFFE3F2FD),
+      'tagline': 'Full parametric loop — rain → claim → payout',
       'features': [
         'Rain disruption auto-detected',
         'Fraud check passes (FPS 14)',
@@ -47,13 +46,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
     {
-      'id':       'ravi',
-      'name':     'Ravi, 31',
-      'role':     'Full Shield · Velachery Zone',
-      'icon':     '⚡',
-      'color':    Color(0xFFE65100),
-      'bg':       Color(0xFFFFF3E0),
-      'tagline':  'Compound trigger — rain + platform outage',
+      'id': 'ravi',
+      'name': 'Ravi, 31',
+      'role': 'Full Shield · Velachery Zone',
+      'icon': '⚡',
+      'color': Color(0xFFE65100),
+      'bg': Color(0xFFFFF3E0),
+      'tagline': 'Compound trigger — rain + platform outage',
       'features': [
         'Two triggers fire simultaneously',
         'Compound payout (130% rate)',
@@ -70,13 +69,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
     {
-      'id':       'muthu',
-      'name':     'Muthu, 28',
-      'role':     'No Policy · Tambaram Zone',
-      'icon':     '📊',
-      'color':    Color(0xFF6A1B9A),
-      'bg':       Color(0xFFF3E5F5),
-      'tagline':  'Shadow policy — conversion nudge demo',
+      'id': 'muthu',
+      'name': 'Muthu, 28',
+      'role': 'No Policy · Tambaram Zone',
+      'icon': '📊',
+      'color': Color(0xFF6A1B9A),
+      'bg': Color(0xFFF3E5F5),
+      'tagline': 'Shadow policy — conversion nudge demo',
       'features': [
         'Uninsured worker tracked silently',
         'Missed payout calculated (₹680)',
@@ -93,13 +92,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
     {
-      'id':       'fraudster',
-      'name':     'Fraud Attempt',
-      'role':     'GPS Spoofer · Adyar Zone',
-      'icon':     '🛡️',
-      'color':    Color(0xFFB71C1C),
-      'bg':       Color(0xFFFFEBEE),
-      'tagline':  'Fraud engine catches GPS spoofing in real time',
+      'id': 'fraudster',
+      'name': 'Fraud Attempt',
+      'role': 'GPS Spoofer · Adyar Zone',
+      'icon': '🛡️',
+      'color': Color(0xFFB71C1C),
+      'bg': Color(0xFFFFEBEE),
+      'tagline': 'Fraud engine catches GPS spoofing in real time',
       'features': [
         'Zero GPS jitter detected',
         'FPS score spikes to 87',
@@ -116,13 +115,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
     {
-      'id':       'santhosh',
-      'name':     'Santhosh, 26',
-      'role':     'Standard Shield · OMR Zone',
-      'icon':     '🏆',
-      'color':    Color(0xFF1B5E20),
-      'bg':       Color(0xFFE8F5E9),
-      'tagline':  'Trust score + cashback — 4 clean weeks',
+      'id': 'santhosh',
+      'name': 'Santhosh, 26',
+      'role': 'Standard Shield · OMR Zone',
+      'icon': '🏆',
+      'color': Color(0xFF1B5E20),
+      'bg': Color(0xFFE8F5E9),
+      'tagline': 'Trust score + cashback — 4 clean weeks',
       'features': [
         'Worker Trust Score shown',
         'Gold tier badge displayed',
@@ -139,13 +138,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       ],
     },
     {
-      'id':       'priya',
-      'name':     'Priya, 33',
-      'role':     'Standard Shield · T.Nagar Zone',
-      'icon':     '🌐',
-      'color':    Color(0xFF00695C),
-      'bg':       Color(0xFFE0F2F1),
-      'tagline':  'Internet zone blackout trigger',
+      'id': 'priya',
+      'name': 'Priya, 33',
+      'role': 'Standard Shield · T.Nagar Zone',
+      'icon': '🌐',
+      'color': Color(0xFF00695C),
+      'bg': Color(0xFFE0F2F1),
+      'tagline': 'Internet zone blackout trigger',
       'features': [
         'Zone connectivity drops to 8%',
         'TRAI outage signal detected',
@@ -163,7 +162,6 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     },
   ];
 
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -175,8 +173,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -184,7 +181,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: surface,
                 borderRadius: BorderRadius.circular(2),
@@ -201,7 +199,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Demo Controls',
+                      Text(
+                        'Demo Controls',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -228,7 +227,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                   onPressed: () {
                     NotificationService.instance.addWalletCredited(amount: 500);
                   },
-                  child: const Text('Test Notif',
+                  child: const Text(
+                    'Test Notif',
                     style: TextStyle(
                       fontSize: 13,
                       color: Color(0xFF2E7D32),
@@ -239,7 +239,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                 // Reset button
                 TextButton(
                   onPressed: _hardReset,
-                  child: const Text('Reset',
+                  child: const Text(
+                    'Reset',
                     style: TextStyle(
                       fontSize: 13,
                       color: Color(0xFF2E7D32), // Green for "return to live"
@@ -263,7 +264,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.9,
-                      color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                      color: isDark
+                          ? const Color(0xFF91938D)
+                          : const Color(0xFF4A6741),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -280,11 +283,17 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: isActive
-                              ? (isDark ? color.withValues(alpha: 0.15) : cardBg)
-                              : (isDark ? const Color(0xFF1C1F1C) : Colors.white),
+                              ? (isDark
+                                  ? color.withValues(alpha: 0.15)
+                                  : cardBg)
+                              : (isDark
+                                  ? const Color(0xFF1C1F1C)
+                                  : Colors.white),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isActive ? color : theme.dividerColor.withValues(alpha: 0.08),
+                            color: isActive
+                                ? color
+                                : theme.dividerColor.withValues(alpha: 0.08),
                             width: isActive ? 2 : 1,
                           ),
                         ),
@@ -292,28 +301,35 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 14, 16, 10),
                               child: Row(
                                 children: [
-                                  Text(p['icon'] as String, style: const TextStyle(fontSize: 24)),
+                                  Text(p['icon'] as String,
+                                      style: const TextStyle(fontSize: 24)),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           p['name'] as String,
                                           style: TextStyle(
                                             fontSize: 15,
                                             fontWeight: FontWeight.w700,
-                                            color: isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F),
+                                            color: isDark
+                                                ? const Color(0xFFE1E3DE)
+                                                : const Color(0xFF0D1B0F),
                                           ),
                                         ),
                                         Text(
                                           p['role'] as String,
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                            color: isDark
+                                                ? const Color(0xFF91938D)
+                                                : const Color(0xFF4A6741),
                                           ),
                                         ),
                                       ],
@@ -323,15 +339,20 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                                     SizedBox(
                                       width: 18,
                                       height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: color),
                                     )
                                   else if (isActive && !_isRunning)
-                                    Icon(Icons.check_circle, color: color, size: 20)
+                                    Icon(Icons.check_circle,
+                                        color: color, size: 20)
                                   else
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isDark ? color.withValues(alpha: 0.15) : cardBg,
+                                        color: isDark
+                                            ? color.withValues(alpha: 0.15)
+                                            : cardBg,
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
@@ -350,26 +371,33 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                               child: Text(
                                 p['tagline'] as String,
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: color),
                               ),
                             ),
                             if (isActive) ...[
                               const Divider(height: 1),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 10, 16, 4),
                                 child: Text(
                                   'FEATURES DEMONSTRATED',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                    color: isDark
+                                        ? const Color(0xFF91938D)
+                                        : const Color(0xFF4A6741),
                                     letterSpacing: 0.8,
                                   ),
                                 ),
                               ),
                               ...(p['features'] as List<String>).map(
                                 (f) => Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 2, 16, 2),
                                   child: Row(
                                     children: [
                                       Icon(Icons.check, size: 13, color: color),
@@ -379,7 +407,9 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                                           f,
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F),
+                                            color: isDark
+                                                ? const Color(0xFFE1E3DE)
+                                                : const Color(0xFF0D1B0F),
                                           ),
                                         ),
                                       ),
@@ -389,53 +419,63 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
                               ),
                               if (_isRunning) ...[
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 10, 16, 4),
                                   child: Text(
                                     'DEMO SEQUENCE',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                      color: isDark
+                                          ? const Color(0xFF91938D)
+                                          : const Color(0xFF4A6741),
                                       letterSpacing: 0.8,
                                     ),
                                   ),
                                 ),
-                                ...(p['steps'] as List<String>).asMap().entries.map(
-                                  (e) => Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 18,
-                                          height: 18,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            color: color.withValues(alpha: 0.15),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Text(
-                                            '${e.key + 1}',
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w700,
-                                              color: color,
+                                ...(p['steps'] as List<String>)
+                                    .asMap()
+                                    .entries
+                                    .map(
+                                      (e) => Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            16, 2, 16, 2),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 18,
+                                              height: 18,
+                                              alignment: Alignment.center,
+                                              decoration: BoxDecoration(
+                                                color: color.withValues(
+                                                    alpha: 0.15),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Text(
+                                                '${e.key + 1}',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: color,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            e.value,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: isDark ? const Color(0xFF91938D) : const Color(0xFF4A6741),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                e.value,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: isDark
+                                                      ? const Color(0xFF91938D)
+                                                      : const Color(0xFF4A6741),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ),
                               ],
                               const SizedBox(height: 12),
                             ],
@@ -448,208 +488,252 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
                   // --- SIMULATE ROAMING / HUB PROXIMITY ---
                   Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: surface,
-                    borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.map_rounded, color: theme.colorScheme.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Text('ROAMING SIMULATOR', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900, 
-                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _hubSimButton('Kattankulathur', 12.8185, 80.0419),
-                    _hubSimButton('Adyar (Flood)', 13.0067, 80.2206),
-                    _hubSimButton('HSR (Outage)', 12.9081, 77.6476),
-                    _hubSimButton('Indiranagar', 12.9784, 77.6408),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
-                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
-              ],
-            ),
-          ),
-
-                  // --- ML SYNC ---
-                  Container(
-            padding: const EdgeInsets.all(20),
-            margin: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.sync_rounded, color: theme.colorScheme.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Text('ML SYNC', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0, color: theme.colorScheme.primary)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // --- Force ML Resync ---
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Force ML Resync',
-                  subtitle: 'Pulls latest ISS & Pricing from proxy',
-                  buttonLabel: 'SYNC NOW',
-                  buttonColor: theme.colorScheme.primary,
-                  onTap: () {
-                    LocationService.instance.addEvent("ML Data Synced from Python Backend");
-                    _showSuccess("ML synchronization requested.");
-                  },
-                ),
-                const SizedBox(height: 12),
-                // --- Dynamic Calculation ---
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Dynamic ISS Recalculation',
-                  subtitle: 'Re-runs ISS + premium pricing model with live inputs',
-                  buttonLabel: 'RECALCULATE',
-                  buttonColor: Colors.teal,
-                  onTap: () async {
-                    try {
-                      final mock = context.read<MockDataService>();
-                      final issRes = await ApiService.instance.getIssScore();
-                      final score = (issRes['iss_score'] as num?)?.toInt() ?? 65;
-                      
-                      final premiumRes = await ApiService.instance.getDynamicPremium(
-                        mock.activePolicy.plan, 
-                        score
-                      );
-                      final premium = (premiumRes['premium'] as num?)?.toDouble() ?? 49.0;
-
-                      mock.updateIssAndPricing(score, premium);
-                      _showSuccess("ISS & premium pricing recalculated.");
-                    } catch (_) {
-                      _showSuccess("ISS recalculation queued (backend offline).");
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-
-                  // --- EXTERNAL DISRUPTIONS POPUP BUTTON ---
-                  GestureDetector(
-            onTap: _showExternalDisruptionsPopup,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              margin: const EdgeInsets.only(top: 16),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: theme.dividerColor.withValues(alpha: 0.05)),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('EXTERNAL DISRUPTIONS', style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700,
-                          color: Colors.blueAccent)),
+                        Row(
+                          children: [
+                            Icon(Icons.map_rounded,
+                                color: theme.colorScheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Text('ROAMING SIMULATOR',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.0,
+                                    color: theme.colorScheme.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _hubSimButton('Kattankulathur', 12.8185, 80.0419),
+                            _hubSimButton('Adyar (Flood)', 13.0067, 80.2206),
+                            _hubSimButton('HSR (Outage)', 12.9081, 77.6476),
+                            _hubSimButton('Indiranagar', 12.9784, 77.6408),
+                          ],
+                        ),
                         const SizedBox(height: 4),
-                        Text('Trigger weather, platform events',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.blueAccent.withValues(alpha: 0.7))),
+                        Text(
+                            'Tap to teleport persona to a Dark Store Hub. Hudson will detect the move instantly.',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.5))),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: Colors.blueAccent),
-                ],
-              ),
-            ),
-          ),
 
-                  // --- FRAUD SIGNALS ---
+                  // --- ML SYNC ---
                   Container(
-            padding: const EdgeInsets.all(20),
-            margin: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.05)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Force-inject fraud signals to test the detection engine',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.45))),
-                const SizedBox(height: 16),
-                // GPS spoof toggle
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.only(top: 16),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: theme.dividerColor.withValues(alpha: 0.05)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.sync_rounded,
+                                color: theme.colorScheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Text('ML SYNC',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.0,
+                                    color: theme.colorScheme.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // --- Force ML Resync ---
+                        _internalControlRow(
+                          theme: theme,
+                          title: 'Force ML Resync',
+                          subtitle: 'Pulls latest ISS & Pricing from proxy',
+                          buttonLabel: 'SYNC NOW',
+                          buttonColor: theme.colorScheme.primary,
+                          onTap: () {
+                            LocationService.instance
+                                .addEvent("ML Data Synced from Python Backend");
+                            _showSuccess("ML synchronization requested.");
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // --- Dynamic Calculation ---
+                        _internalControlRow(
+                          theme: theme,
+                          title: 'Dynamic ISS Recalculation',
+                          subtitle:
+                              'Re-runs ISS + premium pricing model with live inputs',
+                          buttonLabel: 'RECALCULATE',
+                          buttonColor: Colors.teal,
+                          onTap: () async {
+                            try {
+                              final mock = context.read<MockDataService>();
+                              final issRes =
+                                  await ApiService.instance.getIssScore();
+                              final score =
+                                  (issRes['iss_score'] as num?)?.toInt() ?? 65;
+
+                              final premiumRes = await ApiService.instance
+                                  .getDynamicPremium(
+                                      mock.activePolicy.plan, score);
+                              final premium =
+                                  (premiumRes['premium'] as num?)?.toDouble() ??
+                                      49.0;
+
+                              mock.updateIssAndPricing(score, premium);
+                              _showSuccess(
+                                  "ISS & premium pricing recalculated.");
+                            } catch (_) {
+                              _showSuccess(
+                                  "ISS recalculation queued (backend offline).");
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // --- EXTERNAL DISRUPTIONS POPUP BUTTON ---
+                  GestureDetector(
+                    onTap: _showExternalDisruptionsPopup,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(top: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                            color: Colors.blueAccent.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
                         children: [
-                          Text('Mock GPS Spoofing', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                          Text('Sets jitter=0.0, isMocked=true -> triggers fraud flag',
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+                          Icon(Icons.cloud_rounded,
+                              color: Colors.blueAccent, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('EXTERNAL DISRUPTIONS',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.blueAccent)),
+                                const SizedBox(height: 4),
+                                Text('Trigger weather, platform events',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: Colors.blueAccent
+                                            .withValues(alpha: 0.7))),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: Colors.blueAccent),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Switch(
-                      value: FraudSensorService.mockFraudSpoofing,
-                      activeThumbColor: Colors.redAccent,
-                      onChanged: (val) => setState(() => FraudSensorService.mockFraudSpoofing = val),
+                  ),
+
+                  // --- FRAUD SIGNALS ---
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.only(top: 16),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: theme.dividerColor.withValues(alpha: 0.05)),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Inject High Fraud Score',
-                  subtitle: 'Sets mock FPS to 95 - triggers immediate fraud review',
-                  buttonLabel: 'INJECT',
-                  buttonColor: Colors.redAccent,
-                  onTap: () {
-                    FraudSensorService.mockFraudSpoofing = true;
-                    LocationService.instance.addEvent("Fraud score injected: FPS 95");
-                    setState(() {});
-                    _showSuccess("Fraud score set to 95. Claim will be auto-flagged.");
-                  },
-                ),
-                const SizedBox(height: 12),
-                _internalControlRow(
-                  theme: theme,
-                  title: 'Clear Fraud Signals',
-                  subtitle: 'Resets all mock fraud overrides to clean state',
-                  buttonLabel: 'CLEAR',
-                  buttonColor: Colors.green,
-                  onTap: () {
-                    FraudSensorService.mockFraudSpoofing = false;
-                    LocationService.instance.addEvent("Fraud signals cleared");
-                    setState(() {});
-                    _showSuccess("Fraud signals cleared.");
-                  },
-                ),
-              ],
-            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            'Force-inject fraud signals to test the detection engine',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.45))),
+                        const SizedBox(height: 16),
+                        // GPS spoof toggle
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Mock GPS Spoofing',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w600)),
+                                  Text(
+                                      'Sets jitter=0.0, isMocked=true -> triggers fraud flag',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.5))),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Switch(
+                              value: FraudSensorService.mockFraudSpoofing,
+                              activeThumbColor: Colors.redAccent,
+                              onChanged: (val) => setState(() =>
+                                  FraudSensorService.mockFraudSpoofing = val),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _internalControlRow(
+                          theme: theme,
+                          title: 'Inject High Fraud Score',
+                          subtitle:
+                              'Sets mock FPS to 95 - triggers immediate fraud review',
+                          buttonLabel: 'INJECT',
+                          buttonColor: Colors.redAccent,
+                          onTap: () {
+                            FraudSensorService.mockFraudSpoofing = true;
+                            LocationService.instance
+                                .addEvent("Fraud score injected: FPS 95");
+                            setState(() {});
+                            _showSuccess(
+                                "Fraud score set to 95. Claim will be auto-flagged.");
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _internalControlRow(
+                          theme: theme,
+                          title: 'Clear Fraud Signals',
+                          subtitle:
+                              'Resets all mock fraud overrides to clean state',
+                          buttonLabel: 'CLEAR',
+                          buttonColor: Colors.green,
+                          onTap: () {
+                            FraudSensorService.mockFraudSpoofing = false;
+                            LocationService.instance
+                                .addEvent("Fraud signals cleared");
+                            setState(() {});
+                            _showSuccess("Fraud signals cleared.");
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -664,15 +748,21 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     final theme = Theme.of(context);
     return OutlinedButton(
       onPressed: () {
-        LocationService.instance.forceMockLocation(label, lat, lon, depthScore: 0.95);
+        LocationService.instance
+            .forceMockLocation(label, lat, lon, depthScore: 0.95);
         _showStep('Teleported to $label Hub');
       },
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+        side:
+            BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
-      child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface)),
     );
   }
 
@@ -694,11 +784,13 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
-                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
               Text(subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.5))),
             ],
           ),
         ),
@@ -709,39 +801,57 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
             backgroundColor: buttonColor,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: Text(buttonLabel,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5)),
         ),
       ],
     );
   }
 
-  // ── Persona runners ────────────────────────────────────────
+  // ── Persona runners ──────────────────────────────────────────────────────
 
   Future<void> _runPersona(int index) async {
+    if (!mounted) return;
     setState(() {
       _activePersona = index;
       _isRunning = true;
     });
 
     final persona = PERSONAS[index];
-    
+
     // Switch the active persona globally first
     await MockDataService.instance.switchPersona(persona['id'] as String);
 
     switch (persona['id'] as String) {
-      case 'karthik':  await _runKarthik();  break;
-      case 'ravi':     await _runRavi();     break;
-      case 'muthu':    await _runMuthu();    break;
-      case 'fraudster':await _runFraudster();break;
-      case 'santhosh': await _runSanthosh(); break;
-      case 'priya':    await _runPriya();    break;
+      case 'karthik':
+        await _runKarthik();
+        break;
+      case 'ravi':
+        await _runRavi();
+        break;
+      case 'muthu':
+        await _runMuthu();
+        break;
+      case 'fraudster':
+        await _runFraudster();
+        break;
+      case 'santhosh':
+        await _runSanthosh();
+        break;
+      case 'priya':
+        await _runPriya();
+        break;
     }
 
+    if (!mounted) return;
     setState(() => _isRunning = false);
   }
 
@@ -757,6 +867,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       // 1. Show rain alert on dashboard
       _showStep('Rain alert firing in Adyar zone...');
       await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
 
       // 2. Create claim
       _showStep('Creating rain claim...');
@@ -769,20 +880,19 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
       );
 
       await Future.delayed(const Duration(seconds: 2));
-
-      // 4. Auto-approve fires (backend does this after 5s)
+      if (!mounted) return;
       _showStep('Claim auto-approved...');
       NotificationService.instance.addClaimApproved(105);
       NotificationService.instance.addWalletCredited(amount: 105);
 
-      _showSuccess('Karthik received ₹105. Navigate to Claims and Wallet to see.');
-
+      _showSuccess(
+          'Karthik received â‚¹105. Navigate to Claims and Wallet to see.');
     } catch (e) {
       _showError('Demo error: $e');
     }
   }
 
-  // Ravi — compound trigger
+  // Ravi â€” compound trigger
   Future<void> _runRavi() async {
     final userId = StorageService.userId;
     if (userId.isEmpty) return;
@@ -790,21 +900,22 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     try {
       _showStep('Platform outage detected (78% failure rate)...');
       await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
 
       _showStep('Rain cross-confirmed by IMD...');
       await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
 
       _showStep('Compound trigger firing...');
-      context.read<MockDataService>().triggerExtremeHeat(); // Mock representation
+      context.read<MockDataService>().triggerCompoundDisruption();
 
       NotificationService.instance.addDisruptionAlert(
         triggerType: 'Platform + Rain (Compound)',
         zone: 'Velachery Dark Store Zone',
       );
 
-      _showSuccess('Compound payout ₹245 processing. '
-          'Check Claims tab — trigger shows compound rate.');
-
+      _showSuccess('Compound payout â‚¹245 processing. '
+          'Check Claims tab â€” trigger shows compound rate.');
     } catch (e) {
       _showError('Demo error: $e');
     }
@@ -812,84 +923,120 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
   // Muthu — shadow policy nudge
   Future<void> _runMuthu() async {
-    _showStep('Simulating disruption for uninsured worker...');
-    await Future.delayed(const Duration(seconds: 1));
+    _showStep('Applying Muthu shadow-policy scenario...');
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
 
-    _showStep('Calculating missed payout...');
-    await Future.delayed(const Duration(seconds: 1));
+    // Initialize mock data for the shadow policy showcase
+    final mockSvc = context.read<MockDataService>();
+    mockSvc.missedAmount = 680;
+    mockSvc.shadowEvents = [
+      ShadowEventModel(
+          triggerIcon: "rain",
+          triggerName: "Rain Disruption",
+          date: "Oct 12, 2025",
+          claimableAmount: 320),
+      ShadowEventModel(
+          triggerIcon: "downtime",
+          triggerName: "Platform Downtime",
+          date: "Oct 8, 2025",
+          claimableAmount: 360),
+    ];
+    mockSvc.hasActivePolicy = false;
+    mockSvc.notifyListeners();
 
-    // Navigate to policy screen showing shadow nudge
     if (mounted) {
-      Navigator.pop(context);
-      await Future.delayed(const Duration(milliseconds: 300));
-      context.push('${AppRoutes.policy}?demo=shadow_nudge&missed=680');
+      context.go('/dashboard');
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Muthu persona active: Tambaram zone, no policy, shadow nudge enabled.'),
+          backgroundColor: Color(0xFF1B5E20),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
-  // Fraudster — fraud engine demo
+  // Fraudster - fraud engine demo
   Future<void> _runFraudster() async {
     final userId = StorageService.userId;
     if (userId.isEmpty) return;
 
     _showStep('Submitting claim with gps_jitter = 0.0 (spoofed GPS)...');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
     _showStep('Isolation Forest scoring...');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
-    _showStep('Zero jitter override → FPS score: 87 → RED');
+    _showStep('Zero jitter override â†’ FPS score: 87 â†’ RED');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
     // Create a claim that will be flagged
     try {
-      context.read<MockDataService>().triggerExtremeHeat(); // Use mock
+      context.read<MockDataService>().triggerFraudAttempt();
     } catch (e) {
       // Even if API doesn't support extra fields, show the UI
     }
 
     _showSuccess(
-      'Claim FLAGGED — FPS 87 → RED → Human review queued.\n'
-      'Check Claims tab — status shows FLAGGED not APPROVED.\n'
-      'Only ₹200 provisional credit released.',
+      'Claim FLAGGED â€” FPS 87 â†’ RED â†’ Human review queued.\n'
+      'Check Claims tab â€” status shows FLAGGED not APPROVED.\n'
+      'Only â‚¹200 provisional credit released.',
     );
   }
 
-  // Santhosh — trust score + cashback
+  // Santhosh â€” trust score + cashback
   Future<void> _runSanthosh() async {
     _showStep('Loading 4 clean weeks history...');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
     _showStep('Sunday settlement: cashback calculation...');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
-    _showStep('10% of ₹196 premiums = ₹19.60 cashback credited...');
+    _showStep('10% of â‚¹196 premiums = â‚¹19.60 cashback credited...');
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
+    context.read<MockDataService>().creditWalletForDemo(
+          amount: 20,
+          title: 'Trust Cashback',
+          subtitle: '4 clean weeks bonus',
+          addToSavings: false,
+        );
     NotificationService.instance.addWalletCredited(amount: 20);
 
-    if (mounted) {
-      Navigator.pop(context);
-      await Future.delayed(const Duration(milliseconds: 300));
-      context.push('${AppRoutes.profile}?demo=trust_score');
-    }
+    if (!mounted) return;
+    context.push('${AppRoutes.profile}?demo=trust_score');
   }
 
-  // Priya — internet blackout
+  // Priya â€” internet blackout
   Future<void> _runPriya() async {
     final userId = StorageService.userId;
     if (userId.isEmpty) return;
 
     _showStep('Ookla: T.Nagar avg speed 0.3 Mbps...');
     await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
 
     _showStep('TRAI registry: Airtel outage logged...');
     await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
 
-    _showStep('Dual confirmation → AUTO_TRIGGER...');
+    _showStep('Dual confirmation â†’ AUTO_TRIGGER...');
     await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
 
     try {
-      context.read<MockDataService>().triggerPlatformDowntime();
+      context.read<MockDataService>().triggerInternetBlackout();
 
       NotificationService.instance.addClaimCreated(
         triggerType: 'Internet Zone Blackout',
@@ -898,8 +1045,8 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
 
       _showSuccess(
         'Internet blackout claim created.\n'
-        'No GPS required — self-validating trigger.\n'
-        'Payout ₹77 (70% tranche).',
+        'No GPS required â€” self-validating trigger.\n'
+        'Payout â‚¹77 (70% tranche).',
       );
     } catch (e) {
       _showError('Demo error: $e');
@@ -907,12 +1054,12 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
   }
 
   Future<void> _hardReset() async {
-    // Complete wipe of all mock data — restore app to pristine state
+    // Complete wipe of all mock data â€” restore app to pristine state
     final mockSvc = context.read<MockDataService>();
     mockSvc.clearAllMockData();
-    
-    LocationService.instance.addEvent("🔄 Hard reset: All mock data cleared");
-    
+
+    LocationService.instance.addEvent("ðŸ”„ Hard reset: All mock data cleared");
+
     if (mounted) {
       setState(() {});
       _showSuccess("All mock data cleared. App restored to pristine state.");
@@ -920,7 +1067,7 @@ class _DemoControlsSheetState extends State<DemoControlsSheet> {
     }
   }
 
-void _showStep(String message) {
+  void _showStep(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -928,8 +1075,7 @@ void _showStep(String message) {
         duration: const Duration(milliseconds: 900),
         backgroundColor: const Color(0xFF1B5E20),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -957,18 +1103,22 @@ void _showStep(String message) {
                 // Header
                 Row(
                   children: [
-                    Icon(Icons.cloud_rounded, color: Colors.blueAccent, size: 24),
+                    Icon(Icons.cloud_rounded,
+                        color: Colors.blueAccent, size: 24),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('External Disruptions', style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface)),
+                          Text('External Disruptions',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface)),
                           Text('Trigger weather and platform events',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.6))),
                         ],
                       ),
                     ),
@@ -984,7 +1134,8 @@ void _showStep(String message) {
                 _internalControlRow(
                   theme: theme,
                   title: 'Heavy Rain Alert',
-                  subtitle: 'Mocks OWM weather alert → auto-creates rain claim',
+                  subtitle:
+                      'Mocks OWM weather alert â†’ auto-creates rain claim',
                   buttonLabel: 'FIRE',
                   buttonColor: Colors.blueAccent,
                   onTap: () {
@@ -999,7 +1150,7 @@ void _showStep(String message) {
                 _internalControlRow(
                   theme: theme,
                   title: 'Extreme Heatwave',
-                  subtitle: 'Mocks temperature spike beyond 42°C threshold',
+                  subtitle: 'Mocks temperature spike beyond 42Â°C threshold',
                   buttonLabel: 'FIRE',
                   buttonColor: Colors.orangeAccent,
                   onTap: () {
@@ -1039,19 +1190,18 @@ void _showStep(String message) {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle,
-              color: Color(0xFF1B5E20), size: 48),
+            const Icon(Icons.check_circle, color: Color(0xFF1B5E20), size: 48),
             const SizedBox(height: 12),
             Text(message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14)),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Done',
-              style: TextStyle(color: Color(0xFF2E7D32))),
+            child:
+                const Text('Done', style: TextStyle(color: Color(0xFF2E7D32))),
           ),
         ],
       ),

@@ -76,8 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   int? liveIssScore;
   double? liveDynamicPrice;
 
-
-
   // Debug variables
   bool _debugMode = false;
   bool _enableLiveML = false;
@@ -126,17 +124,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
     // Debounced: only reload wallet/claim data at most once every 5 seconds
     _walletSub = AppEvents.instance.onWalletUpdated.listen((_) {
-        _loadDashboardData();
+      _loadDashboardData();
     });
     _claimSub = AppEvents.instance.onClaimUpdated.listen((_) {
-        _loadDashboardData();
+      _loadDashboardData();
     });
 
     AppEvents.instance.onProfileUpdated.listen((_) {
       if (mounted) _loadDashboardData();
     });
-
-
   }
 
   /// Get a one-shot GPS fix immediately on mount so the debug panel shows
@@ -358,16 +354,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _lastLocUpdate = 0;
   void _onLocationUpdate() {
     if (!mounted) return;
-    
+
     final newZone = LocationService.instance.currentZone;
-    if (newZone != "Unknown Zone" && newZone != "Outside Service Area" && newZone != userZone) {
+    if (newZone != "Unknown Zone" &&
+        newZone != "Outside Service Area" &&
+        newZone != userZone) {
       final zoneShort = newZone.split(' ').first;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('📍 Location Verified: Entering $zoneShort Hub'),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
@@ -516,31 +515,58 @@ class _DashboardScreenState extends State<DashboardScreen>
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
     final isDemoMode = StorageService.getString('isDemoSession') == 'true';
     final isMockUser = mockSvc.worker.id.startsWith('DEMO_') ||
-                       mockSvc.worker.id.startsWith('00000000') ||
-                       userId?.startsWith('00000000') == true ||
-                       isDemoMode;
+        mockSvc.worker.id.startsWith('00000000') ||
+        userId?.startsWith('00000000') == true ||
+        isDemoMode;
 
     if (isMockUser) {
       Map<String, dynamic> weatherFallback = {
         'source': 'Live System',
-        'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
-        'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
+        'rainfall_mm_1h':
+            mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : 0.0,
+        'temp_celsius':
+            mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : 29.0,
       };
 
       // Fetch live API weather without blocking the dashboard render
       unawaited(() async {
         try {
-          final liveDisruptions = await ApiService.instance.getDisruptions(userZone ?? '');
-          final liveWeather = liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
-          final apiRain = (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
-          final apiTemp = (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+          final liveDisruptions =
+              await ApiService.instance.getDisruptions(userZone ?? '');
+          final liveWeather =
+              liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
+          final apiRain =
+              (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
+          final apiTemp =
+              (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+          final apiNudge = liveDisruptions['predictive_nudge'] as Map<String, dynamic>?;
 
           if (mounted) {
             setState(() {
+              if (apiNudge != null) {
+                nudgeData = {
+                  'nudge_date': apiNudge['date'],
+                  'probability_percentage': apiNudge['rain_chance'],
+                  'description': apiNudge['message'] ?? apiNudge['description'],
+                  'simulated_payout': apiNudge['expected_payout'] ?? 360,
+                };
+              } else {
+                nudgeData = {
+                  'nudge_date': 'Friday',
+                  'probability_percentage': 85,
+                  'description': 'Heavy rain expected in your zone.',
+                  'simulated_payout': 360,
+                };
+              }
               weatherData = {
                 'source': 'Live API',
-                'rainfall_mm_1h': mockSvc.activeDisruption?.triggerIcon == 'rain' ? 72.4 : apiRain,
-                'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat' ? 42.0 : apiTemp,
+                'rainfall_mm_1h':
+                    mockSvc.activeDisruption?.triggerIcon == 'rain'
+                        ? 72.4
+                        : apiRain,
+                'temp_celsius': mockSvc.activeDisruption?.triggerIcon == 'heat'
+                    ? 42.0
+                    : apiTemp,
               };
             });
           }
@@ -552,34 +578,42 @@ class _DashboardScreenState extends State<DashboardScreen>
           userId = mockSvc.worker.id;
           userName = mockSvc.worker.name;
           userZone = mockSvc.worker.zone;
-          
+
           // Check MockDataService first, then fall back to local StorageService
           // (covers real purchases that write to StorageService, not demo_hasActivePolicy).
           final storedPolicyId = StorageService.policyId;
-          final hasAnyPolicy = mockSvc.hasActivePolicy || storedPolicyId.isNotEmpty;
+          final hasAnyPolicy =
+              mockSvc.hasActivePolicy || storedPolicyId.isNotEmpty;
           if (hasAnyPolicy) {
             final tier = mockSvc.hasActivePolicy
                 ? mockSvc.activePolicy.plan.split(' ')[0].toLowerCase()
                 : (StorageService.getString('activePlanTier') ?? 'standard');
             final planName = mockSvc.hasActivePolicy
                 ? mockSvc.activePolicy.plan
-                : (StorageService.getString('activePlanName') ?? 'Standard Shield');
+                : (StorageService.getString('activePlanName') ??
+                    'Standard Shield');
             final premium = mockSvc.hasActivePolicy
                 ? mockSvc.activePolicy.premium
                 : (StorageService.getInt('weeklyPremium') ?? 49);
             policyData = {
-              'id': storedPolicyId.isNotEmpty ? storedPolicyId : 'PROTO-POL-${mockSvc.worker.id.hashCode}',
+              'id': storedPolicyId.isNotEmpty
+                  ? storedPolicyId
+                  : 'PROTO-POL-${mockSvc.worker.id.hashCode}',
               'plan_tier': tier,
               'plan_name': planName,
               'status': 'active',
               'weekly_premium': premium,
-              'coverage_start': mockSvc.hasActivePolicy ? mockSvc.activePolicy.coverageStart : '',
-              'commitment_end': mockSvc.hasActivePolicy ? mockSvc.activePolicy.coverageEnd : '',
+              'coverage_start': mockSvc.hasActivePolicy
+                  ? mockSvc.activePolicy.coverageStart
+                  : '',
+              'commitment_end': mockSvc.hasActivePolicy
+                  ? mockSvc.activePolicy.coverageEnd
+                  : '',
             };
           } else {
             policyData = null;
           }
-          
+
           walletData = {
             'balance': mockSvc.walletBalance,
             'total_payouts': mockSvc.monthlySavings,
@@ -615,8 +649,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           if (iss >= 80) {
             bandLabel = 'High Stability';
-            headline = 'Your earnings are consistent, but sudden weather changes could still disrupt your peak windows.';
-            nudge = 'Protect your strong run — even high earners face unexpected disruptions.';
+            headline =
+                'Your earnings are consistent, but sudden weather changes could still disrupt your peak windows.';
+            nudge =
+                'Protect your strong run — even high earners face unexpected disruptions.';
             suggestCoverage = false;
             shiftWindows = [
               {'label': 'Morning', 'time': '7 AM – 11 AM', 'demand': 'High'},
@@ -624,20 +660,34 @@ class _DashboardScreenState extends State<DashboardScreen>
             ];
           } else if (iss >= 60) {
             bandLabel = 'Moderate Stability';
-            headline = 'There is a moderate chance of weather or platform issues coming up that might dip your earnings.';
-            nudge = 'An upcoming disruption could cost you ₹${mockSvc.potentialLoss}. A ₹${mockSvc.activePolicy.premium}/week plan covers that.';
+            headline =
+                'There is a moderate chance of weather or platform issues coming up that might dip your earnings.';
+            final projectedWeeklyImpact = mockSvc.potentialLoss.clamp(80, 250);
+            nudge =
+                'An upcoming disruption could cost you up to ₹$projectedWeeklyImpact this week. '
+                'A ₹${mockSvc.activePolicy.premium}/week plan helps cover that risk.';
             suggestCoverage = true;
             shiftWindows = [
-              {'label': 'Late Morning', 'time': '10 AM – 1 PM', 'demand': 'Medium'},
+              {
+                'label': 'Late Morning',
+                'time': '10 AM – 1 PM',
+                'demand': 'Medium'
+              },
               {'label': 'Evening', 'time': '5 PM – 8 PM', 'demand': 'High'},
             ];
           } else {
             bandLabel = 'Low Stability';
-            headline = 'High chances of severe weather or outages coming up in your zone. Your earnings are at risk.';
-            nudge = 'You missed ₹${mockSvc.missedAmount} in recent events. Don\'t lose out again. Coverage starts at ₹35/week.';
+            headline =
+                'High chances of severe weather or outages coming up in your zone. Your earnings are at risk.';
+            nudge =
+                'You missed ₹${mockSvc.missedAmount} in recent events. Don\'t lose out again. Coverage starts at ₹35/week.';
             suggestCoverage = true;
             shiftWindows = [
-              {'label': 'Mid-morning', 'time': '9 AM – 12 PM', 'demand': 'Medium'},
+              {
+                'label': 'Mid-morning',
+                'time': '9 AM – 12 PM',
+                'demand': 'Medium'
+              },
               {'label': 'Evening', 'time': '6 PM – 9 PM', 'demand': 'High'},
             ];
           }
@@ -683,41 +733,31 @@ class _DashboardScreenState extends State<DashboardScreen>
       final tier = rawPolicy?['plan_tier'] as String?;
 
       // Support new schema field names: coverage_start / commitment_end
-      final policyWithAliases = rawPolicy == null ? null : {
-        ...rawPolicy,
-        // Ensure start_date / end_date are always populated for legacy code paths.
-        if (!rawPolicy.containsKey('start_date'))
-          'start_date': rawPolicy['coverage_start'],
-        if (!rawPolicy.containsKey('end_date'))
-          'end_date': rawPolicy['commitment_end'] ?? rawPolicy['paid_until'],
-        'plan_name': _planDisplayName(tier),
-      };
+      final policyWithAliases = rawPolicy == null
+          ? null
+          : {
+              ...rawPolicy,
+              // Ensure start_date / end_date are always populated for legacy code paths.
+              if (!rawPolicy.containsKey('start_date'))
+                'start_date': rawPolicy['coverage_start'],
+              if (!rawPolicy.containsKey('end_date'))
+                'end_date':
+                    rawPolicy['commitment_end'] ?? rawPolicy['paid_until'],
+              'plan_name': _planDisplayName(tier),
+            };
 
       // Gate: only show policyData if status is active or renewed
       final rawStatus = rawPolicy?['status']?.toString().toLowerCase() ?? '';
       final isPolicyActive = rawStatus == 'active' || rawStatus == 'renewed';
       final hasValidTier = tier != null && tier.trim().isNotEmpty;
-      
-      // OPTIMISTIC FALLBACK: If the API returns no policy but the local MockDataService 
-      // (which handles our in-app demo purchases) says we have one, use that!
-      if (!(isPolicyActive && hasValidTier) && mockSvc.hasActivePolicy) {
-        final mockTier = mockSvc.activePolicy.plan.split(' ')[0].toLowerCase();
-        policyData = {
-          'id': 'MOCK-${userId.hashCode}',
-          'plan_tier': mockTier,
-          'plan_name': mockSvc.activePolicy.plan,
-          'status': 'active',
-          'weekly_premium': mockSvc.activePolicy.premium,
-          'coverage_start': mockSvc.activePolicy.coverageStart,
-          'commitment_end': mockSvc.activePolicy.coverageEnd,
-        };
-      } else {
-        policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
-      }
+
+      // Real users should only see active policy when backend confirms it.
+      policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
 
       // WALLET FALLBACK: If user is a demo user, prioritize MockDataService wallet
       final isDemoUser = userId?.startsWith('DEMO_') ?? false;
-      if (isDemoUser || (walletRes['balance'] == 0 && mockSvc.walletBalance > 0)) {
+      if (isDemoUser ||
+          (walletRes['balance'] == 0 && mockSvc.walletBalance > 0)) {
         walletData = {
           'balance': mockSvc.walletBalance.toInt(),
           'total_payouts': mockSvc.monthlySavings.toInt(),
@@ -731,7 +771,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       final events = disruptionRes['disruptions'] as List<dynamic>? ?? [];
       final active = disruptionRes['active'] == true;
       final rawWeather = disruptionRes['weather'] as Map<String, dynamic>?;
-        final rawDataSources = disruptionRes['data_sources'] as Map<String, dynamic>?;
+      final rawDataSources =
+          disruptionRes['data_sources'] as Map<String, dynamic>?;
       final rawNudge =
           disruptionRes['predictive_nudge'] as Map<String, dynamic>?;
       final rawAdvisor = disruptionRes['work_advisor'] as Map<String, dynamic>?;
@@ -758,16 +799,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       final rawSource = normalizedWeather['source']?.toString().trim();
       final rawStation = normalizedWeather['station']?.toString().trim();
       final rawProvider = normalizedWeather['provider']?.toString().trim();
-      final hasSource = rawSource != null && rawSource.isNotEmpty && rawSource.toLowerCase() != 'null';
+      final hasSource = rawSource != null &&
+          rawSource.isNotEmpty &&
+          rawSource.toLowerCase() != 'null';
       if (!hasSource) {
-        normalizedWeather['source'] =
-            (bundleWeatherSource != null &&
-                    bundleWeatherSource.isNotEmpty &&
-                    bundleWeatherSource.toLowerCase() != 'null')
-                ? bundleWeatherSource
-                : (rawStation != null && rawStation.isNotEmpty && rawStation.toLowerCase() != 'null')
+        normalizedWeather['source'] = (bundleWeatherSource != null &&
+                bundleWeatherSource.isNotEmpty &&
+                bundleWeatherSource.toLowerCase() != 'null')
+            ? bundleWeatherSource
+            : (rawStation != null &&
+                    rawStation.isNotEmpty &&
+                    rawStation.toLowerCase() != 'null')
                 ? rawStation
-                : (rawProvider != null && rawProvider.isNotEmpty && rawProvider.toLowerCase() != 'null')
+                : (rawProvider != null &&
+                        rawProvider.isNotEmpty &&
+                        rawProvider.toLowerCase() != 'null')
                     ? rawProvider
                     : active
                         ? 'Disruption Engine'
@@ -779,7 +825,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() {
           weatherData = normalizedWeather;
           activeDisruption = latestDisruption;
-          nudgeData = rawNudge;
+          // Sync backend keys (date, rain_chance, message) to frontend expected keys (nudge_date, etc)
+          if (rawNudge != null) {
+            nudgeData = {
+              'nudge_date': rawNudge['date'],
+              'probability_percentage': rawNudge['rain_chance'],
+              'description': rawNudge['message'] ?? rawNudge['description'],
+              'simulated_payout': rawNudge['expected_payout'] ?? 360,
+            };
+          } else {
+            nudgeData = null;
+          }
           workAdvisorData = rawAdvisor;
           isLoading = false;
         });
@@ -838,8 +894,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     _disruptionOverlayOpen = true;
 
     // Estimate payout based on plan tier
-    final tier = (policyData?['plan_tier'] as String? ?? 'standard').toLowerCase();
-    final payout = tier.contains('full') ? 300 : (tier.contains('basic') ? 150 : 220);
+    final tier =
+        (policyData?['plan_tier'] as String? ?? 'standard').toLowerCase();
+    final payout =
+        tier.contains('full') ? 300 : (tier.contains('basic') ? 150 : 220);
 
     DisruptionAlertOverlay.show(
       context,
@@ -940,8 +998,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     final hasActivePolicy = policyData != null;
     final rawPlanName = hasActivePolicy
-      ? (policyData!['plan_name']?.toString() ?? 'No Active Plan')
-      : 'No Active Plan';
+        ? (policyData!['plan_name']?.toString() ?? 'No Active Plan')
+        : 'No Active Plan';
     final List<dynamic>? ridersData = policyData?['riders'];
     String planName = rawPlanName;
     if (ridersData != null && ridersData.isNotEmpty) {
@@ -960,11 +1018,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     final displayUserName = titleCase(userName ?? 'Karthik');
 
     final planTier = hasActivePolicy
-      ? policyData!['plan_tier']?.toString().toLowerCase() ?? 'standard'
-      : '';
-    final tierBasePremium = hasActivePolicy
-      ? PlanTierPrice.fromString(planTier).weeklyPremium
-      : 0;
+        ? policyData!['plan_tier']?.toString().toLowerCase() ?? 'standard'
+        : '';
+    final tierBasePremium =
+        hasActivePolicy ? PlanTierPrice.fromString(planTier).weeklyPremium : 0;
 
     int riderCostFromName(String name) {
       final n = name.toLowerCase();
@@ -1005,24 +1062,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Prefer valid backend-stored weekly premium, but ensure we never under-show
     // when billable add-ons exist (base + add-ons must be reflected).
     final rawWeeklyPremium = (policyData?['weekly_premium'] is num)
-      ? (policyData?['weekly_premium'] as num).toDouble()
-      : double.tryParse(policyData?['weekly_premium']?.toString() ?? '');
+        ? (policyData?['weekly_premium'] as num).toDouble()
+        : double.tryParse(policyData?['weekly_premium']?.toString() ?? '');
     final normalizedPremium = (rawWeeklyPremium != null &&
-        rawWeeklyPremium >= computedTotalPremium &&
-        rawWeeklyPremium <= 200)
-      ? rawWeeklyPremium.round().toString()
-      : computedTotalPremium.toString();
+            rawWeeklyPremium >= computedTotalPremium &&
+            rawWeeklyPremium <= 200)
+        ? rawWeeklyPremium.round().toString()
+        : computedTotalPremium.toString();
 
     final String premium = (liveDynamicPrice != null && billableAddonTotal == 0)
-      ? liveDynamicPrice!.toStringAsFixed(0)
-      : normalizedPremium;
+        ? liveDynamicPrice!.toStringAsFixed(0)
+        : normalizedPremium;
 
     // Derive missed-payout amount from shadow_policies nudge data (real DB field),
     // then fall back to a disruption-based estimate — never reads a non-existent field.
-    final shadowPayout = (nudgeData?['simulated_payout'] as num?)?.toInt()
-        ?? (nudgeData?['missed_amount'] as num?)?.toInt();
-    final disruptionCount = ((nudgeData?['disruption_count'] as num?)?.toInt() ?? 0);
-    final pAmount = shadowPayout ?? (disruptionCount > 0 ? disruptionCount * 120 : 350);
+    final mockSvc = Provider.of<MockDataService>(context, listen: false);
+    final shadowPayout = (nudgeData?['simulated_payout'] as num?)?.toInt() ??
+        (nudgeData?['missed_amount'] as num?)?.toInt();
+    final disruptionCount =
+        ((nudgeData?['disruption_count'] as num?)?.toInt() ?? 0);
+
+    // DEMO SYNC: If in demo mode, prioritize mockSvc.missedAmount
+    final isDemoMode = StorageService.getString('isDemoSession') == 'true' ||
+        (userId?.startsWith('DEMO_') ?? false);
+
+    final pAmount = isDemoMode
+        ? mockSvc.missedAmount
+        : (shadowPayout ?? (disruptionCount > 0 ? disruptionCount * 120 : 350));
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -1047,82 +1113,86 @@ class _DashboardScreenState extends State<DashboardScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildHeader(context, displayUserName),
-                        const SizedBox(height: 16),
-                        _buildTitleSection(l10n, displayUserName),
-                        const SizedBox(height: 20),
-                        if (isLocationDenied || isGpsOff) ...[
-                          _buildLocationStatusBanner(context,
-                              isGpsOff: isGpsOff),
-                          const SizedBox(height: 16),
-                        ],
-                        if (nudgeData != null) ...[
-                          _buildPredictiveNudgeCard(l10n),
-                          const SizedBox(height: 16),
-                        ],
-                        _buildRainAlertCard(l10n),
-                        if (workAdvisorData != null) ...[
-                          const SizedBox(height: 16),
-                          _buildWorkAdvisorCard(),
-                        ],
-                        const SizedBox(height: 20),
-                        if (policyData != null)
-                          _buildActivePolicyCard(
-                            planName,
-                            premium,
-                            l10n,
-                            ridersData,
-                            policyData?['plan_tier']?.toString() ?? 'standard',
-                          )
-                        else
-                          _buildNoPolicyCard(l10n),
-                        const SizedBox(height: 16),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF121512)
-                                : const Color(0xFFF7FAF7),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.06)
-                                  : const Color(0xFF1B5E20).withValues(alpha: 0.08),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
+                            const SizedBox(height: 16),
+                            _buildTitleSection(l10n, displayUserName),
+                            const SizedBox(height: 20),
+                            if (isLocationDenied || isGpsOff) ...[
+                              _buildLocationStatusBanner(context,
+                                  isGpsOff: isGpsOff),
+                              const SizedBox(height: 16),
+                            ],
+                            if (nudgeData != null) ...[
+                              _buildPredictiveNudgeCard(l10n),
+                              const SizedBox(height: 16),
+                            ],
+                            _buildRainAlertCard(l10n),
+                            if (workAdvisorData != null) ...[
+                              const SizedBox(height: 16),
+                              _buildWorkAdvisorCard(),
+                            ],
+                            const SizedBox(height: 20),
+                            if (policyData != null)
+                              _buildActivePolicyCard(
+                                planName,
+                                premium,
+                                l10n,
+                                ridersData,
+                                policyData?['plan_tier']?.toString() ??
+                                    'standard',
+                              )
+                            else
+                              _buildNoPolicyCard(l10n),
+                            const SizedBox(height: 16),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
                                 color: isDark
-                                    ? Colors.black.withValues(alpha: 0.18)
-                                    : const Color(0xFF1B5E20).withValues(alpha: 0.05),
-                                blurRadius: 24,
-                                spreadRadius: 1,
-                                offset: const Offset(0, 10),
+                                    ? const Color(0xFF121512)
+                                    : const Color(0xFFF7FAF7),
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : const Color(0xFF1B5E20)
+                                          .withValues(alpha: 0.08),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isDark
+                                        ? Colors.black.withValues(alpha: 0.18)
+                                        : const Color(0xFF1B5E20)
+                                            .withValues(alpha: 0.05),
+                                    blurRadius: 24,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              _buildActionCards(context, l10n),
-                              // Show missed-payouts card only for UNINSURED users
-                              // so it serves as a conversion nudge, not a bug.
-                              if (policyData == null) ...[
-                                const SizedBox(height: 16),
-                                _buildMissedPayoutsCard(pAmount, context, l10n),
-                              ],
-                            ],
-                          ),
+                              child: Column(
+                                children: [
+                                  _buildActionCards(context, l10n),
+                                  // Show missed-payouts card only for UNINSURED users
+                                  // so it serves as a conversion nudge, not a bug.
+                                  if (policyData == null) ...[
+                                    const SizedBox(height: 16),
+                                    _buildMissedPayoutsCard(
+                                        pAmount, context, l10n),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (_debugMode) _buildDebugPanel(),
+                          ],
                         ),
-                        if (_debugMode) _buildDebugPanel(),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    ],
+        ],
       ),
     );
   }
@@ -1261,7 +1331,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF121512) : const Color(0xFFF7FAF7),
+                  color: isDark
+                      ? const Color(0xFF121512)
+                      : const Color(0xFFF7FAF7),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: soft),
                 ),
@@ -1339,7 +1411,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(width: 6),
                   Text(
                     DynamicTranslator.of(context)
-                            .translateSync(userZone ?? 'BENGALURU, KA')
+                        .translateSync(userZone ?? 'BENGALURU, KA')
                         .toUpperCase(),
                     style: TextStyle(
                       color: mintColor,
@@ -1373,7 +1445,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     List<Map<String, dynamic>> getCoverageItems() {
       final items = <Map<String, dynamic>>[];
       final tier = planTier.toLowerCase();
-      
+
       // All tiers include Rain & Heat
       items.add({
         'label': l10n.claims_heavy_rain.toUpperCase(),
@@ -1383,7 +1455,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'label': l10n.claims_extreme_heat.toUpperCase(),
         'icon': Icons.wb_sunny_rounded,
       });
-      
+
       // Standard & Full include Platform Downtime
       if (tier == 'standard' || tier == 'full') {
         items.add({
@@ -1391,9 +1463,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           'icon': Icons.security_rounded,
         });
       }
-      
+
       return items;
     }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
     final mintColor =
@@ -1565,7 +1638,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildNoPolicyCard(AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final mintColor = isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
+    final mintColor =
+        isDark ? const Color(0xFF10B981) : const Color(0xFF1B5E20);
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subColor = textColor.withValues(alpha: 0.68);
 
@@ -1600,7 +1674,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(Icons.shield_outlined, color: mintColor, size: 22),
+                  child:
+                      Icon(Icons.shield_outlined, color: mintColor, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -1642,8 +1717,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildCoverageChip('STARTS FROM ₹49/WEEK', Icons.currency_rupee_rounded, mintColor, isDark),
-                _buildCoverageChip('TAP TO VIEW PLANS', Icons.touch_app_rounded, mintColor, isDark),
+                _buildCoverageChip('STARTS FROM ₹49/WEEK',
+                    Icons.currency_rupee_rounded, mintColor, isDark),
+                _buildCoverageChip('TAP TO VIEW PLANS', Icons.touch_app_rounded,
+                    mintColor, isDark),
               ],
             ),
             const SizedBox(height: 18),
@@ -1657,7 +1734,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.shopping_bag_outlined, size: 18, color: Colors.white),
+                  const Icon(Icons.shopping_bag_outlined,
+                      size: 18, color: Colors.white),
                   const SizedBox(width: 8),
                   Text(
                     'View Plans & Buy',
@@ -1669,7 +1747,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                  const Icon(Icons.arrow_forward_rounded,
+                      size: 18, color: Colors.white),
                 ],
               ),
             ),
@@ -1877,8 +1956,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     // ── Get disruption trigger type for dynamic content ──
-    final triggerType = (activeDisruption?['trigger_type'] as String? ?? 'rain').toLowerCase();
-    
+    final triggerType =
+        (activeDisruption?['trigger_type'] as String? ?? 'rain').toLowerCase();
+
     // ── Format locality ──
     String locality = userZone ?? 'your area';
     locality = locality.replaceAll(
@@ -1892,18 +1972,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     Color iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
     Color alertColor = mintColor;
     String alertTitle = l10n.dashboard_rain_alert.toUpperCase();
-    
+
     if (triggerType.contains('heat') || triggerType.contains('temperature')) {
       alertIcon = Icons.wb_sunny_rounded;
       iconBg = isDark ? const Color(0xFF4A2D00) : const Color(0xFFFFF3E0);
       alertColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
       alertTitle = 'EXTREME HEAT ALERT';
-    } else if (triggerType.contains('downtime') || triggerType.contains('platform')) {
+    } else if (triggerType.contains('downtime') ||
+        triggerType.contains('platform')) {
       alertIcon = Icons.cloud_off_rounded;
       iconBg = isDark ? const Color(0xFF003D2A) : const Color(0xFFE0F2F1);
       alertColor = isDark ? const Color(0xFF4DB8AC) : const Color(0xFF00695C);
       alertTitle = 'PLATFORM DOWNTIME ALERT';
-    } else if (triggerType.contains('aqi') || triggerType.contains('pollution')) {
+    } else if (triggerType.contains('aqi') ||
+        triggerType.contains('pollution')) {
       alertIcon = Icons.air_rounded;
       iconBg = isDark ? const Color(0xFF4A2D00) : const Color(0xFFFFF3E0);
       alertColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
@@ -1990,11 +2072,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildNiceWeatherCard(AppLocalizations l10n, bool isDark, 
-      Color mintColor, Color textColor) {
+  Widget _buildNiceWeatherCard(
+      AppLocalizations l10n, bool isDark, Color mintColor, Color textColor) {
     final cardColor = isDark ? const Color(0xFF1c1f1c) : Colors.white;
-    final lightGreen = isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
-    
+    final lightGreen =
+        isDark ? const Color(0xFF003D2A) : const Color(0xFFE8F5E9);
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -2142,7 +2225,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             // Web: no permission_handler support
             if (kIsWeb) {
               try {
-                final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                final zone =
+                    userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
                 await ShiftTrackingService.instance.startShift(zone);
                 AppEvents.instance.profileUpdated();
               } catch (e) {
@@ -2163,7 +2247,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content: Text('Please turn on device location to go online')),
+                        content: Text(
+                            'Please turn on device location to go online')),
                   );
                 }
                 setState(() => _isGoingOnline = false);
@@ -2180,7 +2265,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 print('[GoOnline] GPS timeout: $gpsError — using last known');
               }
 
-              final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+              final zone =
+                  userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
               await ShiftTrackingService.instance.startShift(zone);
               AppEvents.instance.profileUpdated();
               if (mounted) {
@@ -2204,7 +2290,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           }),
           const SizedBox(height: 12),
         ],
-        
         Row(
           children: [
             Expanded(
@@ -2233,15 +2318,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                   );
 
                   Map<String, dynamic>? certPolicy = policyData;
-                  final uid = userId ?? await StorageService.instance.getUserId();
+                  final uid =
+                      userId ?? await StorageService.instance.getUserId();
 
                   // Always try to fetch the freshest active policy before generating.
                   if (uid != null) {
                     try {
                       final fresh = await ApiService.instance.getPolicy(uid);
-                      final freshPolicy = fresh['policy'] as Map<String, dynamic>?;
-                      final status = freshPolicy?['status']?.toString().toLowerCase() ?? '';
-                      if (freshPolicy != null && (status == 'active' || status == 'renewed')) {
+                      final freshPolicy =
+                          fresh['policy'] as Map<String, dynamic>?;
+                      final status =
+                          freshPolicy?['status']?.toString().toLowerCase() ??
+                              '';
+                      if (freshPolicy != null &&
+                          (status == 'active' || status == 'renewed')) {
                         certPolicy = freshPolicy;
                         if (mounted) {
                           setState(() => policyData = {
@@ -2249,8 +2339,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 if (!freshPolicy.containsKey('start_date'))
                                   'start_date': freshPolicy['coverage_start'],
                                 if (!freshPolicy.containsKey('end_date'))
-                                  'end_date': freshPolicy['commitment_end'] ?? freshPolicy['paid_until'],
-                                'plan_name': _planDisplayName(freshPolicy['plan_tier'] as String?),
+                                  'end_date': freshPolicy['commitment_end'] ??
+                                      freshPolicy['paid_until'],
+                                'plan_name': _planDisplayName(
+                                    freshPolicy['plan_tier'] as String?),
                               });
                         }
                       }
@@ -2262,7 +2354,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   if (certPolicy == null) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No active policy found to generate certificate.')),
+                      const SnackBar(
+                          content: Text(
+                              'No active policy found to generate certificate.')),
                     );
                     return;
                   }
@@ -2274,11 +2368,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ? userZone!.trim()
                       : (await StorageService.instance.getUserZone())?.trim();
 
-                  final rawStart = certPolicy['coverage_start'] as String?
-                      ?? certPolicy['start_date'] as String?;
-                  final rawEnd = certPolicy['commitment_end'] as String?
-                      ?? certPolicy['paid_until'] as String?
-                      ?? certPolicy['end_date'] as String?;
+                  final rawStart = certPolicy['coverage_start'] as String? ??
+                      certPolicy['start_date'] as String?;
+                  final rawEnd = certPolicy['commitment_end'] as String? ??
+                      certPolicy['paid_until'] as String? ??
+                      certPolicy['end_date'] as String?;
 
                   await PdfGenerator.generateAndPreviewCertificate(
                     name: latestName != null && latestName.isNotEmpty
@@ -2289,8 +2383,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                         : 'Unknown Zone',
                     planName: _planNameWithRiders(certPolicy),
                     policyNumber: _formatPolicyNumber(certPolicy),
-                    coverageStart: rawStart != null ? DateTime.tryParse(rawStart) : null,
-                    coverageEnd: rawEnd != null ? DateTime.tryParse(rawEnd) : null,
+                    coverageStart:
+                        rawStart != null ? DateTime.tryParse(rawStart) : null,
+                    coverageEnd:
+                        rawEnd != null ? DateTime.tryParse(rawEnd) : null,
                     weeklyPremium: _resolveWeeklyPremium(certPolicy),
                   );
                 },
@@ -2648,7 +2744,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       _enableLiveML = !_enableLiveML;
                     });
                     if (_enableLiveML) {
-                        _fetchLiveMLData(policyData?['plan_tier'] ?? 'standard');
+                      _fetchLiveMLData(policyData?['plan_tier'] ?? 'standard');
                     } else {
                       setState(() {
                         liveDynamicPrice = null;
@@ -2714,9 +2810,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           _DebugRow(
               'WEATHER SOURCE',
               // API sends 'source'; some older responses have 'station'
-              weatherData?['source']?.toString()
-                  ?? weatherData?['station']?.toString()
-                  ?? 'NULL'),
+              weatherData?['source']?.toString() ??
+                  weatherData?['station']?.toString() ??
+                  'NULL'),
           _DebugRow('RAIN MM', '${weatherData?['rainfall_mm_1h'] ?? 'NULL'}'),
           _DebugRow('TEMP', '${weatherData?['temp_celsius'] ?? 'NULL'}°C'),
           _DebugRow('TRIGGER ACTIVE',
@@ -2797,7 +2893,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildSystemStatusFeed() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1c1f1c) : const Color(0xFFF0F4F0);
-    final textColor = isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
+    final textColor =
+        isDark ? const Color(0xFF91938d) : const Color(0xFF4A6741);
 
     return Container(
       height: 32,
@@ -2812,7 +2909,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         itemCount: _events.length,
         itemBuilder: (context, index) {
           final event = _events[index];
-          final time = "${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}";
+          final time =
+              "${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}";
           return Padding(
             padding: const EdgeInsets.only(right: 24),
             child: Row(
@@ -2843,7 +2941,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildLiveStatsRow() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statsColor = isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
+    final statsColor =
+        isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32);
     final distance = LocationService.instance.traveledDistance;
 
     return Row(

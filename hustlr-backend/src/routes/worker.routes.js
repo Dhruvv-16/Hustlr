@@ -6,6 +6,7 @@ const {
   recordFingerprint,
   getFingerprintStats,
 } = require("../services/device-fingerprint-service");
+const { sendPushNotification } = require("../services/notification-service");
 const { requireSession } = require("../middleware/session-auth");
 const router = express.Router();
 
@@ -245,6 +246,73 @@ router.patch("/:id/zone-depth", async (req, res) => {
       .single();
     if (error) throw error;
     res.json({ updated_user, distance_km, hub, source });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// PATCH /workers/:id/fcm-token
+// Persist the latest Firebase token for this user.
+router.patch("/:id/fcm-token", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fcm_token } = req.body || {};
+
+    if (!req.authUserId || req.authUserId !== id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (typeof fcm_token !== "string" || fcm_token.trim().length < 20) {
+      return res.status(400).json({ error: "Valid fcm_token is required" });
+    }
+
+    const { data: updated_user, error } = await supabase
+      .from("users")
+      .update({
+        fcm_token: fcm_token.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id,name,fcm_token")
+      .single();
+
+    if (error) throw error;
+    res.json({ updated_user, saved: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /workers/:id/push-test
+// Sends a test push notification to verify device setup.
+router.post("/:id/push-test", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.authUserId || req.authUserId !== id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id,name,fcm_token")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.fcm_token) {
+      return res.status(400).json({ error: "No fcm_token saved for this user" });
+    }
+
+    const push = await sendPushNotification(
+      user.fcm_token,
+      "Hustlr Push Check",
+      "Phone notifications are now connected.",
+      {
+        type: "push_test",
+        user_id: id,
+      },
+    );
+
+    res.json({ ok: true, push });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

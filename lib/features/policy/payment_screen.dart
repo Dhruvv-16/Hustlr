@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import 'razorpay_bridge_io.dart' if (dart.library.html) 'razorpay_bridge_web.dart'
-    as razorpay_bridge;
+import 'razorpay_bridge_io.dart'
+    if (dart.library.html) 'razorpay_bridge_web.dart' as razorpay_bridge;
 
 import '../../blocs/claims/claims_bloc.dart';
 import '../../blocs/claims/claims_event.dart';
@@ -29,6 +29,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _loading = false;
   int _walletBalance = 0;
   bool _useRazorpay = true; // Razorpay vs Wallet toggle
+  bool _paymentHandled = false;
 
   String _formatInr(num amount, {bool withSymbol = true}) {
     final value = amount.round();
@@ -55,7 +56,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return explicit!;
     }
 
-    final rawName = widget.checkoutData?['plan']?.toString().toLowerCase() ?? '';
+    final rawName =
+        widget.checkoutData?['plan']?.toString().toLowerCase() ?? '';
     if (rawName.contains('full')) return 'full';
     if (rawName.contains('basic')) return 'basic';
     return 'standard';
@@ -68,6 +70,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     razorpay_bridge.initializeRazorpay(
       onPaymentSuccess: (paymentId) => _verifyAndCreatePolicy(paymentId),
       onPaymentError: (message) {
+        if (_paymentHandled) return;
+        _paymentHandled = true;
         if (!mounted) return;
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -110,14 +114,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _openRazorpayCheckout() async {
     setState(() => _loading = true);
-    
+    _paymentHandled = false;
+
     final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
     final planName = widget.checkoutData?['plan'] ?? 'Standard Shield';
     final userId = await StorageService.instance.getUserId();
 
     // Razorpay test key (sandbox mode)
-    const razorpayTestKey = 'rzp_test_SdS5pzapxUC7EU'; // Replace with your test key
-    
+    const razorpayTestKey =
+        'rzp_test_SdS5pzapxUC7EU'; // Replace with your test key
+
     var options = {
       'key': razorpayTestKey,
       'amount': total * 100, // Razorpay expects amount in paise
@@ -127,7 +133,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       'image': 'https://hustlr.in/logo.png', // Your app logo
       'prefill': {
         'contact': '', // Can add user's phone
-        'email': '',   // Can add user's email
+        'email': '', // Can add user's email
       },
       'theme': {
         'color': '#2E7D32', // Your brand color
@@ -152,7 +158,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _verifyAndCreatePolicy(String paymentId) async {
-    String? currentUserId;
+    if (_paymentHandled) return;
+    _paymentHandled = true;
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null || userId.isEmpty) {
@@ -167,16 +174,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
         }
         return;
       }
-      currentUserId = userId;
       final planTier = _resolvePlanTier();
-      final riders = widget.checkoutData?['riders'] as List<Map<String, dynamic>>?;
-      final selectedPlanName = widget.checkoutData?['plan']?.toString() ?? 'Standard Shield';
+      final riders =
+          widget.checkoutData?['riders'] as List<Map<String, dynamic>>?;
+      final selectedPlanName =
+          widget.checkoutData?['plan']?.toString() ?? 'Standard Shield';
       final checkoutTotal = (widget.checkoutData?['total'] as num?)?.toInt();
 
       final result = await ApiService.instance.createPolicy(
         userId: userId,
         planTier: planTier,
         riders: riders,
+        paymentSource: 'razorpay',
       );
 
       final createdPolicy = result['policy'] as Map<String, dynamic>?;
@@ -202,13 +211,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       // Fire events immediately so any mounted screens pick them up
       AppEvents.instance.policyUpdated();
       AppEvents.instance.walletUpdated();
-      if (currentUserId != null) {
-        final uid = currentUserId;
-        context.read<PolicyBloc>().add(LoadPolicy(uid));
-        context.read<ClaimsBloc>().add(LoadClaims(uid));
-      }
+      context.read<PolicyBloc>().add(LoadPolicy(userId));
+      context.read<ClaimsBloc>().add(LoadClaims(userId));
     } catch (e) {
       if (mounted) {
+        _paymentHandled = false;
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -248,23 +255,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
     try {
       final userId = await StorageService.instance.getUserId();
       if (userId == null) throw Exception('User not logged in');
-      
+
       final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
-      
+
       if (_walletBalance < total) {
         throw Exception('Insufficient wallet balance');
       }
 
       // Deduct from wallet
       final planTier = _resolvePlanTier();
-      
+
       // Create policy
       final result = await ApiService.instance.createPolicy(
         userId: userId,
         planTier: planTier,
       );
 
-      final selectedPlanName = widget.checkoutData?['plan']?.toString() ?? 'Standard Shield';
+      final selectedPlanName =
+          widget.checkoutData?['plan']?.toString() ?? 'Standard Shield';
       NotificationService.instance.addPremiumDeducted(
         total,
         planName: selectedPlanName,
@@ -301,7 +309,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           backgroundColor: const Color(0xFF2E7D32),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
           duration: const Duration(seconds: 4),
         ),
@@ -320,8 +329,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final total = (widget.checkoutData?['total'] as num?)?.toInt() ?? 49;
-    final planCost = (widget.checkoutData?['planCost'] as num?)?.toInt() ?? total;
-    final rawRiders = widget.checkoutData?['riders'] as List<dynamic>? ?? const [];
+    final planCost =
+        (widget.checkoutData?['planCost'] as num?)?.toInt() ?? total;
+    final rawRiders =
+        widget.checkoutData?['riders'] as List<dynamic>? ?? const [];
     final riders = rawRiders
         .whereType<Map>()
         .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
@@ -397,7 +408,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ],
             ),
           ),
-          
+
           // Payment method selection
           Expanded(
             child: SingleChildScrollView(
@@ -435,9 +446,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       ],
                     ),
                   ),
-                  
                   const SizedBox(height: 18),
-                  
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 260),
                     switchInCurve: Curves.easeOutCubic,
@@ -445,7 +454,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     transitionBuilder: (child, animation) {
                       return FadeTransition(
                         opacity: animation,
-                        child: SizeTransition(sizeFactor: animation, axisAlignment: -1, child: child),
+                        child: SizeTransition(
+                            sizeFactor: animation,
+                            axisAlignment: -1,
+                            child: child),
                       );
                     },
                     child: _useRazorpay
@@ -454,145 +466,160 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE6EAE8)),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x10000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE9F4EA),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: const Color(0xFFE6EAE8)),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x10000000),
+                                      blurRadius: 16,
+                                      offset: Offset(0, 6),
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(Icons.lock_rounded, size: 22, color: Color(0xFF2E7D32)),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'Razorpay Secure Checkout',
-                                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Color(0xFF163A1D)),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE9F4EA),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(Icons.lock_rounded,
+                                              size: 22,
+                                              color: Color(0xFF2E7D32)),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Expanded(
+                                          child: Text(
+                                            'Razorpay Secure Checkout',
+                                            style: TextStyle(
+                                                fontSize: 21,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF163A1D)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'You will be redirected to a secure Razorpay payment page to complete this purchase.',
+                                      style: TextStyle(
+                                          fontSize: 14,
+                                          color: muted,
+                                          height: 1.35),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE6F1FF),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        'SANDBOX MODE - TEST PAYMENTS ONLY',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF1E5FAF),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'You will be redirected to a secure Razorpay payment page to complete this purchase.',
-                            style: TextStyle(fontSize: 14, color: muted, height: 1.35),
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE6F1FF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              'SANDBOX MODE - TEST PAYMENTS ONLY',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF1E5FAF),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-
-                    Text(
-                      'Supported payment methods:',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: deep,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        _paymentMethodChip('Credit/Debit Card', Icons.credit_card),
-                        _paymentMethodChip('UPI', Icons.account_balance),
-                        _paymentMethodChip('Netbanking', Icons.language),
-                        _paymentMethodChip('Wallets', Icons.account_balance_wallet),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-                    Text(
-                      'Popular cards & UPI apps',
-                      style: TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: const [
-                        _BrandBadge(label: 'Visa'),
-                        _BrandBadge(label: 'Mastercard'),
-                        _BrandBadge(label: 'RuPay'),
-                        _BrandBadge(label: 'GPay'),
-                        _BrandBadge(label: 'PhonePe'),
-                        _BrandBadge(label: 'Paytm'),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF4DF),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFF2D29A)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF9D5A00)),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Test Mode Info',
+                              const SizedBox(height: 24),
+                              Text(
+                                'Supported payment methods:',
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF9D5A00),
+                                  color: deep,
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Use these test card details:\nCard: 5267 3181 8797 5449\nExpiry: Any future date\nCVV: Any 3 digits\nOTP: 1234',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF8A4E00),
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  _paymentMethodChip(
+                                      'Credit/Debit Card', Icons.credit_card),
+                                  _paymentMethodChip(
+                                      'UPI', Icons.account_balance),
+                                  _paymentMethodChip(
+                                      'Netbanking', Icons.language),
+                                  _paymentMethodChip(
+                                      'Wallets', Icons.account_balance_wallet),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Popular cards & UPI apps',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: muted,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: const [
+                                  _BrandBadge(label: 'Visa'),
+                                  _BrandBadge(label: 'Mastercard'),
+                                  _BrandBadge(label: 'RuPay'),
+                                  _BrandBadge(label: 'GPay'),
+                                  _BrandBadge(label: 'PhonePe'),
+                                  _BrandBadge(label: 'Paytm'),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF4DF),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: const Color(0xFFF2D29A)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.info_outline_rounded,
+                                            size: 18, color: Color(0xFF9D5A00)),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Test Mode Info',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF9D5A00),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Use these test card details:\nCard: 5267 3181 8797 5449\nExpiry: Any future date\nCVV: Any 3 digits\nOTP: 1234',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF8A4E00),
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           )
                         : Column(
@@ -600,85 +627,93 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE6EAE8)),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x10000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE9F4EA),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.account_balance_wallet_rounded, size: 22, color: Color(0xFF2E7D32)),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Hustlr Wallet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: deep,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Balance: $formattedWallet',
-                            style: const TextStyle(
-                              fontSize: 38,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF2E7D32),
-                              height: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            walletShort
-                                ? 'You have enough wallet balance for this payment.'
-                                : 'Available for payment',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    if (_walletBalance < total)
-                      Container(
-                        margin: const EdgeInsets.only(top: 14),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF1F2),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFF4C8CD)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xFFB42318)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Insufficient balance. Add $shortfall more.',
-                                style: const TextStyle(fontSize: 13, color: Color(0xFFB42318), fontWeight: FontWeight.w500),
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: const Color(0xFFE6EAE8)),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x10000000),
+                                      blurRadius: 16,
+                                      offset: Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE9F4EA),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                          Icons.account_balance_wallet_rounded,
+                                          size: 22,
+                                          color: Color(0xFF2E7D32)),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      'Hustlr Wallet',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: deep,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Balance: $formattedWallet',
+                                      style: const TextStyle(
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2E7D32),
+                                        height: 1.0,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      walletShort
+                                          ? 'You have enough wallet balance for this payment.'
+                                          : 'Available for payment',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
+                              if (_walletBalance < total)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 14),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF1F2),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                        color: const Color(0xFFF4C8CD)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded,
+                                          size: 18, color: Color(0xFFB42318)),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Insufficient balance. Add $shortfall more.',
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Color(0xFFB42318),
+                                              fontWeight: FontWeight.w500),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                   ),
@@ -686,7 +721,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ),
           ),
-          
+
           Container(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             decoration: const BoxDecoration(
@@ -732,15 +767,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Base plan', style: TextStyle(fontSize: 12, color: muted)),
-                              Text(_formatInr(planCost), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              Text('Base plan',
+                                  style: TextStyle(fontSize: 12, color: muted)),
+                              Text(_formatInr(planCost),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
                             ],
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Add-ons (${riders.length})', style: TextStyle(fontSize: 12, color: muted)),
-                              Text('+${_formatInr(riderTotal)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              Text('Add-ons (${riders.length})',
+                                  style: TextStyle(fontSize: 12, color: muted)),
+                              Text('+${_formatInr(riderTotal)}',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ],
@@ -749,8 +792,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Total payable', style: TextStyle(fontSize: 13, color: muted)),
-                      Text(formattedTotal, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF163A1D))),
+                      Text('Total payable',
+                          style: TextStyle(fontSize: 13, color: muted)),
+                      Text(formattedTotal,
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF163A1D))),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -762,13 +810,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ? null
                           : (_useRazorpay
                               ? _openRazorpayCheckout
-                              : (_walletBalance < total ? null : _payWithWallet)),
+                              : (_walletBalance < total
+                                  ? null
+                                  : _payWithWallet)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: green,
                         foregroundColor: Colors.white,
                         disabledBackgroundColor: const Color(0xFFD5D9D6),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                       child: _loading
                           ? const SizedBox(
@@ -776,7 +827,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               height: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : Row(
@@ -784,16 +836,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    _useRazorpay ? 'Proceed to Pay $formattedTotal' : 'Pay with Wallet',
+                                    _useRazorpay
+                                        ? 'Proceed to Pay $formattedTotal'
+                                        : 'Pay with Wallet',
                                     maxLines: 1,
                                     textAlign: TextAlign.center,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700),
                                   ),
                                 ),
                                 if (_useRazorpay) ...[
                                   const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward_rounded, size: 18),
+                                  const Icon(Icons.arrow_forward_rounded,
+                                      size: 18),
                                 ],
                               ],
                             ),
@@ -831,19 +888,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Icon(
                 icon,
                 size: 17,
-                color: active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
+                color:
+                    active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
               ),
               const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                          color: active ? const Color(0xFF2E7D32) : const Color(0xFF98A2B3),
-                        ),
-                      ),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    color: active
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFF98A2B3),
+                  ),
+                ),
               ),
             ],
           ),

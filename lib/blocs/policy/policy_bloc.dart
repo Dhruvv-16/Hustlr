@@ -62,7 +62,8 @@ class PolicyBloc extends Bloc<PolicyEvent, PolicyState> {
       }
 
       // ── SECONDARY SOURCE: Use MockDataService if API says no policy but we are in a demo session ──
-      if (MockDataService.instance.hasActivePolicy) {
+      if (event.userId.startsWith('DEMO_') &&
+          MockDataService.instance.hasActivePolicy) {
         final mockPolicy = MockDataService.instance.activePolicy;
         final policy = Policy(
           id: 'mock-${mockPolicy.plan.toLowerCase()}',

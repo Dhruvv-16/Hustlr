@@ -49,10 +49,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
   String? _hintMessage;
   String? _firstTurnDirection;
 
-  // Gesture-based liveness: enforce two sequential captures.
+  // Single capture for face verification
   final List<String> _gestures = [
-    'Turn your face to the left',
-    'Turn your face to the right',
+    'Look straight into the camera',
   ];
   int _gestureStepIndex = 0;
   String? _currentGesture;
@@ -159,7 +158,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
               mode: CameraMode.kycFace,
               title: 'Face Verification',
               instructions: '$_currentGesture\n\nPlease ensure your face is fully visible within the circle.',
-              enforceLiveGesture: true,
+              enforceLiveGesture: false, // Set to false to allow manual/standard capture
               expectedGesture: _currentGesture,
             ),
           ),
@@ -170,34 +169,8 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           return;
         }
         
-        if (result['liveGesture'] != true) {
-          setState(() {
-            _state = _VerificationState.failed;
-            _errorMessage = 'Face and gesture not verified correctly. Please try again.';
-          });
-          return;
-        }
-
         setState(() => _state = _VerificationState.verifying);
         base64Image = result['base64'] as String;
-
-        final turnDirection = result['detectedDirection'] as String?;
-        if (_gestureStepIndex == 0 && turnDirection != null) {
-          _firstTurnDirection = turnDirection;
-        }
-        if (_gestureStepIndex == 1 &&
-            turnDirection != null &&
-            _firstTurnDirection != null &&
-            turnDirection == _firstTurnDirection) {
-          setState(() {
-            _state = _VerificationState.failed;
-            _errorMessage =
-                'Please turn to the opposite side for step 2.';
-            _hintMessage =
-                'Step 2 requires the opposite direction from step 1.';
-          });
-          return;
-        }
       }
       final userId = await StorageService.instance.getUserId();
 
@@ -221,20 +194,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
         return;
       }
 
-      // Require both gestures in sequence before success.
-      if (_gestureStepIndex < _gestures.length - 1) {
-        setState(() {
-          _similarityScore = score;
-          _gestureStepIndex += 1;
-          _currentGesture = _gestures[_gestureStepIndex];
-          _state = _VerificationState.idle;
-          _errorMessage = null;
-          _hintMessage =
-              'Step ${_gestureStepIndex + 1}/${_gestures.length}: ${_currentGesture!}';
-        });
-        return;
-      }
-
+      // Single step verification.
       setState(() {
         _similarityScore = score;
         _state = _VerificationState.success;
@@ -335,7 +295,7 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
-                              'Step ${_gestureStepIndex + 1}/${_gestures.length}: ${_currentGesture!}',
+                              _currentGesture!,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurface,
@@ -581,9 +541,9 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
           final ml = l10n.step_up_face_ml_notice;
           if (widget.requireTwoTier && _biometricPassed) {
             subtitle =
-                '$selfie\n\n$ml\n\nBiometric complete. Perform the gesture to finish enrollment.';
+                '$selfie\n\n$ml\n\nBiometric complete. Capture your photo to finish enrollment.';
           } else {
-            subtitle = '$selfie\n\n$ml\n\nPerform the gesture shown below.';
+            subtitle = '$selfie\n\n$ml';
           }
           break;
         case _VerificationState.capturing:
@@ -769,10 +729,8 @@ class _StepUpAuthScreenState extends State<StepUpAuthScreen>
             icon: Icon(kIsWeb ? Icons.upload : Icons.camera_alt_outlined),
             label: Text(
               _state == _VerificationState.failed 
-                  ? 'Retry This Step' 
-                  : (_gestureStepIndex < _gestures.length - 1
-                      ? (kIsWeb ? 'Upload Left/Right Step' : 'Capture Step')
-                      : (kIsWeb ? 'Upload Final Step' : 'Verify Final Step')),
+                  ? 'Retry Photo' 
+                  : 'Capture Photo',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
             ),
             style: ElevatedButton.styleFrom(
