@@ -169,8 +169,14 @@ class _CheckoutScreenState extends State<CheckoutScreen>
         planName: widget.planName,
       );
 
-      final mock = context.read<MockDataService>();
-      mock.activatePolicy(planTier);
+      final isDemoUser = userId.startsWith('DEMO_') ||
+          userId.startsWith('demo-') ||
+          userId.startsWith('mock-') ||
+          StorageService.getString('isDemoSession') == 'true';
+      if (isDemoUser) {
+        final mock = context.read<MockDataService>();
+        mock.activatePolicy(planTier);
+      }
 
       final policyId = result['policy']?['id'] as String?;
       if (policyId != null) {

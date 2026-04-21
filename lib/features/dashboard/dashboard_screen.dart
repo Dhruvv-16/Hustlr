@@ -539,9 +539,25 @@ class _DashboardScreenState extends State<DashboardScreen>
               (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
           final apiTemp =
               (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+          final apiNudge = liveDisruptions['predictive_nudge'] as Map<String, dynamic>?;
 
           if (mounted) {
             setState(() {
+              if (apiNudge != null) {
+                nudgeData = {
+                  'nudge_date': apiNudge['date'],
+                  'probability_percentage': apiNudge['rain_chance'],
+                  'description': apiNudge['message'] ?? apiNudge['description'],
+                  'simulated_payout': apiNudge['expected_payout'] ?? 360,
+                };
+              } else {
+                nudgeData = {
+                  'nudge_date': 'Friday',
+                  'probability_percentage': 85,
+                  'description': 'Heavy rain expected in your zone.',
+                  'simulated_payout': 360,
+                };
+              }
               weatherData = {
                 'source': 'Live API',
                 'rainfall_mm_1h':
@@ -735,22 +751,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       final isPolicyActive = rawStatus == 'active' || rawStatus == 'renewed';
       final hasValidTier = tier != null && tier.trim().isNotEmpty;
 
-      // OPTIMISTIC FALLBACK: If the API returns no policy but the local MockDataService
-      // (which handles our in-app demo purchases) says we have one, use that!
-      if (!(isPolicyActive && hasValidTier) && mockSvc.hasActivePolicy) {
-        final mockTier = mockSvc.activePolicy.plan.split(' ')[0].toLowerCase();
-        policyData = {
-          'id': 'MOCK-${userId.hashCode}',
-          'plan_tier': mockTier,
-          'plan_name': mockSvc.activePolicy.plan,
-          'status': 'active',
-          'weekly_premium': mockSvc.activePolicy.premium,
-          'coverage_start': mockSvc.activePolicy.coverageStart,
-          'commitment_end': mockSvc.activePolicy.coverageEnd,
-        };
-      } else {
-        policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
-      }
+      // Real users should only see active policy when backend confirms it.
+      policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
 
       // WALLET FALLBACK: If user is a demo user, prioritize MockDataService wallet
       final isDemoUser = userId?.startsWith('DEMO_') ?? false;
@@ -823,7 +825,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() {
           weatherData = normalizedWeather;
           activeDisruption = latestDisruption;
-          nudgeData = rawNudge;
+          // Sync backend keys (date, rain_chance, message) to frontend expected keys (nudge_date, etc)
+          if (rawNudge != null) {
+            nudgeData = {
+              'nudge_date': rawNudge['date'],
+              'probability_percentage': rawNudge['rain_chance'],
+              'description': rawNudge['message'] ?? rawNudge['description'],
+              'simulated_payout': rawNudge['expected_payout'] ?? 360,
+            };
+          } else {
+            nudgeData = null;
+          }
           workAdvisorData = rawAdvisor;
           isLoading = false;
         });

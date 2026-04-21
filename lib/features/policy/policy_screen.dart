@@ -51,13 +51,15 @@ List<_Plan> _getPlans(BuildContext context) {
       name: l10n.policy_standard,
       subtitle: 'Everything in Basic + platform downtime + severe AQI',
       price: 'Rs.49/wk',
+      accentLeft: true,
       isMostPopular: true,
     ),
     _Plan(
       id: 'full',
       name: l10n.policy_full,
-      subtitle: 'Everything in Standard + bandh/curfew + internet blackout',
+      subtitle: 'Everything in Standard + bandh/curfew + internet blackout',      
       price: 'Rs.79/wk',
+      accentLeft: true,
       isElite: true,
     ),
   ];
@@ -315,7 +317,11 @@ class _PolicyScreenState extends State<PolicyScreen>
             final mock = context.read<MockDataService>();
             var policyToUse = rawPolicy is Map<String, dynamic> ? rawPolicy : null;
             
-            if (policyToUse == null && mock.hasActivePolicy) {
+            final isDemoUser = uid.startsWith('DEMO_') ||
+                uid.startsWith('demo-') ||
+                uid.startsWith('mock-') ||
+                StorageService.getString('isDemoSession') == 'true';
+            if (policyToUse == null && isDemoUser && mock.hasActivePolicy) {
               final tier = mock.activePolicy.plan.split(' ')[0].toLowerCase();
               policyToUse = {
                 'id': 'MOCK-${uid.hashCode}',
@@ -743,7 +749,7 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
     
     // Manual Disruption Filing always included
     items.add({
-      'icon': Icons.edit_document,
+      'icon': Icons.history_edu_rounded,
       'title': 'Manual Disruption Filing',
       'subtitle': 'Report untracked disruptions manually',
     });
@@ -1408,8 +1414,8 @@ class _UpgradeTabState extends State<_UpgradeTab> {
       });
     } else {
       rules.add({
-        'title': 'One event per week per type',
-        'desc': 'Basic and Standard allow one payout per trigger type each week',
+        'title': 'Multiple events allowed',
+        'desc': 'You can claim any type of disruption multiple times, provided the total payouts stay within your daily and weekly plan limits.',
       });
     }
 
@@ -1623,26 +1629,25 @@ class _PlanCard extends StatelessWidget {
     final theme  = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final green  = theme.colorScheme.primary;
-    final gradientBg = plan.isElite
-        ? (isDark
-            ? const LinearGradient(
-                colors: [Color(0xFF4A2B00), Color(0xFF1F1200)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight)
-            : const LinearGradient(
-                colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight))
-        : null;
-    final cardBg = theme.cardColor;
+    final deepGreen = const Color(0xFF0B6B57);
+    final accentMint = const Color(0xFF00D1A0);
+    
     final borderCol = isSelected
         ? green
         : (isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB));
-    final textColor  = plan.isElite ? Colors.white : theme.colorScheme.onSurface;
-    final subColor   = plan.isElite ? Colors.white70 : theme.colorScheme.onSurface.withValues(alpha: 0.5);
-    final priceColor = plan.isElite
-        ? Colors.white
-        : (isDark ? const Color(0xFF3FFF8B) : const Color(0xFF2E7D32));
+    final textColor  = theme.colorScheme.onSurface;
+    final subColor   = theme.colorScheme.onSurface.withValues(alpha: 0.5);
+    final priceColor = deepGreen;
+
+    final eliteBg = plan.isElite
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark 
+                ? [const Color(0xFF00382B), const Color(0xFF005C46)]
+                : [const Color(0xFFF0FAF7), const Color(0xFFFFF8E1)],
+          )
+        : null;
 
     return GestureDetector(
       onTap: onTap,
@@ -1653,10 +1658,17 @@ class _PlanCard extends StatelessWidget {
           Container(
             margin: EdgeInsets.only(bottom: 10, top: (plan.isMostPopular || plan.isElite) ? 10 : 0),
             decoration: BoxDecoration(
-              color: plan.isElite ? null : cardBg,
-              gradient: gradientBg,
+              color: theme.cardColor,
+              gradient: eliteBg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderCol, width: isSelected ? 2 : 1),
+              boxShadow: (isSelected || plan.isElite) ? [
+                BoxShadow(
+                  color: (plan.isElite ? accentMint : green).withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                )
+              ] : null,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(11),
@@ -1665,7 +1677,7 @@ class _PlanCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (plan.accentLeft)
-                      Container(width: 3, color: green),
+                      Container(width: 4, color: plan.isElite ? accentMint : green),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1675,33 +1687,33 @@ class _PlanCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(plan.name, style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.bold,
+                                  fontSize: 16, fontWeight: FontWeight.bold,
                                   color: textColor)),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 4),
                                 Text(plan.subtitle, style: TextStyle(
                                   fontSize: 12, color: subColor)),
                                 if (plan.isElite) ...[
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 12),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.2),
+                                      color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.2), width: 0.5),
                                     ),
-                                    child: const Text('10% CASHBACK',
+                                    child: Text('10% CASHBACK',
                                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                            color: Colors.white, letterSpacing: 0.5)),
+                                            color: isDark ? Colors.white : deepGreen, letterSpacing: 0.5)),
                                   ),
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 8),
                                   GestureDetector(
                                     onTap: () => context.push(AppRoutes.compoundTriggers),
-                                    child: const Text('Learn about compound triggers →',
-                                        style: TextStyle(
-                                          fontSize: 11, fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          decoration: TextDecoration.underline,
-                                          decorationColor: Colors.white,
-                                        )),
+                                    child: Text('Learn about compound triggers →',
+                                        style: TextStyle(fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.white70 : deepGreen,
+                                            decoration: TextDecoration.underline,
+                                            decorationColor: (isDark ? Colors.white : deepGreen).withValues(alpha: 0.3))),
                                   ),
                                 ],
                               ],
@@ -1709,8 +1721,8 @@ class _PlanCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(plan.price, style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold,
-                            color: priceColor)),
+                            fontSize: 18, fontWeight: FontWeight.bold,
+                            color: isDark && plan.isElite ? Colors.white : priceColor)),
                         ]),
                       ),
                     ),
@@ -1725,7 +1737,7 @@ class _PlanCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00695C),
+                  color: deepGreen,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text('MOST POPULAR',
@@ -1739,8 +1751,17 @@ class _PlanCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE65100),
+                  gradient: LinearGradient(
+                    colors: [accentMint, const Color(0xFF00B38B)],
+                  ),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accentMint.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Text('★ BEST VALUE',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
