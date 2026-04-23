@@ -35,102 +35,103 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 void main() async {
-  // Catch Flutter framework errors
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    debugPrint('Flutter error: ${details.exception}');
-  };
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // Catch unhandled async errors
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('Async error: $error');
-    return true;
-  };
-  
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    // Add fallback error widget
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      return MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                  const SizedBox(height: 16),
-                  const Text('Something went wrong.', style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 16),
-                  Text(details.exception.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-                ],
-              ),
+  // 1. Setup fallback error UI immediately
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                const Text('Hustlr failed to start.',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(details.exception.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
             ),
           ),
         ),
-      );
-    };
+      ),
+    );
+  };
 
-    // Firebase (messaging + push)
+  // 2. Core initialization (Hive + Storage)
+  // We must have these to build the Provider tree.
+  try {
+    await Hive.initFlutter();
+    if (!Hive.isBoxOpen('appData')) {
+      await Hive.openBox('appData');
+    }
+    await StorageService.init();
+  } catch (e) {
+    debugPrint('FATAL: Storage init failed: $e');
+  }
+
+  // 3. Background Services (Firebase + GPS Restoration)
+  // We trigger these but do NOT block the UI thread waiting for them.
+  _startBackgroundServices();
+
+  // 4. Mount App
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = LocaleProvider();
+            unawaited(provider.loadSavedLocale());
+            return provider;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(appBox: Hive.box('appData')),
+        ),
+        ChangeNotifierProvider(create: (_) => MockDataService()),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<ClaimsBloc>(
+            create: (_) => ClaimsBloc(
+              apiService: ApiService.instance,
+              supabase: null,
+            ),
+          ),
+          BlocProvider<PolicyBloc>(
+            create: (_) => PolicyBloc(apiService: ApiService.instance),
+          ),
+        ],
+        child: const ShieldGigApp(),
+      ),
+    ),
+  );
+}
+
+/// Robust background initialization that won't block the splash screen.
+Future<void> _startBackgroundServices() async {
+  try {
+    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Ensure storage layers are ready before providers that read Hive/Prefs are built.
-    await _initializeAppServices();
+    // Setup Notifications
     await NotificationService.initialize();
 
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(
-            create: (_) {
-              final provider = LocaleProvider();
-              unawaited(provider.loadSavedLocale());
-              return provider;
-            },
-          ),
-          ChangeNotifierProvider(
-            create: (_) => ThemeProvider(appBox: Hive.box('appData')),
-          ),
-          ChangeNotifierProvider(create: (_) => MockDataService()),
-        ],
-        child: MultiBlocProvider(
-          providers: [
-            BlocProvider<ClaimsBloc>(
-              create: (_) => ClaimsBloc(
-                apiService: ApiService.instance,
-                supabase: null,
-              ),
-            ),
-            BlocProvider<PolicyBloc>(
-              create: (_) => PolicyBloc(apiService: ApiService.instance),
-            ),
-          ],
-          child: const ShieldGigApp(),
-        ),
-      ),
-    );
-  }, (error, stack) {
-    debugPrint('runZonedGuarded caught error: $error\n$stack');
-  });
-}
-
-Future<void> _initializeAppServices() async {
-  await Hive.initFlutter();
-  if (!Hive.isBoxOpen('appData')) {
-    await Hive.openBox('appData');
+    // Restore shift state
+    await ShiftTrackingService.instance.restoreActiveShiftOnLaunch();
+  } catch (e, stack) {
+    debugPrint('Background init error: $e\n$stack');
   }
-
-  await StorageService.init();
-
-  // Ensure we restore active shift status if the app was backgrounded or killed
-  // This prevents the "Go Online" prompt from reappearing incorrectly.
-  await ShiftTrackingService.instance.restoreActiveShiftOnLaunch();
 }
+
 
 class ShieldGigApp extends StatelessWidget {
   const ShieldGigApp({super.key});

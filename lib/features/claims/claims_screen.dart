@@ -289,7 +289,10 @@ class _ClaimsScreenState extends State<ClaimsScreen> {
                                               final triggerType = (claim['trigger_type'] as String? ?? '').toLowerCase();
                                               final status = (claim['status'] as String? ?? 'PENDING').toUpperCase();
                                               final rawDate = claim['created_at'] as String? ?? '';
-                                              final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+                                              String dateStr = rawDate;
+                                              if (rawDate.contains('T') && rawDate.length >= 10) {
+                                                dateStr = rawDate.substring(0, 10);
+                                              }
                                               final amount = (claim['gross_payout'] as num?)?.toInt() ?? 0;
                                               final claimId = claim['id'] ?? '';
                                               final hasGapWarning = claim['gps_gap_flag'] == true ||

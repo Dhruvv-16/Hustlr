@@ -773,6 +773,112 @@ class MockDataService extends ChangeNotifier {
     durationHours: 3,
   );
 
+  void triggerInternetBlackout() => _triggerClaim(
+    type: 'Internet Blackout',
+    message: 'Regional internet service disruption detected',
+    triggerType: 'internet_blackout',
+    severity: 0.7,
+    durationHours: 4,
+  );
+
+  void triggerCompoundDisruption() {
+    final userId = StorageService.userId;
+    final tempId = 'CLM_CMPD_${DateTime.now().millisecondsSinceEpoch}';
+    final payout = 245; // Compound rate
+
+    activeDisruption = ActiveDisruption(
+      triggerName: 'Compound Trigger',
+      triggerIcon: 'app',
+      message: 'Multiple disruptions detected (Platform + Rain)',
+      payoutExpected: payout,
+      creditDate: "Credited instantly",
+      isActive: true,
+    );
+
+    claims.insert(0, ClaimModel(
+      id: tempId,
+      type: 'Compound (Platform + Rain)',
+      date: 'Just now',
+      amount: payout,
+      status: 'APPROVED',
+      zone: worker.zone,
+      icon: 'app',
+      grossAmount: payout,
+      immediateAmount: (payout * 0.7).round(),
+      heldAmount: (payout * 0.3).round(),
+    ));
+
+    walletBalance += payout;
+    monthlySavings += payout;
+    transactions.insert(0, {
+      'type': 'credit',
+      'title': 'Compound Payout',
+      'subtitle': 'Platform + Rain · ${worker.zone}',
+      'amount': payout,
+      'date': 'Just now',
+    });
+
+    _persistDemoState();
+    notifyListeners();
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.walletUpdated();
+  }
+
+  void triggerFraudAttempt() {
+    final tempId = 'CLM_FRAUD_${DateTime.now().millisecondsSinceEpoch}';
+    final payout = 200; // Provisional credit
+
+    claims.insert(0, ClaimModel(
+      id: tempId,
+      type: 'Rain Disruption',
+      date: 'Just now',
+      amount: payout,
+      status: 'FLAGGED',
+      zone: worker.zone,
+      icon: 'rain',
+      frsScore: 87, // High fraud score
+      grossAmount: 450,
+      immediateAmount: 200,
+      heldAmount: 250,
+    ));
+
+    walletBalance += payout;
+    transactions.insert(0, {
+      'type': 'credit',
+      'title': 'Provisional Payout',
+      'subtitle': 'Pending investigation · ${worker.zone}',
+      'amount': payout,
+      'date': 'Just now',
+    });
+
+    _persistDemoState();
+    notifyListeners();
+    AppEvents.instance.claimUpdated();
+    AppEvents.instance.walletUpdated();
+  }
+
+  void creditWalletForDemo({
+    required int amount,
+    required String title,
+    required String subtitle,
+    bool addToSavings = false,
+  }) {
+    walletBalance += amount;
+    if (addToSavings) monthlySavings += amount;
+    
+    transactions.insert(0, {
+      'type': 'credit',
+      'title': title,
+      'subtitle': subtitle,
+      'amount': amount,
+      'date': 'Just now',
+    });
+
+    _persistDemoState();
+    notifyListeners();
+    AppEvents.instance.walletUpdated();
+  }
+
   void _triggerClaim({
     required String type,
     required String message,

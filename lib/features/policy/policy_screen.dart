@@ -64,14 +64,14 @@ List<_Plan> _getPlans(BuildContext context) {
   ];
 }
 
-// ─── Rider Data ───────────────────────────────────────────────────────────────
 class _Rider {
   final IconData icon;
   final String name;
   final String price;
   final bool defaultOn;
+  final int cost;
 
-  const _Rider({required this.icon, required this.name, required this.price, required this.defaultOn});
+  const _Rider({required this.icon, required this.name, required this.price, required this.defaultOn, this.cost = 0});
 }
 
 const _riders = [
@@ -543,16 +543,23 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
     return GestureDetector(
       onTap: () => setState(() => _coverageExpanded = !_coverageExpanded),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Theme.of(context).dividerColor),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Expanded(child: Text('COVERAGE DETAILS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-            Icon(_coverageExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+            const Text('COVERAGE DETAILS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Text('View', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+                Icon(_coverageExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 18),
+              ],
+            ),
           ],
         ),
       ),
@@ -560,25 +567,44 @@ class _CurrentPlanTabState extends State<_CurrentPlanTab> {
   }
 
   Widget _buildCoverageItem(Map<String, dynamic> item) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        color: isDark ? const Color(0xFF1C1F1C) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? theme.dividerColor : Colors.grey.shade200),
       ),
       child: Row(children: [
-        Icon(item['icon'] as IconData, color: Theme.of(context).primaryColor, size: 24),
-        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1B4332).withValues(alpha: 0.4) : const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(item['icon'] as IconData, color: theme.primaryColor, size: 24),
+        ),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(item['subtitle'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 2),
+              Text(item['subtitle'] as String, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey : Colors.black54)),
             ],
           ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.primaryColor,
+          ),
+          child: const Icon(Icons.check, size: 16, color: Colors.white),
         ),
       ]),
     );
@@ -623,40 +649,94 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     'Internet Blackout': false,
   };
 
+  final List<_Rider> _riders = [
+    _Rider(name: 'Bandh / Curfew', icon: Icons.groups_rounded, price: '+₹15/wk', cost: 15, defaultOn: false),
+    _Rider(name: 'Internet Blackout', icon: Icons.wifi_off_rounded, price: '+₹12/wk', cost: 12, defaultOn: false),
+  ];
+
+  List<_Plan> _getPlans(BuildContext context) {
+    return [
+      _Plan(
+        id: 'basic',
+        name: 'Basic Shield',
+        subtitle: 'Rain & heat protection only',
+        price: 'Rs.35/wk',
+      ),
+      _Plan(
+        id: 'standard',
+        name: 'Standard Shield',
+        subtitle: 'Everything in Basic + platform downtime + severe AQI',
+        price: 'Rs.49/wk',
+        isMostPopular: true,
+      ),
+      _Plan(
+        id: 'full',
+        name: 'Full Shield',
+        subtitle: 'Everything in Standard + bandh/curfew + internet blackout',
+        price: 'Rs.79/wk',
+        isElite: true,
+      ),
+    ];
+  }
+
+  int _planBasePremium(String id) {
+    switch (id) {
+      case 'basic': return 35;
+      case 'standard': return 49;
+      case 'full': return 79;
+      default: return 0;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final plans = _getPlans(context);
     final total = _calculateTotal();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.activeDays < 5) _buildProbationNotice(),
-          _sectionLabel(context, 'CHOOSE A SHIELD'),
-          const SizedBox(height: 12),
-          ...plans.map((p) => _PlanCard(
-                plan: p,
-                isSelected: _selectedPlan == p.id,
-                isLocked: (p.id == 'standard' || p.id == 'full') && widget.activeDays < 5,
-                activeDays: widget.activeDays,
-                onTap: () => setState(() => _selectedPlan = p.id),
-              )),
-          const SizedBox(height: 24),
-          if (_selectedPlan == 'standard') ...[
-            _sectionLabel(context, 'ADD-ONS'),
-            const SizedBox(height: 12),
-            ..._riders.map((r) => _RiderRow(
-                  rider: r,
-                  value: _riderToggles[r.name] ?? false,
-                  onChanged: (v) => setState(() => _riderToggles[r.name] = v),
-                )),
-          ],
-          const SizedBox(height: 32),
-          _buildActionSection(total),
-        ],
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.activeDays < 5) _buildProbationNotice(),
+                _sectionLabel(context, 'CHOOSE A SHIELD'),
+                const SizedBox(height: 12),
+                ...plans.map((p) => _PlanCard(
+                      plan: p,
+                      isSelected: _selectedPlan == p.id,
+                      isLocked: (p.id == 'standard' || p.id == 'full') && widget.activeDays < 5,
+                      activeDays: widget.activeDays,
+                      onTap: () => setState(() => _selectedPlan = p.id),
+                    )),
+                const SizedBox(height: 24),
+                if (_selectedPlan == 'standard' || _selectedPlan == 'full') ...[
+                  _sectionLabel(context, 'INCOME ADD-ONS'),
+                  const SizedBox(height: 12),
+                  if (_selectedPlan == 'full')
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Full Shield already includes all add-ons.',
+                          style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    )
+                  else
+                    ..._riders.map((r) => _RiderRow(
+                          rider: r,
+                          value: _riderToggles[r.name] ?? false,
+                          onChanged: (v) => setState(() => _riderToggles[r.name] = v),
+                        )),
+                ],
+                const SizedBox(height: 24),
+                _buildCoverageRules(),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ),
+        _buildActionSection(total),
+      ],
     );
   }
 
@@ -703,24 +783,89 @@ class _UpgradeTabState extends State<_UpgradeTab> {
     );
   }
 
-  Widget _buildActionSection(int total) {
+
+  Widget _buildCoverageRules() {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        borderRadius: BorderRadius.circular(16),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          title: const Text('Coverage Rules',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          leading: const Icon(Icons.gavel_rounded, size: 20),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            _ruleItem('45-minute minimum', 'disruption must last 45 continuous minutes'),
+            _ruleItem('24-hour cooling period', 'same trigger cannot fire again within 24 hours'),
+            _ruleItem('Shift overlap required', 'disruption must overlap shift by minimum 2 hours'),
+            _ruleItem('Post-activation only', 'events before activation are never covered'),
+            _ruleItem('Multi-event coverage enabled', 'Full Shield supports multiple trigger payouts, including compound disruptions'),
+            _ruleItem('Manual Disruption Filing', 'For disruptions not covered by automated triggers, report within 24 hours via Claims. Subject to evidence review.'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ruleItem(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 13),
+                children: [
+                  TextSpan(text: '$title — ', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                  TextSpan(text: desc, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionSection(int total) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: theme.dividerColor, width: 1)),
       ),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('TOTAL PREMIUM', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                Text('₹$total/week', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text('WEEKLY PREMIUM', 
+                    style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('₹$total', 
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const Text('/week', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
               ],
             ),
           ),
+          const SizedBox(width: 12),
           ElevatedButton(
             onPressed: () {
               context.push(AppRoutes.checkout, extra: {
@@ -729,11 +874,26 @@ class _UpgradeTabState extends State<_UpgradeTab> {
               });
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Theme.of(context).primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              backgroundColor: const Color(0xFF1B5E20),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              elevation: 0,
             ),
-            child: const Text('Proceed →'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Proceed to', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2)),
+                    Text('Payment', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2)),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_rounded, size: 16),
+              ],
+            ),
           ),
         ],
       ),
@@ -783,7 +943,12 @@ class _ActiveCoverageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF004734) : const Color(0xFF1B5E20);
+    final cardBg = isDark ? const Color(0xFF1B4332) : const Color(0xFF1B5E20);
+    
+    final policyId = activePolicy?['id']?.toString() ?? '-';
+    final planName = activePolicy?['plan_name'] ?? 'Standard Shield';
+    final rawPremium = activePolicy?['weekly_premium'];
+    final premium = rawPremium != null ? rawPremium.toString() : '49';
     
     return Container(
       width: double.infinity,
@@ -796,29 +961,91 @@ class _ActiveCoverageCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(activePolicy?['plan_name'] ?? 'Protection Active', 
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(planName, 
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 8),
+                    Text('Policy #$policyId', 
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
+                  ],
+                ),
               ),
-              const Icon(Icons.verified, color: Colors.white, size: 24),
+              Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.verified, color: cardBg, size: 20),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Text('VALIDITY', style: TextStyle(fontSize: 10, color: Colors.white60, fontWeight: FontWeight.bold)),
-          Text(_formatValidity(activePolicy), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          _GhostButton(
-            onPressed: () => PdfGenerator.generateAndPreviewCertificate(),
-            textColor: Colors.white,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.download, size: 16, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Download Certificate', style: TextStyle(color: Colors.white, fontSize: 13)),
-              ],
+          const SizedBox(height: 16),
+          Text('VALIDITY', style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.7), letterSpacing: 1.0)),
+          const SizedBox(height: 4),
+          Text(_formatValidity(activePolicy), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+          Text('WEEKLY PREMIUM', style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.7), letterSpacing: 1.0)),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text('₹$premium', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('/week', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Policy details button
+          InkWell(
+            onTap: () {},
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('POLICY DETAILS', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 11, letterSpacing: 0.5)),
+                  Row(
+                    children: [
+                      const Text('View', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 16),
+                    ],
+                  ),
+                ],
+              ),
             ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => PdfGenerator.generateAndPreviewCertificate(),
+                  icon: const Icon(Icons.download_rounded, size: 16, color: Colors.white),
+                  label: const Text('Download Certificate', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -826,7 +1053,7 @@ class _ActiveCoverageCard extends StatelessWidget {
   }
 
   String _formatValidity(Map<String, dynamic>? policy) {
-    if (policy == null) return 'N/A';
+    if (policy == null) return '-';
     final start = DateTime.tryParse(policy['created_at']?.toString() ?? '') ?? DateTime.now();
     final end = DateTime.tryParse(policy['commitment_end']?.toString() ?? '') ?? start.add(const Duration(days: 7));
     return '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}';
@@ -845,41 +1072,128 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isElite = plan.isElite;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: isLocked ? null : onTap,
       child: Opacity(
         opacity: isLocked ? 0.6 : 1.0,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? theme.primaryColor : theme.dividerColor, width: isSelected ? 2 : 1),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: isElite ? const Color(0xFFFF8C00) : (isDark ? const Color(0xFF1C1F1C) : Colors.white),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected 
+                    ? (isElite ? Colors.white : theme.primaryColor) 
+                    : (isDark ? theme.dividerColor : Colors.grey.shade300), 
+                  width: isSelected ? 2 : 1),
+                boxShadow: isSelected && !isDark ? [BoxShadow(color: theme.primaryColor.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))] : null,
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        if (isLocked) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.lock, size: 14, color: Colors.red),
-                        ],
-                      ],
+                    if (plan.accentLeft)
+                      Container(width: 4, color: isElite ? Colors.white.withValues(alpha: 0.5) : theme.primaryColor),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(plan.name, 
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600, 
+                                          fontSize: 16,
+                                          color: isElite ? Colors.white : theme.textTheme.titleLarge?.color
+                                        )),
+                                      if (isLocked) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.lock, size: 14, color: Colors.red),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(isLocked ? 'Unlocks in ${5 - activeDays} days' : plan.subtitle, 
+                                      style: TextStyle(
+                                        fontSize: 13, 
+                                        color: isElite ? Colors.white.withValues(alpha: 0.8) : (isLocked ? Colors.red : Colors.grey)
+                                      )),
+                                  if (isElite && !isLocked) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+                                      child: const Text('10% CASHBACK', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    GestureDetector(
+                                      onTap: () => context.push(AppRoutes.compoundTriggers),
+                                      child: const Text('Learn about compound triggers →', 
+                                          style: TextStyle(color: Colors.white, fontSize: 11, decoration: TextDecoration.underline)),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Text(plan.price, 
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold, 
+                                  fontSize: 16,
+                                  color: isElite ? Colors.white : theme.primaryColor
+                                )),
+                          ],
+                        ),
+                      ),
                     ),
-                    Text(isLocked ? 'Unlocks in ${5 - activeDays} days' : plan.subtitle, 
-                        style: TextStyle(fontSize: 12, color: isLocked ? Colors.red : Colors.grey)),
                   ],
                 ),
               ),
-              Text(plan.price, style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor)),
-            ],
-          ),
+            ),
+            if (plan.isMostPopular)
+              Positioned(
+                top: -10,
+                right: 24,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F5A40),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('MOST POPULAR', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                ),
+              ),
+            if (plan.isElite)
+              Positioned(
+                top: -10,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(6)),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star, color: Colors.orange, size: 10),
+                      SizedBox(width: 4),
+                      Text('BEST VALUE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -895,11 +1209,32 @@ class _RiderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(rider.icon),
-      title: Text(rider.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-      subtitle: Text(rider.price),
-      trailing: Switch(value: value, onChanged: onChanged),
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: Icon(rider.icon, color: theme.colorScheme.primary),
+        ),
+        title: Text(rider.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        subtitle: Text(rider.price),
+        trailing: Transform.scale(
+          scale: 0.8,
+          child: Switch(
+            value: value, 
+            onChanged: onChanged,
+            activeTrackColor: theme.primaryColor,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -925,26 +1260,49 @@ class _GhostButton extends StatelessWidget {
 }
 
 Widget _policyDisclosureCard(BuildContext context) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
   return InkWell(
     onTap: () => context.push(AppRoutes.insuranceCompliance),
+    borderRadius: BorderRadius.circular(12),
     child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+        color: isDark ? const Color(0xFF1B4332).withValues(alpha: 0.4) : const Color(0xFFE8F5E9),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? theme.colorScheme.primary.withValues(alpha: 0.3) : const Color(0xFFC8E6C9)),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: Theme.of(context).primaryColor),
-          const SizedBox(width: 12),
-          const Expanded(child: Text('Policy Disclosures & Compliance', style: TextStyle(fontWeight: FontWeight.bold))),
-          const Icon(Icons.chevron_right),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Insurance & data disclosure', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text('IRDAI norms, DPDP, triggers & payouts — tap to read', 
+                     style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
         ],
       ),
     ),
   );
 }
 
+
 Widget _sectionLabel(BuildContext context, String text) {
   return Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2));
 }
+

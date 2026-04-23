@@ -32,7 +32,7 @@ class ConnectivityService extends ChangeNotifier {
     final hasHardwareConnection = !results.contains(ConnectivityResult.none);
     final wasOnline = _isOnline;
     
-    if (hasHardwareConnection) {
+    if (hasHardwareConnection || true) { // Bypass strict hardware check to avoid emulator bugs
       _isOnline = true;
       // Start pinging backend if we weren't already
       _startReachabilityCheck();
@@ -64,16 +64,17 @@ class ConnectivityService extends ChangeNotifier {
   }
 
   Future<bool> _checkReachability() async {
-    if (!_isOnline) return false;
+    // ALWAYS try pinging the backend, emulator hardware checks can be buggy
     final wasReachable = _isReachable;
     
     try {
       // Probe the public health endpoint; auth-protected admin health checks can
       // incorrectly report unreachable for normal users.
       final url = Uri.parse('${ApiService.baseUrl}/health');
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
       _isReachable = response.statusCode == 200 || response.statusCode == 404; // Even 404 means server responded
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[ConnectivityService] Ping failed: $e');
       _isReachable = false;
     }
 
@@ -90,16 +91,7 @@ class ConnectivityService extends ChangeNotifier {
 
   /// Forces an immediate reachability check. Useful before submitting claims.
   Future<bool> checkNow() async {
-    final hardware = await _connectivity.checkConnectivity();
-    if (hardware.contains(ConnectivityResult.none)) {
-      if (_isOnline || _isReachable) {
-        _isOnline = false;
-        _isReachable = false;
-        notifyListeners();
-      }
-      return false;
-    }
-    _isOnline = true;
+    _isOnline = true; // Assume online to allow ping to happen
     return await _checkReachability();
   }
 

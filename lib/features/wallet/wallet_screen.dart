@@ -690,7 +690,10 @@ String _buildTxSubtitle(Map<String, dynamic> tx) {
       dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
       timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } else {
-      dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+      dateStr = rawDate;
+      if (rawDate.contains('T') && rawDate.length >= 10) {
+        dateStr = rawDate.substring(0, 10);
+      }
     }
   } else {
     dateStr = 'Today';

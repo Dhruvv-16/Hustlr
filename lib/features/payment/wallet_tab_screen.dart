@@ -14,11 +14,15 @@ import 'checkout_screen.dart'
 class WalletTabScreen extends StatefulWidget {
   final double amount;
   final String planName;
+  final bool isEligible;
+  final int activeDays;
   final VoidCallback onSwitchToCard;
 
   const WalletTabScreen({
     required this.amount,
     required this.planName,
+    required this.isEligible,
+    required this.activeDays,
     required this.onSwitchToCard,
     super.key,
   });
@@ -223,6 +227,54 @@ class _WalletTabScreenState extends State<WalletTabScreen> {
                   const SizedBox(height: 20),
                 ],
 
+                // ── Eligibility Lock Notice ──────────────────────────────────
+                if (!widget.isEligible) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F9FF),
+                      border: const Border(
+                        left: BorderSide(color: Color(0xFF0EA5E9), width: 3),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.lock_outline,
+                            color: Color(0xFF0284C7), size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Plan Locked',
+                                style: TextStyle(
+                                  color: Color(0xFF075985),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Premium plans are locked during your first 5 active days. '
+                                'You have ${widget.activeDays} days completed.',
+                                style: const TextStyle(
+                                  color: kTextGrey,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
                 // ── Add money label ──────────────────────────────────────────
                 const Text(
                   'Add money to wallet:',
@@ -366,7 +418,7 @@ class _WalletTabScreenState extends State<WalletTabScreen> {
                 child: SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: hasSufficient
+                    onPressed: (hasSufficient && widget.isEligible)
                         ? () {
                             // process wallet payment
                           }
@@ -394,9 +446,9 @@ class _WalletTabScreenState extends State<WalletTabScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          hasSufficient
-                              ? 'PAY NOW'
-                              : 'ADD BALANCE TO PAY',
+                          !widget.isEligible
+                              ? 'PLAN LOCKED'
+                              : (hasSufficient ? 'PAY NOW' : 'ADD BALANCE TO PAY'),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,

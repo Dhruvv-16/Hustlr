@@ -213,7 +213,10 @@ class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
     final status = (claim['status'] as String? ?? 'PENDING').toUpperCase();
     final displayName = claim['display_name'] as String? ?? _triggerLabel(triggerType);
     final rawDate = claim['created_at'] as String? ?? '';
-    final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+    String dateStr = rawDate;
+    if (rawDate.contains('T') && rawDate.length >= 10) {
+      dateStr = rawDate.substring(0, 10);
+    }
     final grossPayout = (claim['gross_payout'] as num?)?.toInt() ?? 0;
     final tranche1 = (claim['tranche1_amount'] as num?)?.toInt() ?? (grossPayout * 0.7).toInt();
     final tranche2 = (claim['tranche2_amount'] as num?)?.toInt() ?? (grossPayout * 0.3).toInt();

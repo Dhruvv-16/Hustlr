@@ -521,14 +521,14 @@ class ApiService {
             'severity': 0.82,
             'duration_hours': 3,
             'created_at': DateTime.now()
-                .subtract(const Duration(hours: 4))
+                .subtract(const Duration(days: 5))
                 .toIso8601String(),
             // ── Tamper-evident audit receipt ──────────────────────────────
             'audit_receipt_hash':
                 'a3f8c2d1e4b9071a6c5d2e8f3a7b4c9d1e6f2a8b5c7d3e9f1a4b6c8d2e5f7a1',
             'audit_receipt_version': 'HUSTLR-AUDIT-V1',
             'audit_generated_at': DateTime.now()
-                .subtract(const Duration(hours: 4))
+                .subtract(const Duration(days: 5))
                 .toIso8601String(),
             'audit_receipt_payload': {
               'claim_id': 'demo-claim-apr-001',

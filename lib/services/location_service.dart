@@ -122,6 +122,7 @@ class LocationService extends ChangeNotifier {
     try {
       Position initialPos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
       _currentLat = initialPos.latitude;
       _currentLon = initialPos.longitude;

@@ -111,7 +111,7 @@ class ShiftTrackingService extends ChangeNotifier {
       try {
         final initial = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 20),
+          timeLimit: const Duration(seconds: 10),
         );
         await _handlePosition(initial, isHeartbeat: false);
       } catch (e) {
