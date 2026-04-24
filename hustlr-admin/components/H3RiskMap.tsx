@@ -119,15 +119,19 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
       mapInstanceRef.current = map;
       initializingRef.current = false;
 
-      // Force Leaflet to recalculate its size — critical on Vercel where the
-      // container may be zero-sized on first paint inside a lazy-loaded card
-      const invalidate = () => map.invalidateSize({ animate: false });
+      // Guard: only call invalidateSize if the map instance still exists
+      const invalidate = () => {
+        if (mapInstanceRef.current) {
+          try { map.invalidateSize({ animate: false }); } catch {}
+        }
+      };
       setTimeout(invalidate, 200);
       setTimeout(invalidate, 600);
       setTimeout(invalidate, 1200);
 
+      let ro: ResizeObserver | null = null;
       if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
-        const ro = new ResizeObserver(invalidate);
+        ro = new ResizeObserver(invalidate);
         ro.observe(mapRef.current);
       }
 
