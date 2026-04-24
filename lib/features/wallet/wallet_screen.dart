@@ -63,7 +63,9 @@ class _WalletScreenState extends State<WalletScreen> {
     try {
       // Prioritize MockDataService for hackathon demo consistency
       final mock = context.read<MockDataService>();
-      if (mock.worker.id.startsWith('DEMO_')) {
+      final isDemoUser = mock.worker.id.startsWith('DEMO_') || mock.worker.id.startsWith('demo-') || mock.worker.id.startsWith('mock-');
+      
+      if (isDemoUser) {
         if (!mounted) return;
         setState(() {
           _balance        = mock.walletBalance;
@@ -87,7 +89,7 @@ class _WalletScreenState extends State<WalletScreen> {
         final isDemoMode = box.get('isDemoSession', defaultValue: false) as bool;
         final mockSvc = context.read<MockDataService>();
         
-        if (isDemoMode || mockSvc.worker.id.startsWith('DEMO_')) {
+        if (isDemoMode || isDemoUser) {
           // In demo mode: prioritize data from MockDataService which handles the disruption simulation
           _balance        = mockSvc.walletBalance;
           _totalPayouts   = mockSvc.monthlySavings; 
@@ -1412,8 +1414,6 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
   final primary   = isDark ? const Color(0xFFE1E3DE) : const Color(0xFF0D1B0F);
   final grey      = isDark ? const Color(0xFF91938D) : Colors.grey;
   final successBg = isDark ? const Color(0xFF0A0B0A) : Colors.white;
-  final refBg     = isDark ? const Color(0xFF1C1F1C) : const Color(0xFFE8F5E9);
-  final refText   = isDark ? const Color(0xFFE1E3DE) : Colors.black87;
   final btnTxt    = isDark ? const Color(0xFF0A0B0A) : Colors.white;
 
   bool cancelled = false;
@@ -1493,82 +1493,111 @@ void _processWithdrawal(BuildContext context, int amount, String upiId, {bool ba
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
 
-    // Also update mock service so demo mode shows change
+    // Update mock service so demo mode shows the balance change.
+    // withdrawToUPI() now handles _persistDemoState + walletUpdated internally.
     try { context.read<MockDataService>().withdrawToUPI(amount, upiId); } catch (_) {}
-    AppEvents.instance.walletUpdated();
 
     final formattedBalance = amount.toString().replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
     final txnRef = result['transaction_id']?.toString() ??
         'TXN-HUSTLR-${DateTime.now().millisecondsSinceEpoch % 100000}';
 
+    final dateStr = '${DateTime.now().day} ${_monthName(DateTime.now().month)} ${DateTime.now().year}, ${DateTime.now().hour > 12 ? DateTime.now().hour - 12 : (DateTime.now().hour == 0 ? 12 : DateTime.now().hour)}:${DateTime.now().minute.toString().padLeft(2, '0')} ${DateTime.now().hour >= 12 ? 'PM' : 'AM'}';
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (successCtx) => Dialog(
         backgroundColor: successBg,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          padding: const EdgeInsets.all(0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Top Section: Green Success Header
               Container(
-                width: 64,
-                height: 64,
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D6A2D),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF2D6A2D).withValues(alpha: 0.3),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_rounded, color: Colors.white, size: 32),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Withdrawal Successful',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '₹$formattedBalance',
+                      style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 34),
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Withdrawal successful',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: primary, height: 1.1),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                bankDirect
-                    ? 'Your transfer of ₹$formattedBalance to your linked bank account is complete.'
-                    : 'Your transfer of ₹$formattedBalance to $upiId is complete.',
-                style: TextStyle(color: grey, fontSize: 16, height: 1.35),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: refBg, borderRadius: BorderRadius.circular(14)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Reference Number', style: TextStyle(fontSize: 12, color: grey)),
-                  const SizedBox(height: 4),
-                  Text(txnRef, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: refText)),
-                ]),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(successCtx, rootNavigator: true).pop();
-                    AppEvents.instance.walletUpdated();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    foregroundColor: btnTxt,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text('Done', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: btnTxt)),
+              
+              // Receipt Details Section
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                child: Column(
+                  children: [
+                    _buildReceiptRow('To', bankDirect ? 'Linked Bank Account' : upiId, grey, primary),
+                    const SizedBox(height: 16),
+                    _buildReceiptRow('Date & Time', dateStr, grey, primary),
+                    const SizedBox(height: 16),
+                    _buildReceiptRow('Reference No.', txnRef, grey, primary),
+                    const SizedBox(height: 24),
+                    
+                    // Dashed Line
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Flex(
+                          direction: Axis.horizontal,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.max,
+                          children: List.generate(
+                            (constraints.constrainWidth() / 8).floor(),
+                            (index) => SizedBox(
+                              width: 4, height: 1.5,
+                              child: DecoratedBox(decoration: BoxDecoration(color: isDark ? const Color(0xFF2E332E) : Colors.grey[300])),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(successCtx, rootNavigator: true).pop();
+                          AppEvents.instance.walletUpdated();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: green,
+                          foregroundColor: btnTxt,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text('Done', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: btnTxt)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1684,5 +1713,29 @@ class _CashbackStatusCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _monthName(int month) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (month >= 1 && month <= 12) return months[month - 1];
+  return '';
+}
+
+Widget _buildReceiptRow(String label, String value, Color labelColor, Color valueColor) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: TextStyle(fontSize: 14, color: labelColor, fontWeight: FontWeight.w500)),
+      const SizedBox(width: 16),
+      Expanded(
+        child: Text(
+          value,
+          textAlign: TextAlign.right,
+          style: TextStyle(fontSize: 14, color: valueColor, fontWeight: FontWeight.w700),
+        ),
+      ),
+    ],
+  );
 }
 

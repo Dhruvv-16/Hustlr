@@ -16,6 +16,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/notification_service.dart';
+import '../../shared/widgets/notification_bell.dart';
 import '../../widgets/shift_status_dot.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/utils/pdf_generator.dart';
@@ -515,8 +516,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     final mockSvc = Provider.of<MockDataService>(context, listen: false);
     final isDemoMode = StorageService.getString('isDemoSession') == 'true';
     final isMockUser = mockSvc.worker.id.startsWith('DEMO_') ||
+        mockSvc.worker.id.startsWith('demo-') ||
+        mockSvc.worker.id.startsWith('mock-') ||
         mockSvc.worker.id.startsWith('00000000') ||
         userId?.startsWith('00000000') == true ||
+        userId?.startsWith('demo-') == true ||
+        userId?.startsWith('mock-') == true ||
         isDemoMode;
 
     if (isMockUser) {
@@ -701,9 +706,71 @@ class _DashboardScreenState extends State<DashboardScreen>
             'recommended_shift_windows': shiftWindows,
           };
 
+          // If no active disruption and no policy, also clear any stale nudge
+          if (mockSvc.activeDisruption == null) {
+            nudgeData = null;
+          }
+
           isLoading = false;
         });
       }
+
+      // ── Live API Blend (detached) ────────────────────────────────────────
+      // Fetch real weather + ML ISS for the persona's zone so the dashboard
+      // shows BOTH live conditions AND mock claims/disruptions simultaneously.
+      // This runs after the mock data has already painted the UI, so there's
+      // no perceived lag.
+      unawaited(() async {
+        try {
+          final zone = mockSvc.spoofedZone ?? mockSvc.worker.zone;
+          final liveDisruptions = await ApiService.instance.getDisruptions(zone);
+          final liveWeather = liveDisruptions['weather'] as Map<String, dynamic>? ?? {};
+          final liveNudge = liveDisruptions['predictive_nudge'] as Map<String, dynamic>?;
+          final apiRain = (liveWeather['rainfall_mm_1h'] as num?)?.toDouble() ?? 0.0;
+          final apiTemp = (liveWeather['temp_celsius'] as num?)?.toDouble() ?? 29.0;
+          final apiSource = liveWeather['source']?.toString() ?? 'Live API';
+
+          // Fetch real ML ISS score for the zone/persona
+          int? liveIss;
+          try {
+            final issData = await ApiService.instance.getIssScore();
+            liveIss = (issData['iss_score'] as num?)?.toInt();
+          } catch (_) {}
+
+          if (!mounted) return;
+          setState(() {
+            // Blend: weather is always real API (most accurate)
+            // but mock disruption overlay/trigger OVERRIDES rain reading
+            final hasRainDisruption = mockSvc.activeDisruption?.triggerIcon == 'rain';
+            final hasHeatDisruption = mockSvc.activeDisruption?.triggerIcon == 'heat';
+            weatherData = {
+              'source': '$apiSource + Mock Overlay',
+              'rainfall_mm_1h': hasRainDisruption ? 72.4 : apiRain,
+              'temp_celsius': hasHeatDisruption ? 42.0 : apiTemp,
+              // Preserve any extra real-API fields
+              ...liveWeather,
+              // Always label it as a blend so the debug panel is honest
+              'source': '$apiSource + Mock',
+            };
+            // Update ISS with real score if mock hasn't explicitly set one
+            if (liveIss != null) {
+              liveIssScore = liveIss;
+            }
+            // Merge live nudge with mock but only if no mock disruption is overriding
+            if (liveNudge != null && mockSvc.activeDisruption == null) {
+              nudgeData = {
+                'nudge_date': liveNudge['date'],
+                'probability_percentage': liveNudge['rain_chance'],
+                'description': liveNudge['message'] ?? liveNudge['description'],
+                'simulated_payout': liveNudge['expected_payout'] ?? 360,
+              };
+            }
+          });
+        } catch (_) {
+          // Non-critical: live API fetch failed, mock data already displayed
+        }
+      }());
+
       unawaited(_persistDashboardSnapshot());
       _isDashboardLoading = false;
       return;
@@ -755,9 +822,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       policyData = isPolicyActive && hasValidTier ? policyWithAliases : null;
 
       // WALLET FALLBACK: If user is a demo user, prioritize MockDataService wallet
-      final isDemoUser = userId?.startsWith('DEMO_') ?? false;
-      if (isDemoUser ||
-          (walletRes['balance'] == 0 && mockSvc.walletBalance > 0)) {
+      final isDemoUser = userId?.startsWith('DEMO_') == true ||
+          userId?.startsWith('demo-') == true ||
+          userId?.startsWith('mock-') == true ||
+          StorageService.getString('isDemoSession') == 'true';
+      if (isDemoUser) {
         walletData = {
           'balance': mockSvc.walletBalance.toInt(),
           'total_payouts': mockSvc.monthlySavings.toInt(),
@@ -1083,8 +1152,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         ((nudgeData?['disruption_count'] as num?)?.toInt() ?? 0);
 
     // DEMO SYNC: If in demo mode, prioritize mockSvc.missedAmount
-    final isDemoMode = StorageService.getString('isDemoSession') == 'true' ||
-        (userId?.startsWith('DEMO_') ?? false);
+    final isDemoMode =
+        userId?.startsWith('DEMO_') == true ||
+        userId?.startsWith('demo-') == true ||
+        userId?.startsWith('mock-') == true ||
+        StorageService.getString('isDemoSession') == 'true';
 
     final pAmount = isDemoMode
         ? mockSvc.missedAmount
@@ -1115,6 +1187,50 @@ class _DashboardScreenState extends State<DashboardScreen>
                             _buildHeader(context, displayUserName),
                             const SizedBox(height: 16),
                             _buildTitleSection(l10n, displayUserName),
+                            // ── Go Online ── shown prominently at top so users never miss it
+                            if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
+                              const SizedBox(height: 16),
+                              BatteryOptimizationPrompt(onAllGranted: () async {
+                                if (_isGoingOnline || ShiftTrackingService.instance.status != ShiftStatus.offline) return;
+                                setState(() => _isGoingOnline = true);
+                                if (kIsWeb) {
+                                  try {
+                                    final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                                    await ShiftTrackingService.instance.startShift(zone);
+                                    AppEvents.instance.profileUpdated();
+                                  } catch (e) {
+                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not go online on web: $e')));
+                                  } finally {
+                                    if (mounted) setState(() => _isGoingOnline = false);
+                                  }
+                                  return;
+                                }
+                                try {
+                                  final gpsEnabled = await Geolocator.isLocationServiceEnabled();
+                                  if (!gpsEnabled) {
+                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please turn on device location to go online')));
+                                    setState(() => _isGoingOnline = false);
+                                    return;
+                                  }
+                                  try {
+                                    final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high).timeout(const Duration(seconds: 15));
+                                    await StorageService.instance.setLastLat(position.latitude);
+                                    await StorageService.instance.setLastLng(position.longitude);
+                                  } catch (gpsError) {
+                                    print('[GoOnline] GPS timeout: $gpsError — using last known');
+                                  }
+                                  final zone = userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
+                                  await ShiftTrackingService.instance.startShift(zone);
+                                  AppEvents.instance.profileUpdated();
+                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are online.'), duration: Duration(seconds: 2)));
+                                } catch (e) {
+                                  print('[GoOnline] ERROR: $e');
+                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not go online: $e')));
+                                } finally {
+                                  if (mounted) setState(() => _isGoingOnline = false);
+                                }
+                              }),
+                            ],
                             const SizedBox(height: 20),
                             if (isLocationDenied || isGpsOff) ...[
                               _buildLocationStatusBanner(context,
@@ -1268,8 +1384,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           onPressed: () => setState(() => _debugMode = !_debugMode),
         ),
         const SizedBox(width: 8),
-        _buildMintIconBtn(Icons.notifications_rounded,
-            () => context.push(AppRoutes.notifications), mintColor, isDark),
+        NotificationBell(color: mintColor),
       ],
     );
   }
@@ -1717,7 +1832,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildCoverageChip('STARTS FROM ₹49/WEEK',
+                _buildCoverageChip('STARTS FROM ₹35/WEEK',
                     Icons.currency_rupee_rounded, mintColor, isDark),
                 _buildCoverageChip('TAP TO VIEW PLANS', Icons.touch_app_rounded,
                     mintColor, isDark),
@@ -1893,6 +2008,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               if (m == null) return const SizedBox.shrink();
               final label = t.translateSync(m['label'] as String? ?? '');
               final hours = m['hours'] as String? ?? '';
+              final text = hours.isNotEmpty ? '$label · $hours' : label;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
@@ -1903,7 +2019,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '$label · $hours',
+                        text,
                         style: TextStyle(
                           color: subColor,
                           fontSize: 12,
@@ -2212,84 +2328,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildActionCards(BuildContext context, AppLocalizations l10n) {
     return Column(
       children: [
-        if (ShiftTrackingService.instance.status == ShiftStatus.offline) ...[
-          BatteryOptimizationPrompt(onAllGranted: () async {
-            // Guard: don't start if already active or going online
-            if (_isGoingOnline ||
-                ShiftTrackingService.instance.status != ShiftStatus.offline) {
-              return;
-            }
-
-            setState(() => _isGoingOnline = true);
-
-            // Web: no permission_handler support
-            if (kIsWeb) {
-              try {
-                final zone =
-                    userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
-                await ShiftTrackingService.instance.startShift(zone);
-                AppEvents.instance.profileUpdated();
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not go online on web: $e')),
-                  );
-                }
-              } finally {
-                if (mounted) setState(() => _isGoingOnline = false);
-              }
-              return;
-            }
-
-            try {
-              final gpsEnabled = await Geolocator.isLocationServiceEnabled();
-              if (!gpsEnabled) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Please turn on device location to go online')),
-                  );
-                }
-                setState(() => _isGoingOnline = false);
-                return;
-              }
-
-              try {
-                final position = await Geolocator.getCurrentPosition(
-                  desiredAccuracy: LocationAccuracy.high,
-                ).timeout(const Duration(seconds: 15));
-                await StorageService.instance.setLastLat(position.latitude);
-                await StorageService.instance.setLastLng(position.longitude);
-              } catch (gpsError) {
-                print('[GoOnline] GPS timeout: $gpsError — using last known');
-              }
-
-              final zone =
-                  userZone?.isNotEmpty == true ? userZone! : 'Local Zone';
-              await ShiftTrackingService.instance.startShift(zone);
-              AppEvents.instance.profileUpdated();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('You are online.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            } catch (e) {
-              print('[GoOnline] ERROR: $e');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Could not go online: $e')),
-                );
-              }
-            } finally {
-              if (mounted) setState(() => _isGoingOnline = false);
-            }
-          }),
-          const SizedBox(height: 12),
-        ],
         Row(
           children: [
             Expanded(

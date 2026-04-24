@@ -2,8 +2,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 import { ZONES } from '@/lib/constants';
 import { bcrColor, riskBadge } from '@/lib/utils';
-import { fetchRiskPools, fetchZoneDisruption } from '@/lib/api';
-import { API_BASE } from '@/lib/constants';
+import { fetchProphetForecast, fetchRiskPools, fetchZoneDisruption } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useAdminData } from '@/components/AdminContext';
@@ -26,10 +25,23 @@ const toRiskBand = (bcr: number): 'LOW' | 'MEDIUM' | 'HIGH' => {
   return 'LOW';
 };
 
+// Illustrative 7-day forecast used as offline fallback so the chart is
+// never blank when the Render free-tier ML service is asleep.
+const PROPHET_FALLBACK = [
+  { date: 'Day 1', disruption_probability: 0.04, trigger_type: 'none' },
+  { date: 'Day 2', disruption_probability: 0.07, trigger_type: 'none' },
+  { date: 'Day 3', disruption_probability: 0.18, trigger_type: 'heavy_rain' },
+  { date: 'Day 4', disruption_probability: 0.34, trigger_type: 'heavy_rain' },
+  { date: 'Day 5', disruption_probability: 0.51, trigger_type: 'heavy_rain' },
+  { date: 'Day 6', disruption_probability: 0.22, trigger_type: 'heavy_rain' },
+  { date: 'Day 7', disruption_probability: 0.09, trigger_type: 'none' },
+];
+
 export default function ZoneHeatmap() {
-  const { analytics, useMockData } = useAdminData();
+  const { analytics } = useAdminData();
   const [prophetData, setProphetData] = useState<any[]>([]);
   const [prophetLoading, setProphetLoading] = useState(true);
+  const [prophetApiOnline, setProphetApiOnline] = useState<boolean | null>(null);
   const [zones, setZones] = useState<ZoneView[]>(
     ZONES.map((z) => ({ ...z, trigger: z.disruption ? 'Disruption' : 'None' })),
   );
@@ -42,24 +54,6 @@ export default function ZoneHeatmap() {
         ...z,
         trigger: z.disruption ? 'Disruption' : 'None',
       }));
-
-      if (useMockData) {
-        const mockZones: ZoneView[] = ZONES.map(z => {
-          const bcr = Math.round(Math.random() * 50) + 10;
-          const disruption = Math.random() > 0.85;
-          return {
-             ...z,
-             bcr,
-             risk: toRiskBand(bcr),
-             disruption,
-             trigger: disruption ? 'Severe Weather' : 'None',
-             claims_today: Math.round(Math.random() * 45),
-             workers: 1500 + Math.round(Math.random() * 3000)
-          };
-        });
-        if (alive) setZones(mockZones);
-        return;
-      }
 
       try {
         const pools = await fetchRiskPools();
@@ -114,7 +108,7 @@ export default function ZoneHeatmap() {
     return () => {
       alive = false;
     };
-  }, [useMockData]);
+  }, []);
 
   useEffect(() => {
     if (!analytics?.summary?.totalClaims) return;
@@ -131,54 +125,25 @@ export default function ZoneHeatmap() {
   }, [analytics?.summary?.totalClaims]);
 
   useEffect(() => {
-    let alive = true;
-    if (useMockData) {
-      setProphetLoading(true);
-      setTimeout(() => {
-        if (!alive) return;
-        const mockProphet = Array.from({ length: 7 }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() + i);
-          return {
-            date: `${date.getDate()}/${date.getMonth() + 1}`,
-            disruption_probability: Math.max(0, Math.min(1, 0.15 + (Math.sin(i) * 0.1) + Math.random() * 0.1))
-          };
-        });
-        setProphetData(mockProphet);
-        setProphetLoading(false);
-      }, 500);
-      return () => { alive = false; };
-    }
-
-    setProphetLoading(true);
-    fetch(`${API_BASE}/ml/forecast/${encodeURIComponent('Adyar Dark Store Zone')}?days=7`, {
-      signal: AbortSignal.timeout(65_000),
-    })
+    fetchProphetForecast('Adyar Dark Store Zone', 7)
       .then(res => {
-        if (!res.ok) throw new Error(`${res.status}`);
-        return res.json();
+        const forecasts = res?.forecasts || [];
+        if (forecasts.length > 0) {
+          setProphetData(forecasts);
+          setProphetApiOnline(true);
+        } else {
+          // API responded but returned empty — use fallback
+          setProphetData(PROPHET_FALLBACK);
+          setProphetApiOnline(false);
+        }
       })
-      .then(res => {
-        if (!alive) return;
-        const forecasts = (res?.forecasts || []).map((f: any) => ({
-          ...f,
-          // Convert "2026-04-25" → "25/4" for the chart X axis
-          date: f.date
-            ? (() => { const d = new Date(f.date); return `${d.getDate()}/${d.getMonth() + 1}`; })()
-            : f.date,
-        }));
-        setProphetData(forecasts);
+      .catch(() => {
+        // API offline — use illustrative fallback so the chart never goes blank
+        setProphetData(PROPHET_FALLBACK);
+        setProphetApiOnline(false);
       })
-      .catch((err) => {
-        console.error('[Prophet] forecast fetch failed:', err);
-        if (alive) setProphetData([]);
-      })
-      .finally(() => {
-        if (alive) setProphetLoading(false);
-      });
-      
-    return () => { alive = false; };
-  }, [useMockData]);
+      .finally(() => setProphetLoading(false));
+  }, []);
   return (
     <div className="space-y-6">
       <div className="card p-2 bg-black overflow-hidden shadow-[0_0_30px_rgba(63,255,139,0.05)] border-emerald-500/20">
@@ -259,42 +224,63 @@ export default function ZoneHeatmap() {
 
       {/* Prophet Forecasting API Chart */}
       <div className="card p-6 border-emerald-500/30 shadow-[0_0_30px_rgba(63,255,139,0.05)]">
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex flex-wrap justify-between items-start mb-6 gap-3">
           <div>
             <h3 className="font-black text-lg text-emerald-400">Prophet AI: 7-Day Forecasting</h3>
             <p className="text-sm text-white/50">Predicting heavy rain probability for Adyar Dark Store Zone.</p>
           </div>
-        <div className="flex items-center gap-3">
-          {prophetLoading ? (
-            <span className="text-xs text-white/40 animate-pulse border border-white/10 px-2 py-1 rounded">⚙️ Computing ML Vectors...</span>
-          ) : prophetData.length > 0 ? (
-            <span className="text-xs font-bold text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded">✅ API Native (0ms)</span>
-          ) : (
-            <span className="text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-1 rounded">❌ API Offline</span>
-          )}
+          <div className="flex items-center gap-3">
+            {prophetLoading ? (
+              <span className="text-xs text-white/40 animate-pulse border border-white/10 px-2 py-1 rounded">⚙️ Computing ML Vectors...</span>
+            ) : prophetApiOnline ? (
+              <span className="text-xs font-bold text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded">✅ Live API</span>
+            ) : (
+              <span className="text-xs font-bold text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1 rounded">⚠️ API Offline — Illustrative</span>
+            )}
+          </div>
         </div>
-        </div>
-        
-        {prophetData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={prophetData}>
-              <defs>
-                <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3FFF8B" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3FFF8B" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="date" tick={{ fill: '#91938D', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 1]} tick={{ fill: '#91938D', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={val => `${val*100}%`} />
-              <Tooltip
-                contentStyle={{ background: '#111311', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-              />
-              <Area type="monotone" dataKey="disruption_probability" name="Rain Risk" stroke="#3FFF8B" fillOpacity={1} fill="url(#colorRisk)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : !prophetLoading && (
-          <div className="text-center text-white/30 text-sm py-10">No Prophet dataset found. Try reloading to trigger cold start training.</div>
+
+        {/* Chart always renders — live data when online, fallback when offline */}
+        {!prophetLoading && (
+          <>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={prophetData}>
+                <defs>
+                  <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={prophetApiOnline ? '#3FFF8B' : '#f59e0b'} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={prophetApiOnline ? '#3FFF8B' : '#f59e0b'} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="date" tick={{ fill: '#91938D', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 1]} tick={{ fill: '#91938D', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={val => `${Math.round(Number(val)*100)}%`} />
+                <Tooltip
+                  contentStyle={{ background: '#111311', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
+                  formatter={(v: any) => [`${(Number(v)*100).toFixed(1)}%`, 'Disruption Probability']}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="disruption_probability"
+                  name="Rain Risk"
+                  stroke={prophetApiOnline ? '#3FFF8B' : '#f59e0b'}
+                  fillOpacity={1}
+                  fill="url(#colorRisk)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+
+            {!prophetApiOnline && (
+              <p className="text-center text-[11px] text-white/25 mt-3">
+                ML service is warming up (Render free tier). Chart shows illustrative Chennai monsoon pattern. Reload in ~30s to get live forecast.
+              </p>
+            )}
+          </>
+        )}
+
+        {prophetLoading && (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full" />
+          </div>
         )}
       </div>
     </div>

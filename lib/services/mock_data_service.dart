@@ -991,18 +991,33 @@ class MockDataService extends ChangeNotifier {
 
     final userId = StorageService.userId;
 
-    // Optimistic UI update
+    // Demo / DEMO_ users: update in-memory state only — never call the real API.
+    // Calling the real API with a fake userId causes it to fail and the
+    // .onError handler would silently revert the balance, making the withdrawal
+    // appear to have no effect.
+    final isDemoUser = worker.id.startsWith('DEMO_') ||
+        worker.id.startsWith('demo-') ||
+        worker.id.startsWith('mock-') ||
+        userId.startsWith('DEMO_') ||
+        userId.startsWith('demo-') ||
+        userId.startsWith('mock-') ||
+        userId.startsWith('00000000') ||
+        userId.isEmpty;
+
     walletBalance -= amount;
     transactions.insert(0, {
       'type': 'debit',
       'title': 'UPI Withdrawal',
-      'subtitle': upiId,
+      'subtitle': upiId.isEmpty ? 'Bank Direct' : upiId,
       'amount': amount,
       'date': 'Just now',
     });
+    // Persist so Hive cache stays consistent with the new balance
+    _persistDemoState();
     notifyListeners();
+    AppEvents.instance.walletUpdated();
 
-    if (userId.isEmpty) return;
+    if (isDemoUser) return; // ← demo done, skip real API call
 
     ApiService.walletDebit(
       userId: userId,
@@ -1013,10 +1028,12 @@ class MockDataService extends ChangeNotifier {
       // Success — optimistic UI already applied
     }).onError((e, _) {
       debugPrint('[MockDataService] walletDebit error: $e');
-      // Revert on failure
+      // Revert on real-API failure only
       walletBalance += amount;
       transactions.removeAt(0);
+      _persistDemoState();
       notifyListeners();
+      AppEvents.instance.walletUpdated();
     });
   }
 
@@ -1123,6 +1140,25 @@ class MockDataService extends ChangeNotifier {
         activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: 'Rain and Heat only');
         LocationService.instance.forceMockLocation('T Nagar Dark Store Zone', 13.0418, 80.2341, depthScore: 0.65);
         spoofedZone = 'T Nagar Dark Store Zone';
+        break;
+      case 'muthu':
+        worker = WorkerModel(id: 'DEMO_MUTHU', name: 'Muthu R', platform: 'Zepto', city: 'Chennai', zone: 'Tambaram', weeklyIncomeEstimate: 3200, issScore: 45);
+        activePolicy = PolicyModel(plan: 'No Policy', premium: 0, status: 'INACTIVE', coverageStart: '', coverageEnd: '', riders: [], coverageDescription: '');
+        hasActivePolicy = false;
+        LocationService.instance.forceMockLocation('Tambaram Dark Store Zone', 12.9249, 80.1000, depthScore: 0.85);
+        spoofedZone = 'Tambaram Dark Store Zone';
+        break;
+      case 'fraudster':
+        worker = WorkerModel(id: 'DEMO_FRAUDSTER', name: 'Unknown User', platform: 'Zepto', city: 'Chennai', zone: 'Adyar', weeklyIncomeEstimate: 4000, issScore: 20);
+        activePolicy = PolicyModel(plan: 'Standard Shield', premium: 49, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: '');
+        LocationService.instance.forceMockLocation('Adyar Dark Store Zone', 13.0067, 80.2206, depthScore: 0.1);
+        spoofedZone = 'Adyar Dark Store Zone';
+        break;
+      case 'santhosh':
+        worker = WorkerModel(id: 'DEMO_SANTHOSH', name: 'Santhosh', platform: 'Zepto', city: 'Chennai', zone: 'Anna Nagar', weeklyIncomeEstimate: 4500, issScore: 92);
+        activePolicy = PolicyModel(plan: 'Basic Shield', premium: 35, status: 'ACTIVE', coverageStart: _formatDate(DateTime.now().toIso8601String()), coverageEnd: _formatDate(DateTime.now().add(const Duration(days: 91)).toIso8601String()), riders: [], coverageDescription: '');
+        LocationService.instance.forceMockLocation('Anna Nagar Dark Store Zone', 13.0850, 80.2101, depthScore: 0.95);
+        spoofedZone = 'Anna Nagar Dark Store Zone';
         break;
     }
     
@@ -1238,6 +1274,18 @@ class MockDataService extends ChangeNotifier {
     box?.delete('demo_transactions');
     box?.delete('demo_claims');
     box?.delete('demo_activeDisruption');
+    box?.delete('demo_hasActivePolicy');
+    box?.delete('demo_activePolicyTier');
+    // Critically: clear isDemoSession so the dashboard stops the mock path
+    box?.delete('isDemoSession');
+    box?.put('isDemoSession', false); // matches how login_screen / auth_service reset it
+    spoofedZone = null;
+    shadowEvents = [
+      ShadowEventModel(triggerIcon: "rain", triggerName: "Rain Disruption", date: "Oct 12, 2025", claimableAmount: 120),
+      ShadowEventModel(triggerIcon: "downtime", triggerName: "Platform Downtime", date: "Oct 8, 2025", claimableAmount: 100),
+    ];
+    missedAmount = 220;
+    missedEventsCount = 2;
     
     // Reset ISS history
     issHistory = [55, 60, 52, 68, 58, 62];
