@@ -68,14 +68,35 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
   const mapInstanceRef = useRef<any>(null);
   const initializingRef = useRef(false);
 
+  // Stable dep key so Leaflet only re-initialises when actual zone data changes
+  const zoneKey = zonesData.map(z => `${z.name}:${z.risk}`).join(',');
+
   useEffect(() => {
     if (typeof window === 'undefined' || !mapRef.current) return;
-    if (mapInstanceRef.current || initializingRef.current) return; // already initialised or initializing
-    
+
+    // Destroy existing map before re-init (handles Hot Reload + StrictMode)
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+    if (initializingRef.current) return;
     initializingRef.current = true;
+
+    // Inject Leaflet CSS via <link> — must happen before map init
+    const cssId = 'leaflet-css';
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement('link');
+      link.id = cssId;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    }
 
     // Dynamically import Leaflet so it doesn't SSR
     import('leaflet').then((L) => {
+      if (!mapRef.current) { initializingRef.current = false; return; }
+
       // Fix the default icon path issue in Next.js
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
@@ -85,12 +106,10 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
       });
 
       const container = mapRef.current as any;
-      if (container && container._leaflet_id) {
-        // Prevent duplicate initialization error entirely
-        container._leaflet_id = null;
-      }
+      // Clear stale Leaflet internal ID so init doesn't throw
+      if (container._leaflet_id) container._leaflet_id = null;
 
-      const map = L.map(mapRef.current!, {
+      const map = L.map(container, {
         center: [13.028, 80.21],
         zoom: 11,
         zoomControl: true,
@@ -98,29 +117,31 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
       });
 
       mapInstanceRef.current = map;
+      initializingRef.current = false;
 
-      // Force Leaflet to recalculate its size after the container is revealed
-      // (it may be hidden/zero-sized on first paint inside a lazy-loaded card)
-      setTimeout(() => {
-        map.invalidateSize({ animate: false });
-      }, 400);
+      // Force Leaflet to recalculate its size — critical on Vercel where the
+      // container may be zero-sized on first paint inside a lazy-loaded card
+      const invalidate = () => map.invalidateSize({ animate: false });
+      setTimeout(invalidate, 200);
+      setTimeout(invalidate, 600);
+      setTimeout(invalidate, 1200);
 
-      // Also watch for container resize (e.g. sidebar or panel toggling)
       if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
-        const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+        const ro = new ResizeObserver(invalidate);
         ro.observe(mapRef.current);
       }
 
-      // Dark CartoDB basemap — same as DeckGL version
+      // Dark CartoDB basemap
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
         subdomains: 'abcd',
+        crossOrigin: 'anonymous',
       }).addTo(map);
 
       // Add circle markers for each zone
       zonesData.forEach((zone) => {
         const color = riskColor(zone.risk);
-        const radius = 800 + zone.risk * 8; // bigger = higher risk
+        const radius = 800 + zone.risk * 8;
 
         const circle = L.circle([zone.lat, zone.lng], {
           radius,
@@ -131,7 +152,6 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
           opacity: 0.8,
         }).addTo(map);
 
-        // Pulsing dot at centre
         const icon = L.divIcon({
           html: `<div style="
             width:10px;height:10px;border-radius:50%;
@@ -154,52 +174,46 @@ export default function H3RiskMap({ zones }: H3RiskMapProps) {
               <div style="color:#ccc;font-size:12px">Trigger: <b style="color:#fff">${zone.trigger}</b></div>
               <div style="color:#ccc;font-size:12px">Workers: <b style="color:#fff">${zone.workers}</b></div>
             </div>
-          `, {
-            className: 'hustlr-popup',
-            maxWidth: 220,
-          });
+          `, { className: 'hustlr-popup', maxWidth: 220 });
 
         circle.on('click', () => setSelected(zone));
       });
+
+      // Inject popup styles
+      if (!document.querySelector('#hustlr-popup-css')) {
+        const style = document.createElement('style');
+        style.id = 'hustlr-popup-css';
+        style.textContent = `
+          .hustlr-popup .leaflet-popup-content-wrapper {
+            background: rgba(5,10,18,0.95);
+            border: 1px solid rgba(63,255,139,0.3);
+            border-radius: 10px;
+            color: #fff;
+            backdrop-filter: blur(8px);
+          }
+          .hustlr-popup .leaflet-popup-tip { background: rgba(5,10,18,0.95); }
+          .hustlr-popup .leaflet-popup-close-button { color: #888; }
+          .leaflet-control-zoom a {
+            background: #1a1a1a !important;
+            color: #9ca3af !important;
+            border-color: #333 !important;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }).catch(err => {
+      console.error('[H3RiskMap] Leaflet load failed:', err);
+      initializingRef.current = false;
     });
-
-    // Inject Leaflet CSS
-    if (!document.querySelector('#leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-
-    // Inject popup styles
-    if (!document.querySelector('#hustlr-popup-css')) {
-      const style = document.createElement('style');
-      style.id = 'hustlr-popup-css';
-      style.textContent = `
-        .hustlr-popup .leaflet-popup-content-wrapper {
-          background: rgba(5,10,18,0.95);
-          border: 1px solid rgba(63,255,139,0.3);
-          border-radius: 10px;
-          color: #fff;
-          backdrop-filter: blur(8px);
-        }
-        .hustlr-popup .leaflet-popup-tip { background: rgba(5,10,18,0.95); }
-        .hustlr-popup .leaflet-popup-close-button { color: #888; }
-        .leaflet-control-zoom a {
-          background: #1a1a1a !important;
-          color: #9ca3af !important;
-          border-color: #333 !important;
-        }
-      `;
-      document.head.appendChild(style);
-    }
 
     return () => {
       mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
+      initializingRef.current = false;
     };
-  }, [zonesData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneKey]);
+
 
   const sorted = [...zonesData].sort((a, b) => b.risk - a.risk);
 

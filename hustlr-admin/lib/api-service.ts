@@ -124,11 +124,14 @@ class AdminApiService {
   static async getPoolSummary() {
     if (AdminApiService.useMockData) {
       await new Promise(resolve => setTimeout(resolve, 800));
+      // 10,450 workers × ₹85.40 blended ARPU (Basic 30%×₹35 + Standard 50%×₹49 + Full 20%×₹79
+      // + B2B SaaS platform component) = ₹892,430/week
+      // BCR returned as PERCENT (e.g. 43.0) to match /api/admin/pool-summary format
       return {
-        weeklyPool: 472500,
-        bcr: 0.41,
+        weeklyPool: 892430,       // ₹8.92L/week → ₹4.64Cr/year
+        bcr: 43.0,                // 43% BCR — healthy, within 85% circuit breaker
         activePolicies: 10450,
-        reserve: 1850000,
+        reserve: 1850000,         // ₹18.5L static reserve fund (~4% of annual pool)
         circuitBreakerTripped: false,
       };
     }
