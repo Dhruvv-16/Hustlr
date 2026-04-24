@@ -473,11 +473,47 @@ async def fraud_score(req: ClaimScoreRequest):
 
 @app.get("/forecast/{zone_id}", tags=["Forecast"])
 async def get_forecast(zone_id: str, days: int = 7):
-    from prophet_service.prophet_model import generate_forecast
+    from prophet_service.prophet_model import load_zone_model, add_regressors
+    import numpy as np
+    from scipy.stats import norm
+    from datetime import datetime, timedelta
     try:
+        from prophet_service.prophet_model import generate_forecast
         return generate_forecast(zone_id, days)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        err_str = str(e)
+        # If regressors are missing from the future dataframe, handle inline
+        if "missing" in err_str.lower() or "regressor" in err_str.lower():
+            try:
+                import pandas as pd
+                model = load_zone_model(zone_id)
+                future = model.make_future_dataframe(periods=days, freq='D')
+                future = add_regressors(future)
+                forecast = model.predict(future)
+                future_fc = forecast.tail(days)
+                results = []
+                for _, row in future_fc.iterrows():
+                    yhat = float(np.exp(row["yhat"]))
+                    yhat_upper = float(np.exp(row["yhat_upper"]))
+                    yhat_lower = float(np.exp(row["yhat_lower"]))
+                    sigma = (yhat_upper - yhat_lower) / (2 * 1.28)
+                    prob = float(norm.cdf(15.0, loc=yhat, scale=sigma)) if sigma > 0 else (1.0 if yhat < 15.0 else 0.0)
+                    prob = float(np.clip(prob, 0.0, 1.0))
+                    trigger = "none"
+                    if prob > 0.05:
+                        trigger = "extreme_rain" if prob > 0.3 else "heavy_rain"
+                    results.append({
+                        "date": row["ds"].strftime("%Y-%m-%d"),
+                        "predicted_demand_units": round(yhat, 2),
+                        "disruption_probability": round(prob, 4),
+                        "trigger_type": trigger,
+                        "expected_payout_standard_shield": 40.0 if trigger != "none" else 0.0
+                    })
+                return {"zone_id": zone_id, "forecasts": results}
+            except Exception as inner_e:
+                raise HTTPException(status_code=500, detail=str(inner_e))
+        raise HTTPException(status_code=500, detail=err_str)
+
 
 @app.post("/forecast/retrain", tags=["Forecast"])
 async def retrain_forecast():

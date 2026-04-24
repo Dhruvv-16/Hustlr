@@ -478,55 +478,70 @@ router.get("/risk-pools", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { city, riskType } = req.query;
 
+    // Fetch risk_pools without FK joins (claims relationship doesn't exist in schema)
     let query = supabase
       .from("risk_pools")
-      .select(
-        `
-        *,
-        policies:policies(count),
-        claims:claims(count),
-        pool_health(week_start, premiums_collected, claims_paid, loss_ratio)
-      `,
-      )
+      .select("*")
       .order("loss_ratio", { ascending: false });
 
     if (city) query = query.eq("city", city);
     if (riskType) query = query.eq("risk_type", riskType);
 
-    const { data, error } = await query;
+    const { data: poolsRaw, error } = await query;
 
     if (error) throw error;
 
-    if (!data || data.length === 0) {
-      // Fallback: Generate live data from policies/claims for the main zones
+    if (!poolsRaw || poolsRaw.length === 0) {
+      // Fallback: generate live zone data from policies + claims directly
       const zones = ['Adyar', 'T. Nagar', 'Anna Nagar', 'Velachery', 'Tambaram', 'Perungudi'];
-      
-      const { data: allPolicies } = await supabase.from('policies').select('id, status');
-      const { data: allClaims } = await supabase.from('claims').select('id, gross_payout');
-      
-      const activeCount = allPolicies?.filter(p => p.status === 'active').length || 0;
+
+      const { data: allPolicies } = await supabase.from('policies').select('id, status, zone');
+      const { data: allClaims } = await supabase.from('claims').select('id, gross_payout, zone');
+
       const totalPayout = allClaims?.reduce((acc, c) => acc + (c.gross_payout || 0), 0) || 0;
-      const totalPremium = (allPolicies?.length || 0) * 49; // Average premium
+      const totalPremium = (allPolicies?.filter(p => p.status === 'active').length || 0) * 49;
       const globalBcr = totalPremium > 0 ? (totalPayout / totalPremium) * 100 : 0;
+      const activeCount = allPolicies?.filter(p => p.status === 'active').length || 0;
 
       const fallbackPools = zones.map(z => ({
         zone: z,
         city: 'Chennai',
         risk_type: 'weather',
-        bcr: globalBcr + (Math.random() * 10 - 5), // Slight variation
+        bcr: Math.max(0, globalBcr + (Math.random() * 10 - 5)),
         claims_count: Math.round((allClaims?.length || 0) / zones.length),
-        active_policies: Math.round(activeCount / zones.length)
+        active_policies: Math.round(activeCount / zones.length),
+        loss_ratio: globalBcr / 100,
       }));
-      
+
       return res.json({ pools: fallbackPools });
     }
 
-    res.json({ pools: data });
+    // Enrich pools with policy + claim counts from separate fetches
+    const { data: allPolicies } = await supabase.from('policies').select('id, status, pool_id');
+    const { data: allClaims } = await supabase.from('claims').select('id, gross_payout, pool_id');
+
+    const policiesByPool = (allPolicies || []).reduce((acc, p) => {
+      if (p.pool_id) { acc[p.pool_id] = (acc[p.pool_id] || 0) + 1; }
+      return acc;
+    }, {});
+    const claimsByPool = (allClaims || []).reduce((acc, c) => {
+      if (c.pool_id) { acc[c.pool_id] = (acc[c.pool_id] || 0) + 1; }
+      return acc;
+    }, {});
+
+    const enriched = poolsRaw.map(pool => ({
+      ...pool,
+      active_policies: policiesByPool[pool.id] || pool.active_policies || 0,
+      claims_count: claimsByPool[pool.id] || pool.claims_count || 0,
+    }));
+
+    res.json({ pools: enriched });
   } catch (error) {
     console.error("Error fetching risk pools:", error);
     res.status(500).json({ error: "Failed to fetch risk pools" });
   }
 });
+
 
 // Adjust risk pool
 router.put(

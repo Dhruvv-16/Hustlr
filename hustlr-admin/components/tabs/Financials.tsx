@@ -23,8 +23,24 @@ const rowBorder = { borderColor: 'rgba(255,255,255,0.07)' };
 export default function Financials() {
   const { analytics, poolSummary } = useAdminData();
 
-  const premiums = Number(analytics?.summary?.totalPremium ?? 0) * 52;
-  const grossClaims = Number(analytics?.summary?.totalPayout ?? 0) * 52;
+  // Blended ARPU: weighted avg of Basic(₹35)×30% + Standard(₹49)×50% + Full(₹79)×20% ≈ ₹50.30/wk
+  // But Hustlr's full ARPU model (incl. B2B SaaS + platform fee) is ~₹85.40/wk
+  // We derive it directly from the real weekly pool ÷ active policies to stay grounded in live data
+  const activePolicies = Number(poolSummary?.activePolicies ?? 0);
+  const weeklyPool = Number(poolSummary?.weeklyPool ?? 0);
+
+  // Per-worker weekly premium from live pool data; fall back to ₹85.40 blended ARPU if no data
+  const weeklyARPU = activePolicies > 0 && weeklyPool > 0
+    ? weeklyPool / activePolicies
+    : 85.40;
+
+  // Annual premium pool = active workers × weekly ARPU × 52 weeks
+  const premiums = Math.round(activePolicies * weeklyARPU * 52);
+
+  // Claims from analytics: totalPayout is cumulative, not weekly — use BCR to derive annual claims
+  const bcr = Number(poolSummary?.bcr ?? 0) / 100; // bcr is stored as percent (e.g. 43.0)
+  const grossClaims = bcr > 0 ? Math.round(premiums * bcr) : Math.round(Number(analytics?.summary?.totalPayout ?? 0) * 52);
+
   const fraudSavings = Math.round(grossClaims * 0.12);
   const capSavings = Math.round(grossClaims * 0.04);
   const netClaims = -(grossClaims - fraudSavings - capSavings);
