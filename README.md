@@ -2162,11 +2162,11 @@ Even in a worst-case correlated week (10,000 workers affected), the system remai
 
 | Member         | Role                                          |
 | -------------- | --------------------------------------------- |
-| Inesh Agarwal  | Flutter Development                           |
+| Inesh Agarwal  | Flutter Development & UI/UX Design                        |
 | V Dhruv        | Backend / API + Guidewire Integration         |
 | Prisha Agarwal | AI/ML + Fraud Engine + NLP + Prophet          |
-| Daksh Gupta    | UI/UX Design                                  |
-| T Anil Kumar   | Insurance Domain + City Risk Profiles + Pitch |
+| Daksh Gupta    | AI/ML + Fraud Engine + NLP + Prophet + Pitch                                |
+| T Anil Kumar   | Insurance Domain + City Risk Profiles |
 
 ---
 
