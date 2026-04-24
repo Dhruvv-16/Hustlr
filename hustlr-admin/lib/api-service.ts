@@ -121,6 +121,23 @@ class AdminApiService {
     }
   }
 
+  static async getPoolSummary() {
+    if (AdminApiService.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return {
+        weeklyPool: 472500,
+        bcr: 0.41,
+        activePolicies: 10450,
+        reserve: 1850000,
+        circuitBreakerTripped: false,
+      };
+    }
+    
+    // Lazy import to avoid circular dependency issues if any
+    const api = await import('./api');
+    return await api.fetchPoolSummary();
+  }
+
   static async getFraudQueue(options: {
     page?: number;
     limit?: number;

@@ -2,7 +2,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 import { ZONES } from '@/lib/constants';
 import { bcrColor, riskBadge } from '@/lib/utils';
-import { fetchProphetForecast, fetchRiskPools, fetchZoneDisruption } from '@/lib/api';
+import { fetchRiskPools, fetchZoneDisruption } from '@/lib/api';
+import { API_BASE } from '@/lib/constants';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useAdminData } from '@/components/AdminContext';
@@ -26,7 +27,7 @@ const toRiskBand = (bcr: number): 'LOW' | 'MEDIUM' | 'HIGH' => {
 };
 
 export default function ZoneHeatmap() {
-  const { analytics } = useAdminData();
+  const { analytics, useMockData } = useAdminData();
   const [prophetData, setProphetData] = useState<any[]>([]);
   const [prophetLoading, setProphetLoading] = useState(true);
   const [zones, setZones] = useState<ZoneView[]>(
@@ -41,6 +42,24 @@ export default function ZoneHeatmap() {
         ...z,
         trigger: z.disruption ? 'Disruption' : 'None',
       }));
+
+      if (useMockData) {
+        const mockZones: ZoneView[] = ZONES.map(z => {
+          const bcr = Math.round(Math.random() * 50) + 10;
+          const disruption = Math.random() > 0.85;
+          return {
+             ...z,
+             bcr,
+             risk: toRiskBand(bcr),
+             disruption,
+             trigger: disruption ? 'Severe Weather' : 'None',
+             claims_today: Math.round(Math.random() * 45),
+             workers: 1500 + Math.round(Math.random() * 3000)
+          };
+        });
+        if (alive) setZones(mockZones);
+        return;
+      }
 
       try {
         const pools = await fetchRiskPools();
@@ -95,7 +114,7 @@ export default function ZoneHeatmap() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [useMockData]);
 
   useEffect(() => {
     if (!analytics?.summary?.totalClaims) return;
@@ -112,11 +131,54 @@ export default function ZoneHeatmap() {
   }, [analytics?.summary?.totalClaims]);
 
   useEffect(() => {
-    fetchProphetForecast('Adyar Dark Store Zone', 7)
-      .then(res => setProphetData(res.forecasts || []))
-      .catch(console.error)
-      .finally(() => setProphetLoading(false));
-  }, []);
+    let alive = true;
+    if (useMockData) {
+      setProphetLoading(true);
+      setTimeout(() => {
+        if (!alive) return;
+        const mockProphet = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() + i);
+          return {
+            date: `${date.getDate()}/${date.getMonth() + 1}`,
+            disruption_probability: Math.max(0, Math.min(1, 0.15 + (Math.sin(i) * 0.1) + Math.random() * 0.1))
+          };
+        });
+        setProphetData(mockProphet);
+        setProphetLoading(false);
+      }, 500);
+      return () => { alive = false; };
+    }
+
+    setProphetLoading(true);
+    fetch(`${API_BASE}/ml/forecast/${encodeURIComponent('Adyar Dark Store Zone')}?days=7`, {
+      signal: AbortSignal.timeout(65_000),
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`${res.status}`);
+        return res.json();
+      })
+      .then(res => {
+        if (!alive) return;
+        const forecasts = (res?.forecasts || []).map((f: any) => ({
+          ...f,
+          // Convert "2026-04-25" → "25/4" for the chart X axis
+          date: f.date
+            ? (() => { const d = new Date(f.date); return `${d.getDate()}/${d.getMonth() + 1}`; })()
+            : f.date,
+        }));
+        setProphetData(forecasts);
+      })
+      .catch((err) => {
+        console.error('[Prophet] forecast fetch failed:', err);
+        if (alive) setProphetData([]);
+      })
+      .finally(() => {
+        if (alive) setProphetLoading(false);
+      });
+      
+    return () => { alive = false; };
+  }, [useMockData]);
   return (
     <div className="space-y-6">
       <div className="card p-2 bg-black overflow-hidden shadow-[0_0_30px_rgba(63,255,139,0.05)] border-emerald-500/20">

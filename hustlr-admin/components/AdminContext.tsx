@@ -1,13 +1,12 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import AdminApiService from '@/lib/api-service';
-import { fetchPoolSummary } from '@/lib/api';
 import type { AdminAnalytics, FraudCase, PayoutRequest, SystemHealth } from '@/lib/mock-data';
 
 interface AdminContextType {
   analytics: AdminAnalytics | null;
   systemHealth: SystemHealth | null;
-  poolSummary: Awaited<ReturnType<typeof fetchPoolSummary>> | null;
+  poolSummary: Awaited<ReturnType<typeof AdminApiService.getPoolSummary>> | null;
   fraudHighlights: FraudCase[];
   payoutHighlights: PayoutRequest[];
   loading: boolean;
@@ -29,7 +28,7 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
-  const [poolSummary, setPoolSummary] = useState<Awaited<ReturnType<typeof fetchPoolSummary>> | null>(null);
+  const [poolSummary, setPoolSummary] = useState<Awaited<ReturnType<typeof AdminApiService.getPoolSummary>> | null>(null);
   const [fraudHighlights, setFraudHighlights] = useState<FraudCase[]>([]);
   const [payoutHighlights, setPayoutHighlights] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +56,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const [analyticsRes, healthRes, poolRes, fraudRes, payoutRes] = await Promise.allSettled([
         AdminApiService.getAnalytics(),
         AdminApiService.getSystemHealth(),
-        fetchPoolSummary(),
+        AdminApiService.getPoolSummary(),
         AdminApiService.getFraudQueue({ limit: 5, status: 'FLAGGED' }),
         AdminApiService.getPayoutQueue({ limit: 5, status: 'APPROVED' }),
       ]);

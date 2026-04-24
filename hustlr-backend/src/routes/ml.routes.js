@@ -104,4 +104,24 @@ router.post("/gnn-ring-detect", async (req, res) => {
   }
 });
 
+// Prophet forecast proxy — GET /ml/forecast/:zone?days=7
+// Routes to Python ML service at /forecast/:zone
+router.get("/forecast/:zone", async (req, res) => {
+  try {
+    const zone = req.params.zone;
+    const days = req.query.days || 7;
+    const { data } = await axios.get(
+      `${ML_URL}/forecast/${encodeURIComponent(zone)}?days=${days}`,
+      { timeout: TIMEOUT },
+    );
+    res.json(data);
+  } catch (error) {
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(503).json({ error: `ML service unavailable: ${error.message}` });
+    }
+  }
+});
+
 module.exports = router;

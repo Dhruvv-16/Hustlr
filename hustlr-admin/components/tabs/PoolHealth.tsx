@@ -96,17 +96,17 @@ export default function PoolHealth({ pool, loading }: Props) {
     {
       key: 'basic' as const,
       pct: planDist[0].value,
-      workers: totalPolicies > 0 ? planBuckets.basic.count : 3000,
+      workers: Math.round(active * (planDist[0].value / 100)),
     },
     {
       key: 'standard' as const,
       pct: planDist[1].value,
-      workers: totalPolicies > 0 ? planBuckets.standard.count : 5000,
+      workers: Math.round(active * (planDist[1].value / 100)),
     },
     {
       key: 'full' as const,
       pct: planDist[2].value,
-      workers: totalPolicies > 0 ? planBuckets.full.count : 2000,
+      workers: Math.round(active * (planDist[2].value / 100)),
     },
   ];
 

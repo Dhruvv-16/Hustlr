@@ -316,6 +316,9 @@ class MockAdminDataService {
       'Timing irregularity',
     ];
 
+      const planTier = this.getPlanTier();
+      const weeklyPremium = planTier === 'basic' ? 35 : planTier === 'standard' ? 49 : 79;
+
     return {
       id: `claim_${Math.floor(this.random() * 10000)}`,
       userId: `user_${Math.floor(this.random() * 1000)}`,
@@ -324,8 +327,8 @@ class MockAdminDataService {
       trustScore: Math.floor(this.random() * 1000),
       trustTier: this.getTrustTier(Math.floor(this.random() * 1000)),
       policyId: `policy_${Math.floor(this.random() * 500)}`,
-      planTier: this.getPlanTier(),
-      weeklyPremium: Math.floor(this.random() * 200) + 50,
+      planTier,
+      weeklyPremium,
       fraudStatus: statuses[Math.floor(this.random() * statuses.length)],
       fraudScore: Math.floor(this.random() * 100),
       triggerType: this.getTriggerType(),
@@ -340,6 +343,9 @@ class MockAdminDataService {
   }
 
   private static generateUser(index: number): AdminUser {
+    const policyTier = this.getPlanTier();
+    const weeklyPremium = policyTier === 'basic' ? 35 : policyTier === 'standard' ? 49 : 79;
+
     return {
       id: `user_${Math.floor(this.random() * 10000)}`,
       name: this.generateName(),
@@ -352,8 +358,8 @@ class MockAdminDataService {
       cashbackEarned: Math.floor(this.random() * 5000),
       cashbackPending: Math.floor(this.random() * 500),
       activePolicy: this.random() > 0.5,
-      policyTier: this.getPlanTier(),
-      weeklyPremium: Math.floor(this.random() * 200) + 50,
+      policyTier,
+      weeklyPremium,
       claimsCount: Math.floor(this.random() * 20),
       lastClaimDate: this.random() > 0.5 ? new Date(Date.now() - Math.floor(this.random() * 30 * 24 * 60 * 60 * 1000)) : undefined,
       kycStatus: this.getKycStatus(),
@@ -380,17 +386,22 @@ class MockAdminDataService {
 
   private static generatePolicy(index: number): AdminPolicy {
     const statuses = ['active', 'expired', 'cancelled', 'suspended'];
+    const planTier = this.getPlanTier();
+    const basePremium = planTier === 'basic' ? 35 : planTier === 'standard' ? 49 : 79;
+    const maxWeeklyPayout = planTier === 'basic' ? 210 : planTier === 'standard' ? 340 : 500;
+    const maxDailyPayout = planTier === 'basic' ? 100 : planTier === 'standard' ? 150 : 250;
+
     return {
       id: `policy_${Math.floor(this.random() * 10000)}`,
       userId: `user_${Math.floor(this.random() * 1000)}`,
       userName: this.generateName(),
-      planTier: this.getPlanTier(),
-      basePremium: Math.floor(this.random() * 100) + 30,
-      zoneAdjustment: Math.floor(this.random() * 50),
-      issAdjustment: Math.floor(this.random() * 30),
-      weeklyPremium: Math.floor(this.random() * 200) + 50,
-      maxWeeklyPayout: Math.floor(this.random() * 1000) + 500,
-      maxDailyPayout: Math.floor(this.random() * 300) + 100,
+      planTier,
+      basePremium,
+      zoneAdjustment: 0,
+      issAdjustment: 0,
+      weeklyPremium: basePremium,
+      maxWeeklyPayout,
+      maxDailyPayout,
       status: statuses[Math.floor(this.random() * statuses.length)],
       autoRenew: this.random() > 0.5,
       coverageStart: new Date(Date.now() - Math.floor(this.random() * 90 * 24 * 60 * 60 * 1000)),

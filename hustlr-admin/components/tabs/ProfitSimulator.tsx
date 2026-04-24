@@ -180,8 +180,8 @@ export default function ProfitSimulator() {
 
       {/* Top Metrics row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Monthly Premium Pool" value={`₹${fmt(Math.round(monthlyPremiumPool))}`} sub="Gross actuarial inflow" color="#E1E3DE" />
-        <MetricCard label="Hustlr Total Revenue" value={`₹${fmt(Math.round(totalHustlrRev))}`} sub="MGA + Licensing Fees" color="#3FFF8B" />
+        <MetricCard label="Monthly Premium Pool" value={fmt(Math.round(monthlyPremiumPool))} sub="Gross actuarial inflow" color="#E1E3DE" />
+        <MetricCard label="Hustlr Total Revenue" value={fmt(Math.round(totalHustlrRev))} sub="MGA + Licensing Fees" color="#3FFF8B" />
         <MetricCard label="Underwriting Margin" value={`${(underwritingMargin * 100).toFixed(1)}%`} sub="Gross insurer profit" color={underwritingMargin > 0 ? '#3FFF8B' : '#E24B4A'} />
         <MetricCard label="Break-Even Scale" value={`${breakEvenWorkers.toLocaleString('en-IN')}`} sub="Workers needed for ₹50k fixed cost" color="#2196F3" />
       </div>
@@ -293,7 +293,7 @@ export default function ProfitSimulator() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-white/50 font-medium">Claims Outflow</span>
-                  <span className="font-bold text-red-400">₹{fmt(Math.round(estimatedClaimsOutflow))}</span>
+                  <span className="font-bold text-red-400">{fmt(Math.round(estimatedClaimsOutflow))}</span>
                 </div>
                 <div className="w-full bg-white/5 h-2 rounded overflow-hidden">
                   <div className="bg-red-400/80 h-full" style={{ width: `${Math.min(100, bcr * 100)}%` }}></div>
@@ -303,7 +303,7 @@ export default function ProfitSimulator() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-white/50 font-medium">Hustlr MGA Fee (8%)</span>
-                  <span className="font-bold text-emerald-400">₹{fmt(Math.round(mgaRevenue))}</span>
+                  <span className="font-bold text-emerald-400">{fmt(Math.round(mgaRevenue))}</span>
                 </div>
                 <div className="w-full bg-white/5 h-2 rounded overflow-hidden">
                   <div className="bg-emerald-400/80 h-full" style={{ width: `8%` }}></div>
@@ -313,7 +313,7 @@ export default function ProfitSimulator() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-white/50 font-medium">Platform Licensing</span>
-                  <span className="font-bold text-[#2196F3]">₹{fmt(Math.round(platformRevenue))}</span>
+                  <span className="font-bold text-[#2196F3]">{fmt(Math.round(platformRevenue))}</span>
                 </div>
                 <div className="w-full bg-white/5 h-2 rounded overflow-hidden">
                   <div className="bg-[#2196F3]/80 h-full" style={{ width: `100%` }}></div>
